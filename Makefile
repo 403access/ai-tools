@@ -1,4 +1,4 @@
-.PHONY: build app run preview clean icon
+.PHONY: build app run preview shots site clean icon
 
 # Compile the Swift package (debug).
 build:
@@ -17,6 +17,16 @@ preview:
 	swift build
 	Scripts/build-app.sh
 	open dist/OpenCodeBar.app --args --preview
+
+# Regenerate the docs/screenshots used by the website and README (2x).
+shots:
+	swift build
+	.build/debug/OpenCodeBar --screenshot docs/screenshots/live.png --scale 2
+	.build/debug/OpenCodeBar --screenshot docs/screenshots/usage.png --scale 2 --tab usage
+
+# Open the static website locally.
+site:
+	open docs/index.html
 
 # Regenerate the app icon.
 icon:

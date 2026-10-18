@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenCodeBar — OpenCode in your macOS menu bar</title>
+<meta name="description" content="A native macOS menu bar app for OpenCode. See running sessions, recent activity, and your usage stats — live, at a glance. Read-only and local-only.">
+<meta name="theme-color" content="#080b0a">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="assets/style.css">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="OpenCodeBar — OpenCode in your macOS menu bar">
+<meta property="og:description" content="See running OpenCode sessions, recent activity, and usage stats live from your menu bar. Native SwiftUI, read-only, local-only.">
+<meta property="og:image" content="https://403access.github.io/ai-tools/screenshots/live.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<script>document.documentElement.classList.add('js');</script>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top">
+      <img src="assets/logo.svg" alt="" width="26" height="26">
+      <span>OpenCodeBar</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="#install">Install</a>
+      <a href="#how">How it works</a>
+    </nav>
+    <span class="nav-spacer"></span>
+    <a class="btn btn-ghost" href="https://github.com/403access/ai-tools" target="_blank" rel="noopener">GitHub ↗</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="wrap hero-inner">
+      <span class="eyebrow reveal"><span class="pulse"></span> macOS 14+ · Native SwiftUI · Open source</span>
+      <h1 class="reveal">Your OpenCode activity,<br><span class="grad">one click away.</span></h1>
+      <p class="lede reveal">OpenCodeBar lives in your menu bar and shows what your OpenCode sessions are
+        doing — running work, recent history, and usage stats — live, without leaving the window you're in.</p>
+      <div class="cta reveal">
+        <a class="btn btn-primary" href="#install">Get started</a>
+        <a class="btn btn-ghost" href="https://github.com/403access/ai-tools" target="_blank" rel="noopener">View on GitHub</a>
+      </div>
+      <ul class="trust reveal">
+        <li>Read-only</li>
+        <li>Local-only</li>
+        <li>No telemetry</li>
+      </ul>
+
+      <div class="showcase reveal">
+        <div class="desktop">
+          <div class="menubar">
+            <svg class="mb-icon" style="opacity:.85" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.3 12.6c0-2 1.6-3 1.7-3.1-1-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7-.6 0-1.6-.7-2.6-.7-1.3 0-2.6.8-3.2 2-1.4 2.4-.4 6 1 8 .7 1 1.5 2 2.5 2 1 0 1.4-.6 2.6-.6s1.5.6 2.6.6c1.1 0 1.8-1 2.4-2 .8-1.1 1.1-2.2 1.1-2.2s-2.1-.8-2.2-3.1zM14.4 6.9c.5-.7.9-1.6.8-2.5-.8 0-1.7.5-2.3 1.2-.5.6-.9 1.5-.8 2.4.9.1 1.8-.4 2.3-1.1z"/></svg>
+            <div class="mb-menus"><span>Finder</span><span>File</span><span>Edit</span><span>View</span><span>Window</span></div>
+            <span class="mb-spacer"></span>
+            <span class="mb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.2 15.6a5.8 5.8 0 0 1 7.6 0"/><circle cx="12" cy="18.6" r="1.1" fill="currentColor" stroke="none"/></svg></span>
+            <span class="mb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="8" width="17" height="8.5" rx="2.4"/><rect x="3.7" y="9.7" width="11" height="5.1" rx="1.2" fill="currentColor" stroke="none"/><path d="M21 11.5v2.5" stroke-linecap="round"/></svg></span>
+            <span class="mb-app" aria-label="OpenCodeBar menu bar item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7.5l4.5 4.5L6 16.5"/><path d="M12.5 16.5h5.5"/></svg>
+              <b>2</b>
+            </span>
+            <span class="mb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.4"/><path d="m16 16 4.4 4.4"/></svg></span>
+            <span class="mb-clock">Mon 19 Oct 00:34</span>
+          </div>
+          <div class="desktop-body">
+            <div class="desktop-note">
+              <span class="kicker">Live</span>
+              <strong>2 sessions running</strong>
+              <p>Click the menu bar item to open the panel — running work, recent sessions, and usage, without leaving your window.</p>
+            </div>
+            <figure class="window">
+              <div class="window-bar">
+                <span class="lights"><span class="tl red"></span><span class="tl yellow"></span><span class="tl green"></span></span>
+                <span class="window-title">OpenCodeBar</span>
+                <span></span>
+              </div>
+              <img src="screenshots/live.png" alt="OpenCodeBar Live tab showing two running sessions and recent sessions" width="800" height="1252">
+            </figure>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="section" id="features">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Features</span>
+        <h2>Everything at a glance</h2>
+        <p>Two tabs, zero setup. OpenCodeBar reads the local OpenCode service and keeps itself up to date.</p>
+      </div>
+
+      <div class="grid features">
+        <article class="card reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></span>
+          <h3>Live sessions</h3>
+          <p>Running sessions update in real time over OpenCode's event stream, with a pulsing indicator, project, model, agent, elapsed time, and token count.</p>
+        </article>
+
+        <article class="card tone-blue reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 1.9"/></svg></span>
+          <h3>Recent history</h3>
+          <p>Your latest sessions with title, project, model, relative time, cost, and tokens — so you can pick up right where you left off.</p>
+        </article>
+
+        <article class="card tone-purple reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><rect x="5" y="11" width="3.4" height="6.5" rx="1.1"/><rect x="10.3" y="6.5" width="3.4" height="11" rx="1.1"/><rect x="15.6" y="13" width="3.4" height="4.5" rx="1.1"/></svg></span>
+          <h3>Usage overview</h3>
+          <p>Streak, active days, today's steps, prompts, sessions, total cost, tokens, and subagents — the numbers that add up over time.</p>
+        </article>
+
+        <article class="card tone-amber reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg></span>
+          <h3>Activity heatmap</h3>
+          <p>A GitHub-style contribution graph of your daily agent steps, so you can see momentum and quiet stretches in one glance.</p>
+        </article>
+
+        <article class="card tone-red reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="4" width="16" height="4.6" rx="2.3"/><rect x="3.5" y="9.7" width="11" height="4.6" rx="2.3"/><rect x="3.5" y="15.4" width="7" height="4.6" rx="2.3"/></svg></span>
+          <h3>Token mix</h3>
+          <p>Input, output, reasoning, and cache read/write broken out into a single stacked bar, so you can see where the tokens go.</p>
+        </article>
+
+        <article class="card reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="11" height="11" rx="2.6"/><path d="M9.5 2.5v3.2M14.5 2.5v3.2M9.5 18.3v3.2M14.5 18.3v3.2M2.5 9.5h3.2M2.5 14.5h3.2M18.3 9.5h3.2M18.3 14.5h3.2"/></svg></span>
+          <h3>Models &amp; tools</h3>
+          <p>Per-model steps and cost, plus a tool-call success/failure breakdown — including how much work went to subagents.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screenshots -->
+  <section class="section" id="screenshots">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Screenshots</span>
+        <h2>Take a closer look</h2>
+        <p>The panel is a native popover — dark, compact, and built to stay out of the way.</p>
+      </div>
+
+      <div class="shots">
+        <figure class="shot reveal">
+          <div class="window">
+            <div class="window-bar">
+              <span class="lights"><span class="tl red"></span><span class="tl yellow"></span><span class="tl green"></span></span>
+              <span class="window-title">OpenCodeBar</span>
+              <span></span>
+            </div>
+            <img src="screenshots/live.png" alt="OpenCodeBar Live tab" width="800" height="1252">
+          </div>
+          <figcaption><strong>Live.</strong> Running sessions stream in over SSE; recent sessions sit right below.</figcaption>
+        </figure>
+
+        <figure class="shot reveal">
+          <div class="window">
+            <div class="window-bar">
+              <span class="lights"><span class="tl red"></span><span class="tl yellow"></span><span class="tl green"></span></span>
+              <span class="window-title">OpenCodeBar</span>
+              <span></span>
+            </div>
+            <img src="screenshots/usage.png" alt="OpenCodeBar Usage tab" width="800" height="1252">
+          </div>
+          <figcaption><strong>Usage.</strong> Streaks, tiles, the activity heatmap, token mix, models, and tool calls.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- Install -->
+  <section class="section" id="install">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Install</span>
+        <h2>Get started</h2>
+        <p>Build a local <code>.app</code> bundle and drop it in your menu bar. No App Store, no signing hassle.</p>
+      </div>
+
+      <div class="install-grid">
+        <ol class="steps reveal">
+          <li>
+            <h3>Clone the repository</h3>
+            <p>Grab the source — it's a single Swift package with no runtime dependencies.</p>
+          </li>
+          <li>
+            <h3>Build and launch</h3>
+            <p><code>make run</code> compiles the release binary, assembles and ad-hoc signs <code>dist/OpenCodeBar.app</code>, then opens it.</p>
+          </li>
+          <li>
+            <h3>Keep it around (optional)</h3>
+            <p>Add the app in System Settings → General → Login Items to have it start with your Mac.</p>
+          </li>
+        </ol>
+
+        <div class="reveal">
+          <div class="term">
+            <div class="term-bar">
+              <span class="lights"><span class="tl red"></span><span class="tl yellow"></span><span class="tl green"></span></span>
+              <span>zsh — build</span>
+              <button class="copy-btn" id="copy" type="button">Copy</button>
+            </div>
+            <pre id="install-cmd" data-commands="git clone https://github.com/403access/ai-tools.git
+cd ai-tools
+make run"><span class="cmd">$</span> git clone https://github.com/403access/ai-tools.git
+<span class="cmd">$</span> cd ai-tools
+<span class="cmd">$</span> make run</pre>
+          </div>
+          <ul class="reqs">
+            <li>macOS 14 Sonoma+</li>
+            <li>Swift toolchain</li>
+            <li>OpenCode v2 service running</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How -->
+  <section class="section" id="how">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Under the hood</span>
+        <h2>How it works</h2>
+        <p>OpenCodeBar is a thin, read-only client over the OpenCode HTTP API.</p>
+      </div>
+
+      <div class="grid how-grid">
+        <article class="card reveal">
+          <div class="num">01</div>
+          <h3>Finds the service</h3>
+          <p>Reads the password from <code>service.json</code> and discovers the local port via the OpenCode CLI.</p>
+        </article>
+        <article class="card reveal">
+          <div class="num">02</div>
+          <h3>Authenticates locally</h3>
+          <p>Speaks HTTP Basic auth over loopback — the same flow the TUI uses. Nothing leaves your machine.</p>
+        </article>
+        <article class="card reveal">
+          <div class="num">03</div>
+          <h3>Polls a few endpoints</h3>
+          <p>Sessions, active sessions, projects, and aggregate stats — the read-only surface, and nothing more.</p>
+        </article>
+        <article class="card reveal">
+          <div class="num">04</div>
+          <h3>Streams live events</h3>
+          <p>Subscribes to the SSE event stream for instant updates, and reconnects automatically if the service moves.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <a class="brand" href="#top">
+      <img src="assets/logo.svg" alt="" width="22" height="22">
+      <span>OpenCodeBar</span>
+    </a>
+    <p>Monitor-only. Built for OpenCode.</p>
+    <nav class="links">
+      <a href="https://github.com/403access/ai-tools" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/403access/ai-tools/blob/main/NOTES.md" target="_blank" rel="noopener">Notes</a>
+      <a href="https://opencode.ai" target="_blank" rel="noopener">OpenCode</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  // Cross-fade sections into view as they scroll in (skipped without JS).
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in');
+          io.unobserve(entry.target);
+        }
+      }
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+  } else {
+    document.querySelectorAll('.reveal').forEach((el) => el.classList.add('in'));
+  }
+
+  // Copy the install commands.
+  const copyBtn = document.getElementById('copy');
+  const install = document.getElementById('install-cmd');
+  if (copyBtn && install) {
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(install.dataset.commands);
+        copyBtn.textContent = 'Copied';
+      } catch (e) {
+        copyBtn.textContent = 'Press ⌘C';
+      }
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1600);
+    });
+  }
+</script>
+
+</body>
+</html>

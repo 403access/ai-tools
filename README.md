@@ -74,6 +74,20 @@ The first build generates `Assets/AppIcon.icns` and ad-hoc signs the bundle.
 To launch at login, add `dist/OpenCodeBar.app` in **System Settings → General →
 Login Items**.
 
+## Website
+
+A static landing page lives in [`docs/`](docs/index.html) and uses the same
+screenshots referenced above. It is plain HTML/CSS with a small progressive-
+enhancement script — no build step.
+
+```sh
+open docs/index.html
+```
+
+To publish it with GitHub Pages: **Settings → Pages → Source: Deploy from a
+branch → `main` / `/docs`**. It is then served at
+`https://403access.github.io/ai-tools/`.
+
 ## Project layout
 
 ```
@@ -98,6 +112,9 @@ Scripts/
 - `--preview` runs the panel in a regular window instead of the menu bar
   popover, which makes screenshots and layout iteration easy.
   `--preview --tab usage` opens the Usage tab directly.
+- `--screenshot <path>` renders the panel offscreen to a PNG and exits.
+  `--screenshot out.png --scale 2 --tab usage` produces a 2x image for the
+  website and README.
 - The menu bar glyph uses SF Symbols (`terminal` / `terminal.fill`).
 
 ## Limitations
