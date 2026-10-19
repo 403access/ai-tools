@@ -22,6 +22,14 @@ observations. Last updated 2026-10-19.
 
 ## Known polish items
 
+- **Session detail view does not auto-follow new output.** It jumps to the
+  bottom on first load, then refreshes in place, so a running session keeps
+  streaming without yanking the scroll position. A "follow"/pause toggle would
+  be a nice addition for long-running sessions.
+- **Prompts are numbered per loaded window.** After "Load earlier", prompt
+  numbers still start at 1; they could instead count from the true start of the
+  session once full history is loaded.
+
 - **Plan limits redraw once a minute.** Rows re-render when the 60s poll lands,
   so the reset countdown can sit up to a minute stale. A `TimelineView` would
   tick it continuously if that ever matters.

@@ -151,6 +151,189 @@ struct Stats: Codable, Hashable, Sendable {
     var maxSteps: Int { activity.map(\.steps).max() ?? 0 }
 }
 
+// MARK: - Session messages
+
+/// Arbitrary JSON, used for tool inputs and metadata whose shape varies by tool.
+enum JSONValue: Decodable, Hashable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case null
+    case array([JSONValue])
+    case object([String: JSONValue])
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .null
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? container.decode(Double.self) {
+            self = .number(value)
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode([JSONValue].self) {
+            self = .array(value)
+        } else if let value = try? container.decode([String: JSONValue].self) {
+            self = .object(value)
+        } else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unsupported JSON value"
+            )
+        }
+    }
+
+    var stringValue: String? {
+        if case .string(let value) = self { return value }
+        return nil
+    }
+
+    /// A short one-line description for compact UI, e.g. a tool's command.
+    var compactDescription: String {
+        switch self {
+        case .string(let value):
+            return value.replacingOccurrences(of: "\n", with: " ")
+        case .number(let value):
+            return value == value.rounded() ? String(Int(value)) : String(value)
+        case .bool(let value):
+            return value ? "true" : "false"
+        case .null:
+            return "null"
+        case .array(let values):
+            return values.map(\.compactDescription).joined(separator: ", ")
+        case .object(let values):
+            let pairs = values.keys.sorted().map { "\($0): \(values[$0]!.compactDescription)" }
+            return pairs.joined(separator: ", ")
+        }
+    }
+
+    /// Multi-line JSON-ish rendering for expanded tool details.
+    func prettyString(indent: Int = 0) -> String {
+        let pad = String(repeating: " ", count: indent)
+        let childPad = String(repeating: " ", count: indent + 2)
+        switch self {
+        case .string(let value):
+            return value
+        case .number(let value):
+            return value == value.rounded() ? String(Int(value)) : String(value)
+        case .bool(let value):
+            return value ? "true" : "false"
+        case .null:
+            return "null"
+        case .array(let values):
+            guard !values.isEmpty else { return "[]" }
+            return values
+                .map { childPad + $0.prettyString(indent: indent + 2) }
+                .joined(separator: ",\n")
+                .wrapped(in: "[\n", "\(pad)]")
+        case .object(let values):
+            guard !values.isEmpty else { return "{}" }
+            return values.keys.sorted()
+                .map { "\(childPad)\($0): \(values[$0]!.prettyString(indent: indent + 2))" }
+                .joined(separator: ",\n")
+                .wrapped(in: "{\n", "\(pad)}")
+        }
+    }
+}
+
+private extension String {
+    func wrapped(in prefix: String, _ suffix: String) -> String {
+        prefix + self + suffix
+    }
+}
+
+struct SessionMessagesResponse: Decodable {
+    var data: [SessionMessage]
+    var cursor: Cursor?
+
+    struct Cursor: Decodable {
+        var previous: String?
+        var next: String?
+    }
+}
+
+struct SessionMessage: Decodable, Identifiable {
+    var id: String
+    var type: String
+    var time: Time
+    var text: String?
+    var content: [MessagePart]?
+    var model: ModelRef?
+    var agent: String?
+    var cost: Double?
+    var tokens: TokenUsage?
+
+    struct Time: Decodable {
+        var created: Double
+        var streamed: Double?
+        var completed: Double?
+
+        var createdDate: Date { Date(timeIntervalSince1970: created / 1000) }
+    }
+
+    var isUserLike: Bool { type == "user" || type == "synthetic" }
+    var isSynthetic: Bool { type == "synthetic" }
+    var roleLabel: String {
+        switch type {
+        case "user": return "You"
+        case "synthetic": return "System"
+        default: return "Assistant"
+        }
+    }
+
+    /// User prompts store their text at the top level.
+    var promptText: String? {
+        let value = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+}
+
+struct MessagePart: Decodable {
+    var type: String
+    var id: String?
+    var text: String?
+    var name: String?
+    var state: ToolState?
+    var time: Time?
+
+    struct Time: Decodable {
+        var created: Double?
+        var ran: Double?
+        var completed: Double?
+    }
+
+    struct ToolState: Decodable {
+        var status: String?
+        var input: JSONValue?
+        var content: [MessagePart]?
+        var metadata: JSONValue?
+
+        /// Tool output is usually delivered as text parts.
+        var outputText: String? {
+            let text = (content ?? []).compactMap(\.text).joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty { return text }
+            guard let metadata else { return nil }
+            let fallback = metadata.compactDescription
+            return fallback.isEmpty ? nil : fallback
+        }
+
+        var inputSummary: String? {
+            guard let input else { return nil }
+            if case .object(let values) = input {
+                for key in ["command", "description", "filePath", "path", "pattern", "query", "url", "prompt"] {
+                    if let value = values[key]?.stringValue, !value.isEmpty {
+                        return value.replacingOccurrences(of: "\n", with: " ")
+                    }
+                }
+            }
+            let summary = input.compactDescription
+            return summary.isEmpty ? nil : summary
+        }
+    }
+}
+
 // MARK: - API envelopes
 
 struct SessionsResponse: Decodable {

@@ -21,7 +21,14 @@ struct LiveTab: View {
                     )
                 } else {
                     ForEach(state.runningSessions) { session in
-                        RunningRow(session: session, project: state.projectName(for: session))
+                        Button {
+                            state.open(session)
+                        } label: {
+                            RunningRow(session: session, project: state.projectName(for: session))
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
+                        .help("Show conversation and prompts")
                     }
                 }
             }
@@ -37,7 +44,14 @@ struct LiveTab: View {
                     )
                 } else {
                     ForEach(state.recentSessions.prefix(20)) { session in
-                        RecentRow(session: session, project: state.projectName(for: session))
+                        Button {
+                            state.open(session)
+                        } label: {
+                            RecentRow(session: session, project: state.projectName(for: session))
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
+                        .help("Show conversation and prompts")
                     }
                 }
             }
@@ -49,25 +63,10 @@ struct RunningRow: View {
     let session: Session
     let project: String
 
-    @State private var pulsing = false
-
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(Theme.running.opacity(0.3))
-                    .frame(width: 8, height: 8)
-                    .scaleEffect(pulsing ? 2.4 : 1)
-                    .opacity(pulsing ? 0 : 1)
-                Circle().fill(Theme.running).frame(width: 8, height: 8)
-            }
-            .frame(width: 16, height: 16)
-            .padding(.top, 3)
-            .onAppear {
-                withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) {
-                    pulsing = true
-                }
-            }
+            PulsingDot(size: 8)
+                .padding(.top, 3)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(session.displayTitle)
@@ -97,6 +96,11 @@ struct RunningRow: View {
             }
 
             Spacer(minLength: 0)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.top, 3)
         }
         .card()
     }
@@ -144,6 +148,10 @@ struct RecentRow: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.tertiary)
         }
         .card(padding: 10)
     }

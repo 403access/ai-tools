@@ -8,28 +8,36 @@ struct PanelView: View {
             HeaderView()
             Divider().opacity(0.5)
 
-            TabBar(selection: $state.tab)
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
-                .padding(.bottom, 6)
+            if let session = state.selectedSession {
+                SessionDetailView(session: session, initialMode: state.detailMode)
+                    .frame(height: 500)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                TabBar(selection: $state.tab)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                    .padding(.bottom, 6)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    switch state.tab {
-                    case .live:
-                        LiveTab()
-                    case .usage:
-                        UsageTab()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        switch state.tab {
+                        case .live:
+                            LiveTab()
+                        case .usage:
+                            UsageTab()
+                        }
                     }
+                    .padding(12)
                 }
-                .padding(12)
+                .frame(height: 500)
+                .transition(.move(edge: .leading).combined(with: .opacity))
             }
-            .frame(height: 500)
 
             Divider().opacity(0.5)
             FooterView()
         }
         .frame(width: 400)
+        .animation(.easeInOut(duration: 0.18), value: state.selectedSession?.id)
         .task {
             await state.refreshLive()
             await state.refreshStats()

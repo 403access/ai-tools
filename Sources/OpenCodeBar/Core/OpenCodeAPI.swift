@@ -70,6 +70,18 @@ struct OpenCodeAPI: Sendable {
         return response.data
     }
 
+    func sessionMessages(
+        id: String,
+        limit: Int = 100,
+        cursor: String? = nil
+    ) async throws -> SessionMessagesResponse {
+        var path = "/api/session/\(id)/message?limit=\(limit)"
+        if let cursor, let encoded = cursor.addingPercentEncoding(withAllowedCharacters: .alphanumerics) {
+            path += "&cursor=\(encoded)"
+        }
+        return try await get(path)
+    }
+
     func projects() async throws -> [Project] {
         try await get("/api/project")
     }

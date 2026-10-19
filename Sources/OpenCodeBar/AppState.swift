@@ -32,6 +32,20 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Sections available in the session detail view.
+    enum DetailMode: String, CaseIterable, Identifiable {
+        case conversation = "Conversation"
+        case prompts = "Prompts"
+
+        var id: String { rawValue }
+        var icon: String {
+            switch self {
+            case .conversation: return "bubble.left.and.bubble.right"
+            case .prompts: return "text.quote"
+            }
+        }
+    }
+
     @Published var connection: Connection = .connecting
     @Published var tab: Tab = .live
     @Published var sessions: [Session] = []
@@ -41,6 +55,12 @@ final class AppState: ObservableObject {
     @Published var goUsage: GoUsageState = .unavailable
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
+    /// Session whose detail view is open, if any. Kept in sync with the
+    /// session list so a running session's header keeps updating.
+    @Published var selectedSession: Session?
+    /// Section the detail view opens on. Overridable from the command line for
+    /// previews/screenshots (`--detail-mode prompts`).
+    var detailMode: DetailMode = .conversation
 
     /// Go plan quota, fetched directly from the console usage endpoint. Hidden
     /// entirely when no Go key is configured.
@@ -69,6 +89,11 @@ final class AppState: ObservableObject {
            index + 1 < CommandLine.arguments.count,
            let requested = Tab(rawValue: CommandLine.arguments[index + 1].capitalized) {
             tab = requested
+        }
+        if let index = CommandLine.arguments.firstIndex(of: "--detail-mode"),
+           index + 1 < CommandLine.arguments.count,
+           let requested = DetailMode(rawValue: CommandLine.arguments[index + 1].capitalized) {
+            detailMode = requested
         }
     }
 
@@ -170,6 +195,11 @@ final class AppState: ObservableObject {
             self.sessions = merged
             self.projects = Dictionary(projectListValue.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
+            if let selected = selectedSession,
+               let updated = merged.first(where: { $0.id == selected.id }) {
+                selectedSession = updated
+            }
+
             if case .connected = connection {
                 // keep current version
             } else {
@@ -229,6 +259,31 @@ final class AppState: ObservableObject {
             return
         }
         connection = .offline((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+    }
+
+    // MARK: - Session detail
+
+    func open(_ session: Session) {
+        selectedSession = session
+    }
+
+    func closeDetail() {
+        selectedSession = nil
+    }
+
+    func isRunning(_ session: Session) -> Bool {
+        activeIDs.contains(session.id)
+    }
+
+    /// Fetches conversation messages, newest first. Pass a cursor from a
+    /// previous response to page further back in the session.
+    func messages(
+        for sessionID: String,
+        limit: Int = 100,
+        cursor: String? = nil
+    ) async throws -> SessionMessagesResponse {
+        guard let api else { throw APIError.transport("Not connected to OpenCode") }
+        return try await api.sessionMessages(id: sessionID, limit: limit, cursor: cursor)
     }
 
     // MARK: - Derived data

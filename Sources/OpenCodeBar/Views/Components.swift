@@ -37,6 +37,33 @@ struct StatTile: View {
     }
 }
 
+/// A dot with an expanding halo, used to mark sessions that are running.
+struct PulsingDot: View {
+    var color: Color = Theme.running
+    var size: CGFloat = 8
+
+    @State private var pulsing = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(color.opacity(0.3))
+                .frame(width: size, height: size)
+                .scaleEffect(pulsing ? 2.4 : 1)
+                .opacity(pulsing ? 0 : 1)
+            Circle()
+                .fill(color)
+                .frame(width: size, height: size)
+        }
+        .frame(width: size * 2, height: size * 2)
+        .onAppear {
+            withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) {
+                pulsing = true
+            }
+        }
+    }
+}
+
 struct EmptyState: View {
     let icon: String
     let title: String

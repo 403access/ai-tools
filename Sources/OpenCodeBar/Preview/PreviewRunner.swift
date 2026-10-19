@@ -69,6 +69,12 @@ enum PreviewRunner {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
         }
 
+        // `--detail` opens the first running session (or most recent one), which
+        // makes it easy to iterate on the conversation view.
+        if CommandLine.arguments.contains("--detail") {
+            state.selectedSession = state.runningSessions.first ?? state.sessions.first
+        }
+
         let hosting = NSHostingView(rootView: ScreenshotRoot(state: state))
         hosting.appearance = NSAppearance(named: .darkAqua)
 
@@ -84,6 +90,15 @@ enum PreviewRunner {
         window.contentView = hosting
         window.layoutIfNeeded()
         hosting.layoutSubtreeIfNeeded()
+
+        // Give the detail view a moment to fetch its conversation.
+        if CommandLine.arguments.contains("--detail") {
+            let detailDeadline = Date().addingTimeInterval(3)
+            while Date() < detailDeadline {
+                RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+            }
+            hosting.layoutSubtreeIfNeeded()
+        }
 
         var size = hosting.fittingSize
         if size.height < 50 || size.width < 50 {

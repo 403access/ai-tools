@@ -16,6 +16,9 @@ a **usage** overview.
 - Running sessions update in real time via OpenCode's SSE event stream, each with
   a pulsing indicator, project, model, agent, elapsed time, and token count.
 - Recent sessions with project, model, relative time, cost, and tokens.
+- Click any session to open its details: the full conversation, a prompts-only
+  list with copy buttons, and expandable reasoning and tool calls. The view
+  keeps updating while the session runs and pages back through history.
 
 **Usage**
 - OpenCode Go plan limits: rolling (5h), weekly, and monthly consumption as
@@ -46,8 +49,8 @@ OpenCodeBar:
    automatically.
 
 Endpoints used: `/api/info`, `/api/session`, `/api/session/active`,
-`/api/session/{id}`, `/api/project`, `/api/experimental/session/stats`, and
-`/api/event`.
+`/api/session/{id}`, `/api/session/{id}/message`, `/api/project`,
+`/api/experimental/session/stats`, and `/api/event`.
 
 For Go plan limits the app additionally calls the console's usage endpoint,
 `https://opencode.ai/zen/go/v1/usage`, with the Go API key from `auth.json`
@@ -122,7 +125,8 @@ Scripts/
   `--preview --tab usage` opens the Usage tab directly.
 - `--screenshot <path>` renders the panel offscreen to a PNG and exits.
   `--screenshot out.png --scale 2 --tab usage` produces a 2x image for the
-  website and README.
+  website and README. Add `--detail` (optionally `--detail-mode prompts`) to
+  render the session detail view.
 - The menu bar glyph uses SF Symbols (`terminal` / `terminal.fill`).
 - `OPENCODE_GO_USAGE_URL` points the Go limits client at a different URL, which
   is how the Plan limits UI is exercised without a live Go key.
