@@ -29,7 +29,8 @@ full **session** view, per-project **analytics**, and a **usage** overview.
   recently active next. Select one to open its detail page: what is running
   right now — with elapsed time, tappable into the session view — plus scoped
   analytics (steps, cost, tokens, streak, model mix) and recent sessions with
-  their cost.
+  their cost. Quick actions open the project in Finder or Terminal and copy its
+  path.
 - Duplicate records for the same directory are merged, and analytics are
   fetched per project from the stats API rather than derived from the session
   list.

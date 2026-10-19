@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Full-panel detail for one project: scoped analytics, running work, and
@@ -7,6 +8,8 @@ import SwiftUI
 struct ProjectDetailView: View {
     @EnvironmentObject private var state: AppState
     let project: Project
+
+    @State private var copiedPath = false
 
     private var detail: AppState.ProjectDetail? { state.projectDetails[project.id] }
     private var running: [Session] { state.runningSessions(in: project) }
@@ -116,6 +119,10 @@ struct ProjectDetailView: View {
                         systemImage: "shippingbox.fill"
                     )
                 }
+
+                Spacer(minLength: 4)
+
+                actions
             }
 
             HStack(spacing: 10) {
@@ -130,6 +137,99 @@ struct ProjectDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 10)
+        .contextMenu {
+            Button("Open in Finder") { openInFinder() }
+                .disabled(!directoryExists)
+            Button("Open in Terminal") { openInTerminal() }
+                .disabled(!directoryExists)
+            Divider()
+            Button("Copy Path") { copyPath() }
+        }
+    }
+
+    /// Quick actions for the project directory. Kept in the summary card so
+    /// they stay visible while the analytics below scroll.
+    private var actions: some View {
+        HStack(spacing: 2) {
+            actionButton(
+                "folder",
+                help: directoryExists ? "Open in Finder" : "Project folder not found",
+                disabled: !directoryExists
+            ) {
+                openInFinder()
+            }
+
+            actionButton(
+                "terminal",
+                help: directoryExists ? "Open in Terminal" : "Project folder not found",
+                disabled: !directoryExists
+            ) {
+                openInTerminal()
+            }
+
+            actionButton(
+                copiedPath ? "checkmark" : "doc.on.doc",
+                help: copiedPath ? "Path copied" : "Copy path",
+                tint: copiedPath ? Theme.accent : .secondary
+            ) {
+                copyPath()
+            }
+        }
+    }
+
+    private func actionButton(
+        _ icon: String,
+        help: String,
+        tint: Color = .secondary,
+        disabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(tint)
+        .opacity(disabled ? 0.35 : 1)
+        .disabled(disabled)
+        .help(help)
+    }
+
+    private var directoryURL: URL {
+        URL(fileURLWithPath: project.canonical, isDirectory: true)
+    }
+
+    private var directoryExists: Bool {
+        !project.canonical.isEmpty && FileManager.default.fileExists(atPath: project.canonical)
+    }
+
+    private func openInFinder() {
+        NSWorkspace.shared.open(directoryURL)
+    }
+
+    private func openInTerminal() {
+        guard let terminal = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.apple.Terminal"
+        ) else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.open(
+            [directoryURL],
+            withApplicationAt: terminal,
+            configuration: configuration
+        )
+    }
+
+    private func copyPath() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(project.canonical, forType: .string)
+        copiedPath = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            copiedPath = false
+        }
     }
 
     private var shortPath: String {
