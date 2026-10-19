@@ -45,16 +45,21 @@ observations. Last updated 2026-10-19.
 
 ## Environment observations
 
-- **The stored Go key is expired.** `~/.local/share/opencode/auth.json` holds an
-  `opencode-go` key that the usage endpoint rejects with
-  `401 {"code":"api_key_expired"}`. Inference may still work through a different
-  credential path, but the Usage tab will show "Go API key expired" until a new
-  key is created in Console. This is why `docs/screenshots/usage.png` was
-  regenerated against a local fixture rather than the live endpoint.
-- **`OPENCODE_GO_USAGE_URL`** overrides the usage endpoint and
-  **`OPENCODE_API_KEY`** overrides the Go key; both exist to exercise the Plan
-  limits UI without a live subscription. `make shots` will otherwise capture a
-  real failure notice.
+- **The Go inference key in `auth.json` is expired.** `~/.local/share/opencode/auth.json`
+  holds an `opencode-go` key that the usage endpoint rejects with
+  `401 {"code":"api_key_expired"}`. Replacing it means running
+  `opencode auth login` and would change the credential OpenCode uses for
+  inference, so OpenCodeBar no longer depends on it. The Usage tab reads a
+  **console service-account key** (`oc_sk_…`, *Inference only*) from
+  `~/.config/opencode/opencodebar.json` instead. Create one in Console →
+  **Keys** → *Add Service Account* → *Add API Key*; it works against
+  `/zen/go/v1/usage` and returns the same windows the console page shows.
+  Service-account keys are shown once, so store them immediately.
+- **`OPENCODE_GO_USAGE_URL`** overrides the usage endpoint,
+  **`OPENCODE_GO_USAGE_KEY`** / **`OPENCODE_API_KEY`** override the key, and
+  `~/.config/opencode/opencodebar.json` (`{"goUsageKey": "…"}`) provides one
+  that survives GUI launches. `docs/screenshots/usage.png` is now captured
+  from the live endpoint.
 - **`~/.local/share/opencode/opencode.db` is unusually large (~3.7 GB,
   3,765,533,624 bytes).** OpenCodeBar does not read it — it uses the HTTP API
   only — but the size is worth investigating separately (candidates: `VACUUM`,

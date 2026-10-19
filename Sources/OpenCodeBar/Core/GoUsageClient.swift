@@ -76,13 +76,17 @@ enum GoUsageClient {
         return URL(string: "https://opencode.ai/zen/go/v1/usage")!
     }()
 
-    /// The Go API key, in order of precedence: `OPENCODE_API_KEY`, then the
-    /// `opencode-go` entry in `auth.json` (`opencode` is accepted as a
-    /// fallback for setups that store the key under the generic provider).
+    /// The Go usage key, in order of precedence: `OPENCODE_GO_USAGE_KEY`,
+    /// `OPENCODE_API_KEY`, the app's own `opencodebar.json` (`goUsageKey`),
+    /// then the `opencode-go` entry in `auth.json` (`opencode` is accepted as
+    /// a fallback for setups that store the key under the generic provider).
     static func apiKey() -> String? {
-        if let env = ProcessInfo.processInfo.environment["OPENCODE_API_KEY"], !env.isEmpty {
-            return env
+        for name in ["OPENCODE_GO_USAGE_KEY", "OPENCODE_API_KEY"] {
+            if let value = ProcessInfo.processInfo.environment[name], !value.isEmpty {
+                return value
+            }
         }
+        if let key = appConfigKey() { return key }
         let auth = ServiceDiscovery.dataDir().appendingPathComponent("auth.json")
         guard let data = try? Data(contentsOf: auth),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -95,6 +99,21 @@ enum GoUsageClient {
             }
         }
         return nil
+    }
+
+    /// `<config>/opencode/opencodebar.json`, e.g. `{ "goUsageKey": "oc_sk_…" }`.
+    ///
+    /// Kept separate from `auth.json` so a read-only or service-account key can
+    /// be used for usage without replacing the credential OpenCode uses for
+    /// inference.
+    private static func appConfigKey() -> String? {
+        let url = ServiceDiscovery.configDir().appendingPathComponent("opencodebar.json")
+        guard let data = try? Data(contentsOf: url),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let key = root["goUsageKey"] as? String,
+              !key.isEmpty
+        else { return nil }
+        return key
     }
 
     static func fetch(key: String) async throws -> GoUsage {

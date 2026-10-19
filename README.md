@@ -53,8 +53,16 @@ Endpoints used: `/api/info`, `/api/session`, `/api/session/active`,
 `/api/experimental/session/stats`, and `/api/event`.
 
 For Go plan limits the app additionally calls the console's usage endpoint,
-`https://opencode.ai/zen/go/v1/usage`, with the Go API key from `auth.json`
-(or `$OPENCODE_API_KEY`). That data is not part of the local service API.
+`https://opencode.ai/zen/go/v1/usage`. That data is not part of the local
+service API, and the key is resolved in this order:
+
+1. `$OPENCODE_GO_USAGE_KEY`
+2. `$OPENCODE_API_KEY`
+3. `goUsageKey` in `~/.config/opencode/opencodebar.json`
+4. the `opencode-go` (then `opencode`) key in `~/.local/share/opencode/auth.json`
+
+Step 3 exists so a read-only or service-account key can be used for usage
+without replacing the credential OpenCode uses for inference.
 
 ## Requirements
 
@@ -130,7 +138,10 @@ Scripts/
 - The menu bar glyph uses SF Symbols (`terminal` / `terminal.fill`).
 - `OPENCODE_GO_USAGE_URL` points the Go limits client at a different URL, which
   is how the Plan limits UI is exercised without a live Go key.
-- `OPENCODE_API_KEY` overrides the Go API key read from `auth.json`.
+- `OPENCODE_API_KEY` overrides the Go API key read from `auth.json`, and
+  `OPENCODE_GO_USAGE_KEY` overrides both. GUI-launched builds may not inherit
+  a shell environment, so `~/.config/opencode/opencodebar.json` is usually the
+  more reliable place to keep a usage-only key.
 
 ## Limitations
 
