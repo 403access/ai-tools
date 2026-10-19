@@ -95,6 +95,16 @@ without replacing the credential OpenCode uses for inference.
 
 ```sh
 make run        # build dist/OpenCodeBar.app and launch it
+make restart    # rebuild and restart the running app
+```
+
+`make restart` runs `Scripts/restart.sh`, which builds first and only then
+stops the old instance — so a failed build leaves the current app running.
+The script can also be called directly:
+
+```sh
+Scripts/restart.sh --no-build      # relaunch the existing bundle
+CONFIG=debug Scripts/restart.sh    # rebuild a debug bundle instead
 ```
 
 Other targets:
@@ -103,6 +113,7 @@ Other targets:
 make build      # swift build (debug)
 make app        # assemble dist/OpenCodeBar.app (release)
 make preview    # open the panel in a normal window for design work
+make shots      # regenerate docs/screenshots
 make icon       # regenerate the app icon
 make clean      # remove build artifacts and dist/
 ```
@@ -143,6 +154,7 @@ Sources/OpenCodeBar/
   Preview/PreviewRunner.swift
 Scripts/
   build-app.sh              assemble the .app bundle
+  restart.sh                rebuild and restart the app
   make-icon.swift           generate the app icon
 ```
 

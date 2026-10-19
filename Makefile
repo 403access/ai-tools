@@ -1,4 +1,4 @@
-.PHONY: build app run preview shots site clean icon
+.PHONY: build app run restart preview shots site clean icon
 
 # Compile the Swift package (debug).
 build:
@@ -11,6 +11,10 @@ app:
 # Build and launch the menu bar app.
 run: app
 	open dist/OpenCodeBar.app
+
+# Rebuild and restart the running app in one step.
+restart:
+	Scripts/restart.sh
 
 # Render the panel in a normal window (for design work / screenshots).
 preview:
