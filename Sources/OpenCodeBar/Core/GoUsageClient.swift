@@ -5,12 +5,12 @@ import Foundation
 /// Go allowances are tracked in three windows: a rolling 5-hour window, a
 /// weekly window, and the monthly allowance. Each is expressed as a percentage
 /// of the model budget that has been consumed, plus the time it resets.
-struct GoUsage: Decodable, Hashable, Sendable {
+struct GoUsage: Codable, Hashable, Sendable {
     var rolling: Window?
     var weekly: Window?
     var monthly: Window?
 
-    struct Window: Decodable, Hashable, Sendable {
+    struct Window: Codable, Hashable, Sendable {
         var status: String?
         var percent: Double?
         var resetsAt: String?

@@ -52,7 +52,9 @@ final class AppState: ObservableObject {
     @Published var activeIDs: Set<String> = []
     @Published var projects: [String: Project] = [:]
     @Published var stats: Stats?
+    @Published var statsStale = false
     @Published var goUsage: GoUsageState = .unavailable
+    @Published var goUsageFetchedAt: Date?
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
     /// Session whose detail view is open, if any. Kept in sync with the
@@ -68,18 +70,22 @@ final class AppState: ObservableObject {
         case unavailable
         case loading
         case ready(GoUsage)
+        /// Last known numbers, kept because the most recent fetch failed.
+        case stale(GoUsage, reason: String)
         case failed(String)
     }
 
+    @Published private(set) var statsFetchedAt: Date?
+
     private var api: OpenCodeAPI?
     private var location: ServiceLocation?
+    private var cache = UsageCache()
     private var eventTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
     private var statsTask: Task<Void, Never>?
     private var usageTask: Task<Void, Never>?
     private var debounceTask: Task<Void, Never>?
     private var discovering = false
-    private var statsFetchedAt: Date?
     private var started = false
 
     init() {
@@ -103,6 +109,7 @@ final class AppState: ObservableObject {
         guard !started else { return }
         started = true
 
+        restoreCachedUsage()
         Task { await bootstrap() }
 
         pollTask = Task { [weak self] in
@@ -136,6 +143,7 @@ final class AppState: ObservableObject {
 
         guard let location = await discover() else {
             connection = .offline("Service not found")
+            if stats != nil { statsStale = true }
             return
         }
         self.location = location
@@ -212,14 +220,39 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Publishes the last known numbers immediately, so the Usage tab has
+    /// something to show before — or instead of — a successful fetch.
+    private func restoreCachedUsage() {
+        cache = UsageCache.load()
+        if let cached = cache.stats {
+            stats = cached
+            statsFetchedAt = cache.statsFetchedAt
+        }
+        if let usage = cache.goUsage {
+            goUsage = .ready(usage)
+            goUsageFetchedAt = cache.goUsageFetchedAt
+        }
+    }
+
     func refreshStats(force: Bool = false) async {
-        guard let api else { return }
+        guard let api else {
+            // Offline: whatever we have — in memory or restored from disk —
+            // is all there is to show.
+            if stats != nil { statsStale = true }
+            return
+        }
         if !force, let fetched = statsFetchedAt, Date().timeIntervalSince(fetched) < 30 { return }
         do {
-            stats = try await api.stats()
+            let fresh = try await api.stats()
+            stats = fresh
             statsFetchedAt = Date()
+            statsStale = false
+            cache.stats = fresh
+            cache.statsFetchedAt = statsFetchedAt
+            cache.save()
         } catch {
             // Keep the last known stats; a later refresh will recover.
+            if stats != nil { statsStale = true }
         }
     }
 
@@ -230,12 +263,26 @@ final class AppState: ObservableObject {
             goUsage = .unavailable
             return
         }
-        if case .ready = goUsage {} else { goUsage = .loading }
+        switch goUsage {
+        case .ready, .stale:
+            break // Keep showing the current numbers while refreshing.
+        case .unavailable, .loading, .failed:
+            goUsage = .loading
+        }
         do {
-            goUsage = .ready(try await GoUsageClient.fetch(key: key))
+            let usage = try await GoUsageClient.fetch(key: key)
+            goUsage = .ready(usage)
+            goUsageFetchedAt = Date()
+            cache.goUsage = usage
+            cache.goUsageFetchedAt = goUsageFetchedAt
+            cache.save()
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-            goUsage = .failed(message)
+            if let cached = cache.goUsage {
+                goUsage = .stale(cached, reason: message)
+            } else {
+                goUsage = .failed(message)
+            }
         }
     }
 

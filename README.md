@@ -26,6 +26,9 @@ full **session** view, and a **usage** overview.
 - OpenCode Go plan limits: rolling (5h), weekly, and monthly consumption as
   percentage bars with reset countdowns, read from the Go usage API. Hidden
   when no Go key is configured.
+- Usage numbers and plan limits are cached on disk, so the tab keeps showing the
+  last known values — flagged as stale — when the service or the API is
+  unreachable.
 - Summary tiles: streak, active days, today's steps, prompts, sessions, total
   cost, tokens, tool calls, and subagents.
 - A GitHub-style activity heatmap of daily agent steps.
@@ -153,5 +156,8 @@ Scripts/
   shows an offline state and reconnects automatically.
 - Go plan limits come from an undocumented console endpoint. Credits, the
   auto-recharge setting, and extra usage are console-only and are not shown.
+- Usage numbers are cached at `~/Library/Caches/OpenCodeBar/usage.json` (safe to
+  delete). A stale cache is always preferred over an empty tab, so a very old
+  file can be shown alongside its age.
 
 See [NOTES.md](NOTES.md) for follow-ups and known polish items.

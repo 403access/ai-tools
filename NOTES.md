@@ -33,6 +33,10 @@ observations. Last updated 2026-10-19.
 - **Plan limits redraw once a minute.** Rows re-render when the 60s poll lands,
   so the reset countdown can sit up to a minute stale. A `TimelineView` would
   tick it continuously if that ever matters.
+- **The usage cache has no expiry.** `~/Library/Caches/OpenCodeBar/usage.json`
+  is always preferred over an empty Usage tab, so a file untouched for weeks
+  would still render (with its age in the stale notice). Consider hiding the
+  tiles past some threshold instead.
 - **Model chip truncates** long model IDs in the *Recent* list on the Live tab
   (e.g. `deepseek-v4.1-flash` competes with the project name and timestamp).
   Options: shrink the font, allow two lines, show a tooltip, or drop the variant.

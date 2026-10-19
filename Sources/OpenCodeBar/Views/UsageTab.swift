@@ -6,6 +6,8 @@ struct UsageTab: View {
     var body: some View {
         if let stats = state.stats {
             VStack(alignment: .leading, spacing: 14) {
+                if state.statsStale { cachedStatsNotice }
+
                 planLimits
 
                 LazyVGrid(
@@ -86,25 +88,73 @@ struct UsageTab: View {
             EmptyView()
         case .loading:
             SectionHeader("Plan limits")
-            LimitsNotice(icon: "gauge.with.dots.needle.33percent", message: "Loading Go limits…", tint: .secondary)
+            NoticeRow(icon: "gauge.with.dots.needle.33percent", message: "Loading Go limits…", tint: .secondary)
         case .ready(let usage):
             SectionHeader("Plan limits")
             PlanLimitsView(usage: usage)
+        case .stale(let usage, let reason):
+            SectionHeader("Plan limits")
+            PlanLimitsView(
+                usage: usage,
+                note: "\(clause(reason)) — showing limits from \(label(for: state.goUsageFetchedAt))"
+            )
         case .failed(let message):
             SectionHeader("Plan limits")
-            LimitsNotice(icon: "exclamationmark.triangle.fill", message: message, tint: Theme.warn)
+            NoticeRow(icon: "exclamationmark.triangle.fill", message: message, tint: Theme.warn)
         }
+    }
+
+    /// Shown when the local service can't be reached and the tiles below are
+    /// the last numbers we saw.
+    private var cachedStatsNotice: some View {
+        NoticeRow(
+            icon: "clock.arrow.circlepath",
+            message: "Can't reach the service — showing usage from \(lastUpdatedLabel)",
+            tint: Theme.warn
+        )
+    }
+
+    private var lastUpdatedLabel: String { label(for: state.statsFetchedAt) }
+
+    private func label(for date: Date?) -> String {
+        guard let date else { return "earlier" }
+        return Fmt.relative(from: date)
+    }
+
+    /// Error messages arrive as full sentences; this drops the trailing period
+    /// so they can lead into the "— showing …" clause.
+    private func clause(_ reason: String) -> String {
+        var trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        while trimmed.hasSuffix(".") { trimmed.removeLast() }
+        return trimmed
     }
 }
 
 /// Three progress rows for the Go subscription windows.
 struct PlanLimitsView: View {
     let usage: GoUsage
+    /// Optional caveat rendered inside the card, used when the numbers are
+    /// stale but still worth showing.
+    var note: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(usage.ordered, id: \.label) { item in
                 PlanLimitRow(label: item.label, window: item.window)
+            }
+
+            if let note {
+                Divider().opacity(0.5)
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.warn)
+                    Text(note)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
             }
         }
         .card()
@@ -153,8 +203,8 @@ struct PlanLimitRow: View {
     }
 }
 
-/// Compact notice used while Go limits load, or when they can't be read.
-struct LimitsNotice: View {
+/// Compact notice used for plan-limit and cache states.
+struct NoticeRow: View {
     let icon: String
     let message: String
     let tint: Color
