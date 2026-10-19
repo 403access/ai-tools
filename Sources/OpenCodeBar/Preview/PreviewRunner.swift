@@ -89,6 +89,12 @@ enum PreviewRunner {
             state.selectedSession = state.runningSessions.first ?? state.sessions.first
         }
 
+        // `--expand-project` opens the first project card, for the same reason.
+        if CommandLine.arguments.contains("--expand-project"),
+           let project = state.orderedProjects.first {
+            state.toggleProject(project.id)
+        }
+
         let hosting = NSHostingView(rootView: ScreenshotRoot(state: state))
         hosting.appearance = NSAppearance(named: .darkAqua)
 
@@ -106,7 +112,7 @@ enum PreviewRunner {
         hosting.layoutSubtreeIfNeeded()
 
         // Give the detail view a moment to fetch its conversation.
-        if CommandLine.arguments.contains("--detail") {
+        if CommandLine.arguments.contains("--detail") || CommandLine.arguments.contains("--expand-project") {
             let detailDeadline = Date().addingTimeInterval(3)
             while Date() < detailDeadline {
                 RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))

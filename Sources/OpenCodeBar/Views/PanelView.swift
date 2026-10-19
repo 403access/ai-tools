@@ -30,6 +30,8 @@ struct PanelView: View {
                             LiveTab()
                         case .usage:
                             UsageTab()
+                        case .projects:
+                            ProjectsTab()
                         }
                     }
                     .padding(12)

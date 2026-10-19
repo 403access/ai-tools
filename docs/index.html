@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenCodeBar — OpenCode in your macOS menu bar</title>
-<meta name="description" content="A native macOS menu bar app for OpenCode. Watch running sessions, open any session's conversation and prompts, and track usage and Go plan limits — live, at a glance. Read-only.">
+<meta name="description" content="A native macOS menu bar app for OpenCode. Watch running sessions, read any session's conversation and prompts, dig into per-project analytics, and track usage and Go plan limits — live, at a glance. Read-only.">
 <meta name="theme-color" content="#080b0a">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -12,7 +12,7 @@
 
 <meta property="og:type" content="website">
 <meta property="og:title" content="OpenCodeBar — OpenCode in your macOS menu bar">
-<meta property="og:description" content="Watch running OpenCode sessions, open any session's conversation and prompts, and track usage stats and Go plan limits from your menu bar. Native SwiftUI, read-only.">
+<meta property="og:description" content="Watch running OpenCode sessions, read session conversations and prompts, dig into per-project analytics, and track usage and Go plan limits from your menu bar. Native SwiftUI, read-only.">
 <meta property="og:image" content="https://403access.github.io/ai-tools/screenshots/live.png">
 <meta name="twitter:card" content="summary_large_image">
 
@@ -45,8 +45,8 @@
       <span class="eyebrow reveal"><span class="pulse"></span> macOS 14+ · Native SwiftUI · Open source</span>
       <h1 class="reveal">Your OpenCode activity,<br><span class="grad">one click away.</span></h1>
       <p class="lede reveal">OpenCodeBar lives in your menu bar and shows what your OpenCode sessions are
-        doing — running work, recent history, usage stats, and any session's full conversation — without leaving the
-        window you're in.</p>
+        doing — running work, any session's full conversation, per-project analytics, and usage stats — without
+        leaving the window you're in.</p>
       <div class="cta reveal">
         <a class="btn btn-primary" href="#install">Get started</a>
         <a class="btn btn-ghost" href="https://github.com/403access/ai-tools" target="_blank" rel="noopener">View on GitHub</a>
@@ -98,7 +98,7 @@
       <div class="section-head reveal">
         <span class="kicker">Features</span>
         <h2>Everything at a glance</h2>
-        <p>Two tabs plus a full session view, zero setup. OpenCodeBar reads the OpenCode service and keeps itself up to date.</p>
+        <p>Three tabs plus a full session view, zero setup. OpenCodeBar reads the OpenCode service and keeps itself up to date.</p>
       </div>
 
       <div class="grid features">
@@ -128,14 +128,14 @@
 
         <article class="card reveal">
           <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><rect x="5" y="11" width="3.4" height="6.5" rx="1.1"/><rect x="10.3" y="6.5" width="3.4" height="11" rx="1.1"/><rect x="15.6" y="13" width="3.4" height="4.5" rx="1.1"/></svg></span>
-          <h3>Usage overview</h3>
-          <p>Streak, active days, today's steps, prompts, sessions, total cost, tokens, tool calls, and subagents — the numbers that add up over time.</p>
+          <h3>Usage &amp; plan limits</h3>
+          <p>Streak, active days, today's steps, prompts, sessions, cost, and tokens — plus your Go plan's rolling, weekly, and monthly allowances with reset countdowns.</p>
         </article>
 
-        <article class="card tone-red reveal">
-          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 1 9-9"/><path d="M12 12l5.5 4"/><path d="M16.5 16.5h4.6v4.6" /></svg></span>
-          <h3>Go plan limits</h3>
-          <p>Your Go subscription's rolling (5h), weekly, and monthly allowances as percentage bars with reset countdowns, straight from the console's usage API. Hidden if you're not on Go.</p>
+        <article class="card tone-purple reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h4l2 2.4h7A2 2 0 0 1 20.5 10v6.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><path d="M7 14h10"/></svg></span>
+          <h3>Projects</h3>
+          <p>Every project OpenCode has run in, running work first. Expand one for what's running now, its own steps, cost, tokens, streak and model mix, plus recent sessions.</p>
         </article>
 
         <article class="card reveal">
@@ -203,6 +203,30 @@
             <img src="screenshots/prompts.png" alt="OpenCodeBar session detail showing the prompts-only list with copy buttons" width="800" height="1252">
           </div>
           <figcaption><strong>Prompts.</strong> A numbered prompts-only list with a copy button on every entry; system and shell entries are labeled.</figcaption>
+        </figure>
+
+        <figure class="shot reveal">
+          <div class="window">
+            <div class="window-bar">
+              <span class="lights"><span class="tl red"></span><span class="tl yellow"></span><span class="tl green"></span></span>
+              <span class="window-title">OpenCodeBar</span>
+              <span></span>
+            </div>
+            <img src="screenshots/projects.png" alt="OpenCodeBar Projects tab listing projects with running counts and paths" width="800" height="1252">
+          </div>
+          <figcaption><strong>Projects.</strong> Every project OpenCode has run in — running work first, then most recently active.</figcaption>
+        </figure>
+
+        <figure class="shot reveal">
+          <div class="window">
+            <div class="window-bar">
+              <span class="lights"><span class="tl red"></span><span class="tl yellow"></span><span class="tl green"></span></span>
+              <span class="window-title">OpenCodeBar</span>
+              <span></span>
+            </div>
+            <img src="screenshots/project-detail.png" alt="OpenCodeBar expanded project showing running sessions, analytics tiles, model mix, and recent sessions" width="800" height="1252">
+          </div>
+          <figcaption><strong>Project detail.</strong> Expand one for live instances, scoped analytics, model mix, and recent sessions.</figcaption>
         </figure>
 
         <figure class="shot reveal">
@@ -291,7 +315,7 @@ make run"><span class="cmd">$</span> git clone https://github.com/403access/ai-t
         <article class="card reveal">
           <div class="num">03</div>
           <h3>Polls a few endpoints</h3>
-          <p>Sessions, active sessions, projects, and aggregate stats — plus conversation history when you open a session, and the Go usage API when you're on a Go plan.</p>
+          <p>Sessions, active sessions, projects, and aggregate stats — plus conversation history and per-project analytics when you open them, and the Go usage API when you're on a Go plan.</p>
         </article>
         <article class="card reveal">
           <div class="num">04</div>

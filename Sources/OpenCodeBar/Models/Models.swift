@@ -89,12 +89,21 @@ struct Project: Codable, Identifiable, Hashable, Sendable {
         var created: Double
         var updated: Double
         var active: Double?
+
+        var createdDate: Date { Date(timeIntervalSince1970: created / 1000) }
+        var updatedDate: Date { Date(timeIntervalSince1970: updated / 1000) }
+        var activeDate: Date? { active.map { Date(timeIntervalSince1970: $0 / 1000) } }
     }
 
     var displayName: String {
         if let name, !name.isEmpty { return name }
-        return URL(fileURLWithPath: canonical).lastPathComponent
+        let leaf = URL(fileURLWithPath: canonical).lastPathComponent
+        if !leaf.isEmpty { return leaf }
+        return canonical.isEmpty ? "Unknown project" : canonical
     }
+
+    /// Most recent activity we know about for this project.
+    var lastActiveDate: Date { time.activeDate ?? time.updatedDate }
 }
 
 // MARK: - Aggregate statistics

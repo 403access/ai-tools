@@ -5,11 +5,13 @@ background service is doing — at a glance, without leaving your current window
 
 The menu bar item displays a terminal glyph and, when sessions are running, the
 number of active sessions. Clicking it opens a panel with **live** activity, a
-full **session** view, and a **usage** overview.
+full **session** view, per-project **analytics**, and a **usage** overview.
 
 ![Live tab](docs/screenshots/live.png)
 ![Session detail](docs/screenshots/session.png)
 ![Prompts view](docs/screenshots/prompts.png)
+![Projects tab](docs/screenshots/projects.png)
+![Project detail](docs/screenshots/project-detail.png)
 ![Usage tab](docs/screenshots/usage.png)
 
 ## Features
@@ -21,6 +23,15 @@ full **session** view, and a **usage** overview.
 - Click any session to open its details: the full conversation, a prompts-only
   list with copy buttons, and expandable reasoning and tool calls. The view
   keeps updating while the session runs and pages back through history.
+
+**Projects**
+- Every project OpenCode has run in, with running work first and the most
+  recently active next. Expand one for what is running right now — with elapsed
+  time, tappable into the session view — plus scoped analytics (steps, cost,
+  tokens, streak, model mix) and recent sessions with their cost.
+- Duplicate records for the same directory are merged, and analytics are
+  fetched per project from the stats API rather than derived from the session
+  list.
 
 **Usage**
 - OpenCode Go plan limits: rolling (5h), weekly, and monthly consumption as
@@ -55,7 +66,11 @@ OpenCodeBar:
 
 Endpoints used: `/api/info`, `/api/session`, `/api/session/active`,
 `/api/session/{id}`, `/api/session/{id}/message`, `/api/project`,
-`/api/experimental/session/stats`, and `/api/event`.
+`/api/experimental/session/stats`, and
+`/api/event`.
+
+The Projects tab reuses those with a scope: `/api/experimental/session/stats?project={id}`
+and `/api/session?project={id}`, fetched only for the project you expand.
 
 For Go plan limits the app additionally calls the console's usage endpoint,
 `https://opencode.ai/zen/go/v1/usage`. That data is not part of the local
@@ -139,7 +154,8 @@ Scripts/
 - `--screenshot <path>` renders the panel offscreen to a PNG and exits.
   `--screenshot out.png --scale 2 --tab usage` produces a 2x image for the
   website and README. Add `--detail` (optionally `--detail-mode prompts`) to
-  render the session detail view.
+  render the session detail view, or `--expand-project` for the first project
+  card.
 - The menu bar glyph uses SF Symbols (`terminal` / `terminal.fill`).
 - `OPENCODE_GO_USAGE_URL` points the Go limits client at a different URL, which
   is how the Plan limits UI is exercised without a live Go key.

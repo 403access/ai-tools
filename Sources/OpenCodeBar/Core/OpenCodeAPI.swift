@@ -65,6 +65,11 @@ struct OpenCodeAPI: Sendable {
         return response.data
     }
 
+    func sessions(projectID: String, limit: Int = 20) async throws -> [Session] {
+        let response: SessionsResponse = try await get("/api/session?project=\(projectID)&limit=\(limit)&order=desc")
+        return response.data
+    }
+
     func session(id: String) async throws -> Session {
         let response: SessionEnvelope = try await get("/api/session/\(id)")
         return response.data
@@ -86,8 +91,10 @@ struct OpenCodeAPI: Sendable {
         try await get("/api/project")
     }
 
-    func stats() async throws -> Stats {
-        let response: StatsResponse = try await get("/api/experimental/session/stats")
+    func stats(project: String? = nil) async throws -> Stats {
+        var path = "/api/experimental/session/stats"
+        if let project { path += "?project=\(project)" }
+        let response: StatsResponse = try await get(path)
         return response.data
     }
 

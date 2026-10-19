@@ -22,14 +22,26 @@ final class AppState: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
         case live = "Live"
         case usage = "Usage"
+        case projects = "Projects"
 
         var id: String { rawValue }
         var icon: String {
             switch self {
             case .live: return "dot.radiowaves.left.and.right"
             case .usage: return "chart.bar.xaxis"
+            case .projects: return "folder"
             }
         }
+    }
+
+    /// Everything the Projects tab knows about one project, fetched on demand
+    /// the first time the project is expanded.
+    struct ProjectDetail: Equatable {
+        var stats: Stats?
+        var sessions: [Session] = []
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
     }
 
     /// Sections available in the session detail view.
@@ -55,6 +67,8 @@ final class AppState: ObservableObject {
     @Published var statsStale = false
     @Published var goUsage: GoUsageState = .unavailable
     @Published var goUsageFetchedAt: Date?
+    @Published var projectDetails: [String: ProjectDetail] = [:]
+    @Published var expandedProjectID: String?
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
     /// Session whose detail view is open, if any. Kept in sync with the
@@ -125,6 +139,7 @@ final class AppState: ObservableObject {
                 try? await Task.sleep(nanoseconds: 60_000_000_000)
                 guard !Task.isCancelled else { break }
                 await self?.refreshStats(force: true)
+                await self?.refreshExpandedProject()
             }
         }
 
@@ -173,6 +188,7 @@ final class AppState: ObservableObject {
         await refreshLive()
         await refreshStats(force: true)
         await refreshGoUsage()
+        if let id = expandedProjectID { await loadProject(id, force: true) }
     }
 
     func refreshLive() async {
@@ -333,6 +349,45 @@ final class AppState: ObservableObject {
         return try await api.sessionMessages(id: sessionID, limit: limit, cursor: cursor)
     }
 
+    // MARK: - Projects
+
+    /// Expands a project, or collapses it if it is already open. The detail —
+    /// scoped stats and recent sessions — loads on first expand.
+    func toggleProject(_ id: String) {
+        guard expandedProjectID != id else {
+            expandedProjectID = nil
+            return
+        }
+        expandedProjectID = id
+        Task { await loadProject(id) }
+    }
+
+    func loadProject(_ id: String, force: Bool = false) async {
+        guard let api else { return }
+        if !force, let detail = projectDetails[id], let loaded = detail.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+
+        projectDetails[id, default: ProjectDetail()].isLoading = true
+        do {
+            async let stats = api.stats(project: id)
+            async let sessions = api.sessions(projectID: id, limit: 20)
+            let (scopedStats, recent) = try await (stats, sessions)
+            projectDetails[id] = ProjectDetail(stats: scopedStats, sessions: recent, loadedAt: Date())
+        } catch {
+            var detail = projectDetails[id] ?? ProjectDetail()
+            detail.isLoading = false
+            detail.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            projectDetails[id] = detail
+        }
+    }
+
+    private func refreshExpandedProject() async {
+        guard let id = expandedProjectID else { return }
+        await loadProject(id, force: true)
+    }
+
     // MARK: - Derived data
 
     var runningSessions: [Session] {
@@ -348,6 +403,36 @@ final class AppState: ObservableObject {
     }
 
     var activeCount: Int { activeIDs.count }
+
+    /// Projects with running work first, then most recently active.
+    ///
+    /// OpenCode can hold more than one record for the same directory — a legacy
+    /// record alongside the live one — so records are merged by canonical path,
+    /// keeping whichever has activity.
+    var orderedProjects: [Project] {
+        Dictionary(grouping: projects.values, by: \.canonical)
+            .values
+            .compactMap { records in records.max(by: ranksBelow) }
+            .sorted { ranksBelow($1, than: $0) } // reversed: best first
+    }
+
+    /// Ordering used both to pick a winner among duplicate records and to sort
+    /// the list: running work, then real VCS projects, then recent activity.
+    private func ranksBelow(_ lhs: Project, than rhs: Project) -> Bool {
+        let left = runningSessions(in: lhs).count
+        let right = runningSessions(in: rhs).count
+        if left != right { return left < right }
+        let leftVCS = lhs.vcs?.isEmpty == false
+        let rightVCS = rhs.vcs?.isEmpty == false
+        if leftVCS != rightVCS { return !leftVCS }
+        return lhs.lastActiveDate < rhs.lastActiveDate
+    }
+
+    func runningSessions(in project: Project) -> [Session] {
+        sessions
+            .filter { $0.projectID == project.id && activeIDs.contains($0.id) }
+            .sorted { $0.time.updated > $1.time.updated }
+    }
 
     func projectName(for session: Session) -> String {
         Fmt.projectName(for: session, projects: projects)
