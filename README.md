@@ -4,10 +4,12 @@ A native macOS menu bar app that shows what your [OpenCode](https://opencode.ai)
 background service is doing — at a glance, without leaving your current window.
 
 The menu bar item displays a terminal glyph and, when sessions are running, the
-number of active sessions. Clicking it opens a panel with **live** activity and
-a **usage** overview.
+number of active sessions. Clicking it opens a panel with **live** activity, a
+full **session** view, and a **usage** overview.
 
 ![Live tab](docs/screenshots/live.png)
+![Session detail](docs/screenshots/session.png)
+![Prompts view](docs/screenshots/prompts.png)
 ![Usage tab](docs/screenshots/usage.png)
 
 ## Features
