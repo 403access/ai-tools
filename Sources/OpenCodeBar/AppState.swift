@@ -38,14 +38,25 @@ final class AppState: ObservableObject {
     @Published var activeIDs: Set<String> = []
     @Published var projects: [String: Project] = [:]
     @Published var stats: Stats?
+    @Published var goUsage: GoUsageState = .unavailable
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
+
+    /// Go plan quota, fetched directly from the console usage endpoint. Hidden
+    /// entirely when no Go key is configured.
+    enum GoUsageState: Equatable {
+        case unavailable
+        case loading
+        case ready(GoUsage)
+        case failed(String)
+    }
 
     private var api: OpenCodeAPI?
     private var location: ServiceLocation?
     private var eventTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
     private var statsTask: Task<Void, Never>?
+    private var usageTask: Task<Void, Never>?
     private var debounceTask: Task<Void, Never>?
     private var discovering = false
     private var statsFetchedAt: Date?
@@ -82,6 +93,13 @@ final class AppState: ObservableObject {
                 try? await Task.sleep(nanoseconds: 60_000_000_000)
                 guard !Task.isCancelled else { break }
                 await self?.refreshStats(force: true)
+            }
+        }
+
+        usageTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refreshGoUsage()
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
             }
         }
     }
@@ -121,6 +139,7 @@ final class AppState: ObservableObject {
     func refreshAll() async {
         await refreshLive()
         await refreshStats(force: true)
+        await refreshGoUsage()
     }
 
     func refreshLive() async {
@@ -171,6 +190,22 @@ final class AppState: ObservableObject {
             statsFetchedAt = Date()
         } catch {
             // Keep the last known stats; a later refresh will recover.
+        }
+    }
+
+    /// Fetches Go plan quota. Cheap when no key is configured: `auth.json` is
+    /// re-read each cycle so a new key is picked up without a restart.
+    func refreshGoUsage() async {
+        guard let key = GoUsageClient.apiKey() else {
+            goUsage = .unavailable
+            return
+        }
+        if case .ready = goUsage {} else { goUsage = .loading }
+        do {
+            goUsage = .ready(try await GoUsageClient.fetch(key: key))
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            goUsage = .failed(message)
         }
     }
 

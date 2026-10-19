@@ -18,6 +18,9 @@ a **usage** overview.
 - Recent sessions with project, model, relative time, cost, and tokens.
 
 **Usage**
+- OpenCode Go plan limits: rolling (5h), weekly, and monthly consumption as
+  percentage bars with reset countdowns, read from the Go usage API. Hidden
+  when no Go key is configured.
 - Summary tiles: streak, active days, today's steps, prompts, sessions, total
   cost, tokens, tool calls, and subagents.
 - A GitHub-style activity heatmap of daily agent steps.
@@ -45,6 +48,10 @@ OpenCodeBar:
 Endpoints used: `/api/info`, `/api/session`, `/api/session/active`,
 `/api/session/{id}`, `/api/project`, `/api/experimental/session/stats`, and
 `/api/event`.
+
+For Go plan limits the app additionally calls the console's usage endpoint,
+`https://opencode.ai/zen/go/v1/usage`, with the Go API key from `auth.json`
+(or `$OPENCODE_API_KEY`). That data is not part of the local service API.
 
 ## Requirements
 
@@ -98,6 +105,7 @@ Sources/OpenCodeBar/
   Core/
     ServiceDiscovery.swift  password + URL discovery
     OpenCodeAPI.swift       async HTTP client
+    GoUsageClient.swift     Go plan usage (console endpoint)
     EventStream.swift       SSE subscription with reconnect
   Models/Models.swift       Codable models for the API
   Views/                    SwiftUI panel, tabs, heatmap, components
@@ -116,6 +124,9 @@ Scripts/
   `--screenshot out.png --scale 2 --tab usage` produces a 2x image for the
   website and README.
 - The menu bar glyph uses SF Symbols (`terminal` / `terminal.fill`).
+- `OPENCODE_GO_USAGE_URL` points the Go limits client at a different URL, which
+  is how the Plan limits UI is exercised without a live Go key.
+- `OPENCODE_API_KEY` overrides the Go API key read from `auth.json`.
 
 ## Limitations
 
@@ -123,5 +134,7 @@ Scripts/
 - Monitor-only by design; it does not control sessions.
 - Relies on the local OpenCode service; when the service is stopped the panel
   shows an offline state and reconnects automatically.
+- Go plan limits come from an undocumented console endpoint. Credits, the
+  auto-recharge setting, and extra usage are console-only and are not shown.
 
 See [NOTES.md](NOTES.md) for follow-ups and known polish items.

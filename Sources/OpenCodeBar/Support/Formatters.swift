@@ -60,6 +60,37 @@ enum Fmt {
         return "\(s)s"
     }
 
+    /// Time until a reset, e.g. "29d 12h", "1h 21m", "45s".
+    static func countdown(to date: Date, now: Date = Date()) -> String {
+        let seconds = date.timeIntervalSince(now)
+        guard seconds > 0 else { return "now" }
+        let minutes = Int(seconds / 60)
+        let days = minutes / 1_440
+        let hours = (minutes % 1_440) / 60
+        if days > 0 { return "\(days)d \(hours)h" }
+        if hours > 0 { return "\(hours)h \(minutes % 60)m" }
+        if minutes > 0 { return "\(minutes)m" }
+        return "\(Int(seconds))s"
+    }
+
+    /// Parses an ISO 8601 timestamp, with or without fractional seconds.
+    static func date(fromISO string: String) -> Date? {
+        guard !string.isEmpty else { return nil }
+        return iso8601Fractional.date(from: string) ?? iso8601.date(from: string)
+    }
+
+    private static let iso8601Fractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let iso8601: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
     static let shortDateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "MMM d"

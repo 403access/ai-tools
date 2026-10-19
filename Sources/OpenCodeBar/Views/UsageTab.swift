@@ -6,6 +6,8 @@ struct UsageTab: View {
     var body: some View {
         if let stats = state.stats {
             VStack(alignment: .leading, spacing: 14) {
+                planLimits
+
                 LazyVGrid(
                     columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
                     spacing: 10
@@ -73,6 +75,102 @@ struct UsageTab: View {
         } else {
             LoadingState(message: state.connection.isConnected ? "Loading usage…" : state.connection.label)
         }
+    }
+
+    /// Go plan quota, when a Go key is configured. Mirrors the console's
+    /// rolling / weekly / monthly allowances.
+    @ViewBuilder
+    private var planLimits: some View {
+        switch state.goUsage {
+        case .unavailable:
+            EmptyView()
+        case .loading:
+            SectionHeader("Plan limits")
+            LimitsNotice(icon: "gauge.with.dots.needle.33percent", message: "Loading Go limits…", tint: .secondary)
+        case .ready(let usage):
+            SectionHeader("Plan limits")
+            PlanLimitsView(usage: usage)
+        case .failed(let message):
+            SectionHeader("Plan limits")
+            LimitsNotice(icon: "exclamationmark.triangle.fill", message: message, tint: Theme.warn)
+        }
+    }
+}
+
+/// Three progress rows for the Go subscription windows.
+struct PlanLimitsView: View {
+    let usage: GoUsage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(usage.ordered, id: \.label) { item in
+                PlanLimitRow(label: item.label, window: item.window)
+            }
+        }
+        .card()
+    }
+}
+
+struct PlanLimitRow: View {
+    let label: String
+    let window: GoUsage.Window
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+                if window.isLimited {
+                    Chip(text: "rate limited", systemImage: "exclamationmark.triangle.fill", tint: Theme.danger)
+                }
+                Spacer(minLength: 6)
+                if let reset = window.resetDate {
+                    Text("resets in \(Fmt.countdown(to: reset))")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                Text("\(Int(window.used.rounded()))% used")
+                    .font(.system(size: 11, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(tint)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.07))
+                    Capsule()
+                        .fill(tint)
+                        .frame(width: max(geo.size.width * CGFloat(window.used / 100), 3))
+                }
+            }
+            .frame(height: 5)
+        }
+    }
+
+    private var tint: Color {
+        if window.isLimited || window.used >= 90 { return Theme.danger }
+        if window.used >= 75 { return Theme.warn }
+        return Theme.accent
+    }
+}
+
+/// Compact notice used while Go limits load, or when they can't be read.
+struct LimitsNotice: View {
+    let icon: String
+    let message: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(tint)
+            Text(message)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card(padding: 10)
     }
 }
 

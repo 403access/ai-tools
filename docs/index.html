@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenCodeBar — OpenCode in your macOS menu bar</title>
-<meta name="description" content="A native macOS menu bar app for OpenCode. See running sessions, recent activity, and your usage stats — live, at a glance. Read-only and local-only.">
+<meta name="description" content="A native macOS menu bar app for OpenCode. See running sessions, recent activity, and your usage stats — live, at a glance. Read-only.">
 <meta name="theme-color" content="#080b0a">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -12,7 +12,7 @@
 
 <meta property="og:type" content="website">
 <meta property="og:title" content="OpenCodeBar — OpenCode in your macOS menu bar">
-<meta property="og:description" content="See running OpenCode sessions, recent activity, and usage stats live from your menu bar. Native SwiftUI, read-only, local-only.">
+<meta property="og:description" content="See running OpenCode sessions, recent activity, usage stats, and Go plan limits live from your menu bar. Native SwiftUI, read-only.">
 <meta property="og:image" content="https://403access.github.io/ai-tools/screenshots/live.png">
 <meta name="twitter:card" content="summary_large_image">
 
@@ -52,7 +52,7 @@
       </div>
       <ul class="trust reveal">
         <li>Read-only</li>
-        <li>Local-only</li>
+        <li>Runs locally</li>
         <li>No telemetry</li>
       </ul>
 
@@ -97,7 +97,7 @@
       <div class="section-head reveal">
         <span class="kicker">Features</span>
         <h2>Everything at a glance</h2>
-        <p>Two tabs, zero setup. OpenCodeBar reads the local OpenCode service and keeps itself up to date.</p>
+        <p>Two tabs, zero setup. OpenCodeBar reads the OpenCode service and keeps itself up to date.</p>
       </div>
 
       <div class="grid features">
@@ -115,8 +115,8 @@
 
         <article class="card tone-purple reveal">
           <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><rect x="5" y="11" width="3.4" height="6.5" rx="1.1"/><rect x="10.3" y="6.5" width="3.4" height="11" rx="1.1"/><rect x="15.6" y="13" width="3.4" height="4.5" rx="1.1"/></svg></span>
-          <h3>Usage overview</h3>
-          <p>Streak, active days, today's steps, prompts, sessions, total cost, tokens, and subagents — the numbers that add up over time.</p>
+          <h3>Usage &amp; plan limits</h3>
+          <p>Streak, active days, today's steps, prompts, sessions, cost, and tokens — plus your Go plan's rolling, weekly, and monthly limits.</p>
         </article>
 
         <article class="card tone-amber reveal">
@@ -171,7 +171,7 @@
             </div>
             <img src="screenshots/usage.png" alt="OpenCodeBar Usage tab" width="800" height="1252">
           </div>
-          <figcaption><strong>Usage.</strong> Streaks, tiles, the activity heatmap, token mix, models, and tool calls.</figcaption>
+          <figcaption><strong>Usage.</strong> Go plan limits, streaks, tiles, the activity heatmap, token mix, models, and tool calls.</figcaption>
         </figure>
       </div>
     </div>
@@ -243,12 +243,12 @@ make run"><span class="cmd">$</span> git clone https://github.com/403access/ai-t
         <article class="card reveal">
           <div class="num">02</div>
           <h3>Authenticates locally</h3>
-          <p>Speaks HTTP Basic auth over loopback — the same flow the TUI uses. Nothing leaves your machine.</p>
+          <p>Speaks HTTP Basic auth over loopback — the same flow the TUI uses. Session data stays on your machine.</p>
         </article>
         <article class="card reveal">
           <div class="num">03</div>
           <h3>Polls a few endpoints</h3>
-          <p>Sessions, active sessions, projects, and aggregate stats — the read-only surface, and nothing more.</p>
+          <p>Sessions, active sessions, projects, and aggregate stats — plus the Go usage API when you're on a Go plan.</p>
         </article>
         <article class="card reveal">
           <div class="num">04</div>
