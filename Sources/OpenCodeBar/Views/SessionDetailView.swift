@@ -95,14 +95,16 @@ struct SessionDetailView: View {
                 HStack(spacing: 3) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 10, weight: .bold))
-                    Text("Live")
+                    Text(state.sessionBackTitle)
                         .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
                 .foregroundStyle(Theme.accent)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Back to live sessions")
+            .help("Back to \(state.sessionBackTitle)")
 
             Spacer(minLength: 8)
 

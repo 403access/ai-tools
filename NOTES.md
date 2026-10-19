@@ -27,10 +27,10 @@ observations. Last updated 2026-10-19.
   records by `canonical` path and keeps whichever has activity. Three such
   duplicates exist on this machine (`ai-tools`, `expo-tools`,
   `cisco-anyconnect`). Revisit if OpenCode ever merges them server-side.
-- **Project analytics load per expand.** Each expanded project costs two
-  requests (scoped stats and sessions), refreshed with the 60s cycle while it
-  stays open. Fine for a handful of projects; a bulk endpoint would be better if
-  the list ever needs totals inline.
+- **Project analytics load per open.** Each opened project costs two requests
+  (scoped stats and sessions), refreshed with the 60s cycle while its detail
+  page stays open. Fine for a handful of projects; a bulk endpoint would be
+  better if the list ever needs totals inline.
 
 - **Session detail view does not auto-follow new output.** It jumps to the
   bottom on first load, then refreshes in place, so a running session keeps

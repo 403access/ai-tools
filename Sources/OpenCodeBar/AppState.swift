@@ -34,8 +34,8 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Everything the Projects tab knows about one project, fetched on demand
-    /// the first time the project is expanded.
+    /// Everything a project detail page knows about one project, fetched on
+    /// demand the first time the project is opened.
     struct ProjectDetail: Equatable {
         var stats: Stats?
         var sessions: [Session] = []
@@ -68,12 +68,15 @@ final class AppState: ObservableObject {
     @Published var goUsage: GoUsageState = .unavailable
     @Published var goUsageFetchedAt: Date?
     @Published var projectDetails: [String: ProjectDetail] = [:]
-    @Published var expandedProjectID: String?
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
     /// Session whose detail view is open, if any. Kept in sync with the
     /// session list so a running session's header keeps updating.
     @Published var selectedSession: Session?
+    /// Project whose detail page is open, if any. Kept in sync with the project
+    /// list. A session opened from the project detail page leaves this set, so
+    /// closing the session returns to the project.
+    @Published var selectedProject: Project?
     /// Section the detail view opens on. Overridable from the command line for
     /// previews/screenshots (`--detail-mode prompts`).
     var detailMode: DetailMode = .conversation
@@ -139,7 +142,7 @@ final class AppState: ObservableObject {
                 try? await Task.sleep(nanoseconds: 60_000_000_000)
                 guard !Task.isCancelled else { break }
                 await self?.refreshStats(force: true)
-                await self?.refreshExpandedProject()
+                await self?.refreshSelectedProject()
             }
         }
 
@@ -188,7 +191,7 @@ final class AppState: ObservableObject {
         await refreshLive()
         await refreshStats(force: true)
         await refreshGoUsage()
-        if let id = expandedProjectID { await loadProject(id, force: true) }
+        if let project = selectedProject { await loadProject(project.id, force: true) }
     }
 
     func refreshLive() async {
@@ -222,6 +225,10 @@ final class AppState: ObservableObject {
             if let selected = selectedSession,
                let updated = merged.first(where: { $0.id == selected.id }) {
                 selectedSession = updated
+            }
+
+            if let selected = selectedProject, let updated = self.projects[selected.id] {
+                selectedProject = updated
             }
 
             if case .connected = connection {
@@ -334,6 +341,12 @@ final class AppState: ObservableObject {
         selectedSession = nil
     }
 
+    /// Title of the session detail view's back button. Sessions opened from a
+    /// project return there; everything else returns to the Live tab.
+    var sessionBackTitle: String {
+        selectedProject?.displayName ?? "Live"
+    }
+
     func isRunning(_ session: Session) -> Bool {
         activeIDs.contains(session.id)
     }
@@ -351,19 +364,20 @@ final class AppState: ObservableObject {
 
     // MARK: - Projects
 
-    /// Expands a project, or collapses it if it is already open. The detail —
-    /// scoped stats and recent sessions — loads on first expand.
-    func toggleProject(_ id: String) {
-        guard expandedProjectID != id else {
-            expandedProjectID = nil
-            return
-        }
-        expandedProjectID = id
-        Task { await loadProject(id) }
+    /// Opens the full detail page for a project, loading its scoped stats and
+    /// recent sessions on demand.
+    func open(_ project: Project) {
+        selectedProject = project
+        Task { await loadProject(project.id) }
+    }
+
+    func closeProject() {
+        selectedProject = nil
     }
 
     func loadProject(_ id: String, force: Bool = false) async {
         guard let api else { return }
+        if !force, projectDetails[id]?.isLoading == true { return }
         if !force, let detail = projectDetails[id], let loaded = detail.loadedAt,
            Date().timeIntervalSince(loaded) < 30 {
             return
@@ -383,9 +397,10 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func refreshExpandedProject() async {
-        guard let id = expandedProjectID else { return }
-        await loadProject(id, force: true)
+    private func refreshSelectedProject() async {
+        guard let project = selectedProject else { return }
+        if let updated = projects[project.id] { selectedProject = updated }
+        await loadProject(project.id, force: true)
     }
 
     // MARK: - Derived data

@@ -48,6 +48,19 @@ enum PreviewRunner {
             }
         }
 
+        // `--project-detail` opens the first project's detail page.
+        if CommandLine.arguments.contains("--project-detail") {
+            Task { @MainActor in
+                for _ in 0..<50 {
+                    if let project = state.orderedProjects.first {
+                        state.open(project)
+                        return
+                    }
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                }
+            }
+        }
+
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 640),
             styleMask: [.titled, .closable, .fullSizeContentView],
@@ -89,10 +102,11 @@ enum PreviewRunner {
             state.selectedSession = state.runningSessions.first ?? state.sessions.first
         }
 
-        // `--expand-project` opens the first project card, for the same reason.
-        if CommandLine.arguments.contains("--expand-project"),
-           let project = state.orderedProjects.first {
-            state.toggleProject(project.id)
+        // `--project-detail` opens the first project's detail page, for the
+        // same reason.
+        let wantsProjectDetail = CommandLine.arguments.contains("--project-detail")
+        if wantsProjectDetail, let project = state.orderedProjects.first {
+            state.open(project)
         }
 
         let hosting = NSHostingView(rootView: ScreenshotRoot(state: state))
@@ -111,8 +125,9 @@ enum PreviewRunner {
         window.layoutIfNeeded()
         hosting.layoutSubtreeIfNeeded()
 
-        // Give the detail view a moment to fetch its conversation.
-        if CommandLine.arguments.contains("--detail") || CommandLine.arguments.contains("--expand-project") {
+        // Give the detail view a moment to fetch its conversation or scoped
+        // project analytics.
+        if CommandLine.arguments.contains("--detail") || wantsProjectDetail {
             let detailDeadline = Date().addingTimeInterval(3)
             while Date() < detailDeadline {
                 RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))

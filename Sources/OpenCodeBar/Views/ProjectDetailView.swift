@@ -1,0 +1,298 @@
+import SwiftUI
+
+/// Full-panel detail for one project: scoped analytics, running work, and
+/// recent sessions. Opened by selecting a project on the Projects tab, the same
+/// way a session row opens the session detail view. A session opened from here
+/// leaves the project selected, so backing out of the session returns here.
+struct ProjectDetailView: View {
+    @EnvironmentObject private var state: AppState
+    let project: Project
+
+    private var detail: AppState.ProjectDetail? { state.projectDetails[project.id] }
+    private var running: [Session] { state.runningSessions(in: project) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            navigationBar
+            summary
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    runningSection
+
+                    if let detail {
+                        if let error = detail.error, detail.stats == nil {
+                            NoticeRow(
+                                icon: "exclamationmark.triangle.fill",
+                                message: error,
+                                tint: Theme.warn
+                            )
+                        } else if let stats = detail.stats {
+                            SectionHeader("Analytics")
+                            ProjectStats(stats: stats)
+                            ModelBreakdown(models: stats.models)
+                        } else if detail.isLoading {
+                            LoadingState(message: "Loading project…")
+                        }
+
+                        if !detail.sessions.isEmpty {
+                            SectionHeader("Recent sessions")
+                            ProjectSessions(sessions: detail.sessions)
+                        }
+                    } else {
+                        LoadingState(message: "Loading project…")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 4)
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+        .task(id: project.id) {
+            await state.loadProject(project.id)
+        }
+        .onExitCommand {
+            state.closeProject()
+        }
+    }
+
+    // MARK: - Header
+
+    private var navigationBar: some View {
+        HStack(spacing: 8) {
+            Button {
+                state.closeProject()
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 10, weight: .bold))
+                    Text("Projects")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .foregroundStyle(Theme.accent)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Back to projects")
+
+            Spacer(minLength: 8)
+
+            if running.isEmpty {
+                Chip(text: "Idle")
+            } else {
+                HStack(spacing: 5) {
+                    PulsingDot(size: 6)
+                    Text("\(running.count) running")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Theme.running)
+                }
+            }
+        }
+    }
+
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(project.displayName)
+                .font(.system(size: 13, weight: .semibold))
+                .lineLimit(2)
+
+            Text(shortPath)
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+
+            HStack(spacing: 5) {
+                if let vcs = project.vcs, !vcs.isEmpty {
+                    Chip(text: vcs, tint: Theme.reasoning)
+                }
+                if !project.sandboxes.isEmpty {
+                    Chip(
+                        text: "\(project.sandboxes.count) sandbox",
+                        systemImage: "shippingbox.fill"
+                    )
+                }
+            }
+
+            HStack(spacing: 10) {
+                if let stats = detail?.stats {
+                    Label("\(Fmt.grouped(stats.sessions)) sessions", systemImage: "bubble.left.and.bubble.right")
+                    Label("\(Fmt.grouped(stats.steps)) steps", systemImage: "bolt.fill")
+                }
+                Label(Fmt.relative(from: project.lastActiveDate), systemImage: "clock")
+            }
+            .font(.system(size: 9))
+            .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card(padding: 10)
+    }
+
+    private var shortPath: String {
+        (project.canonical as NSString).abbreviatingWithTildeInPath
+    }
+
+    // MARK: - Running
+
+    @ViewBuilder
+    private var runningSection: some View {
+        SectionHeader("Running") {
+            Text("\(running.count)")
+                .font(.system(size: 10, weight: .bold))
+                .monospacedDigit()
+                .foregroundStyle(running.isEmpty ? .secondary : Theme.running)
+        }
+
+        if running.isEmpty {
+            HStack(spacing: 6) {
+                Image(systemName: "moon.zzz.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                Text("Nothing running in this project.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card(padding: 10)
+        } else {
+            VStack(spacing: 0) {
+                ForEach(running) { session in
+                    Button {
+                        state.open(session)
+                    } label: {
+                        ProjectSessionRow(session: session, running: true)
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .help("Show conversation and prompts")
+
+                    if session.id != running.last?.id {
+                        Divider().opacity(0.35)
+                    }
+                }
+            }
+            .card(padding: 10)
+        }
+    }
+}
+
+// MARK: - Scoped analytics
+
+struct ProjectStats: View {
+    let stats: Stats
+
+    var body: some View {
+        LazyVGrid(
+            columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+            spacing: 10
+        ) {
+            StatTile(
+                icon: "bolt.fill",
+                tint: Theme.running,
+                label: "Steps",
+                value: Fmt.grouped(stats.steps),
+                caption: "\(Fmt.grouped(stats.prompts)) prompts"
+            )
+            StatTile(
+                icon: "dollarsign.circle.fill",
+                tint: Theme.accent,
+                label: "Cost",
+                value: Fmt.usd(stats.cost),
+                caption: "\(Fmt.grouped(stats.sessions)) sessions"
+            )
+            StatTile(
+                icon: "cpu",
+                tint: Theme.reasoning,
+                label: "Tokens",
+                value: Fmt.compact(stats.tokens.generated),
+                caption: "\(Fmt.compact(stats.tokens.cache.read)) cache read"
+            )
+            StatTile(
+                icon: "flame.fill",
+                tint: Theme.warn,
+                label: "Streak",
+                value: "\(stats.streak)",
+                caption: "\(stats.activeDays) active days"
+            )
+        }
+    }
+}
+
+// MARK: - Recent sessions
+
+struct ProjectSessions: View {
+    @EnvironmentObject var state: AppState
+    let sessions: [Session]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(sessions) { session in
+                Button {
+                    state.open(session)
+                } label: {
+                    ProjectSessionRow(session: session, running: false)
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .help("Show conversation and prompts")
+
+                if session.id != sessions.last?.id {
+                    Divider().opacity(0.35)
+                }
+            }
+        }
+        .card(padding: 10)
+    }
+}
+
+struct ProjectSessionRow: View {
+    let session: Session
+    let running: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if running {
+                PulsingDot(size: 5)
+            } else {
+                Circle()
+                    .fill(Color.secondary.opacity(0.4))
+                    .frame(width: 5, height: 5)
+            }
+
+            Text(session.displayTitle)
+                .font(.system(size: 10.5))
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer(minLength: 4)
+
+            if running {
+                Text(Fmt.elapsed(since: session.time.createdDate))
+                    .font(.system(size: 9))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.running)
+            } else {
+                if session.cost > 0 {
+                    Text(Fmt.usd(session.cost))
+                        .font(.system(size: 9, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.accent)
+                }
+                Text(Fmt.relative(from: session.time.updatedDate))
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 52, alignment: .trailing)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+    }
+}

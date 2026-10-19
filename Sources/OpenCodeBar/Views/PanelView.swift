@@ -17,6 +17,10 @@ struct PanelView: View {
                 SessionDetailView(session: session, initialMode: state.detailMode)
                     .frame(maxHeight: .infinity)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else if let project = state.selectedProject {
+                ProjectDetailView(project: project)
+                    .frame(maxHeight: .infinity)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
             } else {
                 TabBar(selection: $state.tab)
                     .padding(.horizontal, 12)
@@ -46,6 +50,7 @@ struct PanelView: View {
         .frame(width: 400)
         .frame(height: Self.contentHeight)
         .animation(.easeInOut(duration: 0.18), value: state.selectedSession?.id)
+        .animation(.easeInOut(duration: 0.18), value: state.selectedProject?.id)
         .task {
             await state.refreshLive()
             await state.refreshStats()
