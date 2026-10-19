@@ -34,6 +34,20 @@ enum PreviewRunner {
         let state = AppState()
         state.start()
 
+        // `--detail` opens the first running (or most recent) session once the
+        // service data has loaded.
+        if CommandLine.arguments.contains("--detail") {
+            Task { @MainActor in
+                for _ in 0..<50 {
+                    if let session = state.runningSessions.first ?? state.sessions.first {
+                        state.selectedSession = session
+                        return
+                    }
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                }
+            }
+        }
+
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 640),
             styleMask: [.titled, .closable, .fullSizeContentView],
