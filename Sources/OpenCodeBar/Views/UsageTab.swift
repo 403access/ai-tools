@@ -80,6 +80,16 @@ struct UsageTab: View {
                 if let totals = stats.tools.totals {
                     SectionHeader("Tool calls")
                     ToolSummary(totals: totals)
+
+                    if let usage = stats.tools.usage, !usage.isEmpty {
+                        SectionHeader("Tools") {
+                            Text("\(usage.count)")
+                                .font(.system(size: 10, weight: .bold))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                        ToolUsageBreakdown(usage: usage)
+                    }
                 }
             }
             .task { await state.refreshHistory() }
@@ -286,6 +296,7 @@ struct ToolSummary: View {
                 metric("Calls", Fmt.grouped(totals.calls), .primary)
                 metric("Succeeded", Fmt.grouped(totals.succeeded), Theme.accent)
                 metric("Failed", Fmt.grouped(totals.failed), totals.failed > 0 ? Theme.danger : .secondary)
+                metric("Unfinished", Fmt.grouped(totals.unfinished), totals.unfinished > 0 ? Theme.warn : .secondary)
             }
             GeometryReader { geo in
                 HStack(spacing: 1.5) {

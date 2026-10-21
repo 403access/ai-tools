@@ -38,7 +38,7 @@ struct SessionDetailView: View {
     private var project: String { store.projectName(for: session) }
 
     private var availableModes: [MobileStore.DetailMode] {
-        var modes: [MobileStore.DetailMode] = [.conversation, .changes, .prompts]
+        var modes: [MobileStore.DetailMode] = [.conversation, .stats, .changes, .prompts]
         if mode == .subagents
             || store.hasSubagents(sessionID)
             || store.isLoadingSubagents(sessionID) {
@@ -63,7 +63,7 @@ struct SessionDetailView: View {
 
                     Picker("View", selection: $mode) {
                         ForEach(availableModes) { mode in
-                            Text(mode.rawValue).tag(mode)
+                            Text(mode == .conversation ? "Chat" : mode.rawValue).tag(mode)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -83,7 +83,7 @@ struct SessionDetailView: View {
                 scrollToBottom(proxy, animated: false)
             }
             .onChange(of: mode) { _, newMode in
-                guard newMode != .subagents, newMode != .changes else { return }
+                guard newMode == .conversation || newMode == .prompts else { return }
                 scrollToBottom(proxy, animated: false)
             }
         }
@@ -108,20 +108,30 @@ struct SessionDetailView: View {
             await loadLatest()
             if mode == .changes {
                 await store.loadChanges(sessionID)
+            } else if mode == .stats {
+                await store.loadSessionStats(sessionID)
             }
         }
         .task(id: sessionID) {
             await store.loadSubagents(sessionID)
         }
         .task(id: mode) {
-            guard mode == .changes else { return }
-            await store.loadChanges(sessionID)
+            switch mode {
+            case .changes:
+                await store.loadChanges(sessionID)
+            case .stats:
+                await store.loadSessionStats(sessionID)
+            default:
+                break
+            }
         }
         .refreshable {
             await loadLatest()
             await store.loadSubagents(sessionID, force: true)
             if mode == .changes {
                 await store.loadChanges(sessionID, force: true)
+            } else if mode == .stats {
+                await store.loadSessionStats(sessionID, force: true)
             }
             await store.refreshLive()
         }
@@ -190,12 +200,28 @@ struct SessionDetailView: View {
         switch mode {
         case .conversation:
             conversation
+        case .stats:
+            stats
         case .changes:
             changes
         case .prompts:
             prompts
         case .subagents:
             subagents
+        }
+    }
+
+    @ViewBuilder
+    private var stats: some View {
+        let state = store.sessionStats[sessionID]
+        if let state, state.isLoading && state.stats == nil {
+            loading("Measuring this session…")
+        } else if let state, let error = state.error, state.stats == nil {
+            errorState(error, title: "Couldn't load stats")
+        } else if let stats = state?.stats {
+            MobileSessionStatsView(stats: stats)
+        } else {
+            loading("Loading stats…")
         }
     }
 

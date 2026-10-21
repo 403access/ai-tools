@@ -10,8 +10,13 @@ import {
   type Project,
   type Session,
   type SessionMessage,
+  type SessionStats,
   type Stats,
   type TokenUsage,
+  type ToolFailure,
+  type ToolTotals,
+  type ToolsSummary,
+  type ToolUsage,
 } from "./types.ts";
 
 type Row = Record<string, unknown>;
@@ -106,6 +111,35 @@ function relativePath(path: string, directory?: string | null): string {
   if (!directory) return path;
   const prefix = directory.endsWith("/") ? directory : `${directory}/`;
   return path.startsWith(prefix) ? path.slice(prefix.length) : path;
+}
+
+/** Collapses tool statuses into the three buckets the stats UI shows. */
+export function toolOutcome(status: unknown): "succeeded" | "failed" | "unfinished" {
+  const value = typeof status === "string" ? status.toLowerCase() : "";
+  if (value === "completed" || value === "success" || value === "succeeded") return "succeeded";
+  if (value === "error" || value === "failed" || value === "failure") return "failed";
+  return "unfinished";
+}
+
+/** OpenCode reports failures as `{ type, message }` or occasionally a string. */
+function toolErrorText(raw: unknown): string | undefined {
+  if (typeof raw === "string") return raw;
+  if (!raw || typeof raw !== "object") return undefined;
+  const record = raw as Record<string, unknown>;
+  if (typeof record.message === "string" && record.message) return record.message;
+  try {
+    return JSON.stringify(raw).slice(0, 1_000);
+  } catch {
+    return undefined;
+  }
+}
+
+function median(values: number[]): number | undefined {
+  if (!values.length) return undefined;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  const value = sorted.length % 2 === 0 ? (sorted[middle - 1]! + sorted[middle]!) / 2 : sorted[middle]!;
+  return Number.isFinite(value) ? Math.round(value * 10) / 10 : undefined;
 }
 
 export interface SessionQuery {
@@ -288,7 +322,7 @@ export class HubDB {
 
   private migrate(): void {
     const version = number((this.db.query("PRAGMA user_version").get() as Row | null)?.user_version);
-    if (version >= 2) return;
+    if (version >= 3) return;
 
     if (version < 1) this.db.exec(`
       CREATE TABLE IF NOT EXISTS projects (
@@ -366,7 +400,7 @@ export class HubDB {
       PRAGMA user_version = 1;
     `);
 
-    this.db.exec(`
+    if (version < 2) this.db.exec(`
       CREATE TABLE IF NOT EXISTS changes (
         session_id TEXT NOT NULL,
         message_id TEXT NOT NULL DEFAULT '',
@@ -394,6 +428,65 @@ export class HubDB {
 
       PRAGMA user_version = 2;
     `);
+
+    if (version < 3) {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS tool_calls (
+          session_id TEXT NOT NULL,
+          message_id TEXT NOT NULL DEFAULT '',
+          part_id TEXT NOT NULL,
+          name TEXT NOT NULL DEFAULT 'tool',
+          outcome TEXT NOT NULL DEFAULT 'unfinished',
+          error TEXT,
+          created REAL NOT NULL DEFAULT 0,
+          ran REAL,
+          completed REAL,
+          synced_at REAL NOT NULL,
+          PRIMARY KEY (session_id, part_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS tool_calls_session_created
+          ON tool_calls(session_id, created DESC, part_id);
+        CREATE INDEX IF NOT EXISTS tool_calls_session_outcome
+          ON tool_calls(session_id, outcome, created DESC);
+      `);
+      // Existing cached messages predate the table, so derive their tool calls
+      // once instead of waiting for OpenCode to resend every message.
+      this.backfillToolCalls();
+      this.db.exec("PRAGMA user_version = 3;");
+    }
+  }
+
+  /**
+   * Rebuilds the tool-call index from already cached messages. Used by the v3
+   * migration and safe to call at any time for one session.
+   */
+  private backfillToolCalls(sessionID?: string, now = Date.now()): void {
+    const rows = sessionID
+      ? (this.db
+          .query("SELECT id, session_id, content, created FROM messages WHERE session_id = ?")
+          .all(sessionID) as Row[])
+      : (this.db.query("SELECT id, session_id, content, created FROM messages").all() as Row[]);
+
+    const run = this.db.transaction(() => {
+      if (sessionID) this.db.prepare("DELETE FROM tool_calls WHERE session_id = ?").run(sessionID);
+      for (const row of rows) {
+        if (typeof row.content !== "string" || !row.content) continue;
+        try {
+          const parts = JSON.parse(row.content) as SessionMessage["content"];
+          this.storeToolCalls(
+            String(row.session_id),
+            String(row.id),
+            parts ?? [],
+            number(row.created),
+            now,
+          );
+        } catch {
+          // Ignore malformed cached content; it will be replaced on refresh.
+        }
+      }
+    });
+    run();
   }
 
   close(): void {
@@ -633,9 +726,71 @@ export class HubDB {
           directory,
           now,
         );
+        if (message.content) {
+          this.storeToolCalls(
+            sessionID,
+            message.id,
+            message.content,
+            number(message.time?.created),
+            now,
+          );
+        }
       }
     });
     run(messages);
+  }
+
+  /**
+   * Indexes tool parts by name and outcome so a session's reliability can be
+   * summarised without reparsing every message on each request.
+   */
+  private storeToolCalls(
+    sessionID: string,
+    messageID: string,
+    parts: SessionMessage["content"],
+    created: number,
+    now: number,
+  ): void {
+    this.db
+      .prepare("DELETE FROM tool_calls WHERE session_id = ? AND message_id = ?")
+      .run(sessionID, messageID);
+
+    const insert = this.db.prepare(`
+      INSERT INTO tool_calls (
+        session_id, message_id, part_id, name, outcome, error, created, ran,
+        completed, synced_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id, part_id) DO UPDATE SET
+        message_id = excluded.message_id,
+        name = excluded.name,
+        outcome = excluded.outcome,
+        error = excluded.error,
+        created = excluded.created,
+        ran = excluded.ran,
+        completed = excluded.completed,
+        synced_at = excluded.synced_at
+    `);
+
+    for (const [index, part] of (parts ?? []).entries()) {
+      if (!part || part.type !== "tool") continue;
+      const state = part.state;
+      const status = state && typeof state === "object" ? state.status : undefined;
+      const outcome = toolOutcome(status);
+      const partID = part.id ?? `${messageID}-${index}`;
+      const when = part.time?.created ?? created;
+      insert.run(
+        sessionID,
+        messageID,
+        partID,
+        part.name ?? "tool",
+        outcome,
+        outcome === "failed" ? (toolErrorText(state?.error) ?? "Tool call failed") : null,
+        number(when),
+        optionalNumber(part.time?.ran) ?? null,
+        optionalNumber(part.time?.completed) ?? null,
+        now,
+      );
+    }
   }
 
   /** Records the file patches carried by a message's tool parts. */
@@ -796,6 +951,144 @@ export class HubDB {
   getMessageCount(sessionID: string): number {
     const row = this.db.query("SELECT COUNT(*) AS n FROM messages WHERE session_id = ?").get(sessionID) as Row;
     return number(row.n);
+  }
+
+  /**
+   * Per-session stats from cached messages and indexed tool calls. Callers that
+   * need complete numbers should hydrate the message history first.
+   */
+  getSessionStats(sessionID: string): SessionStats | null {
+    const session = this.getSession(sessionID);
+    if (!session) return null;
+
+    const counts = this.db
+      .query(
+        `SELECT
+           COUNT(*) AS total,
+           SUM(CASE WHEN type IN ('user', 'synthetic') THEN 1 ELSE 0 END) AS prompts,
+           SUM(CASE WHEN type NOT IN ('user', 'synthetic') THEN 1 ELSE 0 END) AS steps
+         FROM messages WHERE session_id = ?`,
+      )
+      .get(sessionID) as Row;
+
+    const children = this.db
+      .query("SELECT COUNT(*) AS n FROM sessions WHERE parent_id = ?")
+      .get(sessionID) as Row;
+
+    const files = this.db
+      .query(
+        `SELECT
+           COUNT(DISTINCT file) AS files,
+           SUM(additions) AS additions,
+           SUM(deletions) AS deletions
+         FROM changes WHERE session_id = ?`,
+      )
+      .get(sessionID) as Row;
+
+    const sync = this.getMessageSync(sessionID);
+    const created = number(session.time.created);
+    const updated = number(session.time.updated);
+    const stats: SessionStats = {
+      sessionID,
+      prompts: number(counts.prompts),
+      steps: number(counts.steps),
+      subagents: number(children.n),
+      messages: number(counts.total),
+      tokens: session.tokens,
+      cost: session.cost,
+      tools: this.getSessionTools(sessionID),
+      failures: this.getSessionFailures(sessionID),
+      files: {
+        files: number(files.files),
+        additions: number(files.additions),
+        deletions: number(files.deletions),
+      },
+      time: { created, updated, duration: Math.max(0, updated - created) },
+      complete: sync?.complete ?? false,
+    };
+    if (session.time.idle !== undefined) stats.time.idle = session.time.idle;
+    return stats;
+  }
+
+  private getSessionTools(sessionID: string): ToolsSummary {
+    const rows = this.db
+      .query(
+        `SELECT
+           name,
+           COUNT(*) AS calls,
+           SUM(CASE WHEN outcome = 'succeeded' THEN 1 ELSE 0 END) AS succeeded,
+           SUM(CASE WHEN outcome = 'failed' THEN 1 ELSE 0 END) AS failed,
+           SUM(CASE WHEN outcome = 'unfinished' THEN 1 ELSE 0 END) AS unfinished
+         FROM tool_calls
+         WHERE session_id = ?
+         GROUP BY name
+         ORDER BY calls DESC, name ASC`,
+      )
+      .all(sessionID) as Row[];
+
+    const totals: ToolTotals = { calls: 0, succeeded: 0, failed: 0, unfinished: 0 };
+    const durationRows = this.db
+      .query(
+        `SELECT name, (completed - ran) AS duration
+         FROM tool_calls
+         WHERE session_id = ? AND completed IS NOT NULL AND ran IS NOT NULL
+         ORDER BY name ASC, duration ASC`,
+      )
+      .all(sessionID) as Row[];
+
+    const durations = new Map<string, number[]>();
+    for (const row of durationRows) {
+      const name = String(row.name);
+      const duration = number(row.duration, -1);
+      if (duration < 0) continue;
+      const list = durations.get(name) ?? [];
+      list.push(duration);
+      durations.set(name, list);
+    }
+
+    const usage: ToolUsage[] = rows.map((row) => {
+      const name = String(row.name);
+      const calls = number(row.calls);
+      const succeeded = number(row.succeeded);
+      const failed = number(row.failed);
+      const unfinished = number(row.unfinished);
+      totals.calls += calls;
+      totals.succeeded += succeeded;
+      totals.failed += failed;
+      totals.unfinished += unfinished;
+      const item: ToolUsage = { name, calls, succeeded, failed, unfinished };
+      const p50 = median(durations.get(name) ?? []);
+      if (p50 !== undefined) item.durationP50 = p50;
+      return item;
+    });
+
+    return { mode: "detail", totals, usage };
+  }
+
+  private getSessionFailures(sessionID: string): ToolFailure[] {
+    const rows = this.db
+      .query(
+        `SELECT name, error, message_id, part_id, created
+         FROM tool_calls
+         WHERE session_id = ? AND outcome = 'failed'
+         ORDER BY created DESC, part_id DESC
+         LIMIT 10`,
+      )
+      .all(sessionID) as Row[];
+
+    return rows.map((row) => {
+      const failure: ToolFailure = {
+        name: String(row.name ?? "tool"),
+        created: number(row.created),
+      };
+      const error = text(row.error);
+      if (error) failure.error = error;
+      const messageID = text(row.message_id);
+      if (messageID) failure.messageID = messageID;
+      const partID = text(row.part_id);
+      if (partID) failure.partID = partID;
+      return failure;
+    });
   }
 
   // MARK: - Stats and usage

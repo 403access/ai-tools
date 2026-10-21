@@ -49,8 +49,16 @@ final class MobileStore: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct SessionStatsState: Equatable {
+        var stats: SessionStats?
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     enum DetailMode: String, CaseIterable, Identifiable {
         case conversation = "Conversation"
+        case stats = "Stats"
         case changes = "Changes"
         case prompts = "Prompts"
         case subagents = "Subagents"
@@ -60,6 +68,7 @@ final class MobileStore: ObservableObject {
         var icon: String {
             switch self {
             case .conversation: return "bubble.left.and.bubble.right"
+            case .stats: return "wrench.and.screwdriver"
             case .changes: return "plus.forwardslash.minus"
             case .prompts: return "text.quote"
             case .subagents: return "person.2"
@@ -81,6 +90,7 @@ final class MobileStore: ObservableObject {
     @Published var projectDetails: [String: ProjectDetail] = [:]
     @Published var sessionChanges: [String: ChangesState] = [:]
     @Published var projectChanges: [String: ChangesState] = [:]
+    @Published var sessionStats: [String: SessionStatsState] = [:]
     @Published var subagentLists: [String: SubagentList] = [:]
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
@@ -167,6 +177,7 @@ final class MobileStore: ObservableObject {
         projectDetails = [:]
         sessionChanges = [:]
         projectChanges = [:]
+        sessionStats = [:]
         subagentLists = [:]
         lastUpdated = nil
         statsFetchedAt = nil
@@ -481,6 +492,35 @@ final class MobileStore: ObservableObject {
             }
             failed.error = message(for: error)
             sessionChanges[sessionID] = failed
+        }
+    }
+
+    /// Loads a session's prompts, tool reliability, failures and file totals.
+    func loadSessionStats(_ sessionID: String, force: Bool = false) async {
+        guard let api else { return }
+        if sessionStats[sessionID]?.isLoading == true { return }
+        if !force, let loaded = sessionStats[sessionID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+
+        var state = sessionStats[sessionID] ?? SessionStatsState()
+        state.isLoading = true
+        state.error = nil
+        sessionStats[sessionID] = state
+
+        do {
+            let stats = try await api.sessionStats(id: sessionID)
+            sessionStats[sessionID] = SessionStatsState(stats: stats, loadedAt: Date())
+        } catch {
+            var failed = sessionStats[sessionID] ?? SessionStatsState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                sessionStats[sessionID] = failed
+                return
+            }
+            failed.error = message(for: error)
+            sessionStats[sessionID] = failed
         }
     }
 

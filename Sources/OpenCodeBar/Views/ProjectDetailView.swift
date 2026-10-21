@@ -37,6 +37,31 @@ struct ProjectDetailView: View {
                             SectionHeader("Analytics")
                             ProjectStats(stats: stats)
 
+                            if let totals = stats.tools.totals {
+                                SectionHeader("Tool calls") {
+                                    if let rate = totals.successRate {
+                                        Text("\(Int((rate * 100).rounded()))% success")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .monospacedDigit()
+                                            .foregroundStyle(
+                                                rate >= 0.98 ? Theme.accent
+                                                    : rate >= 0.90 ? Theme.warn : Theme.danger
+                                            )
+                                    }
+                                }
+                                ToolSummary(totals: totals)
+
+                                if let usage = stats.tools.usage, !usage.isEmpty {
+                                    SectionHeader("Tools") {
+                                        Text("\(usage.count)")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .monospacedDigit()
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    ToolUsageBreakdown(usage: usage)
+                                }
+                            }
+
                             ModelBreakdown(models: stats.models)
                         } else if detail.isLoading {
                             LoadingState(message: "Loading project…")
@@ -344,6 +369,20 @@ struct ProjectStats: View {
                 label: "Cost",
                 value: Fmt.usd(stats.cost),
                 caption: "\(Fmt.grouped(stats.sessions)) sessions"
+            )
+            StatTile(
+                icon: "wrench.and.screwdriver.fill",
+                tint: Theme.output,
+                label: "Tool calls",
+                value: Fmt.grouped(stats.tools.totals?.calls ?? 0),
+                caption: "\(Fmt.grouped(stats.tools.totals?.succeeded ?? 0)) succeeded"
+            )
+            StatTile(
+                icon: "xmark.octagon.fill",
+                tint: (stats.tools.totals?.failed ?? 0) > 0 ? Theme.danger : .secondary,
+                label: "Failures",
+                value: Fmt.grouped(stats.tools.totals?.failed ?? 0),
+                caption: "\(Fmt.grouped(stats.tools.totals?.unfinished ?? 0)) unfinished"
             )
             StatTile(
                 icon: "cpu",

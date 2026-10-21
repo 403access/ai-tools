@@ -220,6 +220,11 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
           return json({ data: await hub.changes(id) });
         }
 
+        if (parts.length === 4 && parts[3] === "stats") {
+          const stats = await hub.sessionStats(id);
+          return stats ? json({ data: stats }) : error("Session not found", 404);
+        }
+
         if (parts.length === 3) {
           if (request.method !== "GET") return error("Method not allowed", 405);
           const session = await hub.session(id);

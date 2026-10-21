@@ -217,6 +217,54 @@ describe("hub API reads", () => {
     db.close();
   });
 
+  test("serves cached session statistics for the session detail view", async () => {
+    const { db, handler } = setup();
+    db.upsertSessions([session("ses_1", 2_000)]);
+    db.upsertMessages("ses_1", [
+      { id: "m1", type: "user", time: { created: 100 }, text: "hello" },
+      {
+        id: "m2",
+        type: "assistant",
+        time: { created: 200 },
+        content: [
+          {
+            type: "tool",
+            id: "p1",
+            name: "shell",
+            state: { status: "completed" },
+            time: { ran: 10, completed: 40 },
+          },
+          {
+            type: "tool",
+            id: "p2",
+            name: "read",
+            state: { status: "error", error: "File not found" },
+            time: { ran: 5, completed: 15 },
+          },
+        ],
+      },
+    ]);
+
+    const stats = await body<{
+      data: {
+        prompts: number;
+        steps: number;
+        tools: { totals: { calls: number; failed: number } };
+        failures: Array<{ name: string; error: string }>;
+      };
+    }>(await handler(request("/api/session/ses_1/stats")));
+
+    expect(stats.data.prompts).toBe(1);
+    expect(stats.data.steps).toBe(1);
+    expect(stats.data.tools.totals.calls).toBe(2);
+    expect(stats.data.tools.totals.failed).toBe(1);
+    expect(stats.data.failures[0]?.name).toBe("read");
+    expect(stats.data.failures[0]?.error).toBe("File not found");
+
+    expect((await handler(request("/api/session/nope/stats"))).status).toBe(404);
+    db.close();
+  });
+
   test("reports a 404 for an unknown session and route", async () => {
     const { handler, db } = setup();
     expect((await handler(request("/api/session/nope"))).status).toBe(404);

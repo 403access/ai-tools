@@ -75,6 +75,14 @@ Follow-ups worth considering:
   (scoped stats and sessions), refreshed with the 60s cycle while its detail
   page stays open. Fine for a handful of projects; a bulk endpoint would be
   better if the list ever needs totals inline.
+- **Session stats hydrate message history on first open.** `/api/session/{id}/stats`
+  pages through up to 30 pages (8s timeout per page) before aggregating tool
+  calls, so a very long session can take a few seconds. The response's
+  `complete` flag drives the Stats tab's "loaded so far" notice.
+- **Project tool failures are counts, not individual errors.** The stats API's
+  `tools=detail` payload has per-tool failed counts but no error messages.
+  Showing recent project-wide failures would mean scanning cached messages,
+  which only covers sessions that have been opened.
 
 - **Session detail view does not auto-follow new output.** It jumps to the
   bottom on first load, then refreshes in place, so a running session keeps

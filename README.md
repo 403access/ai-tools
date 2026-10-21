@@ -40,6 +40,9 @@ iOS app:
 - Click any session to open its details: the full conversation, a prompts-only
   list with copy buttons, and expandable reasoning and tool calls. The view
   keeps updating while the session runs and pages back through history.
+- **Stats** tab: prompts, steps, tool-call reliability, per-tool failure counts
+  and median durations, the recent failures with their errors, file impact, and
+  the token mix for that session.
 - **Changes** tab: every file the session wrote, with the actual patch, added
   and removed line counts, and a colour-coded diff. Repeated edits to one file
   are grouped, and long patches collapse to a preview. Tool cards in the
@@ -56,6 +59,8 @@ iOS app:
   their cost. A **Changes** section aggregates the patches written by the
   project's newest sessions, grouped by session and file. Quick actions open
   the project in Finder or Terminal and copy its path.
+- Tool reliability for the project: total calls plus per-tool succeeded, failed,
+  and unfinished counts with median durations.
 - Scoped trends: an interactive daily chart for steps, cost, or tokens over the
   last 30 / 90 / 365 days or all time, using only that project's data.
 - Duplicate records for the same directory are merged, and analytics are
@@ -119,9 +124,9 @@ The hub:
    stops or restarts on a new port.
 3. Serves a stable API that mirrors OpenCode's shapes — `/api/session`,
    `/api/session/{id}`, `/api/session/{id}/message`, `/api/session/{id}/changes`,
-   `/api/project`, `/api/project/{id}/changes`, `/api/experimental/session/stats`
-   — plus `/api/usage`, `/api/health`, `/api/sync`, and `/api/event`. Clients
-   authenticate with a Bearer token.
+   `/api/session/{id}/stats`, `/api/project`, `/api/project/{id}/changes`,
+   `/api/experimental/session/stats` — plus `/api/usage`, `/api/health`,
+   `/api/sync`, and `/api/event`. Clients authenticate with a Bearer token.
 4. Forwards OpenCode events to every connected client, so both apps update live.
    The stream also carries `hub.*` notices (`hub.connected`, `hub.sessions`,
    `hub.stats`, `hub.usage`) that tell clients when cached data changed.
@@ -149,6 +154,15 @@ caching messages, so patches survive an OpenCode restart. Opening a session's
 Changes tab hydrates its full history the first time; project changes hydrate
 the newest 10 sessions (adjustable with `?sessions=`) and always include any
 older changes already cached.
+
+Tool reliability comes from two places. Project and usage breakdowns ask the
+stats API for `tools=detail`, which adds per-tool succeeded/failed/unfinished
+counts and median durations. Sessions have no stats endpoint upstream, so the
+hub derives their numbers from cached messages: tool parts are indexed by name
+and outcome when a message is cached, and the first `/api/session/{id}/stats`
+request pages through up to 30 pages of history. The response says whether the
+history is complete, and the Stats tab notes when totals cover only the loaded
+window.
 
 ### Connecting the apps
 

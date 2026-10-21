@@ -155,6 +155,13 @@ struct HubAPI: Sendable {
         return response.data
     }
 
+    /// Per-session prompts, steps, tool reliability, failures and file totals.
+    func sessionStats(id: String) async throws -> SessionStats {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: SessionStatsResponse = try await get("/api/session/\(encoded)/stats")
+        return response.data
+    }
+
     /// File patches across the newest sessions in a project.
     func projectChanges(id: String, sessions: Int = 10) async throws -> [FileChange] {
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id

@@ -76,6 +76,16 @@ struct UsageView: View {
                     if let totals = stats.tools.totals {
                         SectionHeader("Tool calls")
                         ToolSummaryCard(totals: totals, mode: stats.tools.mode)
+
+                        if let usage = stats.tools.usage, !usage.isEmpty {
+                            SectionHeader("Tools") {
+                                Text("\(usage.count)")
+                                    .font(.caption.weight(.bold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
+                            ToolUsageBreakdown(usage: usage)
+                        }
                     }
                 }
                 .padding(.horizontal, 16)

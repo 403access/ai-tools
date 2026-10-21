@@ -60,6 +60,20 @@ enum Fmt {
         return "\(s)s"
     }
 
+    /// Formats a millisecond duration from the stats API.
+    static func duration(milliseconds value: Double) -> String {
+        elapsed(
+            since: Date(timeIntervalSince1970: 0),
+            now: Date(timeIntervalSince1970: max(0, value) / 1_000)
+        )
+    }
+
+    /// A tool's median duration, e.g. "231ms", "1.2s", "71s".
+    static func milliseconds(_ value: Double) -> String {
+        if value < 1_000 { return "\(Int(value.rounded()))ms" }
+        return String(format: "%.1fs", value / 1_000)
+    }
+
     /// Time until a reset, e.g. "29d 12h", "1h 21m", "45s".
     static func countdown(to date: Date, now: Date = Date()) -> String {
         let seconds = date.timeIntervalSince(now)

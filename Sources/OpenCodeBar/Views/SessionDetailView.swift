@@ -30,7 +30,7 @@ struct SessionDetailView: View {
     /// Subagents is offered when the session has child sessions, while they are
     /// loading, or when it was selected explicitly (CLI previews).
     private var availableModes: [AppState.DetailMode] {
-        var modes: [AppState.DetailMode] = [.conversation, .changes, .prompts]
+        var modes: [AppState.DetailMode] = [.conversation, .stats, .changes, .prompts]
         if mode == .subagents
             || state.hasSubagents(session.id)
             || state.isLoadingSubagents(session.id) {
@@ -66,6 +66,8 @@ struct SessionDetailView: View {
                         switch mode {
                         case .conversation:
                             conversation
+                        case .stats:
+                            stats
                         case .changes:
                             changes
                         case .prompts:
@@ -88,7 +90,7 @@ struct SessionDetailView: View {
                     scrollToBottom(proxy, animated: false)
                 }
                 .onChange(of: mode) { _, newMode in
-                    guard newMode != .subagents, newMode != .changes else { return }
+                    guard newMode == .conversation || newMode == .prompts else { return }
                     scrollToBottom(proxy, animated: false)
                 }
             }
@@ -100,14 +102,22 @@ struct SessionDetailView: View {
             await loadLatest()
             if mode == .changes {
                 await state.loadChanges(session.id)
+            } else if mode == .stats {
+                await state.loadSessionStats(session.id)
             }
         }
         .task(id: session.id) {
             await state.loadSubagents(session.id)
         }
         .task(id: mode) {
-            guard mode == .changes else { return }
-            await state.loadChanges(session.id)
+            switch mode {
+            case .changes:
+                await state.loadChanges(session.id)
+            case .stats:
+                await state.loadSessionStats(session.id)
+            default:
+                break
+            }
         }
         .onChange(of: availableModes, initial: true) { _, modes in
             if !modes.contains(mode) { mode = .conversation }
@@ -238,6 +248,22 @@ struct SessionDetailView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 3)
             }
+        }
+    }
+
+    // MARK: - Stats
+
+    @ViewBuilder
+    private var stats: some View {
+        let statsState = state.sessionStats[session.id]
+        if let statsState, statsState.isLoading && statsState.stats == nil {
+            LoadingState(message: "Measuring this session…")
+        } else if let statsState, let error = statsState.error, statsState.stats == nil {
+            errorState(error)
+        } else if let stats = statsState?.stats {
+            SessionStatsView(stats: stats)
+        } else {
+            LoadingState(message: "Loading stats…")
         }
     }
 

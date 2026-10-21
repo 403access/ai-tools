@@ -264,9 +264,13 @@ export class OpenCodeClient {
     return this.get<Project[]>("/api/project");
   }
 
-  async stats(project?: string): Promise<StatsResponse> {
-    const params = project ? `?project=${encodeURIComponent(project)}` : "";
-    return this.get<StatsResponse>(`/api/experimental/session/stats${params}`);
+  async stats(
+    project?: string,
+    tools: "none" | "summary" | "detail" = "detail",
+  ): Promise<StatsResponse> {
+    const params = new URLSearchParams({ tools });
+    if (project) params.set("project", project);
+    return this.get<StatsResponse>(`/api/experimental/session/stats?${params}`);
   }
 
   /**

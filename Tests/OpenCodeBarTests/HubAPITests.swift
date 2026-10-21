@@ -79,7 +79,14 @@ final class HubAPITests: XCTestCase {
             "prompts": 99,
             "cost": 12.5,
             "tokens": { "input": 1, "output": 2, "reasoning": 3, "cache": { "read": 4, "write": 5 } },
-            "tools": { "mode": "enabled", "totals": { "calls": 10, "succeeded": 9, "failed": 1, "unfinished": 0 } },
+            "tools": {
+              "mode": "detail",
+              "totals": { "calls": 10, "succeeded": 9, "failed": 1, "unfinished": 0 },
+              "usage": [
+                { "name": "shell", "calls": 6, "succeeded": 6, "failed": 0, "unfinished": 0, "durationP50": 231 },
+                { "name": "edit", "calls": 4, "succeeded": 3, "failed": 1, "unfinished": 0 }
+              ]
+            },
             "streak": 39,
             "activeDays": 49,
             "activity": [ { "date": "2026-10-21", "steps": 1373 } ],
@@ -93,6 +100,56 @@ final class HubAPITests: XCTestCase {
         XCTAssertEqual(response.data.steps, 43_642)
         XCTAssertEqual(response.data.steps(onDay: "2026-10-21"), 1_373)
         XCTAssertEqual(response.data.maxSteps, 1_373)
+        XCTAssertEqual(response.data.tools.usage?.count, 2)
+        XCTAssertEqual(response.data.tools.usage?.first?.durationP50 ?? 0, 231)
+        XCTAssertEqual(response.data.tools.totals?.successRate ?? 0, 0.9, accuracy: 0.0001)
+    }
+
+    func testSessionStatsResponseDecodesToolReliability() throws {
+        let json = """
+        {
+          "data": {
+            "sessionID": "ses_1",
+            "prompts": 8,
+            "steps": 208,
+            "subagents": 2,
+            "messages": 216,
+            "tokens": { "input": 10, "output": 20, "reasoning": 3, "cache": { "read": 4, "write": 5 } },
+            "cost": 0.41,
+            "tools": {
+              "mode": "detail",
+              "totals": { "calls": 321, "succeeded": 319, "failed": 1, "unfinished": 1 },
+              "usage": [
+                { "name": "edit", "calls": 145, "succeeded": 144, "failed": 1, "unfinished": 0, "durationP50": 17 }
+              ]
+            },
+            "failures": [
+              {
+                "name": "edit",
+                "error": "No changes to apply: oldString and newString are identical.",
+                "messageID": "msg_2",
+                "partID": "part_3",
+                "created": 1792595523652
+              }
+            ],
+            "files": { "files": 23, "additions": 1220, "deletions": 71 },
+            "time": { "created": 1792594547497, "updated": 1792607774436, "duration": 13226939 },
+            "complete": true
+          }
+        }
+        """
+        let response = try decode(SessionStatsResponse.self, json)
+        let stats = response.data
+        XCTAssertEqual(stats.sessionID, "ses_1")
+        XCTAssertEqual(stats.steps, 208)
+        XCTAssertEqual(stats.totals.calls, 321)
+        XCTAssertEqual(stats.files.net, 1_149)
+        XCTAssertEqual(stats.failures.first?.name, "edit")
+        XCTAssertEqual(stats.failures.first?.message, "No changes to apply: oldString and newString are identical.")
+        XCTAssertEqual(stats.tools.usage?.first?.durationP50 ?? 0, 17)
+        XCTAssertTrue(stats.complete)
+        XCTAssertEqual(Fmt.duration(milliseconds: 3_600_000), "1h 0m")
+        XCTAssertEqual(Fmt.milliseconds(231), "231ms")
     }
 
     func testHealthResponseDecodesHubAndOpenCodeStatus() throws {

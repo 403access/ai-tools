@@ -28,6 +28,31 @@ struct ProjectDetailView: View {
                         SectionHeader("Trend")
                         UsageTrendCard(stats: stats, sessions: detail.sessions)
 
+                        if let totals = stats.tools.totals {
+                            SectionHeader("Tool calls") {
+                                if let rate = totals.successRate {
+                                    Text("\(Int((rate * 100).rounded()))% success")
+                                        .font(.caption2.weight(.semibold))
+                                        .monospacedDigit()
+                                        .foregroundStyle(
+                                            rate >= 0.98 ? Theme.accent
+                                                : rate >= 0.90 ? Theme.warn : Theme.danger
+                                        )
+                                }
+                            }
+                            ToolSummaryCard(totals: totals, mode: stats.tools.mode)
+
+                            if let usage = stats.tools.usage, !usage.isEmpty {
+                                SectionHeader("Tools") {
+                                    Text("\(usage.count)")
+                                        .font(.caption.weight(.bold))
+                                        .monospacedDigit()
+                                        .foregroundStyle(.secondary)
+                                }
+                                ToolUsageBreakdown(usage: usage)
+                            }
+                        }
+
                         if !stats.models.isEmpty {
                             SectionHeader("Models")
                             ModelBreakdownCard(models: stats.models)
@@ -170,14 +195,28 @@ struct ProjectDetailView: View {
                 tint: Theme.running,
                 label: "Steps",
                 value: Fmt.grouped(stats.steps),
-                caption: "\(stats.sessions) sessions"
+                caption: "\(Fmt.grouped(stats.prompts)) prompts"
             )
             StatTile(
                 icon: "dollarsign.circle.fill",
                 tint: Theme.accent,
                 label: "Cost",
                 value: Fmt.usd(stats.cost),
-                caption: "\(Fmt.compact(stats.tokens.generated)) tokens"
+                caption: "\(stats.sessions) sessions"
+            )
+            StatTile(
+                icon: "wrench.and.screwdriver.fill",
+                tint: Theme.output,
+                label: "Tool calls",
+                value: Fmt.grouped(stats.tools.totals?.calls ?? 0),
+                caption: "\(Fmt.grouped(stats.tools.totals?.succeeded ?? 0)) succeeded"
+            )
+            StatTile(
+                icon: "xmark.octagon.fill",
+                tint: (stats.tools.totals?.failed ?? 0) > 0 ? Theme.danger : .secondary,
+                label: "Failures",
+                value: Fmt.grouped(stats.tools.totals?.failed ?? 0),
+                caption: "\(Fmt.grouped(stats.tools.totals?.unfinished ?? 0)) unfinished"
             )
             StatTile(
                 icon: "flame.fill",
@@ -187,11 +226,11 @@ struct ProjectDetailView: View {
                 caption: "\(stats.activeDays) active days"
             )
             StatTile(
-                icon: "bubble.left.and.bubble.right.fill",
-                tint: Theme.input,
-                label: "Prompts",
-                value: Fmt.grouped(stats.prompts),
-                caption: "\(stats.subagents) subagents"
+                icon: "cpu",
+                tint: Theme.reasoning,
+                label: "Tokens",
+                value: Fmt.compact(stats.tokens.generated),
+                caption: "\(Fmt.compact(stats.tokens.cache.read)) cache read"
             )
         }
     }

@@ -60,9 +60,17 @@ final class AppState: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct SessionStatsState: Equatable {
+        var stats: SessionStats?
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     /// Sections available in the session detail view.
     enum DetailMode: String, CaseIterable, Identifiable {
         case conversation = "Conversation"
+        case stats = "Stats"
         case changes = "Changes"
         case prompts = "Prompts"
         case subagents = "Subagents"
@@ -71,6 +79,7 @@ final class AppState: ObservableObject {
         var icon: String {
             switch self {
             case .conversation: return "bubble.left.and.bubble.right"
+            case .stats: return "wrench.and.screwdriver"
             case .changes: return "plus.forwardslash.minus"
             case .prompts: return "text.quote"
             case .subagents: return "person.2"
@@ -98,6 +107,9 @@ final class AppState: ObservableObject {
     @Published var sessionChanges: [String: ChangesState] = [:]
     /// Project-wide changes, aggregated across its newest sessions.
     @Published var projectChanges: [String: ChangesState] = [:]
+    /// Per-session stats (prompts, tool reliability, failures), loaded when the
+    /// Stats tab opens.
+    @Published var sessionStats: [String: SessionStatsState] = [:]
     /// Child sessions per parent, loaded when a session's Subagents tab is
     /// opened and kept in sync with the live session list.
     @Published var subagentLists: [String: SubagentList] = [:]
@@ -192,6 +204,7 @@ final class AppState: ObservableObject {
                 }
                 await self?.refreshSelectedProject()
                 await self?.refreshSelectedSubagents()
+                await self?.refreshSelectedSessionStats()
             }
         }
 
@@ -640,6 +653,42 @@ final class AppState: ObservableObject {
             failed.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             sessionChanges[sessionID] = failed
         }
+    }
+
+    /// Fetches a session's tool-use and failure summary. The hub hydrates the
+    /// message history on the first request, so this can take a moment.
+    func loadSessionStats(_ sessionID: String, force: Bool = false) async {
+        guard let api else { return }
+        if sessionStats[sessionID]?.isLoading == true { return }
+        if !force, let loaded = sessionStats[sessionID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+
+        var state = sessionStats[sessionID] ?? SessionStatsState()
+        state.isLoading = true
+        state.error = nil
+        sessionStats[sessionID] = state
+
+        do {
+            let stats = try await api.sessionStats(id: sessionID)
+            sessionStats[sessionID] = SessionStatsState(stats: stats, loadedAt: Date())
+        } catch {
+            var failed = sessionStats[sessionID] ?? SessionStatsState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                sessionStats[sessionID] = failed
+                return
+            }
+            failed.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            sessionStats[sessionID] = failed
+        }
+    }
+
+    /// Refreshes the open session's stats on the slow cycle.
+    private func refreshSelectedSessionStats() async {
+        guard let id = selectedSession?.id, sessionStats[id]?.stats != nil else { return }
+        await loadSessionStats(id, force: true)
     }
 
     /// Fetches changes across a project's newest sessions.

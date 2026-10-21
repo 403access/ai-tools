@@ -145,3 +145,109 @@ struct TokenBreakdown: View {
         .card()
     }
 }
+
+// MARK: - Tool reliability
+
+/// Per-tool call counts, failures and median duration. Shared by the session,
+/// project and usage screens on both platforms.
+struct ToolUsageBreakdown: View {
+    let usage: [Stats.ToolUsage]
+
+    private var ordered: [Stats.ToolUsage] {
+        usage.sorted {
+            if $0.calls != $1.calls { return $0.calls > $1.calls }
+            return $0.name < $1.name
+        }
+    }
+
+    var body: some View {
+        let tools = ordered
+        let maxCalls = max(tools.map(\.calls).max() ?? 1, 1)
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(tools) { tool in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(tool.name)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .lineLimit(1)
+                        Spacer(minLength: 6)
+                        if tool.failed > 0 {
+                            Text("\(tool.failed) failed")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(Theme.danger)
+                        }
+                        if let p50 = tool.durationP50 {
+                            Text(Fmt.milliseconds(p50))
+                                .font(.system(size: 9))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("\(Fmt.grouped(tool.calls))×")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+
+                    GeometryReader { geo in
+                        let width = max(geo.size.width * CGFloat(tool.calls) / CGFloat(maxCalls), 3)
+                        HStack(spacing: 1) {
+                            Rectangle()
+                                .fill(Theme.accent)
+                                .frame(width: width * fraction(tool.succeeded, of: tool.calls))
+                            Rectangle()
+                                .fill(Theme.danger)
+                                .frame(width: width * fraction(tool.failed, of: tool.calls))
+                            Rectangle()
+                                .fill(Theme.warn)
+                                .frame(width: width * fraction(tool.unfinished, of: tool.calls))
+                        }
+                        .clipShape(Capsule())
+                    }
+                    .frame(height: 5)
+                }
+            }
+        }
+        .card()
+    }
+
+    private func fraction(_ value: Int, of total: Int) -> CGFloat {
+        guard total > 0 else { return 0 }
+        return CGFloat(value) / CGFloat(total)
+    }
+}
+
+/// Recent failed tool calls with the error OpenCode recorded.
+struct ToolFailureList: View {
+    let failures: [SessionStats.ToolFailure]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            ForEach(failures) { failure in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "xmark.octagon.fill")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(Theme.danger)
+                        Text(failure.name)
+                            .font(.system(size: 10, weight: .semibold))
+                        Spacer(minLength: 4)
+                        Text(Fmt.relative(from: failure.createdDate))
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(failure.message)
+                        .font(.system(size: 9.5, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+
+                if failure.id != failures.last?.id {
+                    Divider().opacity(0.3)
+                }
+            }
+        }
+        .card()
+    }
+}

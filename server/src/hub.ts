@@ -13,6 +13,7 @@ import type {
   HubHealth,
   MessagesResponse,
   Session,
+  SessionStats,
   Stats,
   UsageResponse,
 } from "./types.ts";
@@ -370,7 +371,7 @@ export class Hub {
     try {
       const [sessions, stats] = await Promise.all([
         client.sessions({ limit: 1_000 }),
-        client.stats(),
+        client.stats(undefined, "detail"),
       ]);
       if (sessions.length) this.db.upsertSessions(sessions);
       if (stats.data) {
@@ -457,6 +458,28 @@ export class Hub {
       }
     }
     return this.db.getMessages(id, limit, cursor);
+  }
+
+  /**
+   * Per-session stats. Message history is the source of truth, so the first
+   * request hydrates it (bounded) before aggregating the cached tool calls.
+   */
+  async sessionStats(id: string): Promise<SessionStats | null> {
+    const client = this.client ?? (await this.ensureClient());
+    if (client) {
+      try {
+        const session = await client.session(id);
+        this.db.upsertSessions([session]);
+      } catch (error) {
+        this.noteError(error);
+      }
+      try {
+        await this.syncMessagesForChanges(client, id, 30, 8_000);
+      } catch (error) {
+        this.noteError(error);
+      }
+    }
+    return this.db.getSessionStats(id);
   }
 
   /**
@@ -575,7 +598,7 @@ export class Hub {
 
     const task = (async (): Promise<Stats | null> => {
       try {
-        const response = await client.stats(project);
+        const response = await client.stats(project, "detail");
         if (!response.data) return null;
         this.db.putStats(scope, response.data);
         this.broadcast({ type: "hub.stats", data: { scope, at: Date.now() } });
