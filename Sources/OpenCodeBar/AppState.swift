@@ -61,6 +61,9 @@ final class AppState: ObservableObject {
     @Published var connection: Connection = .connecting
     @Published var tab: Tab = .live
     @Published var sessions: [Session] = []
+    /// Full session history, refreshed on the slow cycle. The live list only
+    /// holds the newest sessions; the trend charts need the older ones too.
+    @Published var history: [Session] = []
     @Published var activeIDs: Set<String> = []
     @Published var projects: [String: Project] = [:]
     @Published var stats: Stats?
@@ -104,6 +107,7 @@ final class AppState: ObservableObject {
     private var debounceTask: Task<Void, Never>?
     private var discovering = false
     private var started = false
+    private var historyFetchedAt: Date?
 
     init() {
         // Allows the preview harness to open a specific tab:
@@ -142,6 +146,9 @@ final class AppState: ObservableObject {
                 try? await Task.sleep(nanoseconds: 60_000_000_000)
                 guard !Task.isCancelled else { break }
                 await self?.refreshStats(force: true)
+                if self?.tab == .usage {
+                    await self?.refreshHistory(force: true)
+                }
                 await self?.refreshSelectedProject()
             }
         }
@@ -190,6 +197,7 @@ final class AppState: ObservableObject {
     func refreshAll() async {
         await refreshLive()
         await refreshStats(force: true)
+        await refreshHistory(force: true)
         await refreshGoUsage()
         if let project = selectedProject { await loadProject(project.id, force: true) }
     }
@@ -276,6 +284,22 @@ final class AppState: ObservableObject {
         } catch {
             // Keep the last known stats; a later refresh will recover.
             if stats != nil { statsStale = true }
+        }
+    }
+
+    /// Fetches the full session list for the usage charts. Kept separate from
+    /// `refreshLive` so the 5s live poll stays small; this runs on the 60s cycle.
+    func refreshHistory(force: Bool = false) async {
+        guard let api else { return }
+        if !force, let fetched = historyFetchedAt,
+           Date().timeIntervalSince(fetched) < 60 {
+            return
+        }
+        do {
+            history = try await api.sessions(limit: 1_000)
+            historyFetchedAt = Date()
+        } catch {
+            // Keep the last known history; the charts still work with it.
         }
     }
 
@@ -386,7 +410,7 @@ final class AppState: ObservableObject {
         projectDetails[id, default: ProjectDetail()].isLoading = true
         do {
             async let stats = api.stats(project: id)
-            async let sessions = api.sessions(projectID: id, limit: 20)
+            async let sessions = api.sessions(projectID: id, limit: 1_000)
             let (scopedStats, recent) = try await (stats, sessions)
             projectDetails[id] = ProjectDetail(stats: scopedStats, sessions: recent, loadedAt: Date())
         } catch {

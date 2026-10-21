@@ -56,6 +56,12 @@ observations. Last updated 2026-10-19.
   tile as "latest day".
 - **Heatmap scaling uses `max`**, so a single outlier day flattens all other
   cells. Consider a percentile cap or clamping the color scale.
+- **Trend cost/tokens are grouped by session update day.** The stats API only
+  exposes daily steps, so cost and token series come from the session list; a
+  long session puts all of its spend on the day it was last updated. The charts
+  fetch the newest 1,000 sessions, so very large histories would be truncated.
+- **The "All" chart range uses one bar per day.** With years of history the bars
+  become sub-pixel; bucket by week or month once the range passes a threshold.
 
 ## Environment observations
 

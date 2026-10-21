@@ -31,8 +31,12 @@ struct ProjectDetailView: View {
                                 tint: Theme.warn
                             )
                         } else if let stats = detail.stats {
+                            SectionHeader("Trend")
+                            UsageTrendCard(stats: stats, sessions: detail.sessions)
+
                             SectionHeader("Analytics")
                             ProjectStats(stats: stats)
+
                             ModelBreakdown(models: stats.models)
                         } else if detail.isLoading {
                             LoadingState(message: "Loading project…")
@@ -40,7 +44,7 @@ struct ProjectDetailView: View {
 
                         if !detail.sessions.isEmpty {
                             SectionHeader("Recent sessions")
-                            ProjectSessions(sessions: detail.sessions)
+                            ProjectSessions(sessions: Array(detail.sessions.prefix(20)))
                         }
                     } else {
                         LoadingState(message: "Loading project…")

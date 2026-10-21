@@ -31,6 +31,8 @@ full **session** view, per-project **analytics**, and a **usage** overview.
   analytics (steps, cost, tokens, streak, model mix) and recent sessions with
   their cost. Quick actions open the project in Finder or Terminal and copy its
   path.
+- Scoped trends: an interactive daily chart for steps, cost, or tokens over the
+  last 30 / 90 / 365 days or all time, using only that project's data.
 - Duplicate records for the same directory are merged, and analytics are
   fetched per project from the stats API rather than derived from the session
   list.
@@ -44,6 +46,9 @@ full **session** view, per-project **analytics**, and a **usage** overview.
   unreachable.
 - Summary tiles: streak, active days, today's steps, prompts, sessions, total
   cost, tokens, tool calls, and subagents.
+- An interactive daily trend chart for steps, cost, or tokens across the last
+  30 / 90 / 365 days or all time.
+- Top projects by cost, with the same selectable windows.
 - A GitHub-style activity heatmap of daily agent steps.
 - Token mix (input / output / reasoning / cache read / cache write).
 - Per-model breakdown with steps and cost.
@@ -70,6 +75,10 @@ Endpoints used: `/api/info`, `/api/session`, `/api/session/active`,
 `/api/session/{id}`, `/api/session/{id}/message`, `/api/project`,
 `/api/experimental/session/stats`, and
 `/api/event`.
+
+The trend charts use the stats API's daily activity for steps, and group the
+full session list (`/api/session?limit=1000`, fetched on the slow cycle) by day
+for cost and tokens. Project pages use the same series scoped to that project.
 
 The Projects tab reuses those with a scope: `/api/experimental/session/stats?project={id}`
 and `/api/session?project={id}`, fetched only when you open a project.

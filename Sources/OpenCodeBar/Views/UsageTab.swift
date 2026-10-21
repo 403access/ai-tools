@@ -10,6 +10,9 @@ struct UsageTab: View {
 
                 planLimits
 
+                SectionHeader("Trend")
+                UsageTrendCard(stats: stats, sessions: state.history)
+
                 LazyVGrid(
                     columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
                     spacing: 10
@@ -58,6 +61,11 @@ struct UsageTab: View {
                     )
                 }
 
+                if !state.history.isEmpty {
+                    SectionHeader("Project spend")
+                    ProjectUsageCard(sessions: state.history, projects: state.projects)
+                }
+
                 SectionHeader("Activity")
                 HeatmapView(activity: stats.activity)
 
@@ -74,6 +82,7 @@ struct UsageTab: View {
                     ToolSummary(totals: totals)
                 }
             }
+            .task { await state.refreshHistory() }
         } else {
             LoadingState(message: state.connection.isConnected ? "Loading usage…" : state.connection.label)
         }
