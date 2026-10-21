@@ -11,14 +11,19 @@ struct LiveView: View {
                 if !settings.isConfigured {
                     ScrollView {
                         SetupPrompt()
-                            .padding()
+                            .padding(16)
                     }
                 } else {
                     content
                 }
             }
+            .mobileScreenBackground()
             .navigationTitle("OpenCode")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    MobileBrandTitle()
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     ConnectionPill(connection: store.connection, activeCount: store.activeCount)
                 }
@@ -51,75 +56,81 @@ struct LiveView: View {
     #endif
 
     private var content: some View {
-        List {
-            if case .offline(let reason) = store.connection {
-                Section {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if case .offline(let reason) = store.connection {
                     NoticeRow(icon: "wifi.exclamationmark", message: reason, tint: Theme.warn)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets())
                 }
-            }
 
-            Section {
-                if store.runningSessions.isEmpty {
-                    EmptyState(
-                        icon: "moon.zzz.fill",
-                        title: "No active sessions",
-                        subtitle: "Sessions appear here the moment they start."
-                    )
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                } else {
-                    ForEach(store.runningSessions) { session in
-                        NavigationLink(value: session) {
-                            RunningSessionRow(
-                                session: session,
-                                project: store.projectName(for: session),
-                                activity: store.activity(for: session.id),
-                                subagents: store.activeSubagentCount(for: session.id)
-                            )
-                        }
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 12))
-                    }
-                }
-            } header: {
-                HStack {
-                    Text("Running")
-                    Spacer()
-                    Text("\(store.runningSessions.count)")
-                        .monospacedDigit()
-                        .foregroundStyle(store.runningSessions.isEmpty ? Color.secondary : Theme.running)
-                }
-            }
+                runningSection
+                recentSection
 
-            Section {
-                if store.recentSessions.isEmpty {
-                    EmptyState(
-                        icon: "clock",
-                        title: "No recent sessions",
-                        subtitle: "Your session history will show up here."
-                    )
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                } else {
-                    ForEach(store.recentSessions.prefix(30)) { session in
-                        NavigationLink(value: session) {
-                            RecentSessionRow(
-                                session: session,
-                                project: store.projectName(for: session)
-                            )
-                        }
-                    }
-                }
-            } header: {
-                Text("Recent")
-            } footer: {
                 if let updated = store.lastUpdated {
                     Text("Updated \(Fmt.relative(from: updated))")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 2)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
+        }
+    }
+
+    private var runningSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Running") {
+                Text("\(store.runningSessions.count)")
+                    .font(.caption.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(store.runningSessions.isEmpty ? Color.secondary : Theme.running)
+            }
+
+            if store.runningSessions.isEmpty {
+                EmptyState(
+                    icon: "moon.zzz.fill",
+                    title: "No active sessions",
+                    subtitle: "Sessions appear here the moment they start."
+                )
+            } else {
+                ForEach(store.runningSessions) { session in
+                    NavigationLink(value: session) {
+                        RunningSessionRow(
+                            session: session,
+                            project: store.projectName(for: session),
+                            activity: store.activity(for: session.id),
+                            subagents: store.activeSubagentCount(for: session.id)
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
-        .listStyle(.insetGrouped)
+    }
+
+    private var recentSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Recent")
+
+            if store.recentSessions.isEmpty {
+                EmptyState(
+                    icon: "clock",
+                    title: "No recent sessions",
+                    subtitle: "Your session history will show up here."
+                )
+            } else {
+                ForEach(store.recentSessions.prefix(30)) { session in
+                    NavigationLink(value: session) {
+                        RecentSessionRow(
+                            session: session,
+                            project: store.projectName(for: session)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 }
 
@@ -131,63 +142,70 @@ struct RunningSessionRow: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(alignment: .top, spacing: 8) {
-                    PulsingDot(size: 9)
-                        .padding(.top, 5)
-                    VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 9) {
+                PulsingDot(size: 8)
+                    .padding(.top, 4)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .top, spacing: 6) {
                         Text(session.displayTitle)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(2)
+                        Spacer(minLength: 4)
+                        Text(Fmt.elapsed(since: session.time.createdDate, now: context.date))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                            .fixedSize()
+                    }
+
+                    if let activity {
+                        ActivityLine(activity: activity, now: context.date)
+                        if !activity.todos.isEmpty {
+                            TodoProgressRow(activity: activity)
+                        }
+                    } else {
                         HStack(spacing: 5) {
-                            Text(project)
+                            ProgressView().controlSize(.small)
+                            Text("Working")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(Theme.accent)
-                                .lineLimit(1)
-                            if let model = session.model {
-                                Chip(text: model.id)
-                            }
-                            if let agent = session.agent, !agent.isEmpty {
-                                Chip(text: agent, systemImage: "person.fill", tint: Theme.reasoning)
-                            }
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    Spacer(minLength: 4)
-                    Text(Fmt.elapsed(since: session.time.createdDate, now: context.date))
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.tertiary)
-                        .fixedSize()
-                }
 
-                if let activity {
-                    ActivityLine(activity: activity, now: context.date)
-                    if !activity.todos.isEmpty {
-                        TodoProgressRow(activity: activity)
-                    }
-                } else {
                     HStack(spacing: 5) {
-                        ProgressView().controlSize(.small)
-                        Text("Working")
+                        Text(project)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.accent)
+                            .lineLimit(1)
+                        if let model = session.model {
+                            Chip(text: model.id)
+                        }
+                        if let agent = session.agent, !agent.isEmpty {
+                            Chip(text: agent, systemImage: "person.fill", tint: Theme.reasoning)
+                        }
                     }
+
+                    HStack(spacing: 12) {
+                        if session.cost > 0 {
+                            Label(Fmt.usd(session.cost), systemImage: "dollarsign.circle")
+                                .foregroundStyle(Theme.accent)
+                        }
+                        Label(Fmt.compact(session.tokens.generated) + " tok", systemImage: "text.word.spacing")
+                        if subagents > 0 {
+                            Label("\(subagents)", systemImage: "person.2.fill")
+                                .foregroundStyle(Theme.reasoning)
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 }
 
-                HStack(spacing: 12) {
-                    if session.cost > 0 {
-                        Label(Fmt.usd(session.cost), systemImage: "dollarsign.circle")
-                            .foregroundStyle(Theme.accent)
-                    }
-                    Label(Fmt.compact(session.tokens.generated) + " tok", systemImage: "text.word.spacing")
-                    if subagents > 0 {
-                        Label("\(subagents)", systemImage: "person.2.fill")
-                            .foregroundStyle(Theme.reasoning)
-                    }
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 5)
             }
-            .padding(.vertical, 3)
+            .card(padding: 12)
         }
     }
 }
@@ -197,7 +215,7 @@ struct RecentSessionRow: View {
     let project: String
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 9) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(session.displayTitle)
                     .font(.subheadline.weight(.medium))
@@ -226,7 +244,10 @@ struct RecentSessionRow: View {
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
             }
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 2)
+        .card(padding: 12)
     }
 }

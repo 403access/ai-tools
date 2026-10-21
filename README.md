@@ -8,7 +8,9 @@ cached history — so the phone can see the Mac's sessions, projects, and usage.
 On macOS the menu bar item displays a terminal glyph and, when sessions are
 running, the number of active sessions. Clicking it opens a panel with **live**
 activity, a full **session** view, per-project **analytics**, and a **usage**
-overview. The iOS app has the same four areas, adapted for touch.
+overview. The iOS app has the same four areas, adapted for touch, with the same
+dark panel design and a floating tab dock. Its Appearance setting can follow the
+system or stay dark/light.
 
 macOS panel:
 

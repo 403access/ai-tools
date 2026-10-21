@@ -17,7 +17,9 @@ struct UsageView: View {
                     content
                 }
             }
+            .mobileScreenBackground()
             .navigationTitle("Usage")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     ConnectionPill(connection: store.connection, activeCount: store.activeCount)
@@ -79,7 +81,6 @@ struct UsageView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
-            .background(Color(.systemGroupedBackground))
         } else {
             ScrollView {
                 LoadingState(message: store.connection.isConnected ? "Loading usage…" : store.connection.label)

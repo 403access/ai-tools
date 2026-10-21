@@ -22,7 +22,7 @@ struct ProjectsView: View {
                 if !settings.isConfigured {
                     ScrollView {
                         SetupPrompt()
-                            .padding()
+                            .padding(16)
                     }
                 } else if projects.isEmpty {
                     ScrollView {
@@ -33,13 +33,15 @@ struct ProjectsView: View {
                                 ? "Projects appear after OpenCode has run in them."
                                 : "Try a different name or path."
                         )
-                        .padding()
+                        .padding(16)
                     }
                 } else {
                     projectList
                 }
             }
+            .mobileScreenBackground()
             .navigationTitle("Projects")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     ConnectionPill(connection: store.connection, activeCount: store.activeCount)
@@ -57,8 +59,15 @@ struct ProjectsView: View {
     }
 
     private var projectList: some View {
-        List {
-            Section {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionHeader("Projects") {
+                    Text("\(projects.count)")
+                        .font(.caption.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+
                 ForEach(projects) { project in
                     NavigationLink(value: project) {
                         ProjectRow(
@@ -67,12 +76,18 @@ struct ProjectsView: View {
                             lastActive: project.lastActiveDate
                         )
                     }
+                    .buttonStyle(.plain)
                 }
-            } footer: {
+
                 Text("\(store.orderedProjects.count) projects · running work first")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 4)
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
         }
-        .listStyle(.insetGrouped)
     }
 }
 
@@ -122,8 +137,11 @@ struct ProjectRow: View {
                     Chip(text: vcs, tint: Theme.reasoning)
                 }
             }
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 3)
+        .card(padding: 12)
     }
 
     private var shortPath: String {

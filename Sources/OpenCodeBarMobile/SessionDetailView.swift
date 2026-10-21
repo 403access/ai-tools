@@ -69,7 +69,7 @@ struct SessionDetailView: View {
                 scrollToBottom(proxy, animated: false)
             }
         }
-        .background(Color(.systemGroupedBackground))
+        .mobileScreenBackground()
         .navigationTitle(session.displayTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
