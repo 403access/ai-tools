@@ -104,7 +104,8 @@ iOS app:
 - Server information: hub version, address, uptime, cached session/message
   counts, OpenCode state, last sync, and the SQLite path.
 - Server controls: sync now, restart the hub, reveal its data/config files, and
-  refresh. The pairing link is one click away for adding another phone.
+  refresh. Pairing shows a scannable QR code plus the copyable link for adding
+  another phone.
 
 **iPhone & iPad**
 - The same Live, Projects, Usage, and Settings areas as the Mac panel, with the
@@ -114,9 +115,9 @@ iOS app:
   link. Settings shows hub and OpenCode health, cached session/message counts,
   uptime, and last sync.
 - Appearance can follow the system or stay dark or light.
-- Pair by pasting the hub URL and token, or the
-  `opencodebar://pair?url=…&token=…` link the hub prints; the token is stored
-  only on the device.
+- Pair by scanning the QR code in the Mac app's Settings tab, pasting the hub
+  URL and token, or the `opencodebar://pair?url=…&token=…` link the hub prints;
+  the token is stored only on the device.
 
 **Shared hub**
 - One Bun + SQLite server ingests OpenCode once and serves both apps behind a
@@ -208,8 +209,10 @@ window.
 
 The hub writes its URL and token to `~/.config/opencode/opencodebar-hub.json`
 (owner-only) when it starts, so the Mac app connects with no configuration. The
-iOS app pairs by pasting that URL and token, or the
-`opencodebar://pair?url=…&token=…` link the hub prints. Overrides:
+iOS app pairs by scanning the QR code in the Mac app's Settings tab, or by
+pasting that URL and token, or the `opencodebar://pair?url=…&token=…` link the
+hub prints. The QR code uses the Mac's LAN address so the phone can reach the
+hub. Overrides:
 
 1. `$OPENCODEBAR_HUB_URL` / `$OPENCODEBAR_HUB_TOKEN`
 2. `hubURL` / `hubToken` in `~/.config/opencode/opencodebar.json`
@@ -340,6 +343,8 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     ServiceDiscovery.swift  OpenCode config paths
     DeviceIdentity.swift    stable client id + platform headers (shared)
     UsageCache.swift        last-known usage on disk
+  Support/
+    QRCode.swift            pairing QR rendering
   Models/Models.swift       Codable models for the API (shared)
   Models/OpenCodeEvent.swift  decoded event payloads (shared)
   Models/SessionActivity.swift  live "what is it doing" state (shared)
@@ -358,6 +363,7 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   OpenCodeBarMobileApp.swift  app entry + tab bar
   MobileStore.swift           observable state for the hub
   HubSettings.swift           URL + token storage and pairing links
+  PairingScanner.swift        camera QR scanner for pairing
   LiveView.swift              running/recent sessions
   SessionDetailView.swift     conversation, stats, changes, prompts, subagents
   NewSessionSheet.swift       start a session from the phone

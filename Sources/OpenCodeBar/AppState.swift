@@ -152,10 +152,25 @@ final class AppState: ObservableObject {
         components.scheme = "opencodebar"
         components.host = "pair"
         components.queryItems = [
-            URLQueryItem(name: "url", value: location.url.absoluteString),
+            URLQueryItem(name: "url", value: pairingHubURL(fallingBackTo: location.url).absoluteString),
             URLQueryItem(name: "token", value: location.token),
         ]
         return components.string
+    }
+
+    /// The hub address a phone should use. The Mac connects over loopback, so
+    /// prefer one of the LAN URLs the hub reports; otherwise the QR code and
+    /// link would point the phone at itself. A non-loopback override is already
+    /// reachable from the phone and is kept as-is.
+    private func pairingHubURL(fallingBackTo fallback: URL) -> URL {
+        guard isLoopback(fallback) else { return fallback }
+        let lan = hubInfo?.urls?.compactMap(URL.init(string:)).first { !isLoopback($0) }
+        return lan ?? fallback
+    }
+
+    private func isLoopback(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        return host == "127.0.0.1" || host == "localhost" || host == "::1"
     }
 
     /// Go plan quota, fetched directly from the console usage endpoint. Hidden

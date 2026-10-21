@@ -339,7 +339,7 @@
         <article class="card reveal">
           <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l2.5-2.5a5 5 0 0 0-7-7L11 5"/><path d="M14 11a5 5 0 0 0-7 0l-2.5 2.5a5 5 0 0 0 7 7L13 19"/></svg></span>
           <h3>Pair in seconds</h3>
-          <p>Paste the hub's URL and token, or tap the <code>opencodebar://pair</code> link it prints. Credentials stay on the device.</p>
+          <p>Scan the QR code from the Mac app, tap the <code>opencodebar://pair</code> link, or paste the hub's URL and token. Credentials stay on the device.</p>
         </article>
         <article class="card tone-blue reveal">
           <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.4"/><path d="m16 16 4.4 4.4"/></svg></span>
@@ -420,7 +420,7 @@
           </li>
           <li>
             <h3>Pair your iPhone or iPad (optional)</h3>
-            <p><code>make mobile-run</code> builds and launches the iOS simulator and pairs it when the hub config exists. For a physical device, <code>make mobile-device</code> builds, signs, installs, and pairs over the Mac's LAN address — set <code>DEVICE=…</code> if more than one is connected.</p>
+            <p><code>make mobile-run</code> builds and launches the iOS simulator and pairs it when the hub config exists. For a physical device, <code>make mobile-device</code> builds, signs, installs, and pairs over the Mac's LAN address — set <code>DEVICE=…</code> if more than one is connected. You can also scan the pairing QR code from the Mac app's Settings tab.</p>
           </li>
         </ol>
 
@@ -476,7 +476,7 @@ make mobile-run"><span class="cmd">$</span> git clone https://github.com/403acce
         <article class="card reveal">
           <div class="num">03</div>
           <h3>Serves both apps</h3>
-          <p>A stable, mirrored API sits behind a Bearer token. The Mac auto-discovers the hub; the phone pairs with a URL, token, or deep link.</p>
+          <p>A stable, mirrored API sits behind a Bearer token. The Mac auto-discovers the hub; the phone pairs with a URL, token, deep link, or QR code.</p>
         </article>
         <article class="card reveal">
           <div class="num">04</div>

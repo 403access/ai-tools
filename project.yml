@@ -57,6 +57,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSLocalNetworkUsageDescription: OpenCodeBar connects to the hub running on your Mac to show live OpenCode sessions.
+        NSCameraUsageDescription: OpenCodeBar uses the camera to scan the pairing QR code shown on your Mac.
         NSMicrophoneUsageDescription: OpenCodeBar uses the microphone to dictate prompts into a session.
         NSSpeechRecognitionUsageDescription: OpenCodeBar turns your spoken prompt into text, on the device when the language supports it.
         NSAppTransportSecurity:

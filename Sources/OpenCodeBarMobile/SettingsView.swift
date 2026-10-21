@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var url = ""
     @State private var token = ""
     @State private var pairingLink = ""
+    @State private var showScanner = false
     @State private var showToken = false
     @State private var loaded = false
     @State private var testing = false
@@ -36,6 +37,11 @@ struct SettingsView: View {
         .mobileScreenBackground()
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showScanner) {
+            PairingScannerSheet { code in
+                applyPairingLink(code)
+            }
+        }
         .onAppear {
             guard !loaded else { return }
             loaded = true
@@ -203,9 +209,22 @@ struct SettingsView: View {
 
     private var pairingSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("Pairing link")
+            SectionHeader("Pairing")
 
             VStack(alignment: .leading, spacing: 10) {
+                Button {
+                    showScanner = true
+                } label: {
+                    Label("Scan QR code", systemImage: "qrcode.viewfinder")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+
+                Text("Or paste a pairing link")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 TextField("opencodebar://pair?url=…&token=…", text: $pairingLink)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -215,7 +234,7 @@ struct SettingsView: View {
                 Button {
                     applyPairingLink()
                 } label: {
-                    Label("Apply pairing link", systemImage: "qrcode")
+                    Label("Apply pairing link", systemImage: "link")
                         .font(.subheadline.weight(.medium))
                         .frame(maxWidth: .infinity)
                 }
@@ -224,7 +243,7 @@ struct SettingsView: View {
             }
             .card(padding: 12)
 
-            sectionNote("Paste the pairing link printed by the hub, or tap one from a message. The token is stored only on this device.")
+            sectionNote("Scan the QR code from the Mac app's Settings → Pairing, or paste the link printed by the hub. The token is stored only on this device.")
         }
     }
 
@@ -321,8 +340,9 @@ struct SettingsView: View {
         Task { await validate() }
     }
 
-    private func applyPairingLink() {
-        guard settings.applyPairingLink(pairingLink) else {
+    private func applyPairingLink(_ link: String? = nil) {
+        let value = link ?? pairingLink
+        guard settings.applyPairingLink(value) else {
             testSucceeded = false
             testMessage = "That does not look like a valid pairing link."
             return

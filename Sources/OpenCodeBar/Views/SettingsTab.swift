@@ -153,16 +153,40 @@ struct SettingsTab: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Pairing")
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Add an iPhone or iPad by pasting this link into the app's Settings tab.")
+            VStack(alignment: .leading, spacing: 10) {
+                let link = state.pairingLink
+
+                Text("Scan this code with the iPhone or iPad app's Settings tab, or copy the link.")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
+                if let link, let code = QRCode.image(for: link) {
+                    HStack {
+                        Spacer(minLength: 0)
+                        Image(nsImage: code)
+                            .interpolation(.none)
+                            .resizable()
+                            .frame(width: 140, height: 140)
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(.white)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .strokeBorder(Color.black.opacity(0.08))
+                            )
+                            .accessibilityLabel("Pairing QR code")
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+
                 HStack(spacing: 8) {
-                    Text(state.pairingLink == nil ? "Unavailable" : "opencodebar://pair?url=…&token=…")
+                    Text(link == nil ? "Unavailable" : "opencodebar://pair?url=…&token=…")
                         .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(state.pairingLink == nil ? .tertiary : .secondary)
+                        .foregroundStyle(link == nil ? .tertiary : .secondary)
                         .lineLimit(1)
 
                     Spacer(minLength: 4)
@@ -174,10 +198,10 @@ struct SettingsTab: View {
                             .font(.system(size: 10, weight: .semibold))
                     }
                     .buttonStyle(.bordered)
-                    .disabled(state.pairingLink == nil)
+                    .disabled(link == nil)
                 }
 
-                Text("The link contains the hub token; share it only with your own devices.")
+                Text("The link and QR code contain the hub token; share them only with your own devices.")
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
