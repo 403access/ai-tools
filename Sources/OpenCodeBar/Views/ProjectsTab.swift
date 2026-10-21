@@ -14,8 +14,9 @@ struct ProjectsTab: View {
                 subtitle: "Projects appear once OpenCode has run in a directory."
             )
         } else {
+            let projects = state.orderedProjects
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(state.orderedProjects) { project in
+                ForEach(projects) { project in
                     Button {
                         state.open(project)
                     } label: {
@@ -24,8 +25,10 @@ struct ProjectsTab: View {
                     .buttonStyle(.plain)
                     .contentShape(Rectangle())
                     .help("Show \(project.displayName) analytics and sessions")
+                    .transition(.recentInsertion)
                 }
             }
+            .animateRecentInsertion(ids: projects.map(\.id))
         }
     }
 }

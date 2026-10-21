@@ -1,5 +1,65 @@
 import SwiftUI
 
+// MARK: - Motion
+
+extension AnyTransition {
+    /// New feed rows slide down from the top and fade in; removals fade out.
+    static var recentInsertion: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: .top).combined(with: .opacity),
+            removal: .opacity
+        )
+    }
+}
+
+extension Animation {
+    /// Shared spring for content that arrives at the top of a list.
+    static var recentInsertion: Animation {
+        .spring(response: 0.38, dampingFraction: 0.82, blendDuration: 0.1)
+    }
+}
+
+/// Animates feed changes after the list has populated, so the initial load does
+/// not cascade in but later inserts still slide down from the top.
+private struct RecentInsertionAnimation: ViewModifier {
+    let ids: [String]
+    @State private var hasSeenContent = false
+    @State private var isReady = false
+
+    func body(content: Content) -> some View {
+        content
+            .animation(isReady ? .recentInsertion : nil, value: ids)
+            .onAppear {
+                guard !ids.isEmpty else { return }
+                hasSeenContent = true
+                enableAfterSettling()
+            }
+            .onChange(of: ids) { _, newIDs in
+                guard !newIDs.isEmpty else { return }
+                if hasSeenContent {
+                    isReady = true
+                } else {
+                    hasSeenContent = true
+                    enableAfterSettling()
+                }
+            }
+    }
+
+    private func enableAfterSettling() {
+        Task { @MainActor in
+            // Let the first population lay out before enabling motion.
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            isReady = true
+        }
+    }
+}
+
+extension View {
+    func animateRecentInsertion(ids: [String]) -> some View {
+        modifier(RecentInsertionAnimation(ids: ids))
+    }
+}
+
 struct StatTile: View {
     let icon: String
     let tint: Color

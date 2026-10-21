@@ -288,7 +288,7 @@ final class AppState: ObservableObject {
                     merged.insert(session, at: 0)
                 }
             }
-            self.sessions = merged
+            self.sessions = SessionOrdering.mostRecentFirst(merged)
             self.syncSubagentLists(with: merged)
             self.projects = Dictionary(projectListValue.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
@@ -360,7 +360,7 @@ final class AppState: ObservableObject {
             return
         }
         do {
-            history = try await api.sessions(limit: 1_000)
+            history = SessionOrdering.mostRecentFirst(try await api.sessions(limit: 1_000))
             historyFetchedAt = Date()
         } catch {
             // Keep the last known history; the charts still work with it.
@@ -773,7 +773,11 @@ final class AppState: ObservableObject {
             async let stats = api.stats(project: id)
             async let sessions = api.sessions(projectID: id, limit: 1_000)
             let (scopedStats, recent) = try await (stats, sessions)
-            projectDetails[id] = ProjectDetail(stats: scopedStats, sessions: recent, loadedAt: Date())
+            projectDetails[id] = ProjectDetail(
+                stats: scopedStats,
+                sessions: SessionOrdering.mostRecentFirst(recent),
+                loadedAt: Date()
+            )
         } catch {
             var detail = projectDetails[id] ?? ProjectDetail()
             detail.isLoading = false

@@ -82,7 +82,9 @@ struct ProjectsView: View {
     #endif
 
     private var projectList: some View {
-        ScrollView {
+        let ids = projects.map(\.id)
+
+        return ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 SectionHeader("Projects") {
                     Text("\(projects.count)")
@@ -100,6 +102,7 @@ struct ProjectsView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .transition(.recentInsertion)
                 }
 
                 Text("\(store.orderedProjects.count) projects · running work first")
@@ -111,6 +114,7 @@ struct ProjectsView: View {
             .padding(.top, 12)
             .padding(.bottom, 10)
         }
+        .animateRecentInsertion(ids: ids)
     }
 }
 

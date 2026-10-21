@@ -167,7 +167,7 @@ struct FileChangeCard: View {
     }
 }
 
-/// Groups edits by file, showing each patch in the order it was written.
+/// Groups edits by file, showing the newest edit first.
 struct SessionChangesView: View {
     let changes: [FileChange]
     var showsSummary = true
@@ -228,12 +228,23 @@ struct ProjectChangesView: View {
             buckets[id, default: []].append(change)
         }
         return order.map { id in
-            let items = buckets[id] ?? []
+            let items = (buckets[id] ?? []).sorted { lhs, rhs in
+                let left = lhs.created ?? 0
+                let right = rhs.created ?? 0
+                if left != right { return left > right }
+                return lhs.id < rhs.id
+            }
             return SessionGroup(
                 id: id,
                 title: items.first?.sessionTitle ?? "Session",
                 changes: items
             )
+        }
+        .sorted { lhs, rhs in
+            let left = lhs.changes.first?.created ?? 0
+            let right = rhs.changes.first?.created ?? 0
+            if left != right { return left > right }
+            return lhs.id < rhs.id
         }
     }
 

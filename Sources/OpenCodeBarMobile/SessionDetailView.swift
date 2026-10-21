@@ -33,7 +33,7 @@ struct SessionDetailView: View {
     @State private var scrollRequest = 0
     @FocusState private var composerFocused: Bool
 
-    private let bottomAnchor = "session-mobile-bottom"
+    private let topAnchor = "session-mobile-top"
 
     private var session: Session {
         store.session(id: sessionID) ?? fallback
@@ -73,26 +73,27 @@ struct SessionDetailView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    content
+                    Color.clear.frame(height: 1).id(topAnchor)
 
-                    Color.clear.frame(height: 1).id(bottomAnchor)
+                    content
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
-            .onChange(of: messages.first?.id) { _, _ in
-                guard mode == .conversation || mode == .prompts,
-                      !didAutoScroll, !messages.isEmpty
+            .onChange(of: messages.first?.id) { _, newID in
+                // Show the newest message the first time content loads.
+                guard !didAutoScroll, newID != nil,
+                      mode == .conversation || mode == .prompts
                 else { return }
                 didAutoScroll = true
-                scrollToBottom(proxy, animated: false)
+                scrollToTop(proxy, animated: false)
             }
             .onChange(of: mode) { _, newMode in
                 guard newMode == .conversation || newMode == .prompts else { return }
-                scrollToBottom(proxy, animated: false)
+                scrollToTop(proxy, animated: false)
             }
             .onChange(of: scrollRequest) { _, _ in
-                scrollToBottom(proxy, animated: true)
+                scrollToTop(proxy, animated: true)
             }
         }
         .mobileScreenBackground()
@@ -355,12 +356,6 @@ struct SessionDetailView: View {
                 subtitle: "The conversation will appear as the model responds."
             )
         } else {
-            if previousCursor != nil {
-                loadEarlierButton
-            }
-            ForEach(Array(messages.reversed()), id: \.id) { message in
-                MessageCard(message: message)
-            }
             if isRunning {
                 HStack(spacing: 6) {
                     PulsingDot(size: 5)
@@ -371,12 +366,22 @@ struct SessionDetailView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 4)
             }
+
+            ForEach(messages) { message in
+                MessageCard(message: message)
+                    .transition(.recentInsertion)
+            }
+            .animateRecentInsertion(ids: messages.map(\.id))
+
+            if previousCursor != nil {
+                loadEarlierButton
+            }
         }
     }
 
     @ViewBuilder
     private var prompts: some View {
-        let prompts = Array(messages.reversed().filter(\.isUserLike))
+        let prompts = messages.filter(\.isUserLike)
         if isLoading && messages.isEmpty {
             loading("Loading prompts…")
         } else if let errorMessage, messages.isEmpty {
@@ -388,11 +393,14 @@ struct SessionDetailView: View {
                 subtitle: "Prompts you send to this session appear here."
             )
         } else {
+            ForEach(Array(prompts.enumerated()), id: \.element.id) { index, message in
+                PromptRow(index: prompts.count - index, message: message)
+                    .transition(.recentInsertion)
+            }
+            .animateRecentInsertion(ids: prompts.map(\.id))
+
             if previousCursor != nil {
                 loadEarlierButton
-            }
-            ForEach(Array(prompts.enumerated()), id: \.element.id) { index, message in
-                PromptRow(index: index + 1, message: message)
             }
         }
     }
@@ -435,7 +443,9 @@ struct SessionDetailView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .transition(.recentInsertion)
                 }
+                .animateRecentInsertion(ids: list.sessions.map(\.id))
 
                 if let error = list.error {
                     NoticeRow(icon: "exclamationmark.triangle.fill", message: error, tint: Theme.warn)
@@ -457,7 +467,7 @@ struct SessionDetailView: View {
                     if isLoadingEarlier {
                         ProgressView().controlSize(.small)
                     } else {
-                        Image(systemName: "arrow.up")
+                        Image(systemName: "arrow.down")
                             .font(.caption.weight(.bold))
                     }
                     Text(isLoadingEarlier ? "Loading…" : "Load earlier")
@@ -514,15 +524,15 @@ struct SessionDetailView: View {
         .card()
     }
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
+    private func scrollToTop(_ proxy: ScrollViewProxy, animated: Bool) {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 40_000_000)
             if animated {
                 withAnimation(.easeOut(duration: 0.2)) {
-                    proxy.scrollTo(bottomAnchor, anchor: .bottom)
+                    proxy.scrollTo(topAnchor, anchor: .top)
                 }
             } else {
-                proxy.scrollTo(bottomAnchor, anchor: .bottom)
+                proxy.scrollTo(topAnchor, anchor: .top)
             }
         }
     }
@@ -544,7 +554,7 @@ struct SessionDetailView: View {
                 return message.time.created < cutoff
             }
 
-            messages = fresh + retained
+            messages = MessageOrdering.mostRecentFirst(fresh + retained)
             if retained.isEmpty {
                 previousCursor = response.cursor?.previous
             }
@@ -567,7 +577,8 @@ struct SessionDetailView: View {
             let response = try await store.messages(for: sessionID, limit: 100, cursor: cursor)
             guard !Task.isCancelled else { return }
             let existing = Set(messages.map(\.id))
-            messages.append(contentsOf: response.data.filter { !existing.contains($0.id) })
+            let older = response.data.filter { !existing.contains($0.id) }
+            messages = MessageOrdering.mostRecentFirst(messages + older)
             previousCursor = response.cursor?.previous
         } catch {
             guard !Task.isCancelled else { return }

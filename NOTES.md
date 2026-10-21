@@ -88,13 +88,13 @@ Follow-ups worth considering:
   Showing recent project-wide failures would mean scanning cached messages,
   which only covers sessions that have been opened.
 
-- **Session detail view does not auto-follow new output.** It jumps to the
-  bottom on first load, then refreshes in place, so a running session keeps
+- **Session detail view shows the newest message first.** It does not jump to
+  the bottom on load, and refreshes in place, so a running session keeps
   streaming without yanking the scroll position. A "follow"/pause toggle would
-  be a nice addition for long-running sessions.
-- **Prompts are numbered per loaded window.** After "Load earlier", prompt
-  numbers still start at 1; they could instead count from the true start of the
-  session once full history is loaded.
+  still be a nice addition for long-running sessions.
+- **Prompts are numbered per loaded window.** Numbers count up from the oldest
+  loaded prompt, so they shift after "Load earlier"; they could instead count
+  from the true start of the session once full history is loaded.
 
 - **Live activity depends on the event stream.** Rows fold
   `session.step.*`, `session.reasoning.*`, `session.text.*`,

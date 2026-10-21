@@ -38,9 +38,10 @@ iOS app:
   subagents — alongside a pulsing indicator, project, model, agent, live cost,
   elapsed time, and token count.
 - Recent sessions with project, model, relative time, cost, and tokens.
-- Click any session to open its details: the full conversation, a prompts-only
-  list with copy buttons, and expandable reasoning and tool calls. The view
-  keeps updating while the session runs and pages back through history.
+- Click any session to open its details: the full conversation with the newest
+  message first, a prompts-only list with copy buttons, and expandable reasoning
+  and tool calls. The view keeps updating while the session runs and pages back
+  through history.
 - **Reply from the conversation.** The composer at the bottom of the Chat tab
   sends a prompt into that session. A running session queues the message until
   the current turn finishes, and the conversation refreshes as it arrives.

@@ -64,18 +64,21 @@ struct ProjectDetailView: View {
                     changesSection
 
                     if !detail.sessions.isEmpty {
+                        let sessions = Array(detail.sessions.prefix(40))
                         SectionHeader("Sessions") {
                             Text("\(detail.sessions.count)")
                                 .font(.caption.weight(.bold))
                                 .monospacedDigit()
                                 .foregroundStyle(.secondary)
                         }
-                        ForEach(Array(detail.sessions.prefix(40))) { session in
+                        ForEach(sessions) { session in
                             NavigationLink(value: session) {
                                 RecentSessionRow(session: session, project: project.displayName)
                             }
                             .buttonStyle(.plain)
+                            .transition(.recentInsertion)
                         }
+                        .animateRecentInsertion(ids: sessions.map(\.id))
                     }
                 } else {
                     LoadingState(message: "Loading project…")
@@ -164,14 +167,15 @@ struct ProjectDetailView: View {
 
     @ViewBuilder
     private var runningSection: some View {
-        if !running.isEmpty {
+        let sessions = running
+        if !sessions.isEmpty {
             SectionHeader("Running") {
-                Text("\(running.count)")
+                Text("\(sessions.count)")
                     .font(.caption.weight(.bold))
                     .monospacedDigit()
                     .foregroundStyle(Theme.running)
             }
-            ForEach(running) { session in
+            ForEach(sessions) { session in
                 NavigationLink(value: session) {
                     RunningSessionRow(
                         session: session,
@@ -181,7 +185,9 @@ struct ProjectDetailView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .transition(.recentInsertion)
             }
+            .animateRecentInsertion(ids: sessions.map(\.id))
         }
     }
 

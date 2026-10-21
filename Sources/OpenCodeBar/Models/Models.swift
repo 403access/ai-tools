@@ -496,10 +496,19 @@ struct FileChangeGroup: Identifiable {
             groups[path, default: []].append(change)
         }
         return order.map { path in
-            let changes = (groups[path] ?? []).sorted {
-                ($0.created ?? 0) < ($1.created ?? 0)
+            let changes = (groups[path] ?? []).sorted { lhs, rhs in
+                let left = lhs.created ?? 0
+                let right = rhs.created ?? 0
+                if left != right { return left > right }
+                return lhs.id < rhs.id
             }
             return FileChangeGroup(path: path, changes: changes)
+        }
+        .sorted { lhs, rhs in
+            let left = lhs.changes.first?.created ?? 0
+            let right = rhs.changes.first?.created ?? 0
+            if left != right { return left > right }
+            return lhs.path < rhs.path
         }
     }
 }

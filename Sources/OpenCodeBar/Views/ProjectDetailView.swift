@@ -320,14 +320,15 @@ struct ProjectDetailView: View {
 
     @ViewBuilder
     private var runningSection: some View {
+        let sessions = running
         SectionHeader("Running") {
-            Text("\(running.count)")
+            Text("\(sessions.count)")
                 .font(.system(size: 10, weight: .bold))
                 .monospacedDigit()
-                .foregroundStyle(running.isEmpty ? .secondary : Theme.running)
+                .foregroundStyle(sessions.isEmpty ? .secondary : Theme.running)
         }
 
-        if running.isEmpty {
+        if sessions.isEmpty {
             HStack(spacing: 6) {
                 Image(systemName: "moon.zzz.fill")
                     .font(.system(size: 10))
@@ -340,7 +341,7 @@ struct ProjectDetailView: View {
             .card(padding: 10)
         } else {
             VStack(spacing: 0) {
-                ForEach(running) { session in
+                ForEach(sessions) { session in
                     Button {
                         state.open(session)
                     } label: {
@@ -349,13 +350,15 @@ struct ProjectDetailView: View {
                     .buttonStyle(.plain)
                     .contentShape(Rectangle())
                     .help("Show conversation and prompts")
+                    .transition(.recentInsertion)
 
-                    if session.id != running.last?.id {
+                    if session.id != sessions.last?.id {
                         Divider().opacity(0.35)
                     }
                 }
             }
             .card(padding: 10)
+            .animateRecentInsertion(ids: sessions.map(\.id))
         }
     }
 }
@@ -422,9 +425,11 @@ struct ProjectSessions: View {
     @EnvironmentObject var state: AppState
     let sessions: [Session]
 
+    private var ordered: [Session] { SessionOrdering.mostRecentFirst(sessions) }
+
     var body: some View {
         VStack(spacing: 0) {
-            ForEach(sessions) { session in
+            ForEach(ordered) { session in
                 Button {
                     state.open(session)
                 } label: {
@@ -433,13 +438,15 @@ struct ProjectSessions: View {
                 .buttonStyle(.plain)
                 .contentShape(Rectangle())
                 .help("Show conversation and prompts")
+                .transition(.recentInsertion)
 
-                if session.id != sessions.last?.id {
+                if session.id != ordered.last?.id {
                     Divider().opacity(0.35)
                 }
             }
         }
         .card(padding: 10)
+        .animateRecentInsertion(ids: ordered.map(\.id))
     }
 }
 

@@ -107,7 +107,10 @@ struct LiveView: View {
     }
 
     private var runningSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let sessions = store.runningSessions
+        let ids = sessions.map(\.id)
+
+        return VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Running") {
                 Text("\(store.runningSessions.count)")
                     .font(.caption.weight(.bold))
@@ -115,14 +118,15 @@ struct LiveView: View {
                     .foregroundStyle(store.runningSessions.isEmpty ? Color.secondary : Theme.running)
             }
 
-            if store.runningSessions.isEmpty {
+            if sessions.isEmpty {
                 EmptyState(
                     icon: "moon.zzz.fill",
                     title: "No active sessions",
                     subtitle: "Sessions appear here the moment they start."
                 )
+                .transition(.opacity)
             } else {
-                ForEach(store.runningSessions) { session in
+                ForEach(sessions) { session in
                     NavigationLink(value: session) {
                         RunningSessionRow(
                             session: session,
@@ -132,23 +136,29 @@ struct LiveView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .transition(.recentInsertion)
                 }
             }
         }
+        .animateRecentInsertion(ids: ids)
     }
 
     private var recentSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let sessions = Array(store.recentSessions.prefix(30))
+        let ids = sessions.map(\.id)
+
+        return VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Recent")
 
-            if store.recentSessions.isEmpty {
+            if sessions.isEmpty {
                 EmptyState(
                     icon: "clock",
                     title: "No recent sessions",
                     subtitle: "Your session history will show up here."
                 )
+                .transition(.opacity)
             } else {
-                ForEach(store.recentSessions.prefix(30)) { session in
+                ForEach(sessions) { session in
                     NavigationLink(value: session) {
                         RecentSessionRow(
                             session: session,
@@ -156,9 +166,11 @@ struct LiveView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .transition(.recentInsertion)
                 }
             }
         }
+        .animateRecentInsertion(ids: ids)
     }
 }
 

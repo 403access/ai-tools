@@ -5,14 +5,17 @@ struct LiveTab: View {
     @State private var showingNewSession = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        let running = state.runningSessions
+        let recent = Array(state.recentSessions.prefix(20))
+
+        return VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
                 SectionHeader("Running") {
                     HStack(spacing: 7) {
-                        Text("\(state.runningSessions.count)")
+                        Text("\(running.count)")
                             .font(.system(size: 10, weight: .bold))
                             .monospacedDigit()
-                            .foregroundStyle(state.runningSessions.isEmpty ? .secondary : Theme.running)
+                            .foregroundStyle(running.isEmpty ? .secondary : Theme.running)
 
                         Button {
                             showingNewSession = true
@@ -37,14 +40,15 @@ struct LiveTab: View {
                     }
                 }
 
-                if state.runningSessions.isEmpty {
+                if running.isEmpty {
                     EmptyState(
                         icon: "moon.zzz.fill",
                         title: "No active sessions",
                         subtitle: "Sessions appear here the moment they start."
                     )
+                    .transition(.opacity)
                 } else {
-                    ForEach(state.runningSessions) { session in
+                    ForEach(running) { session in
                         Button {
                             state.open(session)
                         } label: {
@@ -58,21 +62,24 @@ struct LiveTab: View {
                         .buttonStyle(.plain)
                         .contentShape(Rectangle())
                         .help("Show conversation and prompts")
+                        .transition(.recentInsertion)
                     }
                 }
             }
+            .animateRecentInsertion(ids: running.map(\.id))
 
             VStack(alignment: .leading, spacing: 8) {
                 SectionHeader("Recent")
 
-                if state.recentSessions.isEmpty {
+                if recent.isEmpty {
                     EmptyState(
                         icon: "clock",
                         title: "No recent sessions",
                         subtitle: "Your session history will show up here."
                     )
+                    .transition(.opacity)
                 } else {
-                    ForEach(state.recentSessions.prefix(20)) { session in
+                    ForEach(recent) { session in
                         Button {
                             state.open(session)
                         } label: {
@@ -81,9 +88,11 @@ struct LiveTab: View {
                         .buttonStyle(.plain)
                         .contentShape(Rectangle())
                         .help("Show conversation and prompts")
+                        .transition(.recentInsertion)
                     }
                 }
             }
+            .animateRecentInsertion(ids: recent.map(\.id))
         }
         .sheet(isPresented: $showingNewSession) {
             NewSessionSheet()

@@ -20,7 +20,6 @@ struct SessionDetailView: View {
     @State private var isLoadingEarlier = false
     @State private var earlierError: String?
     @State private var errorMessage: String?
-    @State private var didAutoScroll = false
     @State private var draft = ""
     @State private var isSending = false
     @State private var sendError: String?
@@ -28,7 +27,7 @@ struct SessionDetailView: View {
     @FocusState private var composerFocused: Bool
     @State private var showingNewSession = false
 
-    private let bottomAnchor = "session-detail-bottom"
+    private let topAnchor = "session-detail-top"
 
     private var isRunning: Bool { state.isRunning(session) }
     private var project: String { state.projectName(for: session) }
@@ -69,6 +68,7 @@ struct SessionDetailView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 7) {
+                        Color.clear.frame(height: 1).id(topAnchor)
                         switch mode {
                         case .conversation:
                             conversation
@@ -81,26 +81,17 @@ struct SessionDetailView: View {
                         case .subagents:
                             subagents
                         }
-                        Color.clear.frame(height: 1).id(bottomAnchor)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.bottom, 4)
                 }
                 .frame(maxHeight: .infinity)
-                .onChange(of: messages.first?.id) { _, _ in
-                    // Land on the newest activity the first time content loads.
-                    guard mode == .conversation || mode == .prompts,
-                          !didAutoScroll, !messages.isEmpty
-                    else { return }
-                    didAutoScroll = true
-                    scrollToBottom(proxy, animated: false)
-                }
                 .onChange(of: mode) { _, newMode in
                     guard newMode == .conversation || newMode == .prompts else { return }
-                    scrollToBottom(proxy, animated: false)
+                    scrollToTop(proxy, animated: false)
                 }
                 .onChange(of: scrollRequest) { _, _ in
-                    scrollToBottom(proxy, animated: true)
+                    scrollToTop(proxy, animated: true)
                 }
             }
 
@@ -345,14 +336,6 @@ struct SessionDetailView: View {
                 subtitle: "The conversation will appear as the model responds."
             )
         } else {
-            if previousCursor != nil {
-                loadEarlierButton
-            }
-
-            ForEach(Array(messages.reversed()), id: \.id) { message in
-                MessageCard(message: message)
-            }
-
             if isRunning {
                 HStack(spacing: 6) {
                     PulsingDot(size: 5)
@@ -362,6 +345,16 @@ struct SessionDetailView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 3)
+            }
+
+            ForEach(messages) { message in
+                MessageCard(message: message)
+                    .transition(.recentInsertion)
+            }
+            .animateRecentInsertion(ids: messages.map(\.id))
+
+            if previousCursor != nil {
+                loadEarlierButton
             }
         }
     }
@@ -406,7 +399,7 @@ struct SessionDetailView: View {
 
     @ViewBuilder
     private var prompts: some View {
-        let prompts = Array(messages.reversed().filter(\.isUserLike))
+        let prompts = messages.filter(\.isUserLike)
 
         if isLoading && messages.isEmpty {
             LoadingState(message: "Loading prompts…")
@@ -419,12 +412,14 @@ struct SessionDetailView: View {
                 subtitle: "Prompts you send to this session appear here."
             )
         } else {
+            ForEach(Array(prompts.enumerated()), id: \.element.id) { index, message in
+                PromptRow(index: prompts.count - index, message: message)
+                    .transition(.recentInsertion)
+            }
+            .animateRecentInsertion(ids: prompts.map(\.id))
+
             if previousCursor != nil {
                 loadEarlierButton
-            }
-
-            ForEach(Array(prompts.enumerated()), id: \.element.id) { index, message in
-                PromptRow(index: index + 1, message: message)
             }
         }
     }
@@ -473,7 +468,9 @@ struct SessionDetailView: View {
                     .buttonStyle(.plain)
                     .contentShape(Rectangle())
                     .help("Open this subagent")
+                    .transition(.recentInsertion)
                 }
+                .animateRecentInsertion(ids: list.sessions.map(\.id))
 
                 if let error = list.error {
                     subagentError(error)
@@ -517,7 +514,7 @@ struct SessionDetailView: View {
                     if isLoadingEarlier {
                         ProgressView().controlSize(.mini)
                     } else {
-                        Image(systemName: "arrow.up")
+                        Image(systemName: "arrow.down")
                             .font(.system(size: 9, weight: .bold))
                     }
                     Text(isLoadingEarlier ? "Loading…" : "Load earlier")
@@ -566,14 +563,14 @@ struct SessionDetailView: View {
         .card()
     }
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
+    private func scrollToTop(_ proxy: ScrollViewProxy, animated: Bool) {
         Task { @MainActor in
             // Let the stack lay out before jumping to the anchor.
             try? await Task.sleep(nanoseconds: 30_000_000)
             if animated {
-                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(bottomAnchor, anchor: .bottom) }
+                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(topAnchor, anchor: .top) }
             } else {
-                proxy.scrollTo(bottomAnchor, anchor: .bottom)
+                proxy.scrollTo(topAnchor, anchor: .top)
             }
         }
     }
@@ -598,7 +595,7 @@ struct SessionDetailView: View {
                 return message.time.created < cutoff
             }
 
-            messages = fresh + retained
+            messages = MessageOrdering.mostRecentFirst(fresh + retained)
             if retained.isEmpty {
                 previousCursor = response.cursor?.previous
             }
@@ -622,7 +619,8 @@ struct SessionDetailView: View {
             guard !Task.isCancelled else { return }
 
             let existing = Set(messages.map(\.id))
-            messages.append(contentsOf: response.data.filter { !existing.contains($0.id) })
+            let older = response.data.filter { !existing.contains($0.id) }
+            messages = MessageOrdering.mostRecentFirst(messages + older)
             previousCursor = response.cursor?.previous
         } catch {
             guard !Task.isCancelled else { return }

@@ -252,7 +252,7 @@ final class MobileStore: ObservableObject {
                 }
             }
 
-            sessions = merged
+            sessions = SessionOrdering.mostRecentFirst(merged)
             syncSubagentLists(with: merged)
             projects = Dictionary(projectsValue.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             connection = .connected(version: displayVersion)
@@ -284,7 +284,7 @@ final class MobileStore: ObservableObject {
         guard let api else { return }
         if !force, let fetched = historyFetchedAt, Date().timeIntervalSince(fetched) < 60 { return }
         do {
-            history = try await api.sessions(limit: 1_000)
+            history = SessionOrdering.mostRecentFirst(try await api.sessions(limit: 1_000))
             historyFetchedAt = Date()
         } catch {
             // Keep the previous history; charts still render.
@@ -476,7 +476,11 @@ final class MobileStore: ObservableObject {
             async let stats = api.stats(project: id)
             async let sessions = api.sessions(projectID: id, limit: 1_000)
             let (scopedStats, recent) = try await (stats, sessions)
-            projectDetails[id] = ProjectDetail(stats: scopedStats, sessions: recent, loadedAt: Date())
+            projectDetails[id] = ProjectDetail(
+                stats: scopedStats,
+                sessions: SessionOrdering.mostRecentFirst(recent),
+                loadedAt: Date()
+            )
         } catch {
             var detail = projectDetails[id] ?? ProjectDetail()
             detail.isLoading = false
@@ -705,7 +709,7 @@ final class MobileStore: ObservableObject {
     }
 
     func sessions(in project: Project) -> [Session] {
-        sessions.filter { $0.projectID == project.id }
+        SessionOrdering.mostRecentFirst(sessions.filter { $0.projectID == project.id })
     }
 
     func activeSubagentCount(for sessionID: String) -> Int {
