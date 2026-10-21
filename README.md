@@ -17,6 +17,8 @@ macOS panel:
 
 ![Live tab](docs/screenshots/live.png)
 ![Session detail](docs/screenshots/session.png)
+![Session stats](docs/screenshots/stats.png)
+![Session changes](docs/screenshots/changes.png)
 ![Prompts view](docs/screenshots/prompts.png)
 ![Projects tab](docs/screenshots/projects.png)
 ![Project detail](docs/screenshots/project-detail.png)
@@ -327,6 +329,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
   Models/OpenCodeEvent.swift  decoded event payloads (shared)
   Models/SessionActivity.swift  live "what is it doing" state (shared)
   Models/SubagentOrdering.swift  running-first ordering for child sessions
+  Models/SessionOrdering.swift  most-recent-first ordering for feeds
   Models/GoUsage.swift      Go plan windows (shared)
   Views/                    SwiftUI panel, tabs, heatmap, components
     ChangeViews.swift       patch cards and change summaries
@@ -380,10 +383,13 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
   `--preview --tab usage` opens the Usage tab directly.
 - `--screenshot <path>` renders the panel offscreen to a PNG and exits.
   `--screenshot out.png --scale 2 --tab usage` produces a 2x image for the
-  website and README. Add `--detail` (optionally `--detail-mode prompts`) to
-  render the session detail view, or `--project-detail` for the first project's
-  detail page. `--session <id>` opens a specific session; combine it with
-  `--detail-mode subagents` to inspect a session's child sessions.
+  website and README. Add `--detail` (optionally `--detail-mode prompts`,
+  `stats`, or `changes`) to render the session detail view, or
+  `--project-detail` for the first project's detail page. `--session <id>` opens
+  a specific session; combine it with `--detail-mode subagents` to inspect a
+  session's child sessions. Stats and Changes hydrate history on the first
+  request, so open those tabs once (or warm the hub cache) if a shot would
+  otherwise capture the loading state.
 - `OPENCODEBAR_DEBUG_SUBAGENTS=1` logs hub/subagent requests to stdout.
 - The menu bar glyph uses SF Symbols (`terminal` / `terminal.fill`).
 - iOS screenshot tooling (Debug builds): `OPENCODEBAR_TAB=live|projects|usage|settings`
