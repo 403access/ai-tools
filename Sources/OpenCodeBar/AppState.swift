@@ -70,6 +70,9 @@ final class AppState: ObservableObject {
     @Published var statsStale = false
     @Published var goUsage: GoUsageState = .unavailable
     @Published var goUsageFetchedAt: Date?
+    /// Live "what is it doing" snapshot for each active session, folded from
+    /// the event stream and reseeded from messages when needed.
+    @Published var liveActivity: [String: SessionActivity] = [:]
     @Published var projectDetails: [String: ProjectDetail] = [:]
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
@@ -108,6 +111,14 @@ final class AppState: ObservableObject {
     private var discovering = false
     private var started = false
     private var historyFetchedAt: Date?
+    /// Sessions whose activity is currently being seeded from messages.
+    private var seeding: Set<String> = []
+    /// Last seed attempt per session, so a failed or empty fetch is not retried
+    /// on every five-second poll.
+    private var seedAttempts: [String: Date] = [:]
+    /// Whether the event stream has connected at least once. The first
+    /// connection is not a reconnect, so there is no missed history to recover.
+    private var eventStreamConnected = false
 
     init() {
         // Allows the preview harness to open a specific tab:
@@ -173,8 +184,10 @@ final class AppState: ObservableObject {
         }
         self.location = location
         self.api = OpenCodeAPI(location: location)
-        await refreshAll()
+        // Connect before the slower history/stats fetches so live events from
+        // the first seconds after launch are not missed.
         startEvents()
+        await refreshAll()
     }
 
     private func discover() async -> ServiceLocation? {
@@ -187,8 +200,8 @@ final class AppState: ObservableObject {
 
     private func startEvents() {
         guard let location, eventTask == nil else { return }
-        eventTask = EventStream.connect(location: location) { [weak self] in
-            Task { @MainActor in self?.scheduleLiveRefresh() }
+        eventTask = EventStream.connect(location: location) { [weak self] event in
+            Task { @MainActor in self?.handle(event) }
         }
     }
 
@@ -219,6 +232,7 @@ final class AppState: ObservableObject {
             let (activeIDs, recentSessions, projectListValue) = try await (active, recent, projectList)
 
             self.activeIDs = Set(activeIDs)
+            self.pruneActivity()
             var merged = recentSessions
             let present = Set(recentSessions.map(\.id))
             let missing = activeIDs.filter { !present.contains($0) }
@@ -249,6 +263,8 @@ final class AppState: ObservableObject {
         } catch {
             handle(error)
         }
+
+        seedActivities()
     }
 
     /// Publishes the last known numbers immediately, so the Usage tab has
@@ -339,6 +355,124 @@ final class AppState: ObservableObject {
             try? await Task.sleep(nanoseconds: 400_000_000)
             guard !Task.isCancelled else { return }
             await self?.refreshLive()
+        }
+    }
+
+    // MARK: - Live activity
+
+    func activity(for sessionID: String) -> SessionActivity? {
+        liveActivity[sessionID]
+    }
+
+    /// Number of active child sessions for a running session. Subagents appear
+    /// in the session list like any other session, with `parentID` set.
+    func activeSubagentCount(for sessionID: String) -> Int {
+        sessions.reduce(0) { count, session in
+            count + (session.parentID == sessionID && activeIDs.contains(session.id) ? 1 : 0)
+        }
+    }
+
+    /// Folds an event into the matching session's activity, updates live
+    /// cost/tokens, and refreshes the list (debounced) as before.
+    private func handle(_ event: OpenCodeEvent) {
+        if event.type == "server.connected" {
+            if eventStreamConnected {
+                // Events may have been missed while the stream was down; mark
+                // the snapshots stale so the next refresh rebuilds them.
+                seedAttempts.removeAll()
+                for id in Array(liveActivity.keys) {
+                    liveActivity[id]?.updatedAt = .distantPast
+                }
+            }
+            eventStreamConnected = true
+        }
+
+        if let id = event.sessionID {
+            switch event.type {
+            case "session.idle", "session.deleted":
+                liveActivity.removeValue(forKey: id)
+                activeIDs.remove(id)
+                seedAttempts.removeValue(forKey: id)
+            default:
+                if event.updatesActivity {
+                    var activity = liveActivity[id] ?? SessionActivity(
+                        stepStartedAt: sessions.first(where: { $0.id == id })?.time.createdDate ?? Date()
+                    )
+                    activity.apply(event, directory: sessions.first(where: { $0.id == id })?.directory)
+                    liveActivity[id] = activity
+                }
+                if event.type == "session.usage.updated" {
+                    applyUsage(event.data, to: id)
+                }
+            }
+        }
+
+        if event.type == "server.connected"
+            || event.type.hasPrefix("session.")
+            || event.type.hasPrefix("message.")
+            || event.type.hasPrefix("permission.") {
+            scheduleLiveRefresh()
+        }
+    }
+
+    /// Usage events carry fresher totals than the session list, so the row's
+    /// cost and token count move while the session runs.
+    private func applyUsage(_ data: OpenCodeEvent.Payload?, to id: String) {
+        guard let data,
+              let cost = data.cost,
+              let tokens = data.tokens,
+              let index = sessions.firstIndex(where: { $0.id == id })
+        else { return }
+
+        sessions[index].cost = cost
+        sessions[index].tokens = tokens
+        if selectedSession?.id == id {
+            selectedSession = sessions[index]
+        }
+    }
+
+    /// Drops activity for sessions that stopped or whose snapshot is old enough
+    /// that the poll already reflects the change.
+    private func pruneActivity() {
+        let cutoff = Date().addingTimeInterval(-10)
+        liveActivity = liveActivity.filter { id, activity in
+            activeIDs.contains(id) || activity.updatedAt > cutoff
+        }
+        seedAttempts = seedAttempts.filter { activeIDs.contains($0.key) }
+    }
+
+    /// Rebuilds activity from the newest messages when the panel starts, when
+    /// the event stream reconnects, or when a session has gone quiet for long
+    /// enough that a missed event is plausible.
+    private func seedActivities() {
+        guard let api else { return }
+        let now = Date()
+
+        let candidates = activeIDs.filter { id in
+            if seeding.contains(id) { return false }
+            if let last = seedAttempts[id], now.timeIntervalSince(last) < 30 { return false }
+            guard let activity = liveActivity[id] else { return true }
+            return now.timeIntervalSince(activity.updatedAt) > 60
+        }
+
+        for id in candidates {
+            seeding.insert(id)
+            seedAttempts[id] = now
+            let directory = sessions.first(where: { $0.id == id })?.directory
+
+            Task { [weak self] in
+                let response = try? await api.sessionMessages(id: id, limit: 20)
+                guard let self else { return }
+                self.seeding.remove(id)
+                guard let derived = response.flatMap({
+                    SessionActivity.derive(from: $0.data, directory: directory)
+                }) else { return }
+
+                // A snapshot built from older messages must never overwrite
+                // activity that an event has already made newer.
+                if let existing = self.liveActivity[id], existing.updatedAt > derived.updatedAt { return }
+                self.liveActivity[id] = derived
+            }
         }
     }
 

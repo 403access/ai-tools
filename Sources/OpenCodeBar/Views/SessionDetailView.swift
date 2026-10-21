@@ -151,6 +151,16 @@ struct SessionDetailView: View {
             }
             .font(.system(size: 9))
             .foregroundStyle(.secondary)
+
+            if isRunning, let activity = state.activity(for: session.id) {
+                Divider().opacity(0.4)
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    VStack(alignment: .leading, spacing: 4) {
+                        ActivityLine(activity: activity, now: context.date)
+                        TodoProgressRow(activity: activity)
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 10)

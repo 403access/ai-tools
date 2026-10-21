@@ -1,8 +1,12 @@
-.PHONY: build app run restart preview shots site clean icon
+.PHONY: build test app run restart preview shots site clean icon
 
 # Compile the Swift package (debug).
 build:
 	swift build
+
+# Run the unit tests.
+test:
+	swift test
 
 # Assemble dist/OpenCodeBar.app (release).
 app:

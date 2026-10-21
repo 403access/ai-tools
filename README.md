@@ -17,8 +17,11 @@ full **session** view, per-project **analytics**, and a **usage** overview.
 ## Features
 
 **Live**
-- Running sessions update in real time via OpenCode's SSE event stream, each with
-  a pulsing indicator, project, model, agent, elapsed time, and token count.
+- Running sessions update in real time via OpenCode's SSE event stream. Each row
+  shows what the session is doing right now — the current tool and its command
+  or path, streaming reasoning, todo progress, and the number of running
+  subagents — alongside a pulsing indicator, project, model, agent, live cost,
+  elapsed time, and token count.
 - Recent sessions with project, model, relative time, cost, and tokens.
 - Click any session to open its details: the full conversation, a prompts-only
   list with copy buttons, and expandable reasoning and tool calls. The view
@@ -76,6 +79,14 @@ Endpoints used: `/api/info`, `/api/session`, `/api/session/active`,
 `/api/experimental/session/stats`, and
 `/api/event`.
 
+The event stream does more than trigger refreshes. `session.step.*`,
+`session.reasoning.*`, `session.text.*`, `session.tool.*`, `session.usage.*`,
+and `permission.*` events are folded into a per-session activity snapshot, which
+is what the Live rows show. Cost and token counts move as `session.usage.updated`
+arrives instead of waiting for the next poll. When the stream is missed — on
+launch or after a reconnect — the newest messages are read back to rebuild the
+snapshot, including the latest `todowrite` list.
+
 The trend charts use the stats API's daily activity for steps, and group the
 full session list (`/api/session?limit=1000`, fetched on the slow cycle) by day
 for cost and tokens. Project pages use the same series scoped to that project.
@@ -122,6 +133,7 @@ Other targets:
 
 ```sh
 make build      # swift build (debug)
+make test       # swift test
 make app        # assemble dist/OpenCodeBar.app (release)
 make preview    # open the panel in a normal window for design work
 make shots      # regenerate docs/screenshots
@@ -161,12 +173,16 @@ Sources/OpenCodeBar/
     GoUsageClient.swift     Go plan usage (console endpoint)
     EventStream.swift       SSE subscription with reconnect
   Models/Models.swift       Codable models for the API
+  Models/SessionActivity.swift  live "what is it doing" state
   Views/                    SwiftUI panel, tabs, heatmap, components
+  Views/LiveActivityView.swift  activity line and todo progress
   Preview/PreviewRunner.swift
 Scripts/
   build-app.sh              assemble the .app bundle
   restart.sh                rebuild and restart the app
   make-icon.swift           generate the app icon
+Tests/OpenCodeBarTests/
+  SessionActivityTests.swift  event folding, tool summaries, todo parsing
 ```
 
 ## Development notes

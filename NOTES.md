@@ -1,7 +1,7 @@
 # Notes
 
 Working notes for OpenCodeBar: follow-ups, known polish items, and environment
-observations. Last updated 2026-10-19.
+observations. Last updated 2026-10-21.
 
 ## Next steps
 
@@ -39,6 +39,22 @@ observations. Last updated 2026-10-19.
 - **Prompts are numbered per loaded window.** After "Load earlier", prompt
   numbers still start at 1; they could instead count from the true start of the
   session once full history is loaded.
+
+- **Live activity depends on the event stream.** Rows fold
+  `session.step.*`, `session.reasoning.*`, `session.text.*`,
+  `session.tool.*`, `session.usage.*`, and `permission.*` events. After a
+  reconnect, or for a session already running at launch, the snapshot is rebuilt
+  from the newest 20 messages. A `todowrite` list set earlier than that window is
+  not recovered; todo progress is shown only while the session is running.
+- **Waiting-for-approval is best-effort.** `permission.asked` payloads have
+  changed shape across OpenCode versions. The label falls back from `message` to
+  `title` to `action · resource`.
+- **Live activity is only on the Live tab and session header.** The Projects
+  tab's running list is still a single line; `ActivityLine` could be reused
+  there if those rows grow a second line.
+- **The step timer resets at each `session.step.started`.** Total session
+  elapsed stays on the stats line, and a finished tool freezes its own timer
+  until the next event arrives.
 
 - **Plan limits redraw once a minute.** Rows re-render when the 60s poll lands,
   so the reset countdown can sit up to a minute stale. A `TimelineView` would

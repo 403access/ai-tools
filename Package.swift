@@ -13,6 +13,11 @@ let package = Package(
         .executableTarget(
             name: "OpenCodeBar",
             path: "Sources/OpenCodeBar"
+        ),
+        .testTarget(
+            name: "OpenCodeBarTests",
+            dependencies: ["OpenCodeBar"],
+            path: "Tests/OpenCodeBarTests"
         )
     ]
 )

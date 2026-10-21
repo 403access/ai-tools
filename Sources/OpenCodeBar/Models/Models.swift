@@ -163,7 +163,7 @@ struct Stats: Codable, Hashable, Sendable {
 // MARK: - Session messages
 
 /// Arbitrary JSON, used for tool inputs and metadata whose shape varies by tool.
-enum JSONValue: Decodable, Hashable {
+enum JSONValue: Decodable, Hashable, Sendable {
     case string(String)
     case number(Double)
     case bool(Bool)
@@ -317,6 +317,7 @@ struct MessagePart: Decodable {
         var input: JSONValue?
         var content: [MessagePart]?
         var metadata: JSONValue?
+        var error: JSONValue?
 
         /// Tool output is usually delivered as text parts.
         var outputText: String? {
