@@ -32,11 +32,11 @@ iOS app:
 ## Features
 
 **Live**
-- Running sessions update in real time via OpenCode's SSE event stream. Each row
-  shows what the session is doing right now — the current tool and its command
-  or path, streaming reasoning, todo progress, and the number of running
-  subagents — alongside a pulsing indicator, project, model, agent, live cost,
-  elapsed time, and token count.
+- Running sessions update in real time via OpenCode's SSE event stream, with new
+  rows animating in at the top. Each row shows what the session is doing right
+  now — the current tool and its command or path, streaming reasoning, todo
+  progress, and the number of running subagents — alongside a pulsing indicator,
+  project, model, agent, live cost, elapsed time, and token count.
 - Recent sessions with project, model, relative time, cost, and tokens.
 - Click any session to open its details: the full conversation with the newest
   message first, a prompts-only list with copy buttons, and expandable reasoning
@@ -92,13 +92,25 @@ iOS app:
 - Per-model breakdown with steps and cost.
 - Tool call success/failure summary.
 
+**iPhone & iPad**
+- The same Live, Projects, Usage, and Settings areas as the Mac panel, with the
+  same compact panel design, live-activity folding, and a floating tab dock
+  built for touch.
+- Search projects, pull to refresh any screen, and open a session from a deep
+  link. Settings shows hub and OpenCode health, cached session/message counts,
+  uptime, and last sync.
+- Appearance can follow the system or stay dark or light.
+- Pair by pasting the hub URL and token, or the
+  `opencodebar://pair?url=…&token=…` link the hub prints; the token is stored
+  only on the device.
+
 **Shared hub**
 - One Bun + SQLite server ingests OpenCode once and serves both apps behind a
   Bearer token. Sessions, messages, file changes, stats, and Go plan limits are
   cached in `~/.local/share/opencodebar/hub.sqlite`, so the iOS app — and the Mac
   app when OpenCode is stopped — still show history and last-known numbers.
-- The iOS app adds search, pull-to-refresh, and deep links to a session, with
-  the same live-activity folding as the Mac app.
+- The hub discovers the local service, polls read endpoints, forwards the SSE
+  stream, and forwards prompts and new-session requests back to OpenCode.
 
 Both apps can start sessions and send prompts; neither stops or deletes
 sessions.
@@ -319,6 +331,8 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
   Views/                    SwiftUI panel, tabs, heatmap, components
     ChangeViews.swift       patch cards and change summaries
     NewSessionSheet.swift   start a session with an optional first prompt
+    SessionStatsView.swift  per-session reliability and failures
+    SubagentViews.swift     tap-through child-session tree
   Preview/PreviewRunner.swift
 
 Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
@@ -326,16 +340,18 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   MobileStore.swift           observable state for the hub
   HubSettings.swift           URL + token storage and pairing links
   LiveView.swift              running/recent sessions
-  SessionDetailView.swift     conversation, changes, prompts, subagents
+  SessionDetailView.swift     conversation, stats, changes, prompts, subagents
   NewSessionSheet.swift       start a session from the phone
   MobileMessageViews.swift    message cards
   MobileChangeViews.swift     patch cards and change summaries
+  MobileSessionStatsView.swift  per-session reliability and failures
   ProjectsView.swift          project list + search
-  ProjectDetailView.swift     scoped analytics
+  ProjectDetailView.swift     scoped analytics and project changes
   UsageView.swift             plan limits, trends, stats
   MobileCharts.swift          Swift Charts trend cards
-  SettingsView.swift          pairing and status
+  SettingsView.swift          appearance, pairing, and status
   MobileComponents.swift      shared mobile views
+  MobileTheme.swift           dark design tokens and shared backgrounds
 
 server/                       Bun + TypeScript + SQLite hub
   src/index.ts                entry point and startup output

@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OpenCodeBar — OpenCode in your macOS menu bar</title>
-<meta name="description" content="A native macOS menu bar app for OpenCode. Watch running sessions, read and reply to any conversation, start new sessions, dig into per-project analytics, and track usage and Go plan limits — live, at a glance.">
+<title>OpenCodeBar — OpenCode in your menu bar and pocket</title>
+<meta name="description" content="Native macOS and iPhone/iPad apps for OpenCode. Watch running sessions live, read and reply in any conversation, start new sessions, inspect file changes and tool stats, and track usage — synced through a local SQLite hub.">
 <meta name="theme-color" content="#080b0a">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
 <link rel="stylesheet" href="assets/style.css">
 
 <meta property="og:type" content="website">
-<meta property="og:title" content="OpenCodeBar — OpenCode in your macOS menu bar">
-<meta property="og:description" content="Watch running OpenCode sessions, reply from any conversation, start new sessions, dig into per-project analytics, and track usage and Go plan limits from your menu bar. Native SwiftUI.">
+<meta property="og:title" content="OpenCodeBar — OpenCode in your menu bar and pocket">
+<meta property="og:description" content="A native macOS menu bar app and iPhone/iPad app for OpenCode. Live sessions, prompts and new sessions, file changes, tool stats, per-project analytics, and Go plan limits — synced through a local hub.">
 <meta property="og:image" content="https://403access.github.io/ai-tools/screenshots/live.png">
 <meta name="twitter:card" content="summary_large_image">
 
@@ -29,8 +29,9 @@
     <nav class="nav-links">
       <a href="#features">Features</a>
       <a href="#screenshots">Screenshots</a>
+      <a href="#iphone">iPhone</a>
+      <a href="#hub">Hub</a>
       <a href="#install">Install</a>
-      <a href="#how">How it works</a>
     </nav>
     <span class="nav-spacer"></span>
     <a class="btn btn-ghost" href="https://github.com/403access/ai-tools" target="_blank" rel="noopener">GitHub ↗</a>
@@ -42,16 +43,17 @@
   <!-- Hero -->
   <section class="hero">
     <div class="wrap hero-inner">
-      <span class="eyebrow reveal"><span class="pulse"></span> macOS 14+ · Native SwiftUI · Open source</span>
-      <h1 class="reveal">Your OpenCode activity,<br><span class="grad">one click away.</span></h1>
-      <p class="lede reveal">OpenCodeBar lives in your menu bar and shows what your OpenCode sessions are
-        doing — running work, any session's full conversation, per-project analytics, and usage stats — without
-        leaving the window you're in. Reply in the conversation, or start a new session, right from the panel.</p>
+      <span class="eyebrow reveal"><span class="pulse"></span> macOS 14+ · iOS 17+ · Local hub · Open source</span>
+      <h1 class="reveal">Your OpenCode activity,<br><span class="grad">on every screen.</span></h1>
+      <p class="lede reveal">OpenCodeBar lives in your Mac's menu bar and in your pocket on iPhone and iPad. Watch
+        what every session is doing, read and reply in the conversation, start new work, inspect the files it
+        changed, and track usage — all synced through a local hub that keeps history when OpenCode is stopped.</p>
       <div class="cta reveal">
         <a class="btn btn-primary" href="#install">Get started</a>
         <a class="btn btn-ghost" href="https://github.com/403access/ai-tools" target="_blank" rel="noopener">View on GitHub</a>
       </div>
       <ul class="trust reveal">
+        <li>Mac + iPhone/iPad</li>
         <li>Prompt &amp; start sessions</li>
         <li>Runs locally</li>
         <li>No telemetry</li>
@@ -76,7 +78,7 @@
             <div class="desktop-note">
               <span class="kicker">Live</span>
               <strong>2 sessions running</strong>
-              <p>Click the menu bar item to open the panel — running work, recent sessions, and usage, without leaving your window.</p>
+              <p>Click the menu bar item for running work, recent sessions, projects, and usage — or pick it all up on your phone.</p>
             </div>
             <figure class="window">
               <div class="window-bar">
@@ -98,62 +100,80 @@
       <div class="section-head reveal">
         <span class="kicker">Features</span>
         <h2>Everything at a glance</h2>
-        <p>Three tabs plus a full session view, zero setup. OpenCodeBar reads the OpenCode service and keeps itself up to date.</p>
+        <p>Two native apps and one shared hub. The Mac panel and the iPhone/iPad app show the same live activity, conversation, project, and usage data — with the same compact panel design.</p>
       </div>
 
       <div class="grid features">
         <article class="card reveal">
           <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></span>
           <h3>Live sessions</h3>
-          <p>Running sessions update in real time over OpenCode's event stream. See the current tool and command, streaming reasoning, todo progress, running subagents, live cost, elapsed time, and tokens — not just a spinner.</p>
+          <p>Running sessions update in real time over OpenCode's event stream, with new rows sliding in at the top. See the current tool and command, streaming reasoning, todo progress, running subagents, live cost, elapsed time, and tokens — not just a spinner.</p>
         </article>
 
         <article class="card tone-blue reveal">
           <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 3.5V7a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><path d="M8 10h9M8 13h5"/></svg></span>
           <h3>Session detail</h3>
-          <p>Click any session for the full conversation: assistant text, collapsible reasoning, and tool calls with their input and output. It refreshes in place while a session runs, and the composer at the bottom sends the next prompt — queued while the current turn finishes. The Live tab's New button starts a new session, and a Subagents tab shows child sessions with their own live activity — tap through to drill in and Back returns to the parent.</p>
+          <p>Open any session for the full conversation with the newest message first: assistant text, collapsible reasoning, and tool calls with their input and output. It refreshes in place while a session runs, and <em>Load earlier</em> pages back through history at the bottom.</p>
         </article>
 
         <article class="card tone-purple reveal">
-          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 11h13M4 16h16M4 21h9"/></svg></span>
-          <h3>Prompt history</h3>
-          <p>Switch to Prompts for a numbered list of everything you sent, with a copy button on every entry. Injected system and shell entries are labeled, so they're easy to skip.</p>
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg></span>
+          <h3>Reply &amp; start sessions</h3>
+          <p>The composer at the bottom of a conversation sends the next prompt; running sessions queue it until the current turn finishes. A New Session sheet starts work in any project with an optional title and first message.</p>
         </article>
 
         <article class="card tone-amber reveal">
-          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 1.9"/></svg></span>
-          <h3>Recent history</h3>
-          <p>Your latest sessions with title, project, model, relative time, cost, and tokens — so you can pick up right where you left off.</p>
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><rect x="7" y="11" width="3" height="5" rx="0.8"/><rect x="12.5" y="7" width="3" height="9" rx="0.8"/><rect x="18" y="13" width="3" height="3" rx="0.8"/></svg></span>
+          <h3>Stats &amp; reliability</h3>
+          <p>A Stats tab per session with prompts, steps, tool-call reliability, per-tool failure counts and median durations, the recent failures with their errors, file impact, and the token mix.</p>
+        </article>
+
+        <article class="card tone-red reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h7l4 4v12H7z"/><path d="M14 4v4h4"/><path d="M10 13h5M10 16h5"/></svg></span>
+          <h3>File changes</h3>
+          <p>A Changes tab shows every file a session wrote, with the actual patch, added and removed line counts, and a colour-coded diff. Repeated edits to one file are grouped, and long patches collapse to a preview.</p>
         </article>
 
         <article class="card reveal">
-          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><rect x="5" y="11" width="3.4" height="6.5" rx="1.1"/><rect x="10.3" y="6.5" width="3.4" height="11" rx="1.1"/><rect x="15.6" y="13" width="3.4" height="4.5" rx="1.1"/></svg></span>
-          <h3>Usage &amp; plan limits</h3>
-          <p>Streak, active days, today's steps, prompts, sessions, cost, and tokens — plus your Go plan's rolling, weekly, and monthly allowances with reset countdowns.</p>
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.4"/><circle cx="5" cy="19" r="2.4"/><circle cx="19" cy="19" r="2.4"/><path d="M12 7.4v4.2M12 11.6 6.2 16.9M12 11.6l5.8 5.3"/></svg></span>
+          <h3>Subagents</h3>
+          <p>A session's child sessions appear in a Subagents tab with their own live activity, outcome, cost, and time. Tap one to drill in; Back returns to the parent, and each level loads its own children.</p>
         </article>
 
         <article class="card tone-purple reveal">
           <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h4l2 2.4h7A2 2 0 0 1 20.5 10v6.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><path d="M7 14h10"/></svg></span>
           <h3>Projects</h3>
-          <p>Every project OpenCode has run in, running work first. Open one for a detail page with what's running now, its own steps, cost, tokens, streak and model mix, plus recent sessions — and one-click actions to open its folder or a terminal, or copy the path.</p>
+          <p>Every project OpenCode has run in, running work first. Open one for what's running now, its own steps, cost, tokens, streak and model mix, recent sessions, aggregated file changes, and tool reliability — plus Finder, Terminal, and copy-path actions.</p>
+        </article>
+
+        <article class="card tone-blue reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 1.9"/></svg></span>
+          <h3>Usage &amp; plan limits</h3>
+          <p>Streak, active days, today's steps, prompts, sessions, cost, and tokens — plus your Go plan's rolling, weekly, and monthly allowances with reset countdowns. Last-known values stay visible when the API is unreachable.</p>
+        </article>
+
+        <article class="card tone-amber reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.6"/><path d="M10.5 5.2h3"/><path d="M11 18.2h2"/></svg></span>
+          <h3>iPhone &amp; iPad</h3>
+          <p>The same Live, Projects, Usage, and Settings areas with a floating tab dock, search, pull-to-refresh, and deep links to a session. Appearance can follow the system or stay dark or light.</p>
         </article>
 
         <article class="card reveal">
-          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg></span>
-          <h3>Activity heatmap</h3>
-          <p>A GitHub-style contribution graph of your daily agent steps, so you can see momentum and quiet stretches in one glance.</p>
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/><path d="M4.5 11.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg></span>
+          <h3>Shared hub</h3>
+          <p>A Bun + SQLite hub ingests OpenCode once and serves both apps behind a Bearer token. Sessions, messages, changes, stats, and plan limits stay cached — so the phone, and the Mac when OpenCode is stopped, still have history.</p>
         </article>
 
         <article class="card tone-purple reveal">
-          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="4" width="16" height="4.6" rx="2.3"/><rect x="3.5" y="9.7" width="11" height="4.6" rx="2.3"/><rect x="3.5" y="15.4" width="7" height="4.6" rx="2.3"/></svg></span>
-          <h3>Token mix</h3>
-          <p>Input, output, reasoning, and cache read/write broken out into a single stacked bar, so you can see where the tokens go.</p>
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg></span>
+          <h3>Heatmap &amp; token mix</h3>
+          <p>A GitHub-style activity heatmap of daily agent steps, plus input, output, reasoning, and cache read/write broken out into one stacked bar — so momentum and token spend are easy to read.</p>
         </article>
 
         <article class="card tone-blue reveal">
           <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="11" height="11" rx="2.6"/><path d="M9.5 2.5v3.2M14.5 2.5v3.2M9.5 18.3v3.2M14.5 18.3v3.2M2.5 9.5h3.2M2.5 14.5h3.2M18.3 9.5h3.2M18.3 14.5h3.2"/></svg></span>
           <h3>Models &amp; tools</h3>
-          <p>Per-model steps and cost, plus a tool-call success/failure breakdown — including how much work went to subagents.</p>
+          <p>Per-model steps and cost, plus tool-call success and failure breakdowns globally and per project — including how much work went to subagents and which tools need attention.</p>
         </article>
       </div>
     </div>
@@ -165,7 +185,7 @@
       <div class="section-head reveal">
         <span class="kicker">Screenshots</span>
         <h2>Take a closer look</h2>
-        <p>The panel is a native popover — dark, compact, and built to stay out of the way.</p>
+        <p>The Mac panel is a native popover — dark, compact, and built to stay out of the way.</p>
       </div>
 
       <div class="shots">
@@ -226,7 +246,7 @@
             </div>
             <img src="screenshots/project-detail.png" alt="OpenCodeBar project detail page showing running sessions, analytics tiles, model mix, and recent sessions" width="800" height="1252">
           </div>
-          <figcaption><strong>Project detail.</strong> Open one for live instances, scoped analytics, model mix, and recent sessions.</figcaption>
+          <figcaption><strong>Project detail.</strong> Open one for live instances, scoped analytics, project changes, tool reliability, and recent sessions.</figcaption>
         </figure>
 
         <figure class="shot reveal">
@@ -244,28 +264,139 @@
     </div>
   </section>
 
+  <!-- iPhone & iPad -->
+  <section class="section" id="iphone">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">iPhone &amp; iPad</span>
+        <h2>Same panel, in your pocket</h2>
+        <p>The iOS app follows the Mac's dark design and talks to the same hub. Check the work while you're away from the desk, then reply or start the next session from your phone.</p>
+      </div>
+
+      <div class="phones">
+        <figure class="phone reveal">
+          <div class="phone-shell">
+            <div class="phone-screen">
+              <img src="screenshots/ios-live.png" alt="OpenCodeBar for iOS Live tab showing running and recent sessions" width="414" height="900">
+            </div>
+          </div>
+          <figcaption><strong>Live.</strong> Running work, current tools, live cost and tokens, and recent sessions — with a floating tab dock.</figcaption>
+        </figure>
+
+        <figure class="phone reveal">
+          <div class="phone-shell">
+            <div class="phone-screen">
+              <img src="screenshots/ios-session.png" alt="OpenCodeBar for iOS session detail showing reasoning and tool calls" width="414" height="900">
+            </div>
+          </div>
+          <figcaption><strong>Session.</strong> Chat, Stats, Changes, Prompts, and Subagents in one place — newest first, with a composer to reply.</figcaption>
+        </figure>
+
+        <figure class="phone reveal">
+          <div class="phone-shell">
+            <div class="phone-screen">
+              <img src="screenshots/ios-projects.png" alt="OpenCodeBar for iOS Projects tab with search and running counts" width="414" height="900">
+            </div>
+          </div>
+          <figcaption><strong>Projects.</strong> Search every project, see what's running, then drill into scoped analytics and changes.</figcaption>
+        </figure>
+
+        <figure class="phone reveal">
+          <div class="phone-shell">
+            <div class="phone-screen">
+              <img src="screenshots/ios-usage.png" alt="OpenCodeBar for iOS Usage tab showing plan limits, trends, and activity tiles" width="414" height="900">
+            </div>
+          </div>
+          <figcaption><strong>Usage.</strong> Go plan limits, trends, and totals stay available from the hub's cache.</figcaption>
+        </figure>
+      </div>
+
+      <div class="grid features perks">
+        <article class="card reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l2.5-2.5a5 5 0 0 0-7-7L11 5"/><path d="M14 11a5 5 0 0 0-7 0l-2.5 2.5a5 5 0 0 0 7 7L13 19"/></svg></span>
+          <h3>Pair in seconds</h3>
+          <p>Paste the hub's URL and token, or tap the <code>opencodebar://pair</code> link it prints. Credentials stay on the device.</p>
+        </article>
+        <article class="card tone-blue reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.4"/><path d="m16 16 4.4 4.4"/></svg></span>
+          <h3>Search &amp; refresh</h3>
+          <p>Filter projects, pull to refresh any screen, and open a session directly from a link. The hub's live stream keeps it current.</p>
+        </article>
+        <article class="card tone-purple reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21"/><circle cx="12" cy="12" r="4"/></svg></span>
+          <h3>Follow the system</h3>
+          <p>Appearance can follow the system or stay dark or light. Settings also shows hub and OpenCode health, cached counts, uptime, and last sync.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Hub -->
+  <section class="section" id="hub">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Shared hub</span>
+        <h2>One local source of truth</h2>
+        <p>OpenCodeBar Hub is a small Bun + SQLite server. It discovers your local OpenCode service once, caches what it reads, and fans the live event stream out to both apps.</p>
+      </div>
+
+      <div class="hub-grid">
+        <div class="hub-copy reveal">
+          <ul class="hub-points">
+            <li><span class="tick"></span><div><strong>History that survives.</strong> Sessions, projects, messages, file changes, tool stats, and Go plan limits live in <code>~/.local/share/opencodebar/hub.sqlite</code>. The phone — and the Mac when OpenCode is stopped — keep showing the last known state.</div></li>
+            <li><span class="tick"></span><div><strong>Live for both apps.</strong> The hub subscribes to OpenCode's SSE stream and forwards every event, so rows update as tools run, reasoning streams, and cost changes.</div></li>
+            <li><span class="tick"></span><div><strong>Local by default.</strong> Reads and writes cross loopback to OpenCode; clients authenticate to the hub with a Bearer token. Pairing writes an owner-only config for the Mac and a link for the phone.</div></li>
+            <li><span class="tick"></span><div><strong>No second service to trust.</strong> The hub is plain TypeScript in <code>server/</code>, tested with <code>make hub-test</code>, and started with <code>make hub</code>.</div></li>
+          </ul>
+          <a class="btn btn-ghost" href="https://github.com/403access/ai-tools/blob/main/README.md#how-it-works" target="_blank" rel="noopener">Read the architecture →</a>
+        </div>
+
+        <div class="hub-diagram reveal" role="img" aria-label="OpenCode service feeds the OpenCodeBar hub over REST and SSE; the hub serves the macOS and iOS apps with cached REST and live events">
+          <div class="hub-node source">
+            <strong>OpenCode</strong>
+            <span>local service · Basic auth</span>
+          </div>
+          <div class="hub-arrow"><span>REST + SSE</span><span class="arrow">↓</span></div>
+          <div class="hub-node core">
+            <strong>OpenCodeBar Hub</strong>
+            <span>Bun + SQLite · Bearer auth</span>
+          </div>
+          <div class="hub-arrow"><span>cached reads + live events</span><span class="arrow">↓</span></div>
+          <div class="hub-clients">
+            <div class="hub-node"><strong>macOS</strong><span>menu bar app</span></div>
+            <div class="hub-node"><strong>iOS</strong><span>iPhone &amp; iPad</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Install -->
   <section class="section" id="install">
     <div class="wrap">
       <div class="section-head reveal">
         <span class="kicker">Install</span>
         <h2>Get started</h2>
-        <p>Build a local <code>.app</code> bundle and drop it in your menu bar. No App Store, no signing hassle.</p>
+        <p>Build the hub, then one or both apps. Everything runs locally — no App Store, and the Mac app needs no signing setup.</p>
       </div>
 
       <div class="install-grid">
         <ol class="steps reveal">
           <li>
             <h3>Clone the repository</h3>
-            <p>Grab the source — it's a single Swift package with no runtime dependencies.</p>
+            <p>Mac app, iOS app, and hub live in one repo. The Mac side is a single Swift package with no runtime dependencies.</p>
           </li>
           <li>
-            <h3>Build and launch</h3>
-            <p><code>make run</code> compiles the release binary, assembles and ad-hoc signs <code>dist/OpenCodeBar.app</code>, then opens it.</p>
+            <h3>Start the hub</h3>
+            <p><code>make hub</code> installs the Bun dependencies and prints the URL, LAN address, and a pairing link for your phone. Keep it running.</p>
           </li>
           <li>
-            <h3>Keep it around (optional)</h3>
-            <p>Add the app in System Settings → General → Login Items to have it start with your Mac.</p>
+            <h3>Launch the Mac app</h3>
+            <p><code>make run</code> in a second terminal builds, ad-hoc signs, and opens <code>dist/OpenCodeBar.app</code>. It connects to the hub automatically.</p>
+          </li>
+          <li>
+            <h3>Pair your iPhone or iPad (optional)</h3>
+            <p><code>make mobile-run</code> builds and launches the iOS simulator and pairs it when the hub config exists. For a physical device, <code>make mobile-device</code> builds, signs, installs, and pairs over the Mac's LAN address — set <code>DEVICE=…</code> if more than one is connected.</p>
           </li>
         </ol>
 
@@ -278,14 +409,20 @@
             </div>
             <pre id="install-cmd" data-commands="git clone https://github.com/403access/ai-tools.git
 cd ai-tools
-make run"><span class="cmd">$</span> git clone https://github.com/403access/ai-tools.git
+make hub
+make run
+make mobile-run"><span class="cmd">$</span> git clone https://github.com/403access/ai-tools.git
 <span class="cmd">$</span> cd ai-tools
-<span class="cmd">$</span> make run</pre>
+<span class="cmd">$</span> make hub        <span class="comment"># terminal 1: start the hub</span>
+<span class="cmd">$</span> make run        <span class="comment"># terminal 2: macOS app</span>
+<span class="cmd">$</span> make mobile-run <span class="comment"># optional: iOS simulator</span></pre>
           </div>
           <ul class="reqs">
             <li>macOS 14 Sonoma+</li>
-            <li>Swift toolchain</li>
-            <li>OpenCode v2 service running</li>
+            <li>iOS 17+</li>
+            <li>Bun 1.1+</li>
+            <li>Xcode + XcodeGen</li>
+            <li>OpenCode v2 service</li>
           </ul>
         </div>
       </div>
@@ -298,29 +435,29 @@ make run"><span class="cmd">$</span> git clone https://github.com/403access/ai-t
       <div class="section-head reveal">
         <span class="kicker">Under the hood</span>
         <h2>How it works</h2>
-        <p>OpenCodeBar is a thin client over the OpenCode HTTP API. It reads activity and forwards prompts and new-session requests.</p>
+        <p>The apps are thin clients over one local hub, which is a thin client over OpenCode's HTTP API.</p>
       </div>
 
       <div class="grid how-grid">
         <article class="card reveal">
           <div class="num">01</div>
           <h3>Finds the service</h3>
-          <p>Reads the password from <code>service.json</code> and discovers the local port via the OpenCode CLI.</p>
+          <p>The hub reads the password from <code>service.json</code> and discovers the local port via the OpenCode CLI, <code>lsof</code>, and the server log.</p>
         </article>
         <article class="card reveal">
           <div class="num">02</div>
-          <h3>Authenticates locally</h3>
-          <p>Speaks HTTP Basic auth over loopback — the same flow the TUI uses. Session data stays on your machine.</p>
+          <h3>Caches the history</h3>
+          <p>It polls sessions, projects, messages, stats, and changes, folds the SSE stream into live activity, and writes everything to SQLite.</p>
         </article>
         <article class="card reveal">
           <div class="num">03</div>
-          <h3>Polls a few endpoints</h3>
-          <p>Sessions, active sessions, projects, and aggregate stats — plus conversation history and per-project analytics when you open them, the Go usage API when you're on a Go plan, and prompt/new-session writes when you send them.</p>
+          <h3>Serves both apps</h3>
+          <p>A stable, mirrored API sits behind a Bearer token. The Mac auto-discovers the hub; the phone pairs with a URL, token, or deep link.</p>
         </article>
         <article class="card reveal">
           <div class="num">04</div>
-          <h3>Streams live events</h3>
-          <p>Subscribes to the SSE event stream for instant updates, and reconnects automatically if the service moves.</p>
+          <h3>Updates live</h3>
+          <p>The hub forwards OpenCode events to every connected client and reconnects when the service moves. Prompts and new sessions are forwarded back.</p>
         </article>
       </div>
     </div>
@@ -334,7 +471,7 @@ make run"><span class="cmd">$</span> git clone https://github.com/403access/ai-t
       <img src="assets/logo.svg" alt="" width="22" height="22">
       <span>OpenCodeBar</span>
     </a>
-    <p>Watch and prompt your OpenCode sessions. Built for OpenCode.</p>
+    <p>Watch, prompt, and start OpenCode sessions from your Mac and iPhone. Built for OpenCode.</p>
     <nav class="links">
       <a href="https://github.com/403access/ai-tools" target="_blank" rel="noopener">GitHub</a>
       <a href="https://github.com/403access/ai-tools/blob/main/NOTES.md" target="_blank" rel="noopener">Notes</a>

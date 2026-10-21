@@ -18,10 +18,13 @@ Follow-ups worth considering:
 - **Ship the hub as a launch agent.** Right now `make hub` is a foreground
   process. A `launchd` plist (with `KeepAlive`) would let the phone reach the
   hub without a terminal open. Documented as a note in the README.
-- **iOS distribution.** The repo builds for the simulator only (no team,
-  no asset catalog, no App Store signing). A real device needs a development
-  team and an app icon; `NSAllowsArbitraryLoads` should become a scoped ATS
-  exception (or an HTTPS tunnel) before any store build.
+- **iOS distribution.** The repo builds for the simulator and installs on a
+  connected device with `make mobile-device`, which uses the Apple Development
+  identity and team already configured in Xcode (override with
+  `DEVELOPMENT_TEAM=…` or `DEVICE=…`). There is still no App Store/TestFlight
+  distribution setup (distribution certificate, upload workflow), and
+  `NSAllowsArbitraryLoads` should become a scoped ATS exception (or an HTTPS
+  tunnel) before any store build.
 - **Remote access.** The hub binds `0.0.0.0` with a Bearer token. For use away
   from home, prefer a tunnel (Tailscale/Cloudflare) and
   `OPENCODEBAR_HUB_HOST=127.0.0.1` rather than exposing the port.
@@ -44,8 +47,9 @@ Follow-ups worth considering:
 - **iOS extras.** Home Screen widget for active sessions, Live Activity for a
   running session, and background refresh would make the phone more useful
   without opening the app.
-- **Website.** `docs/index.html` still describes the macOS-only app; it should
-  gain the iOS screenshots and a short hub section.
+- **Website.** `docs/index.html` now covers both apps, the iOS screenshots, the
+  shared hub, and the updated install flow. Keep it in sync when screens or the
+  setup commands change.
 
 ## Next steps
 

@@ -27,10 +27,14 @@ preview:
 	open dist/OpenCodeBar.app --args --preview
 
 # Regenerate the docs/screenshots used by the website and README (2x).
+# Stats and Changes hydrate history on their first request, so open those tabs
+# once (or keep the hub cache warm) if either shot captures the loading state.
 shots:
 	swift build
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/live.png --scale 2
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/session.png --scale 2 --detail
+	.build/debug/OpenCodeBar --screenshot docs/screenshots/stats.png --scale 2 --detail --detail-mode stats
+	.build/debug/OpenCodeBar --screenshot docs/screenshots/changes.png --scale 2 --detail --detail-mode changes
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/prompts.png --scale 2 --detail --detail-mode prompts
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/projects.png --scale 2 --tab projects
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/project-detail.png --scale 2 --tab projects --project-detail
