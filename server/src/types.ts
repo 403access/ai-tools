@@ -105,6 +105,24 @@ export interface SessionMessage {
   tokens?: TokenUsage;
 }
 
+/** One file in a tool call's metadata, with the patch OpenCode produced. */
+export interface FileDiff {
+  file?: string;
+  patch?: string;
+  additions: number;
+  deletions: number;
+  status?: "added" | "deleted" | "modified";
+  /** Set when the diff is aggregated for a project. */
+  sessionID?: string;
+  sessionTitle?: string;
+  messageID?: string;
+  created?: number;
+}
+
+export interface ChangesResponse {
+  data: FileDiff[];
+}
+
 export interface MessageCursor {
   previous?: string;
   next?: string;

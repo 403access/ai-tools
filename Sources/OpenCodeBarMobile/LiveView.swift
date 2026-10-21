@@ -6,7 +6,10 @@ struct LiveView: View {
     @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack(path: $path) {
+        let connection = store.connection
+        let activeCount = store.activeCount
+
+        return NavigationStack(path: $path) {
             Group {
                 if !settings.isConfigured {
                     ScrollView {
@@ -25,7 +28,7 @@ struct LiveView: View {
                     MobileBrandTitle()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    ConnectionPill(connection: store.connection, activeCount: store.activeCount)
+                    ConnectionPill(connection: connection, activeCount: activeCount)
                 }
             }
             .refreshable { await store.refreshAll() }

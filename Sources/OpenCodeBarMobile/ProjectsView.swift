@@ -5,6 +5,7 @@ struct ProjectsView: View {
     @EnvironmentObject private var settings: HubSettingsStore
     @EnvironmentObject private var store: MobileStore
     @State private var query = ""
+    @State private var path = NavigationPath()
 
     private var projects: [Project] {
         let ordered = store.orderedProjects
@@ -17,7 +18,10 @@ struct ProjectsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        let connection = store.connection
+        let activeCount = store.activeCount
+
+        return NavigationStack(path: $path) {
             Group {
                 if !settings.isConfigured {
                     ScrollView {
@@ -44,7 +48,7 @@ struct ProjectsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    ConnectionPill(connection: store.connection, activeCount: store.activeCount)
+                    ConnectionPill(connection: connection, activeCount: activeCount)
                 }
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search projects")
@@ -55,8 +59,27 @@ struct ProjectsView: View {
             .navigationDestination(for: Session.self) { session in
                 SessionDetailView(sessionID: session.id, fallback: session)
             }
+            .task(id: store.lastUpdated) {
+                openRequestedProject()
+            }
         }
     }
+
+    #if DEBUG
+    /// Opens a project on launch for screenshot tooling:
+    /// `SIMCTL_CHILD_OPENCODEBAR_OPEN_PROJECT=<id-or-path>`.
+    private func openRequestedProject() {
+        guard path.isEmpty,
+              let requested = ProcessInfo.processInfo.environment["OPENCODEBAR_OPEN_PROJECT"],
+              let project = store.orderedProjects.first(where: {
+                  $0.id == requested || $0.canonical == requested
+              })
+        else { return }
+        path.append(project)
+    }
+    #else
+    private func openRequestedProject() {}
+    #endif
 
     private var projectList: some View {
         ScrollView {

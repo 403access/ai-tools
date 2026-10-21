@@ -8,6 +8,18 @@ struct SessionDetailView: View {
     let fallback: Session
 
     @State private var mode: MobileStore.DetailMode = .conversation
+
+    init(sessionID: String, fallback: Session) {
+        self.sessionID = sessionID
+        self.fallback = fallback
+        #if DEBUG
+        // Screenshot tooling: SIMCTL_CHILD_OPENCODEBAR_DETAIL_MODE=changes
+        if let requested = ProcessInfo.processInfo.environment["OPENCODEBAR_DETAIL_MODE"],
+           let mode = MobileStore.DetailMode(rawValue: requested.capitalized) {
+            _mode = State(initialValue: mode)
+        }
+        #endif
+    }
     @State private var messages: [SessionMessage] = []
     @State private var previousCursor: String?
     @State private var isLoading = true
@@ -26,7 +38,7 @@ struct SessionDetailView: View {
     private var project: String { store.projectName(for: session) }
 
     private var availableModes: [MobileStore.DetailMode] {
-        var modes: [MobileStore.DetailMode] = [.conversation, .prompts]
+        var modes: [MobileStore.DetailMode] = [.conversation, .changes, .prompts]
         if mode == .subagents
             || store.hasSubagents(sessionID)
             || store.isLoadingSubagents(sessionID) {
@@ -40,7 +52,11 @@ struct SessionDetailView: View {
     }
 
     var body: some View {
-        ScrollViewReader { proxy in
+        // Capture before the toolbar closure; bar items can be hosted without
+        // the screen's environment objects.
+        let running = isRunning
+
+        return ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     summary
@@ -60,12 +76,14 @@ struct SessionDetailView: View {
                 .padding(.vertical, 12)
             }
             .onChange(of: messages.first?.id) { _, _ in
-                guard mode != .subagents, !didAutoScroll, !messages.isEmpty else { return }
+                guard mode == .conversation || mode == .prompts,
+                      !didAutoScroll, !messages.isEmpty
+                else { return }
                 didAutoScroll = true
                 scrollToBottom(proxy, animated: false)
             }
             .onChange(of: mode) { _, newMode in
-                guard newMode != .subagents else { return }
+                guard newMode != .subagents, newMode != .changes else { return }
                 scrollToBottom(proxy, animated: false)
             }
         }
@@ -74,7 +92,7 @@ struct SessionDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if isRunning {
+                if running {
                     HStack(spacing: 5) {
                         PulsingDot(size: 7)
                         Text("Running")
@@ -88,13 +106,23 @@ struct SessionDetailView: View {
         }
         .task(id: refreshKey) {
             await loadLatest()
+            if mode == .changes {
+                await store.loadChanges(sessionID)
+            }
         }
         .task(id: sessionID) {
             await store.loadSubagents(sessionID)
         }
+        .task(id: mode) {
+            guard mode == .changes else { return }
+            await store.loadChanges(sessionID)
+        }
         .refreshable {
             await loadLatest()
             await store.loadSubagents(sessionID, force: true)
+            if mode == .changes {
+                await store.loadChanges(sessionID, force: true)
+            }
             await store.refreshLive()
         }
         .onChange(of: availableModes, initial: true) { _, modes in
@@ -162,10 +190,30 @@ struct SessionDetailView: View {
         switch mode {
         case .conversation:
             conversation
+        case .changes:
+            changes
         case .prompts:
             prompts
         case .subagents:
             subagents
+        }
+    }
+
+    @ViewBuilder
+    private var changes: some View {
+        let state = store.sessionChanges[sessionID]
+        if let state, state.isLoading && state.changes.isEmpty {
+            loading("Loading file changes…")
+        } else if let state, let error = state.error, state.changes.isEmpty {
+            errorState(error, title: "Couldn't load changes")
+        } else if let changes = state?.changes, !changes.isEmpty {
+            SessionChangesView(changes: changes)
+        } else {
+            EmptyState(
+                icon: "plus.forwardslash.minus",
+                title: "No file changes",
+                subtitle: "Edits and writes made by this session appear here."
+            )
         }
     }
 

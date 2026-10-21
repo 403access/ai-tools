@@ -148,6 +148,22 @@ struct HubAPI: Sendable {
         return try await get(path)
     }
 
+    /// File patches written by a session's edit/write tool calls.
+    func sessionChanges(id: String) async throws -> [FileChange] {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: ChangesResponse = try await get("/api/session/\(encoded)/changes")
+        return response.data
+    }
+
+    /// File patches across the newest sessions in a project.
+    func projectChanges(id: String, sessions: Int = 10) async throws -> [FileChange] {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: ChangesResponse = try await get(
+            "/api/project/\(encoded)/changes?sessions=\(sessions)"
+        )
+        return response.data
+    }
+
     func projects() async throws -> [Project] {
         try await get("/api/project")
     }

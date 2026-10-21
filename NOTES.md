@@ -26,8 +26,16 @@ Follow-ups worth considering:
   from home, prefer a tunnel (Tailscale/Cloudflare) and
   `OPENCODEBAR_HUB_HOST=127.0.0.1` rather than exposing the port.
 - **Message cache growth.** Every session opened is cached in
-  `messages` forever. Add a retention policy (e.g. keep the newest N per
-  session, or drop sessions untouched for 90 days) once the DB grows.
+  `messages` forever, and the `changes` table mirrors every patch found there.
+  Add a retention policy (e.g. keep the newest N per session, or drop sessions
+  untouched for 90 days) once the DB grows.
+- **Project changes hydrate a bounded window.** `/api/project/{id}/changes`
+  pulls message history for the newest 10 sessions by default (four pages per
+  session, six-second timeout each, two sessions at a time), then aggregates
+  every cached patch in the project. This keeps the first open from monopolizing
+  the local OpenCode service; very old sessions that were never opened are not
+  hydrated automatically. Raise `?sessions=` or open the session's Changes tab
+  to include them.
 - **Server-side activity snapshots.** Clients fold events into `SessionActivity`
   themselves (shared Swift code). A newly connected client has no history until
   it seeds from the newest messages, which is fine for now but means the first

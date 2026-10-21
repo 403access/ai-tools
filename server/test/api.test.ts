@@ -147,6 +147,57 @@ describe("hub API reads", () => {
     db.close();
   });
 
+  test("serves session and project changes from cached messages", async () => {
+    const { db, handler } = setup();
+    db.upsertSessions([session("ses_1", 1_000)]);
+    db.upsertMessages("ses_1", [
+      {
+        id: "m1",
+        type: "assistant",
+        time: { created: 100 },
+        content: [
+          {
+            type: "tool",
+            id: "part_1",
+            name: "edit",
+            state: {
+              status: "completed",
+              metadata: {
+                files: [
+                  {
+                    file: "Sources/App.swift",
+                    patch: "--- a/App.swift\n+++ b/App.swift\n@@ -1 +1 @@\n-old\n+new\n",
+                    additions: 1,
+                    deletions: 1,
+                    status: "modified",
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      },
+    ]);
+
+    const sessionChanges = await body<{ data: Array<{ file: string; patch: string }> }>(
+      await handler(request("/api/session/ses_1/changes")),
+    );
+    expect(sessionChanges.data).toHaveLength(1);
+    expect(sessionChanges.data[0]?.file).toBe("Sources/App.swift");
+
+    const projectChanges = await body<{
+      data: Array<{ file: string; sessionID: string; sessionTitle: string }>;
+    }>(await handler(request("/api/project/prj_1/changes")));
+    expect(projectChanges.data[0]?.sessionID).toBe("ses_1");
+    expect(projectChanges.data[0]?.sessionTitle).toBe("Session ses_1");
+
+    const empty = await body<{ data: unknown[] }>(
+      await handler(request("/api/project/nope/changes")),
+    );
+    expect(empty.data).toEqual([]);
+    db.close();
+  });
+
   test("serves cached stats and the usage state", async () => {
     const { db, handler } = setup();
     db.putStats("__global__", { steps: 7 });

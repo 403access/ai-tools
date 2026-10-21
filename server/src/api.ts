@@ -179,6 +179,12 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
         return project ? json(project) : error("Project not found", 404);
       }
 
+      if (parts[0] === "api" && parts[1] === "project" && parts[3] === "changes" && parts.length === 4) {
+        const id = decodeURIComponent(parts[2]!);
+        const sessions = intParam(url.searchParams.get("sessions"), 10, 1, 100);
+        return json({ data: await hub.projectChanges(id, sessions) });
+      }
+
       if (pathname === "/api/session" && request.method === "GET") {
         const data = db.getSessions({
           limit: intParam(url.searchParams.get("limit"), 60, 1, 5_000),
@@ -208,6 +214,10 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
 
         if (parts.length === 4 && parts[3] === "children") {
           return json({ data: await hub.children(id) });
+        }
+
+        if (parts.length === 4 && parts[3] === "changes") {
+          return json({ data: await hub.changes(id) });
         }
 
         if (parts.length === 3) {

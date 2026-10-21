@@ -189,7 +189,7 @@ export class OpenCodeClient {
     return new URL(path, this.location.url).toString();
   }
 
-  async get<T>(path: string): Promise<T> {
+  async get<T>(path: string, timeoutMs = this.timeoutMs): Promise<T> {
     let response: Response;
     try {
       response = await fetch(this.url(path), {
@@ -197,7 +197,7 @@ export class OpenCodeClient {
           Authorization: this.authHeader,
           Accept: "application/json",
         },
-        signal: AbortSignal.timeout(this.timeoutMs),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
       throw new OpenCodeError(
@@ -246,11 +246,17 @@ export class OpenCodeClient {
     return response.data;
   }
 
-  async messages(id: string, limit = 100, cursor?: string | null): Promise<MessagesResponse> {
+  async messages(
+    id: string,
+    limit = 100,
+    cursor?: string | null,
+    timeoutMs?: number,
+  ): Promise<MessagesResponse> {
     const params = new URLSearchParams({ limit: String(limit) });
     if (cursor) params.set("cursor", cursor);
     return this.get<MessagesResponse>(
       `/api/session/${encodeURIComponent(id)}/message?${params}`,
+      timeoutMs,
     );
   }
 

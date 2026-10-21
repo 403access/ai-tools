@@ -121,4 +121,59 @@ final class HubAPITests: XCTestCase {
         XCTAssertTrue(APIError.unauthorized.shouldRediscover)
         XCTAssertFalse(APIError.status(503).shouldRediscover)
     }
+
+    func testChangesResponseDecodesProjectContext() throws {
+        let json = """
+        {
+          "data": [
+            {
+              "file": "Sources/App.swift",
+              "patch": "--- a/Sources/App.swift\\n+++ b/Sources/App.swift\\n@@ -1 +1 @@\\n-old\\n+new\\n",
+              "additions": 1,
+              "deletions": 1,
+              "status": "modified",
+              "sessionID": "ses_1",
+              "sessionTitle": "Fix the build",
+              "messageID": "msg_1",
+              "created": 1792595523652
+            }
+          ]
+        }
+        """
+        let response = try decode(ChangesResponse.self, json)
+        let change = try XCTUnwrap(response.data.first)
+        XCTAssertEqual(change.displayPath, "Sources/App.swift")
+        XCTAssertEqual(change.additions, 1)
+        XCTAssertEqual(change.deletions, 1)
+        XCTAssertEqual(change.statusLabel, "modified")
+        XCTAssertEqual(change.sessionTitle, "Fix the build")
+        XCTAssertEqual(change.patchLines.count, 6)
+    }
+
+    func testToolMetadataExposesFileChanges() throws {
+        let json = """
+        {
+          "type": "tool",
+          "id": "part_1",
+          "name": "edit",
+          "state": {
+            "status": "completed",
+            "metadata": {
+              "files": [
+                {
+                  "file": "README.md",
+                  "patch": "--- a/README.md\\n+++ b/README.md\\n@@ -1 +1 @@\\n-a\\n+b\\n",
+                  "additions": 1,
+                  "deletions": 1,
+                  "status": "modified"
+                }
+              ]
+            }
+          }
+        }
+        """
+        let part = try decode(MessagePart.self, json)
+        XCTAssertEqual(part.fileChanges.count, 1)
+        XCTAssertEqual(part.fileChanges.first?.file, "README.md")
+    }
 }

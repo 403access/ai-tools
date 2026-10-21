@@ -9,7 +9,12 @@ struct ProjectDetailView: View {
     private var running: [Session] { store.runningSessions(in: project) }
 
     var body: some View {
-        ScrollView {
+        // Capture this before building the toolbar: SwiftUI can evaluate
+        // toolbar content in a hosting context that does not inherit the
+        // screen's environment objects.
+        let runningCount = running.count
+
+        return ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 summary
                 runningSection
@@ -30,6 +35,8 @@ struct ProjectDetailView: View {
                     } else if detail.isLoading {
                         LoadingState(message: "Loading project…")
                     }
+
+                    changesSection
 
                     if !detail.sessions.isEmpty {
                         SectionHeader("Sessions") {
@@ -57,24 +64,43 @@ struct ProjectDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if running.isEmpty {
-                    Chip(text: "Idle")
-                } else {
-                    HStack(spacing: 5) {
-                        PulsingDot(size: 6)
-                        Text("\(running.count) running")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(Theme.running)
-                    }
-                }
+                ProjectRunningBadge(count: runningCount)
             }
         }
         .task(id: project.id) {
-            await store.loadProject(project.id)
+            async let detail = store.loadProject(project.id)
+            async let changes = store.loadProjectChanges(project.id)
+            _ = await (detail, changes)
         }
         .refreshable {
-            await store.loadProject(project.id, force: true)
+            async let detail = store.loadProject(project.id, force: true)
+            async let changes = store.loadProjectChanges(project.id, force: true)
+            _ = await (detail, changes)
             await store.refreshLive()
+        }
+    }
+
+    @ViewBuilder
+    private var changesSection: some View {
+        let state = store.projectChanges[project.id]
+        if let state, state.isLoading && state.changes.isEmpty {
+            SectionHeader("Changes")
+            LoadingState(message: "Collecting file changes…")
+        } else if let state, let error = state.error, state.changes.isEmpty {
+            SectionHeader("Changes")
+            NoticeRow(
+                icon: "exclamationmark.triangle.fill",
+                message: error,
+                tint: Theme.warn
+            )
+        } else if let changes = state?.changes, !changes.isEmpty {
+            SectionHeader("Changes") {
+                Text("\(Set(changes.map(\.displayPath)).count)")
+                    .font(.caption.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            ProjectChangesView(changes: changes)
         }
     }
 
@@ -95,6 +121,13 @@ struct ProjectDetailView: View {
                         text: project.sandboxes.count == 1 ? "1 sandbox" : "\(project.sandboxes.count) sandboxes",
                         systemImage: "shippingbox.fill",
                         tint: .secondary
+                    )
+                }
+                if let changes = store.projectChanges[project.id]?.changes, !changes.isEmpty {
+                    Chip(
+                        text: "\(Set(changes.map(\.displayPath)).count) files",
+                        systemImage: "plus.forwardslash.minus",
+                        tint: Theme.accent
                     )
                 }
                 Chip(text: "Active \(Fmt.relative(from: project.lastActiveDate))")
@@ -160,6 +193,25 @@ struct ProjectDetailView: View {
                 value: Fmt.grouped(stats.prompts),
                 caption: "\(stats.subagents) subagents"
             )
+        }
+    }
+}
+
+/// Toolbar status with no environment dependencies, so it is safe to evaluate
+/// in the navigation bar's hosting context.
+private struct ProjectRunningBadge: View {
+    let count: Int
+
+    var body: some View {
+        if count == 0 {
+            Chip(text: "Idle")
+        } else {
+            HStack(spacing: 5) {
+                PulsingDot(size: 6)
+                Text("\(count) running")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.running)
+            }
         }
     }
 }

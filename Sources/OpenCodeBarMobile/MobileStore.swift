@@ -42,8 +42,16 @@ final class MobileStore: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct ChangesState: Equatable {
+        var changes: [FileChange] = []
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     enum DetailMode: String, CaseIterable, Identifiable {
         case conversation = "Conversation"
+        case changes = "Changes"
         case prompts = "Prompts"
         case subagents = "Subagents"
 
@@ -52,6 +60,7 @@ final class MobileStore: ObservableObject {
         var icon: String {
             switch self {
             case .conversation: return "bubble.left.and.bubble.right"
+            case .changes: return "plus.forwardslash.minus"
             case .prompts: return "text.quote"
             case .subagents: return "person.2"
             }
@@ -70,6 +79,8 @@ final class MobileStore: ObservableObject {
     @Published var hubHealth: HubHealthResponse?
     @Published var liveActivity: [String: SessionActivity] = [:]
     @Published var projectDetails: [String: ProjectDetail] = [:]
+    @Published var sessionChanges: [String: ChangesState] = [:]
+    @Published var projectChanges: [String: ChangesState] = [:]
     @Published var subagentLists: [String: SubagentList] = [:]
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
@@ -154,6 +165,8 @@ final class MobileStore: ObservableObject {
         hubHealth = nil
         liveActivity = [:]
         projectDetails = [:]
+        sessionChanges = [:]
+        projectChanges = [:]
         subagentLists = [:]
         lastUpdated = nil
         statsFetchedAt = nil
@@ -435,6 +448,71 @@ final class MobileStore: ObservableObject {
             detail.isLoading = false
             detail.error = message(for: error)
             projectDetails[id] = detail
+        }
+    }
+
+    /// Loads the file patches written by one session. The hub hydrates message
+    /// history on demand, so the first request can page through a long session.
+    func loadChanges(_ sessionID: String, force: Bool = false) async {
+        guard let api else { return }
+        if sessionChanges[sessionID]?.isLoading == true { return }
+        if !force, let loaded = sessionChanges[sessionID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+
+        var state = sessionChanges[sessionID] ?? ChangesState()
+        state.isLoading = true
+        state.error = nil
+        sessionChanges[sessionID] = state
+
+        do {
+            let changes = try await api.sessionChanges(id: sessionID)
+            sessionChanges[sessionID] = ChangesState(
+                changes: changes,
+                loadedAt: Date()
+            )
+        } catch {
+            var failed = sessionChanges[sessionID] ?? ChangesState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                sessionChanges[sessionID] = failed
+                return
+            }
+            failed.error = message(for: error)
+            sessionChanges[sessionID] = failed
+        }
+    }
+
+    /// Loads changes across a project's newest sessions.
+    func loadProjectChanges(_ projectID: String, force: Bool = false) async {
+        guard let api else { return }
+        if projectChanges[projectID]?.isLoading == true { return }
+        if !force, let loaded = projectChanges[projectID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+
+        var state = projectChanges[projectID] ?? ChangesState()
+        state.isLoading = true
+        state.error = nil
+        projectChanges[projectID] = state
+
+        do {
+            let changes = try await api.projectChanges(id: projectID)
+            projectChanges[projectID] = ChangesState(
+                changes: changes,
+                loadedAt: Date()
+            )
+        } catch {
+            var failed = projectChanges[projectID] ?? ChangesState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                projectChanges[projectID] = failed
+                return
+            }
+            failed.error = message(for: error)
+            projectChanges[projectID] = failed
         }
     }
 

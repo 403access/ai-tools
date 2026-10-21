@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import {
   ZERO_TOKENS,
+  type FileDiff,
   type GoUsage,
   type MessageCursor,
   type MessagesResponse,
@@ -30,6 +31,81 @@ export interface CachedUsage {
   fetchedAt: number | null;
   attemptedAt: number | null;
   error: string | null;
+}
+
+export interface MessageSync {
+  syncedAt: number;
+  oldestCursor: string | null;
+  complete: boolean;
+}
+
+/**
+ * Reads the file changes OpenCode attaches to edit/write tool calls. Edits carry
+ * a `state.metadata.files` array of exact patches. Writes only carry the new
+ * content, so synthesize a patch from it — otherwise newly created files would
+ * be invisible to the Changes views.
+ */
+export function parseFileDiffs(part: unknown, directory?: string | null): FileDiff[] {
+  if (!part || typeof part !== "object") return [];
+  const record = part as Record<string, unknown>;
+  if (record.type !== "tool") return [];
+  const state = record.state;
+  if (!state || typeof state !== "object") return [];
+
+  const stateRecord = state as Record<string, unknown>;
+  const metadata = stateRecord.metadata;
+  if (metadata && typeof metadata === "object") {
+    const source = metadata as Record<string, unknown>;
+    const files = Array.isArray(source.files) ? source.files : [];
+    const diffs: FileDiff[] = [];
+    for (const entry of files) {
+      if (!entry || typeof entry !== "object") continue;
+      const file = entry as Record<string, unknown>;
+      const patch = text(file.patch);
+      const diff: FileDiff = {
+        additions: number(file.additions),
+        deletions: number(file.deletions),
+      };
+      const name = text(file.file);
+      if (name) diff.file = name;
+      if (patch !== undefined) diff.patch = patch;
+      const status = text(file.status);
+      if (status === "added" || status === "deleted" || status === "modified") {
+        diff.status = status;
+      }
+      diffs.push(diff);
+    }
+    if (diffs.length) return diffs;
+  }
+
+  // The write tool has no patch metadata; its input holds the full new content.
+  const name = text(record.name)?.toLowerCase();
+  const input = stateRecord.input;
+  if (name === "write" && input && typeof input === "object") {
+    const fields = input as Record<string, unknown>;
+    const path = text(fields.path) ?? text(fields.filePath);
+    const content = text(fields.content);
+    if (path && content !== undefined) {
+      const file = relativePath(path, directory);
+      const lines = content.split("\n");
+      if (lines.length > 1 && lines[lines.length - 1] === "") lines.pop();
+      const patch = [
+        `--- /dev/null`,
+        `+++ b/${file}`,
+        `@@ -0,0 +1,${lines.length} @@`,
+        ...lines.map((line) => `+${line}`),
+      ].join("\n");
+      return [{ file, patch, additions: lines.length, deletions: 0, status: "added" }];
+    }
+  }
+
+  return [];
+}
+
+function relativePath(path: string, directory?: string | null): string {
+  if (!directory) return path;
+  const prefix = directory.endsWith("/") ? directory : `${directory}/`;
+  return path.startsWith(prefix) ? path.slice(prefix.length) : path;
 }
 
 export interface SessionQuery {
@@ -212,9 +288,9 @@ export class HubDB {
 
   private migrate(): void {
     const version = number((this.db.query("PRAGMA user_version").get() as Row | null)?.user_version);
-    if (version >= 1) return;
+    if (version >= 2) return;
 
-    this.db.exec(`
+    if (version < 1) this.db.exec(`
       CREATE TABLE IF NOT EXISTS projects (
         id TEXT PRIMARY KEY,
         canonical TEXT NOT NULL DEFAULT '',
@@ -288,6 +364,35 @@ export class HubDB {
       );
 
       PRAGMA user_version = 1;
+    `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS changes (
+        session_id TEXT NOT NULL,
+        message_id TEXT NOT NULL DEFAULT '',
+        part_id TEXT NOT NULL,
+        file TEXT NOT NULL,
+        patch TEXT NOT NULL DEFAULT '',
+        additions INTEGER NOT NULL DEFAULT 0,
+        deletions INTEGER NOT NULL DEFAULT 0,
+        status TEXT,
+        created REAL NOT NULL DEFAULT 0,
+        synced_at REAL NOT NULL,
+        PRIMARY KEY (session_id, part_id, file)
+      );
+
+      CREATE INDEX IF NOT EXISTS changes_session_created
+        ON changes(session_id, created DESC, part_id);
+      CREATE INDEX IF NOT EXISTS changes_file ON changes(file);
+
+      CREATE TABLE IF NOT EXISTS message_syncs (
+        session_id TEXT PRIMARY KEY,
+        synced_at REAL NOT NULL,
+        oldest_cursor TEXT,
+        complete INTEGER NOT NULL DEFAULT 0
+      );
+
+      PRAGMA user_version = 2;
     `);
   }
 
@@ -502,6 +607,7 @@ export class HubDB {
         tokens = COALESCE(excluded.tokens, messages.tokens),
         synced_at = excluded.synced_at
     `);
+    const directory = this.getSession(sessionID)?.location.directory;
     const run = this.db.transaction((items: SessionMessage[]) => {
       for (const message of items) {
         insert.run(
@@ -519,9 +625,143 @@ export class HubDB {
           message.tokens ? JSON.stringify(message.tokens) : null,
           now,
         );
+        this.storeChanges(
+          sessionID,
+          message.id,
+          message.content ?? [],
+          number(message.time?.created),
+          directory,
+          now,
+        );
       }
     });
     run(messages);
+  }
+
+  /** Records the file patches carried by a message's tool parts. */
+  private storeChanges(
+    sessionID: string,
+    messageID: string,
+    parts: SessionMessage["content"],
+    created: number,
+    directory: string | null | undefined,
+    now: number,
+  ): void {
+    const insert = this.db.prepare(`
+      INSERT INTO changes (
+        session_id, message_id, part_id, file, patch, additions, deletions,
+        status, created, synced_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id, part_id, file) DO UPDATE SET
+        message_id = excluded.message_id,
+        patch = excluded.patch,
+        additions = excluded.additions,
+        deletions = excluded.deletions,
+        status = excluded.status,
+        created = excluded.created,
+        synced_at = excluded.synced_at
+    `);
+
+    for (const [index, part] of (parts ?? []).entries()) {
+      const diffs = parseFileDiffs(part, directory);
+      if (!diffs.length) continue;
+      const partID = part.id ?? `${messageID}-${index}`;
+      for (const diff of diffs) {
+        insert.run(
+          sessionID,
+          messageID,
+          partID,
+          diff.file ?? "",
+          diff.patch ?? "",
+          diff.additions,
+          diff.deletions,
+          diff.status ?? null,
+          created,
+          now,
+        );
+      }
+    }
+  }
+
+  getChanges(sessionID: string): FileDiff[] {
+    const rows = this.db
+      .query(
+        `SELECT * FROM changes WHERE session_id = ?
+         ORDER BY created DESC, part_id DESC, file ASC`,
+      )
+      .all(sessionID) as Row[];
+    return rows.map((row) => this.rowToFileDiff(row));
+  }
+
+  /**
+   * Changes across a project, newest first. Sessions are joined so the client
+   * can group by session without a second request.
+   */
+  getProjectChanges(projectID: string, limit = 2_000): FileDiff[] {
+    const capped = Math.min(Math.max(Math.floor(limit), 1), 5_000);
+    const rows = this.db
+      .query(
+        `SELECT c.*, s.title AS session_title, s.project_id AS session_project
+         FROM changes c
+         JOIN sessions s ON s.id = c.session_id
+         WHERE s.project_id = ?
+         ORDER BY c.created DESC, c.session_id ASC, c.part_id DESC, c.file ASC
+         LIMIT ?`,
+      )
+      .all(projectID, capped) as Row[];
+    return rows.map((row) => {
+      const diff = this.rowToFileDiff(row);
+      const sessionID = text(row.session_id);
+      if (sessionID) diff.sessionID = sessionID;
+      const title = text(row.session_title);
+      if (title) diff.sessionTitle = title;
+      return diff;
+    });
+  }
+
+  private rowToFileDiff(row: Row): FileDiff {
+    const diff: FileDiff = {
+      additions: number(row.additions),
+      deletions: number(row.deletions),
+    };
+    const file = text(row.file);
+    if (file) diff.file = file;
+    const patch = text(row.patch);
+    if (patch) diff.patch = patch;
+    const status = text(row.status);
+    if (status === "added" || status === "deleted" || status === "modified") {
+      diff.status = status;
+    }
+    const messageID = text(row.message_id);
+    if (messageID) diff.messageID = messageID;
+    const created = optionalNumber(row.created);
+    if (created !== undefined) diff.created = created;
+    return diff;
+  }
+
+  getMessageSync(sessionID: string): MessageSync | null {
+    const row = this.db
+      .query("SELECT * FROM message_syncs WHERE session_id = ?")
+      .get(sessionID) as Row | null;
+    if (!row) return null;
+    return {
+      syncedAt: number(row.synced_at),
+      oldestCursor: text(row.oldest_cursor) ?? null,
+      complete: number(row.complete) === 1,
+    };
+  }
+
+  putMessageSync(sessionID: string, sync: MessageSync): void {
+    this.db
+      .prepare(
+        `INSERT INTO message_syncs (session_id, synced_at, oldest_cursor, complete)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(session_id) DO UPDATE SET
+           synced_at = excluded.synced_at,
+           oldest_cursor = excluded.oldest_cursor,
+           complete = excluded.complete`,
+      )
+      .run(sessionID, sync.syncedAt, sync.oldestCursor, sync.complete ? 1 : 0);
   }
 
   /** Cached messages, newest first, paged with the hub's own cursor. */

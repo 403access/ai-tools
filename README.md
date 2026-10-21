@@ -40,6 +40,10 @@ iOS app:
 - Click any session to open its details: the full conversation, a prompts-only
   list with copy buttons, and expandable reasoning and tool calls. The view
   keeps updating while the session runs and pages back through history.
+- **Changes** tab: every file the session wrote, with the actual patch, added
+  and removed line counts, and a colour-coded diff. Repeated edits to one file
+  are grouped, and long patches collapse to a preview. Tool cards in the
+  conversation show the same diff instead of raw edit JSON.
 - Subagent tree: a session's direct child sessions appear in a **Subagents** tab
   with their own live activity, outcome, cost, and time. Tap one to drill in;
   Back returns to the parent, and each level loads its own children.
@@ -49,8 +53,9 @@ iOS app:
   recently active next. Select one to open its detail page: what is running
   right now — with elapsed time, tappable into the session view — plus scoped
   analytics (steps, cost, tokens, streak, model mix) and recent sessions with
-  their cost. Quick actions open the project in Finder or Terminal and copy its
-  path.
+  their cost. A **Changes** section aggregates the patches written by the
+  project's newest sessions, grouped by session and file. Quick actions open
+  the project in Finder or Terminal and copy its path.
 - Scoped trends: an interactive daily chart for steps, cost, or tokens over the
   last 30 / 90 / 365 days or all time, using only that project's data.
 - Duplicate records for the same directory are merged, and analytics are
@@ -76,9 +81,9 @@ iOS app:
 
 **Shared hub**
 - One Bun + SQLite server ingests OpenCode once and serves both apps behind a
-  Bearer token. Sessions, messages, stats, and Go plan limits are cached in
-  `~/.local/share/opencodebar/hub.sqlite`, so the iOS app — and the Mac app when
-  OpenCode is stopped — still show history and last-known numbers.
+  Bearer token. Sessions, messages, file changes, stats, and Go plan limits are
+  cached in `~/.local/share/opencodebar/hub.sqlite`, so the iOS app — and the Mac
+  app when OpenCode is stopped — still show history and last-known numbers.
 - The iOS app adds search, pull-to-refresh, and deep links to a session, with
   the same live-activity folding as the Mac app.
 
@@ -113,9 +118,10 @@ The hub:
    `~/.local/share/opencodebar/hub.sqlite`. The cache keeps serving when OpenCode
    stops or restarts on a new port.
 3. Serves a stable API that mirrors OpenCode's shapes — `/api/session`,
-   `/api/session/{id}`, `/api/session/{id}/message`, `/api/project`,
-   `/api/experimental/session/stats` — plus `/api/usage`, `/api/health`,
-   `/api/sync`, and `/api/event`. Clients authenticate with a Bearer token.
+   `/api/session/{id}`, `/api/session/{id}/message`, `/api/session/{id}/changes`,
+   `/api/project`, `/api/project/{id}/changes`, `/api/experimental/session/stats`
+   — plus `/api/usage`, `/api/health`, `/api/sync`, and `/api/event`. Clients
+   authenticate with a Bearer token.
 4. Forwards OpenCode events to every connected client, so both apps update live.
    The stream also carries `hub.*` notices (`hub.connected`, `hub.sessions`,
    `hub.stats`, `hub.usage`) that tell clients when cached data changed.
@@ -137,7 +143,12 @@ The trend charts use the stats API's daily activity for steps, and group the
 full session list (`/api/session?limit=1000`, fetched on the slow cycle) by day
 for cost and tokens. Project pages use the same series scoped to that project.
 Message history is cached the first time a session is opened, so paging back
-through it works offline.
+through it works offline. The Changes views read the `metadata.files` patches
+that OpenCode attaches to edit/write tool calls; the hub extracts them while
+caching messages, so patches survive an OpenCode restart. Opening a session's
+Changes tab hydrates its full history the first time; project changes hydrate
+the newest 10 sessions (adjustable with `?sessions=`) and always include any
+older changes already cached.
 
 ### Connecting the apps
 
@@ -257,6 +268,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
   Models/SubagentOrdering.swift  running-first ordering for child sessions
   Models/GoUsage.swift      Go plan windows (shared)
   Views/                    SwiftUI panel, tabs, heatmap, components
+    ChangeViews.swift       patch cards and change summaries
   Preview/PreviewRunner.swift
 
 Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
@@ -264,8 +276,9 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   MobileStore.swift           observable state for the hub
   HubSettings.swift           URL + token storage and pairing links
   LiveView.swift              running/recent sessions
-  SessionDetailView.swift     conversation, prompts, subagents
+  SessionDetailView.swift     conversation, changes, prompts, subagents
   MobileMessageViews.swift    message cards
+  MobileChangeViews.swift     patch cards and change summaries
   ProjectsView.swift          project list + search
   ProjectDetailView.swift     scoped analytics
   UsageView.swift             plan limits, trends, stats

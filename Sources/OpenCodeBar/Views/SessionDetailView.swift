@@ -30,7 +30,7 @@ struct SessionDetailView: View {
     /// Subagents is offered when the session has child sessions, while they are
     /// loading, or when it was selected explicitly (CLI previews).
     private var availableModes: [AppState.DetailMode] {
-        var modes: [AppState.DetailMode] = [.conversation, .prompts]
+        var modes: [AppState.DetailMode] = [.conversation, .changes, .prompts]
         if mode == .subagents
             || state.hasSubagents(session.id)
             || state.isLoadingSubagents(session.id) {
@@ -66,6 +66,8 @@ struct SessionDetailView: View {
                         switch mode {
                         case .conversation:
                             conversation
+                        case .changes:
+                            changes
                         case .prompts:
                             prompts
                         case .subagents:
@@ -79,12 +81,14 @@ struct SessionDetailView: View {
                 .frame(maxHeight: .infinity)
                 .onChange(of: messages.first?.id) { _, _ in
                     // Land on the newest activity the first time content loads.
-                    guard mode != .subagents, !didAutoScroll, !messages.isEmpty else { return }
+                    guard mode == .conversation || mode == .prompts,
+                          !didAutoScroll, !messages.isEmpty
+                    else { return }
                     didAutoScroll = true
                     scrollToBottom(proxy, animated: false)
                 }
                 .onChange(of: mode) { _, newMode in
-                    guard newMode != .subagents else { return }
+                    guard newMode != .subagents, newMode != .changes else { return }
                     scrollToBottom(proxy, animated: false)
                 }
             }
@@ -94,9 +98,16 @@ struct SessionDetailView: View {
         .padding(.bottom, 8)
         .task(id: refreshKey) {
             await loadLatest()
+            if mode == .changes {
+                await state.loadChanges(session.id)
+            }
         }
         .task(id: session.id) {
             await state.loadSubagents(session.id)
+        }
+        .task(id: mode) {
+            guard mode == .changes else { return }
+            await state.loadChanges(session.id)
         }
         .onChange(of: availableModes, initial: true) { _, modes in
             if !modes.contains(mode) { mode = .conversation }
@@ -227,6 +238,26 @@ struct SessionDetailView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 3)
             }
+        }
+    }
+
+    // MARK: - Changes
+
+    @ViewBuilder
+    private var changes: some View {
+        let changesState = state.sessionChanges[session.id]
+        if let changesState, changesState.isLoading && changesState.changes.isEmpty {
+            LoadingState(message: "Collecting file changes…")
+        } else if let changesState, let error = changesState.error, changesState.changes.isEmpty {
+            errorState(error)
+        } else if let changes = changesState?.changes, !changes.isEmpty {
+            SessionChangesView(changes: changes)
+        } else {
+            EmptyState(
+                icon: "plus.forwardslash.minus",
+                title: "No file changes",
+                subtitle: "Edits and writes made by this session appear here."
+            )
         }
     }
 
@@ -630,8 +661,10 @@ private struct ToolPartView: View {
         }
     }
 
+    private var fileChanges: [FileChange] { part.fileChanges }
+
     private var hasDetails: Bool {
-        part.state?.input != nil || part.state?.outputText != nil
+        part.state?.input != nil || part.state?.outputText != nil || !fileChanges.isEmpty
     }
 
     private var outputText: String? {
@@ -680,7 +713,11 @@ private struct ToolPartView: View {
             .buttonStyle(.plain)
 
             if expanded {
-                if let input = part.state?.input {
+                if !fileChanges.isEmpty {
+                    ForEach(fileChanges) { change in
+                        FileChangeCard(change: change)
+                    }
+                } else if let input = part.state?.input {
                     Text(input.prettyString())
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(.secondary)

@@ -8,6 +8,7 @@ import {
   type OpenCodeLocation,
 } from "./opencode.ts";
 import type {
+  FileDiff,
   HubEvent,
   HubHealth,
   MessagesResponse,
@@ -456,6 +457,104 @@ export class Hub {
       }
     }
     return this.db.getMessages(id, limit, cursor);
+  }
+
+  /**
+   * File changes recorded by a session's edit/write tool calls. Message history
+   * is the source of truth: the first request hydrates and caches it, later
+   * requests only pull the newest page while the session keeps moving.
+   */
+  async changes(id: string): Promise<FileDiff[]> {
+    const client = this.client ?? (await this.ensureClient());
+    if (client) {
+      try {
+        await this.syncMessagesForChanges(client, id, 25);
+      } catch (error) {
+        this.noteError(error);
+      }
+    }
+    return this.db.getChanges(id);
+  }
+
+  /**
+   * Changes across the newest sessions in a project. Hydration is bounded so a
+   * project with a long history still answers quickly; cached changes from
+   * older sessions are always included.
+   */
+  async projectChanges(projectID: string, sessionLimit = 10): Promise<FileDiff[]> {
+    const client = this.client ?? (await this.ensureClient());
+    if (client) {
+      const sessions = this.db.getSessions({ project: projectID, limit: sessionLimit });
+      // Two at a time, a few pages each, with a short per-request timeout. The
+      // local OpenCode service serializes message reads, so being greedy here
+      // makes the whole history endpoint time out.
+      for (let index = 0; index < sessions.length; index += 2) {
+        const batch = sessions.slice(index, index + 2);
+        await Promise.allSettled(
+          batch.map((session) => this.syncMessagesForChanges(client, session.id, 4, 6_000)),
+        );
+      }
+    }
+    return this.db.getProjectChanges(projectID);
+  }
+
+  /**
+   * Pages a session's messages into SQLite, newest first. A completed sync only
+   * refreshes the first page; an incomplete one continues from the oldest
+   * cursor it reached last time.
+   */
+  private async syncMessagesForChanges(
+    client: OpenCodeClient,
+    id: string,
+    maxPages: number,
+    timeoutMs?: number,
+  ): Promise<void> {
+    const sync = this.db.getMessageSync(id);
+    const session = this.db.getSession(id);
+    const now = Date.now();
+
+    if (sync && now - sync.syncedAt < 10_000) return;
+    if (sync?.complete && session && session.time.updated <= sync.syncedAt) return;
+
+    let oldest = sync?.oldestCursor ?? null;
+    let complete = sync?.complete ?? false;
+
+    try {
+      // Refresh the newest page whenever the session has moved (or first seen).
+      if (!sync || !session || session.time.updated > sync.syncedAt) {
+        const page = await client.messages(id, 100, undefined, timeoutMs);
+        if (page.data.length) this.db.upsertMessages(id, page.data);
+        if (!sync) {
+          oldest = page.cursor?.previous ?? null;
+          complete = oldest === null;
+        }
+      }
+
+      let pages = 0;
+      while (!complete && oldest && pages < maxPages) {
+        const page = await client.messages(id, 100, oldest, timeoutMs);
+        if (page.data.length) this.db.upsertMessages(id, page.data);
+        const next = page.cursor?.previous ?? null;
+        if (!next) complete = true;
+        else oldest = next;
+        pages += 1;
+      }
+    } catch (error) {
+      // Keep whatever was cached and do not retry this session on every poll.
+      this.noteError(error);
+      this.db.putMessageSync(id, {
+        syncedAt: Date.now(),
+        oldestCursor: complete ? null : oldest,
+        complete,
+      });
+      return;
+    }
+
+    this.db.putMessageSync(id, {
+      syncedAt: Date.now(),
+      oldestCursor: complete ? null : oldest,
+      complete,
+    });
   }
 
   async stats(project?: string): Promise<{ data: Stats; fetchedAt: number; stale: boolean } | null> {

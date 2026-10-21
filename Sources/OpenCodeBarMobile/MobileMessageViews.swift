@@ -172,8 +172,10 @@ struct ToolPartView: View {
         }
     }
 
+    private var fileChanges: [FileChange] { part.fileChanges }
+
     private var hasDetails: Bool {
-        part.state?.input != nil || part.state?.outputText != nil
+        part.state?.input != nil || part.state?.outputText != nil || !fileChanges.isEmpty
     }
 
     private var outputText: String? {
@@ -222,7 +224,11 @@ struct ToolPartView: View {
             .buttonStyle(.plain)
 
             if expanded {
-                if let input = part.state?.input {
+                if !fileChanges.isEmpty {
+                    ForEach(fileChanges) { change in
+                        FileChangeCard(change: change)
+                    }
+                } else if let input = part.state?.input {
                     codeBlock(input.prettyString())
                 }
                 if let outputText {

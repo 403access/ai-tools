@@ -42,6 +42,8 @@ struct ProjectDetailView: View {
                             LoadingState(message: "Loading project…")
                         }
 
+                        changesSection
+
                         if !detail.sessions.isEmpty {
                             SectionHeader("Recent sessions")
                             ProjectSessions(sessions: Array(detail.sessions.prefix(20)))
@@ -59,7 +61,9 @@ struct ProjectDetailView: View {
         .padding(.top, 8)
         .padding(.bottom, 8)
         .task(id: project.id) {
-            await state.loadProject(project.id)
+            async let detail: Void = state.loadProject(project.id)
+            async let changes: Void = state.loadProjectChanges(project.id)
+            _ = await (detail, changes)
         }
         .onExitCommand {
             state.closeProject()
@@ -121,6 +125,13 @@ struct ProjectDetailView: View {
                     Chip(
                         text: "\(project.sandboxes.count) sandbox",
                         systemImage: "shippingbox.fill"
+                    )
+                }
+                if let changes = state.projectChanges[project.id]?.changes, !changes.isEmpty {
+                    Chip(
+                        text: "\(Set(changes.map(\.displayPath)).count) files",
+                        systemImage: "plus.forwardslash.minus",
+                        tint: Theme.accent
                     )
                 }
 
@@ -238,6 +249,32 @@ struct ProjectDetailView: View {
 
     private var shortPath: String {
         (project.canonical as NSString).abbreviatingWithTildeInPath
+    }
+
+    // MARK: - Changes
+
+    @ViewBuilder
+    private var changesSection: some View {
+        let changesState = state.projectChanges[project.id]
+        if let changesState, changesState.isLoading && changesState.changes.isEmpty {
+            SectionHeader("Changes")
+            LoadingState(message: "Collecting file changes…")
+        } else if let changesState, let error = changesState.error, changesState.changes.isEmpty {
+            SectionHeader("Changes")
+            NoticeRow(
+                icon: "exclamationmark.triangle.fill",
+                message: error,
+                tint: Theme.warn
+            )
+        } else if let changes = changesState?.changes, !changes.isEmpty {
+            SectionHeader("Changes") {
+                Text("\(Set(changes.map(\.displayPath)).count)")
+                    .font(.system(size: 10, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            ProjectChangesView(changes: changes)
+        }
     }
 
     // MARK: - Running
