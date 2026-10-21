@@ -98,6 +98,14 @@ iOS app:
 - Per-model breakdown with steps and cost.
 - Tool call success/failure summary.
 
+**Settings**
+- Every app connected to the hub — macOS, iOS, and iPadOS — with its device
+  name, platform, app version, and whether it is live right now.
+- Server information: hub version, address, uptime, cached session/message
+  counts, OpenCode state, last sync, and the SQLite path.
+- Server controls: sync now, restart the hub, reveal its data/config files, and
+  refresh. The pairing link is one click away for adding another phone.
+
 **iPhone & iPad**
 - The same Live, Projects, Usage, and Settings areas as the Mac panel, with the
   same compact panel design, live-activity folding, and a floating tab dock
@@ -154,8 +162,10 @@ The hub:
    `/api/session/{id}`, `/api/session/{id}/message`, `/api/session/{id}/changes`,
    `/api/session/{id}/stats`, `/api/project`, `/api/project/{id}/changes`,
    `/api/experimental/session/stats` — plus `/api/session/{id}/prompt`
-   (`POST`), `/api/session` (`POST`), `/api/usage`, `/api/health`,
-   `/api/sync`, and `/api/event`. Clients authenticate with a Bearer token.
+   (`POST`), `/api/session` (`POST`), `/api/usage`, `/api/health`, `/api/devices`,
+   `/api/sync`, `/api/server/restart` (`POST`), and `/api/event`. Clients
+   authenticate with a Bearer token and identify their platform with
+   `X-OpenCodeBar-*` headers so the settings screen can list connected devices.
 4. Forwards OpenCode events to every connected client, so both apps update live.
    The stream also carries `hub.*` notices (`hub.connected`, `hub.sessions`,
    `hub.stats`, `hub.usage`) that tell clients when cached data changed.
@@ -328,6 +338,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     HubEventStream.swift    SSE subscription with reconnect (shared)
     HubDiscovery.swift      reads the hub URL + token (macOS)
     ServiceDiscovery.swift  OpenCode config paths
+    DeviceIdentity.swift    stable client id + platform headers (shared)
     UsageCache.swift        last-known usage on disk
   Models/Models.swift       Codable models for the API (shared)
   Models/OpenCodeEvent.swift  decoded event payloads (shared)
@@ -339,6 +350,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     ChangeViews.swift       patch cards and change summaries
     NewSessionSheet.swift   start a session with an optional first prompt
     SessionStatsView.swift  per-session reliability and failures
+    SettingsTab.swift       connected devices and server controls
     SubagentViews.swift     tap-through child-session tree
   Preview/PreviewRunner.swift
 

@@ -37,6 +37,8 @@ struct PanelView: View {
                             UsageTab()
                         case .projects:
                             ProjectsTab()
+                        case .settings:
+                            SettingsTab()
                         }
                     }
                     .padding(12)

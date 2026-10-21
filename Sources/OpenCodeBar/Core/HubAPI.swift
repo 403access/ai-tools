@@ -70,6 +70,7 @@ struct HubHealthResponse: Decodable, Sendable {
     struct Hub: Decodable, Sendable {
         var version: String?
         var uptime: Int?
+        var db: String?
         var sessions: Int?
         var messages: Int?
         var projects: Int?
@@ -115,6 +116,18 @@ struct HubAPI: Sendable {
 
     func health() async throws -> HubHealthResponse {
         try await get("/api/health")
+    }
+
+    /// Mac and iOS apps known to the hub, including which ones are live now.
+    func devices() async throws -> [ConnectedDevice] {
+        let response: DevicesResponse = try await get("/api/devices")
+        return response.data
+    }
+
+    /// Restarts the hub process. The connection may drop briefly while it
+    /// rebinds its port.
+    func restartServer() async throws {
+        _ = try await send("/api/server/restart", method: "POST")
     }
 
     func activeSessionIDs() async throws -> [String] {
@@ -260,6 +273,9 @@ struct HubAPI: Sendable {
         var request = URLRequest(url: try url(for: path))
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        for (header, value) in DeviceIdentity.headers {
+            request.setValue(value, forHTTPHeaderField: header)
+        }
         return request
     }
 

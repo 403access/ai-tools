@@ -12,7 +12,7 @@ import { Hub } from "./hub.ts";
 const config = loadConfig();
 const db = new HubDB(config.dbPath);
 const hub = new Hub(config, db);
-const handler = createHandler({ db, hub, config });
+const handler = createHandler({ db, hub, config, restart: restartHub });
 
 /**
  * Binds the HTTP server. If the configured port is busy and it was not set
@@ -87,6 +87,47 @@ setTimeout(() => {
     );
   }
 }, 3_000);
+
+/**
+ * Relaunches the hub for the settings screen's restart action. The HTTP server
+ * is stopped and closed first so the replacement can bind the same port; the
+ * new process inherits stdio, so `make hub` keeps printing to the terminal.
+ */
+let restarting = false;
+function restartHub(): void {
+  if (restarting) return;
+  restarting = true;
+  console.log("[hub] Restarting…");
+
+  hub.stop();
+  try {
+    server.stop(true);
+  } catch {
+    // Already stopped.
+  }
+  try {
+    db.close();
+  } catch {
+    // Already closed.
+  }
+
+  // Give the socket a moment to be released before the replacement starts.
+  setTimeout(() => {
+    try {
+      const child = Bun.spawn({
+        cmd: [process.execPath, ...process.argv.slice(1)],
+        cwd: process.cwd(),
+        env: process.env,
+        stdio: ["ignore", "inherit", "inherit"],
+      });
+      child.unref();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[hub] Restart failed: ${message}`);
+    }
+    process.exit(0);
+  }, 250);
+}
 
 let shuttingDown = false;
 function shutdown(): void {

@@ -23,6 +23,7 @@ final class AppState: ObservableObject {
         case live = "Live"
         case usage = "Usage"
         case projects = "Projects"
+        case settings = "Settings"
 
         var id: String { rawValue }
         var icon: String {
@@ -30,6 +31,7 @@ final class AppState: ObservableObject {
             case .live: return "dot.radiowaves.left.and.right"
             case .usage: return "chart.bar.xaxis"
             case .projects: return "folder"
+            case .settings: return "gearshape"
             }
         }
     }
@@ -113,6 +115,17 @@ final class AppState: ObservableObject {
     /// Child sessions per parent, loaded when a session's Subagents tab is
     /// opened and kept in sync with the live session list.
     @Published var subagentLists: [String: SubagentList] = [:]
+    /// Mac and iOS apps known to the hub, with their live state.
+    @Published var devices: [ConnectedDevice] = []
+    /// Server information shown on the Settings tab.
+    @Published var hubInfo: ServerInfo?
+    @Published var hubHealth: HubHealthResponse?
+    @Published var settingsError: String?
+    @Published var settingsNotice: String?
+    @Published var isRefreshingSettings = false
+    @Published var isSyncing = false
+    @Published var isRestartingServer = false
+    @Published private(set) var settingsUpdatedAt: Date?
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
     /// Session whose detail view is open, if any. Kept in sync with the
@@ -128,6 +141,22 @@ final class AppState: ObservableObject {
     /// Section the detail view opens on. Overridable from the command line for
     /// previews/screenshots (`--detail-mode prompts`).
     var detailMode: DetailMode = .conversation
+
+    /// Connection details for the Settings tab. The token stays in memory and is
+    /// only used to build the pairing link on request.
+    var hubLocation: HubLocation? { location }
+
+    var pairingLink: String? {
+        guard let location else { return nil }
+        var components = URLComponents()
+        components.scheme = "opencodebar"
+        components.host = "pair"
+        components.queryItems = [
+            URLQueryItem(name: "url", value: location.url.absoluteString),
+            URLQueryItem(name: "token", value: location.token),
+        ]
+        return components.string
+    }
 
     /// Go plan quota, fetched directly from the console usage endpoint. Hidden
     /// entirely when no Go key is configured.
@@ -205,6 +234,9 @@ final class AppState: ObservableObject {
                 await self?.refreshSelectedProject()
                 await self?.refreshSelectedSubagents()
                 await self?.refreshSelectedSessionStats()
+                if self?.tab == .settings {
+                    await self?.refreshSettings(force: true)
+                }
             }
         }
 
@@ -223,6 +255,7 @@ final class AppState: ObservableObject {
 
         guard let location = await discover() else {
             connection = .offline("Hub not found")
+            settingsError = "Hub not found. Run `make hub` or check ~/.config/opencode/opencodebar-hub.json."
             if stats != nil { statsStale = true }
             return
         }
@@ -232,6 +265,11 @@ final class AppState: ObservableObject {
         // the first seconds after launch are not missed.
         startEvents()
         await refreshAll()
+        // The Settings tab may have asked before discovery finished; its guard
+        // would otherwise leave the page empty until the next manual refresh.
+        if tab == .settings {
+            await refreshSettings(force: true)
+        }
     }
 
     private func discover() async -> HubLocation? {
@@ -313,6 +351,92 @@ final class AppState: ObservableObject {
         }
 
         seedActivities()
+    }
+
+    /// Loads the Settings tab: connected client apps plus hub/server details.
+    func refreshSettings(force: Bool = false) async {
+        guard let api else {
+            await bootstrap()
+            return
+        }
+        if isRefreshingSettings { return }
+        if !force, let fetched = settingsUpdatedAt, Date().timeIntervalSince(fetched) < 10 {
+            return
+        }
+
+        isRefreshingSettings = true
+        defer { isRefreshingSettings = false }
+
+        do {
+            async let devices = api.devices()
+            async let info = api.serverInfo()
+            async let health = api.health()
+            let (deviceList, serverInfo, serverHealth) = try await (devices, info, health)
+            self.devices = deviceList
+            self.hubInfo = serverInfo
+            self.hubHealth = serverHealth
+            self.settingsUpdatedAt = Date()
+            self.settingsError = nil
+        } catch {
+            self.settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Asks the hub to pull fresh OpenCode data, then refreshes the panel.
+    func syncNow() async {
+        guard let api else {
+            await bootstrap()
+            return
+        }
+        guard !isSyncing else { return }
+        isSyncing = true
+        defer { isSyncing = false }
+
+        do {
+            try await api.sync()
+            settingsNotice = "Synced with OpenCode"
+            await refreshAll()
+            await refreshSettings(force: true)
+        } catch {
+            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Restarts the hub process and reconnects once it is back. Used by the
+    /// Settings tab's server controls.
+    func restartServer() async {
+        guard let api else {
+            await bootstrap()
+            return
+        }
+        guard !isRestartingServer else { return }
+        isRestartingServer = true
+        settingsError = nil
+        settingsNotice = "Restarting hub…"
+        defer { isRestartingServer = false }
+
+        do {
+            try await api.restartServer()
+        } catch {
+            // The process may exit before the request finishes; the reconnect
+            // below is the real health check.
+        }
+
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+
+        eventTask?.cancel()
+        eventTask = nil
+        self.api = nil
+        self.location = nil
+        connection = .connecting
+        await bootstrap()
+        await refreshSettings(force: true)
+
+        if case .offline(let reason) = connection {
+            settingsError = "Hub did not come back: \(reason)"
+        } else {
+            settingsNotice = "Hub restarted"
+        }
     }
 
     /// Publishes the last known numbers immediately, so the Usage tab has

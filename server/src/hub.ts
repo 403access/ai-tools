@@ -8,6 +8,7 @@ import {
   type OpenCodeLocation,
 } from "./opencode.ts";
 import type {
+  ConnectedDevice,
   FileDiff,
   HubEvent,
   HubHealth,
@@ -51,7 +52,8 @@ export class Hub {
   readonly config: HubConfig;
   readonly db: HubDB;
 
-  private readonly clients = new Set<EventSink>();
+  /** Event stream sinks with the device id that opened them, when known. */
+  private readonly clients = new Map<EventSink, string | undefined>();
   private readonly startedAt = Date.now();
   private readonly fetchUsage: UsageFetcher;
   private readonly discover: Discovery;
@@ -394,6 +396,33 @@ export class Hub {
     ]);
   }
 
+  // MARK: - Devices
+
+  /** Remembers a client app that made a request to the hub. */
+  trackDevice(device: {
+    id: string;
+    name: string;
+    platform: string;
+    appVersion: string;
+  }): void {
+    this.db.upsertDevice(device);
+  }
+
+  /**
+   * Devices that have contacted the hub, with a live flag for those that still
+   * have an event stream open or have polled in the last few seconds.
+   */
+  devices(): ConnectedDevice[] {
+    const streaming = new Set(
+      [...this.clients.values()].filter((id): id is string => Boolean(id)),
+    );
+    const recentCutoff = Date.now() - 20_000;
+    return this.db.getDevices().map((device) => ({
+      ...device,
+      connected: streaming.has(device.id) || device.lastSeen >= recentCutoff,
+    }));
+  }
+
   // MARK: - Reads
 
   health(): HubHealth {
@@ -709,8 +738,8 @@ export class Hub {
 
   // MARK: - Event clients
 
-  addClient(sink: EventSink): () => void {
-    this.clients.add(sink);
+  addClient(sink: EventSink, deviceID?: string): () => void {
+    this.clients.set(sink, deviceID);
     sink({
       type: "hub.connected",
       data: {
@@ -723,7 +752,7 @@ export class Hub {
   }
 
   broadcast(event: HubEvent): void {
-    for (const sink of this.clients) {
+    for (const sink of this.clients.keys()) {
       try {
         sink(event);
       } catch {

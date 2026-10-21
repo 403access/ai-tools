@@ -9,6 +9,37 @@ export interface ApiDeps {
   db: HubDB;
   hub: Hub;
   config: HubConfig;
+  /** Restarts the hub process, exposed to the settings screen. */
+  restart?: () => void;
+}
+
+interface DeviceIdentity {
+  id: string;
+  name: string;
+  platform: string;
+  appVersion: string;
+}
+
+const DEVICE_HEADER = {
+  id: "x-opencodebar-device-id",
+  name: "x-opencodebar-device-name",
+  platform: "x-opencodebar-platform",
+  appVersion: "x-opencodebar-app-version",
+} as const;
+
+function deviceFromRequest(request: Request): DeviceIdentity | null {
+  const id = request.headers.get(DEVICE_HEADER.id)?.trim();
+  if (!id) return null;
+  const clean = (value: string | null, fallback: string): string => {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed.slice(0, 120) : fallback;
+  };
+  return {
+    id: id.slice(0, 120),
+    name: clean(request.headers.get(DEVICE_HEADER.name), "Unknown device"),
+    platform: clean(request.headers.get(DEVICE_HEADER.platform), "unknown"),
+    appVersion: clean(request.headers.get(DEVICE_HEADER.appVersion), ""),
+  };
 }
 
 const CORS_HEADERS: Record<string, string> = {
@@ -78,7 +109,7 @@ function activeResponse(db: HubDB): ActiveSessionsResponse {
   return { data };
 }
 
-function eventStream(hub: Hub, request: Request): Response {
+function eventStream(hub: Hub, request: Request, deviceID?: string): Response {
   const encoder = new TextEncoder();
   let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
   let remove: (() => void) | null = null;
@@ -112,7 +143,7 @@ function eventStream(hub: Hub, request: Request): Response {
     start(streamController) {
       controller = streamController;
       controller.enqueue(encoder.encode("retry: 2000\n\n"));
-      remove = hub.addClient(send);
+      remove = hub.addClient(send, deviceID);
       heartbeat = setInterval(() => {
         if (closed || !controller) return;
         try {
@@ -140,7 +171,7 @@ function eventStream(hub: Hub, request: Request): Response {
 }
 
 export function createHandler(deps: ApiDeps): (request: Request) => Promise<Response> {
-  const { db, hub, config } = deps;
+  const { db, hub, config, restart } = deps;
 
   return async (request: Request): Promise<Response> => {
     if (request.method === "OPTIONS") {
@@ -160,6 +191,15 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
 
       if (!isAuthorized(request, config.token)) {
         return json({ error: { message: "Unauthorized", code: "unauthorized" } }, 401);
+      }
+
+      // Every authenticated client identifies itself so the settings screen can
+      // show the Mac and iOS/iPadOS apps connected to this hub.
+      const device = deviceFromRequest(request);
+      if (device) hub.trackDevice(device);
+
+      if (pathname === "/api/devices" && request.method === "GET") {
+        return json({ data: hub.devices() });
       }
 
       if (pathname === "/api/health" || pathname === "/api/hub/info") {
@@ -304,12 +344,19 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
       }
 
       if (pathname === "/api/event" && request.method === "GET") {
-        return eventStream(hub, request);
+        return eventStream(hub, request, device?.id);
       }
 
       if (pathname === "/api/sync" && request.method === "POST") {
         await hub.syncNow();
         return json({ ok: true, hub: hub.health() });
+      }
+
+      if (pathname === "/api/server/restart" && request.method === "POST") {
+        if (!restart) return error("Restarting is not supported by this hub", 501);
+        // Let the response reach the client before the process is replaced.
+        setTimeout(restart, 200);
+        return json({ ok: true, restarting: true });
       }
 
       if (pathname === "/api/search" && request.method === "GET") {

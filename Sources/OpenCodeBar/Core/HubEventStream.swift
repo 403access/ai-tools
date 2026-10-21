@@ -38,6 +38,9 @@ enum HubEventStream {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        for (header, value) in DeviceIdentity.headers {
+            request.setValue(value, forHTTPHeaderField: header)
+        }
         request.timeoutInterval = 60 * 60
 
         let config = URLSessionConfiguration.ephemeral

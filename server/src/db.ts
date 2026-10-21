@@ -7,6 +7,7 @@ import {
   type GoUsage,
   type MessageCursor,
   type MessagesResponse,
+  type ConnectedDevice,
   type Project,
   type Session,
   type SessionMessage,
@@ -322,7 +323,7 @@ export class HubDB {
 
   private migrate(): void {
     const version = number((this.db.query("PRAGMA user_version").get() as Row | null)?.user_version);
-    if (version >= 3) return;
+    if (version >= 4) return;
 
     if (version < 1) this.db.exec(`
       CREATE TABLE IF NOT EXISTS projects (
@@ -455,6 +456,22 @@ export class HubDB {
       this.backfillToolCalls();
       this.db.exec("PRAGMA user_version = 3;");
     }
+
+    if (version < 4) {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS devices (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL DEFAULT '',
+          platform TEXT NOT NULL DEFAULT '',
+          app_version TEXT NOT NULL DEFAULT '',
+          first_seen REAL NOT NULL,
+          last_seen REAL NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS devices_last_seen ON devices(last_seen DESC);
+      `);
+      this.db.exec("PRAGMA user_version = 4;");
+    }
   }
 
   /**
@@ -491,6 +508,42 @@ export class HubDB {
 
   close(): void {
     this.db.close();
+  }
+
+  // MARK: - Devices
+
+  /** Records a client app that has contacted the hub, keeping first-seen. */
+  upsertDevice(
+    device: { id: string; name: string; platform: string; appVersion: string },
+    now = Date.now(),
+  ): void {
+    this.db
+      .prepare(`
+        INSERT INTO devices (id, name, platform, app_version, first_seen, last_seen)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          platform = excluded.platform,
+          app_version = excluded.app_version,
+          last_seen = excluded.last_seen
+      `)
+      .run(device.id, device.name, device.platform, device.appVersion, now, now);
+  }
+
+  getDevices(limit = 50): ConnectedDevice[] {
+    const rows = this.db
+      .query("SELECT * FROM devices ORDER BY last_seen DESC LIMIT ?")
+      .all(limit) as Row[];
+    return rows.map((row) => ({
+      id: String(row.id),
+      name: text(row.name) ?? "Unknown device",
+      platform: text(row.platform) ?? "unknown",
+      appVersion: text(row.app_version) ?? "",
+      firstSeen: number(row.first_seen),
+      lastSeen: number(row.last_seen),
+      // The hub fills in the live connection state; stored rows are history.
+      connected: false,
+    }));
   }
 
   // MARK: - Projects

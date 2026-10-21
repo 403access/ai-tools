@@ -226,6 +226,23 @@ export interface ServerInfo {
   hub?: HubHealth;
 }
 
+/** A Mac or iOS app that has talked to this hub. */
+export interface ConnectedDevice {
+  id: string;
+  name: string;
+  platform: string;
+  appVersion: string;
+  /** Milliseconds since the epoch. */
+  firstSeen: number;
+  lastSeen: number;
+  /** True while the device has an event stream open or polled recently. */
+  connected: boolean;
+}
+
+export interface DevicesResponse {
+  data: ConnectedDevice[];
+}
+
 export interface HubHealth {
   version: string;
   uptime: number;

@@ -152,6 +152,50 @@ describe("hub API writes", () => {
   });
 });
 
+describe("hub API devices", () => {
+  test("records Mac and iOS clients from request headers", async () => {
+    const { handler, db } = setup();
+
+    await handler(
+      request("/api/health", {
+        headers: {
+          "X-OpenCodeBar-Device-Id": "mac-1",
+          "X-OpenCodeBar-Device-Name": "Oli's Mac",
+          "X-OpenCodeBar-Platform": "macOS",
+          "X-OpenCodeBar-App-Version": "1.0.0",
+        },
+      }),
+    );
+    await handler(
+      request("/api/health", {
+        headers: {
+          "X-OpenCodeBar-Device-Id": "ios-1",
+          "X-OpenCodeBar-Device-Name": "Oli's iPhone",
+          "X-OpenCodeBar-Platform": "iOS",
+          "X-OpenCodeBar-App-Version": "1.0",
+        },
+      }),
+    );
+
+    const devices = await body<{
+      data: Array<{ id: string; name: string; platform: string; connected: boolean }>;
+    }>(await handler(request("/api/devices")));
+
+    expect(devices.data.map((device) => device.id).sort()).toEqual(["ios-1", "mac-1"]);
+    const mac = devices.data.find((device) => device.id === "mac-1");
+    expect(mac?.platform).toBe("macOS");
+    expect(mac?.connected).toBe(true);
+    db.close();
+  });
+
+  test("only reports restart support when the host provides it", async () => {
+    const { handler, db } = setup();
+    const response = await handler(request("/api/server/restart", { method: "POST" }));
+    expect(response.status).toBe(501);
+    db.close();
+  });
+});
+
 describe("hub API reads", () => {  test("serves cached sessions, active ids and filters", async () => {
     const { db, handler } = setup();
     db.upsertSessions([

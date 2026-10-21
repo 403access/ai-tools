@@ -143,6 +143,10 @@ enum PreviewRunner {
             state.open(project)
         }
 
+        // Settings fetches its server/device data when the view appears, which
+        // happens after the run loop above has already settled.
+        let wantsSettings = value(after: "--tab", in: CommandLine.arguments)?.lowercased() == "settings"
+
         let hosting = NSHostingView(rootView: ScreenshotRoot(state: state))
         hosting.appearance = NSAppearance(named: .darkAqua)
 
@@ -163,7 +167,8 @@ enum PreviewRunner {
         // project analytics.
         if CommandLine.arguments.contains("--detail")
             || CommandLine.arguments.contains("--session")
-            || wantsProjectDetail {
+            || wantsProjectDetail
+            || wantsSettings {
             let detailDeadline = Date().addingTimeInterval(3)
             while Date() < detailDeadline {
                 RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))

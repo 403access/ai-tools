@@ -22,6 +22,7 @@ targets:
       - path: Sources/OpenCodeBar/Models
       - path: Sources/OpenCodeBar/Core/HubAPI.swift
       - path: Sources/OpenCodeBar/Core/HubEventStream.swift
+      - path: Sources/OpenCodeBar/Core/DeviceIdentity.swift
       - path: Sources/OpenCodeBar/Support/Formatters.swift
       - path: Sources/OpenCodeBar/Support/SpeechInput.swift
       - path: Sources/OpenCodeBar/Views/Theme.swift

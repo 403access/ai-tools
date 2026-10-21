@@ -623,8 +623,29 @@ struct ServerInfo: Decodable {
     var pid: Int?
     var urls: [String]?
     var capabilities: Capabilities?
+    var hub: HubHealthResponse.Hub?
 
     struct Capabilities: Decodable {
         var persistentPty: Bool?
     }
+}
+
+/// A Mac or iOS app that has connected to this hub.
+struct ConnectedDevice: Decodable, Identifiable {
+    var id: String
+    var name: String
+    var platform: String
+    var appVersion: String
+    /// Milliseconds since the epoch.
+    var firstSeen: Double
+    var lastSeen: Double
+    var connected: Bool
+
+    var lastSeenDate: Date { Date(timeIntervalSince1970: lastSeen / 1000) }
+
+    var isThisDevice: Bool { id == DeviceIdentity.id }
+}
+
+struct DevicesResponse: Decodable {
+    var data: [ConnectedDevice]
 }
