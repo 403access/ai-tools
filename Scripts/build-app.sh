@@ -69,6 +69,10 @@ cat > "$BUNDLE/Contents/Info.plist" <<PLIST
     <string>14.0</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.developer-tools</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>OpenCodeBar uses the microphone to dictate prompts into a session.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>OpenCodeBar turns your spoken prompt into text, on the device when the language supports it.</string>
     <key>LSUIElement</key>
     <true/>
     <key>NSHighResolutionCapable</key>

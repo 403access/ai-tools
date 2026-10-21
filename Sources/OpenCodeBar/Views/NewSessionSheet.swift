@@ -12,6 +12,7 @@ struct NewSessionSheet: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var createdSession: Session?
+    @StateObject private var dictation = SpeechDictation()
     @FocusState private var promptFocused: Bool
 
     init(directory: String? = nil) {
@@ -106,6 +107,7 @@ struct NewSessionSheet: View {
                     .font(.system(size: 11))
                     .scrollContentBackground(.hidden)
                     .padding(5)
+                    .padding(.trailing, 20)
                     .frame(height: 82)
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -115,6 +117,11 @@ struct NewSessionSheet: View {
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
                             .strokeBorder(Color.primary.opacity(0.09), lineWidth: 1)
                     )
+                    .overlay(alignment: .bottomTrailing) {
+                        VoiceInputButton(dictation: dictation, text: $prompt, iconSize: 13)
+                            .padding(3)
+                            .disabled(isWorking)
+                    }
                     .focused($promptFocused)
                     .disabled(isWorking)
             }
@@ -167,9 +174,11 @@ struct NewSessionSheet: View {
             promptFocused = true
         }
         .onExitCommand { dismiss() }
+        .onDisappear { dictation.cancel() }
     }
 
     private func submit() async {
+        dictation.cancel()
         guard !isWorking, !trimmedDirectory.isEmpty else { return }
 
         isWorking = true

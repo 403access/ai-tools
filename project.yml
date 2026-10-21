@@ -23,6 +23,7 @@ targets:
       - path: Sources/OpenCodeBar/Core/HubAPI.swift
       - path: Sources/OpenCodeBar/Core/HubEventStream.swift
       - path: Sources/OpenCodeBar/Support/Formatters.swift
+      - path: Sources/OpenCodeBar/Support/SpeechInput.swift
       - path: Sources/OpenCodeBar/Views/Theme.swift
       - path: Sources/OpenCodeBar/Views/Components.swift
       - path: Sources/OpenCodeBar/Views/HeatmapView.swift
@@ -55,6 +56,8 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSLocalNetworkUsageDescription: OpenCodeBar connects to the hub running on your Mac to show live OpenCode sessions.
+        NSMicrophoneUsageDescription: OpenCodeBar uses the microphone to dictate prompts into a session.
+        NSSpeechRecognitionUsageDescription: OpenCodeBar turns your spoken prompt into text, on the device when the language supports it.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
         CFBundleURLTypes:

@@ -31,6 +31,7 @@ struct SessionDetailView: View {
     @State private var isSending = false
     @State private var sendError: String?
     @State private var scrollRequest = 0
+    @StateObject private var dictation = SpeechDictation()
     @FocusState private var composerFocused: Bool
 
     private let topAnchor = "session-mobile-top"
@@ -97,6 +98,7 @@ struct SessionDetailView: View {
             }
         }
         .mobileScreenBackground()
+        .onDisappear { dictation.cancel() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if mode == .conversation {
                 composer
@@ -235,6 +237,8 @@ struct SessionDetailView: View {
                 .submitLabel(.send)
                 .onSubmit { Task { await send() } }
 
+                VoiceInputButton(dictation: dictation, text: $draft, iconSize: 19)
+
                 Button {
                     Task { await send() }
                 } label: {
@@ -273,6 +277,7 @@ struct SessionDetailView: View {
     }
 
     private func send() async {
+        dictation.cancel()
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isSending else { return }
 

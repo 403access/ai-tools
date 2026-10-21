@@ -70,7 +70,8 @@ Follow-ups worth considering:
   - Add the new-session action to the iOS project detail page; it currently
     starts from the Live tab, because the Projects tab owns its navigation path.
 - **Distribute properly** (optional): Developer ID signing + notarization so the
-  app runs without the local ad-hoc signature.
+  app runs without the local ad-hoc signature. A hardened-runtime build also
+  needs the `com.apple.security.device.audio-input` entitlement for dictation.
 
 ## Known polish items
 
@@ -99,6 +100,10 @@ Follow-ups worth considering:
 - **Prompts are numbered per loaded window.** Numbers count up from the oldest
   loaded prompt, so they shift after "Load earlier"; they could instead count
   from the true start of the session once full history is loaded.
+- **Dictation is one-shot.** The mic streams until tapped again, and the
+  recognizer finalizes the last words after a short delay. `SFSpeechRecognizer`
+  can end a very long utterance on its own, which stops the button; an audio
+  level meter and an automatic restart would make long prompts smoother.
 
 - **Live activity depends on the event stream.** Rows fold
   `session.step.*`, `session.reasoning.*`, `session.text.*`,

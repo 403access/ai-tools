@@ -47,6 +47,10 @@ iOS app:
 - **Reply from the conversation.** The composer at the bottom of the Chat tab
   sends a prompt into that session. A running session queues the message until
   the current turn finishes, and the conversation refreshes as it arrives.
+- **Speak your prompt.** The microphone in the conversation composer and the
+  new-session sheet turns speech into text as you talk. It keeps whatever you
+  already typed, and the transcript stays editable before you send. Speech
+  recognition runs on the device when the current language supports it.
 - **Start a new session** from the Live tab or a project page: choose a project
   directory, an optional title, and an optional first message. The new session
   opens immediately, and the first message is sent in the same step.

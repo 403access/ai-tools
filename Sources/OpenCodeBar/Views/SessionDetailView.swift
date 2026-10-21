@@ -24,6 +24,7 @@ struct SessionDetailView: View {
     @State private var isSending = false
     @State private var sendError: String?
     @State private var scrollRequest = 0
+    @StateObject private var dictation = SpeechDictation()
     @FocusState private var composerFocused: Bool
     @State private var showingNewSession = false
 
@@ -102,6 +103,7 @@ struct SessionDetailView: View {
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, 8)
+        .onDisappear { dictation.cancel() }
         .task(id: refreshKey) {
             await loadLatest()
             if mode == .changes {
@@ -264,6 +266,8 @@ struct SessionDetailView: View {
                 .focused($composerFocused)
                 .onSubmit { Task { await send() } }
 
+                VoiceInputButton(dictation: dictation, text: $draft, iconSize: 13)
+
                 Button {
                     Task { await send() }
                 } label: {
@@ -299,6 +303,7 @@ struct SessionDetailView: View {
     }
 
     private func send() async {
+        dictation.cancel()
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isSending else { return }
 

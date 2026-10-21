@@ -14,6 +14,7 @@ struct MobileNewSessionSheet: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var createdSession: Session?
+    @StateObject private var dictation = SpeechDictation()
     @FocusState private var promptFocused: Bool
 
     init(directory: String? = nil, onCreated: @escaping (Session) -> Void = { _ in }) {
@@ -94,6 +95,7 @@ struct MobileNewSessionSheet: View {
             }
             promptFocused = true
         }
+        .onDisappear { dictation.cancel() }
     }
 
     private var projectSection: some View {
@@ -164,25 +166,30 @@ struct MobileNewSessionSheet: View {
         VStack(alignment: .leading, spacing: 7) {
             SectionHeader("First message · optional")
 
-            TextField("What should OpenCode do?", text: $prompt, axis: .vertical)
-                .font(.subheadline)
-                .lineLimit(4...8)
-                .focused($promptFocused)
-                .submitLabel(.return)
-                .disabled(isWorking)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 9)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(MobileTheme.field)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(
-                            promptFocused ? Theme.accent.opacity(0.5) : MobileTheme.border,
-                            lineWidth: 1
-                        )
-                )
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("What should OpenCode do?", text: $prompt, axis: .vertical)
+                    .font(.subheadline)
+                    .lineLimit(4...8)
+                    .focused($promptFocused)
+                    .submitLabel(.return)
+                    .disabled(isWorking)
+
+                VoiceInputButton(dictation: dictation, text: $prompt, iconSize: 18)
+                    .disabled(isWorking)
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(MobileTheme.field)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(
+                        promptFocused ? Theme.accent.opacity(0.5) : MobileTheme.border,
+                        lineWidth: 1
+                    )
+            )
         }
     }
 
@@ -193,6 +200,7 @@ struct MobileNewSessionSheet: View {
     }
 
     private func submit() async {
+        dictation.cancel()
         guard !isWorking, !trimmedDirectory.isEmpty else { return }
 
         isWorking = true
