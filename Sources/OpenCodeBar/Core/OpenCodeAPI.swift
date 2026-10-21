@@ -70,6 +70,14 @@ struct OpenCodeAPI: Sendable {
         return response.data
     }
 
+    /// Direct child sessions of a parent (subagents). The parent filter is a
+    /// first-class API parameter, so this does not depend on the recent list.
+    func sessions(parentID: String, limit: Int = 50) async throws -> [Session] {
+        let encoded = parentID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? parentID
+        let response: SessionsResponse = try await get("/api/session?parentID=\(encoded)&limit=\(limit)&order=desc")
+        return response.data
+    }
+
     func session(id: String) async throws -> Session {
         let response: SessionEnvelope = try await get("/api/session/\(id)")
         return response.data
@@ -109,16 +117,21 @@ struct OpenCodeAPI: Sendable {
 
     func get<T: Decodable>(_ path: String) async throws -> T {
         let request = try request(path)
+        let started = Date()
+        DebugLog.subagents("[http] start \(path)")
         let data: Data
         let response: URLResponse
         do {
             (data, response) = try await Self.session.data(for: request)
         } catch let error as URLError {
+            DebugLog.subagents("[http] url-error \(path) \(error)")
             throw APIError.transport(error.localizedDescription)
         } catch {
+            DebugLog.subagents("[http] error \(path) \(error)")
             throw APIError.transport(error.localizedDescription)
         }
         guard let http = response as? HTTPURLResponse else { throw APIError.badResponse }
+        DebugLog.subagents("[http] done \(path) \(http.statusCode) \(String(format: "%.2fs", Date().timeIntervalSince(started)))")
         switch http.statusCode {
         case 200..<300:
             break

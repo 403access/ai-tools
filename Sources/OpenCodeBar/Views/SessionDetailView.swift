@@ -27,6 +27,18 @@ struct SessionDetailView: View {
     private var isRunning: Bool { state.isRunning(session) }
     private var project: String { state.projectName(for: session) }
 
+    /// Subagents is offered when the session has child sessions, while they are
+    /// loading, or when it was selected explicitly (CLI previews).
+    private var availableModes: [AppState.DetailMode] {
+        var modes: [AppState.DetailMode] = [.conversation, .prompts]
+        if mode == .subagents
+            || state.hasSubagents(session.id)
+            || state.isLoadingSubagents(session.id) {
+            modes.append(.subagents)
+        }
+        return modes
+    }
+
     /// Re-fetch the conversation whenever the session changes on the server.
     private var refreshKey: String {
         "\(session.id)-\(Int(session.time.updated))-\(isRunning)"
@@ -38,7 +50,7 @@ struct SessionDetailView: View {
             summary
 
             Picker("", selection: $mode) {
-                ForEach(AppState.DetailMode.allCases) { mode in
+                ForEach(availableModes) { mode in
                     Label(mode.rawValue, systemImage: mode.icon)
                         .labelStyle(.titleAndIcon)
                         .tag(mode)
@@ -56,6 +68,8 @@ struct SessionDetailView: View {
                             conversation
                         case .prompts:
                             prompts
+                        case .subagents:
+                            subagents
                         }
                         Color.clear.frame(height: 1).id(bottomAnchor)
                     }
@@ -65,11 +79,12 @@ struct SessionDetailView: View {
                 .frame(maxHeight: .infinity)
                 .onChange(of: messages.first?.id) { _, _ in
                     // Land on the newest activity the first time content loads.
-                    guard !didAutoScroll, !messages.isEmpty else { return }
+                    guard mode != .subagents, !didAutoScroll, !messages.isEmpty else { return }
                     didAutoScroll = true
                     scrollToBottom(proxy, animated: false)
                 }
-                .onChange(of: mode) { _, _ in
+                .onChange(of: mode) { _, newMode in
+                    guard newMode != .subagents else { return }
                     scrollToBottom(proxy, animated: false)
                 }
             }
@@ -79,6 +94,12 @@ struct SessionDetailView: View {
         .padding(.bottom, 8)
         .task(id: refreshKey) {
             await loadLatest()
+        }
+        .task(id: session.id) {
+            await state.loadSubagents(session.id)
+        }
+        .onChange(of: availableModes, initial: true) { _, modes in
+            if !modes.contains(mode) { mode = .conversation }
         }
         .onExitCommand {
             state.closeDetail()
@@ -234,6 +255,83 @@ struct SessionDetailView: View {
                 PromptRow(index: index + 1, message: message)
             }
         }
+    }
+
+    // MARK: - Subagents
+
+    @ViewBuilder
+    private var subagents: some View {
+        if let list = state.subagentList(for: session.id) {
+            if list.isLoading && list.sessions.isEmpty {
+                LoadingState(message: "Loading subagents…")
+            } else if list.sessions.isEmpty {
+                if let error = list.error {
+                    subagentError(error)
+                } else {
+                    EmptyState(
+                        icon: "person.2",
+                        title: "No subagents",
+                        subtitle: "Child sessions started by this session appear here."
+                    )
+                }
+            } else {
+                SectionHeader("Subagents") {
+                    HStack(spacing: 5) {
+                        if list.isLoading {
+                            ProgressView().controlSize(.mini)
+                        }
+                        Text("\(list.sessions.count)")
+                            .font(.system(size: 10, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                ForEach(list.sessions) { child in
+                    Button {
+                        state.open(child, from: session)
+                    } label: {
+                        SubagentRow(
+                            session: child,
+                            running: state.isRunning(child),
+                            activity: state.activity(for: child.id),
+                            descendants: state.activeSubagentCount(for: child.id)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .help("Open this subagent")
+                }
+
+                if let error = list.error {
+                    subagentError(error)
+                }
+            }
+        } else {
+            LoadingState(message: "Loading subagents…")
+        }
+    }
+
+    private func subagentError(_ message: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 18))
+                .foregroundStyle(Theme.warn)
+            Text("Couldn't load subagents")
+                .font(.system(size: 12, weight: .medium))
+            Text(message)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Try again") {
+                Task { await state.loadSubagents(session.id, force: true) }
+            }
+            .controlSize(.small)
+            .padding(.top, 2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+        .card()
     }
 
     // MARK: - Shared pieces

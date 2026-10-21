@@ -15,6 +15,7 @@ struct PanelView: View {
 
             if let session = state.selectedSession {
                 SessionDetailView(session: session, initialMode: state.detailMode)
+                    .id(session.id)
                     .frame(maxHeight: .infinity)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             } else if let project = state.selectedProject {

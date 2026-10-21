@@ -26,6 +26,9 @@ full **session** view, per-project **analytics**, and a **usage** overview.
 - Click any session to open its details: the full conversation, a prompts-only
   list with copy buttons, and expandable reasoning and tool calls. The view
   keeps updating while the session runs and pages back through history.
+- Subagent tree: a session's direct child sessions appear in a **Subagents** tab
+  with their own live activity, outcome, cost, and time. Tap one to drill in;
+  Back returns to the parent, and each level loads its own children.
 
 **Projects**
 - Every project OpenCode has run in, with running work first and the most
@@ -174,8 +177,10 @@ Sources/OpenCodeBar/
     EventStream.swift       SSE subscription with reconnect
   Models/Models.swift       Codable models for the API
   Models/SessionActivity.swift  live "what is it doing" state
+  Models/SubagentOrdering.swift  running-first ordering for child sessions
   Views/                    SwiftUI panel, tabs, heatmap, components
   Views/LiveActivityView.swift  activity line and todo progress
+  Views/SubagentViews.swift  subagent row with live activity
   Preview/PreviewRunner.swift
 Scripts/
   build-app.sh              assemble the .app bundle
@@ -194,7 +199,10 @@ Tests/OpenCodeBarTests/
   `--screenshot out.png --scale 2 --tab usage` produces a 2x image for the
   website and README. Add `--detail` (optionally `--detail-mode prompts`) to
   render the session detail view, or `--project-detail` for the first project's
-  detail page.
+  detail page. `--session <id>` opens a specific session; combine it with
+  `--detail-mode subagents` to inspect a session's child sessions.
+- `OPENCODEBAR_DEBUG_SUBAGENTS=1` logs subagent fetches and HTTP requests to
+  stderr.
 - The menu bar glyph uses SF Symbols (`terminal` / `terminal.fill`).
 - `OPENCODE_GO_USAGE_URL` points the Go limits client at a different URL, which
   is how the Plan limits UI is exercised without a live Go key.

@@ -48,6 +48,24 @@ enum PreviewRunner {
             }
         }
 
+        // `--session <id>` opens a specific session (useful for previews and
+        // screenshots of sessions with subagents).
+        if let id = value(after: "--session", in: CommandLine.arguments) {
+            Task { @MainActor in
+                for _ in 0..<50 {
+                    if let session = state.sessions.first(where: { $0.id == id }) {
+                        state.open(session)
+                        return
+                    }
+                    if let fetched = await state.fetchSession(id: id) {
+                        state.open(fetched)
+                        return
+                    }
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                }
+            }
+        }
+
         // `--project-detail` opens the first project's detail page.
         if CommandLine.arguments.contains("--project-detail") {
             Task { @MainActor in
@@ -102,6 +120,22 @@ enum PreviewRunner {
             state.selectedSession = state.runningSessions.first ?? state.sessions.first
         }
 
+        // `--session <id>` opens a specific session. If it is not in the recent
+        // list, it is looked up directly.
+        if let id = value(after: "--session", in: CommandLine.arguments) {
+            if let session = state.sessions.first(where: { $0.id == id }) {
+                state.open(session)
+            } else {
+                var fetched: Session?
+                Task { @MainActor in fetched = await state.fetchSession(id: id) }
+                let deadline = Date().addingTimeInterval(3)
+                while fetched == nil && Date() < deadline {
+                    RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+                }
+                if let fetched { state.open(fetched) }
+            }
+        }
+
         // `--project-detail` opens the first project's detail page, for the
         // same reason.
         let wantsProjectDetail = CommandLine.arguments.contains("--project-detail")
@@ -127,7 +161,9 @@ enum PreviewRunner {
 
         // Give the detail view a moment to fetch its conversation or scoped
         // project analytics.
-        if CommandLine.arguments.contains("--detail") || wantsProjectDetail {
+        if CommandLine.arguments.contains("--detail")
+            || CommandLine.arguments.contains("--session")
+            || wantsProjectDetail {
             let detailDeadline = Date().addingTimeInterval(3)
             while Date() < detailDeadline {
                 RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))

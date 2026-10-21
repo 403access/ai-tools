@@ -44,16 +44,27 @@ final class AppState: ObservableObject {
         var loadedAt: Date?
     }
 
+    /// Direct child sessions of a session, fetched on demand for the Subagents
+    /// tab.
+    struct SubagentList: Equatable {
+        var sessions: [Session] = []
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     /// Sections available in the session detail view.
     enum DetailMode: String, CaseIterable, Identifiable {
         case conversation = "Conversation"
         case prompts = "Prompts"
+        case subagents = "Subagents"
 
         var id: String { rawValue }
         var icon: String {
             switch self {
             case .conversation: return "bubble.left.and.bubble.right"
             case .prompts: return "text.quote"
+            case .subagents: return "person.2"
             }
         }
     }
@@ -74,11 +85,17 @@ final class AppState: ObservableObject {
     /// the event stream and reseeded from messages when needed.
     @Published var liveActivity: [String: SessionActivity] = [:]
     @Published var projectDetails: [String: ProjectDetail] = [:]
+    /// Child sessions per parent, loaded when a session's Subagents tab is
+    /// opened and kept in sync with the live session list.
+    @Published var subagentLists: [String: SubagentList] = [:]
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
     /// Session whose detail view is open, if any. Kept in sync with the
     /// session list so a running session's header keeps updating.
     @Published var selectedSession: Session?
+    /// Sessions above the current one when drilling into subagents. The last
+    /// element is the back destination.
+    private(set) var sessionStack: [Session] = []
     /// Project whose detail page is open, if any. Kept in sync with the project
     /// list. A session opened from the project detail page leaves this set, so
     /// closing the session returns to the project.
@@ -161,6 +178,7 @@ final class AppState: ObservableObject {
                     await self?.refreshHistory(force: true)
                 }
                 await self?.refreshSelectedProject()
+                await self?.refreshSelectedSubagents()
             }
         }
 
@@ -242,6 +260,7 @@ final class AppState: ObservableObject {
                 }
             }
             self.sessions = merged
+            self.syncSubagentLists(with: merged)
             self.projects = Dictionary(projectListValue.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
             if let selected = selectedSession,
@@ -364,6 +383,12 @@ final class AppState: ObservableObject {
         liveActivity[sessionID]
     }
 
+    /// Fetches a single session by ID, for deep links and preview tooling.
+    func fetchSession(id: String) async -> Session? {
+        guard let api else { return nil }
+        return try? await api.session(id: id)
+    }
+
     /// Number of active child sessions for a running session. Subagents appear
     /// in the session list like any other session, with `parentID` set.
     func activeSubagentCount(for sessionID: String) -> Int {
@@ -420,14 +445,24 @@ final class AppState: ObservableObject {
     private func applyUsage(_ data: OpenCodeEvent.Payload?, to id: String) {
         guard let data,
               let cost = data.cost,
-              let tokens = data.tokens,
-              let index = sessions.firstIndex(where: { $0.id == id })
+              let tokens = data.tokens
         else { return }
 
-        sessions[index].cost = cost
-        sessions[index].tokens = tokens
-        if selectedSession?.id == id {
-            selectedSession = sessions[index]
+        if let index = sessions.firstIndex(where: { $0.id == id }) {
+            sessions[index].cost = cost
+            sessions[index].tokens = tokens
+            if selectedSession?.id == id {
+                selectedSession = sessions[index]
+            }
+        }
+
+        for parentID in Array(subagentLists.keys) {
+            guard var list = subagentLists[parentID],
+                  let index = list.sessions.firstIndex(where: { $0.id == id })
+            else { continue }
+            list.sessions[index].cost = cost
+            list.sessions[index].tokens = tokens
+            subagentLists[parentID] = list
         }
     }
 
@@ -491,18 +526,37 @@ final class AppState: ObservableObject {
 
     // MARK: - Session detail
 
-    func open(_ session: Session) {
+    /// Opens a session. Passing `from` when drilling into a subagent pushes the
+    /// parent onto the back stack; opening from the Live tab or a project
+    /// starts a fresh stack.
+    func open(_ session: Session, from parent: Session? = nil) {
+        if let parent, parent.id != session.id {
+            if sessionStack.last?.id != parent.id {
+                sessionStack.append(parent)
+            }
+        } else {
+            sessionStack.removeAll()
+        }
         selectedSession = session
+        Task { await loadSubagents(session.id) }
     }
 
     func closeDetail() {
-        selectedSession = nil
+        if let previous = sessionStack.popLast() {
+            selectedSession = sessions.first(where: { $0.id == previous.id }) ?? previous
+        } else {
+            selectedSession = nil
+        }
     }
 
-    /// Title of the session detail view's back button. Sessions opened from a
-    /// project return there; everything else returns to the Live tab.
+    /// Title of the session detail view's back button. A drilled-in session
+    /// returns to its parent; everything else returns to the project or Live.
     var sessionBackTitle: String {
-        selectedProject?.displayName ?? "Live"
+        if let previous = sessionStack.last {
+            let latest = sessions.first(where: { $0.id == previous.id }) ?? previous
+            return latest.displayTitle
+        }
+        return selectedProject?.displayName ?? "Live"
     }
 
     func isRunning(_ session: Session) -> Bool {
@@ -525,11 +579,13 @@ final class AppState: ObservableObject {
     /// Opens the full detail page for a project, loading its scoped stats and
     /// recent sessions on demand.
     func open(_ project: Project) {
+        sessionStack.removeAll()
         selectedProject = project
         Task { await loadProject(project.id) }
     }
 
     func closeProject() {
+        sessionStack.removeAll()
         selectedProject = nil
     }
 
@@ -559,6 +615,93 @@ final class AppState: ObservableObject {
         guard let project = selectedProject else { return }
         if let updated = projects[project.id] { selectedProject = updated }
         await loadProject(project.id, force: true)
+    }
+
+    // MARK: - Subagents
+
+    func subagentList(for parentID: String) -> SubagentList? {
+        subagentLists[parentID]
+    }
+
+    func hasSubagents(_ parentID: String) -> Bool {
+        !(subagentLists[parentID]?.sessions.isEmpty ?? true)
+    }
+
+    func isLoadingSubagents(_ parentID: String) -> Bool {
+        subagentLists[parentID]?.isLoading == true
+    }
+
+    /// Fetches the direct child sessions of a parent. Each level is loaded when
+    /// it is opened, so drilling into a child loads that child's own subagents.
+    func loadSubagents(_ parentID: String, force: Bool = false) async {
+        guard let api else {
+            DebugLog.subagents("[subagents] no api \(parentID)")
+            return
+        }
+        if subagentLists[parentID]?.isLoading == true { return }
+        if !force, let loaded = subagentLists[parentID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+
+        DebugLog.subagents("[subagents] start \(parentID)")
+
+        var list = subagentLists[parentID] ?? SubagentList()
+        list.isLoading = true
+        list.error = nil
+        subagentLists[parentID] = list
+
+        do {
+            let children = try await api.sessions(parentID: parentID, limit: 50)
+            DebugLog.subagents("[subagents] done \(parentID) \(children.count)")
+            subagentLists[parentID] = SubagentList(
+                sessions: SubagentOrdering.sorted(children, activeIDs: activeIDs),
+                loadedAt: Date()
+            )
+        } catch {
+            var failed = subagentLists[parentID] ?? SubagentList()
+            failed.isLoading = false
+            if Task.isCancelled {
+                // Navigating away cancels the view's task; do not surface that
+                // as a load failure when the user comes back.
+                subagentLists[parentID] = failed
+                return
+            }
+            DebugLog.subagents("[subagents] error \(parentID) \(error)")
+            failed.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            subagentLists[parentID] = failed
+        }
+    }
+
+    private func refreshSelectedSubagents() async {
+        guard let id = selectedSession?.id, subagentLists[id] != nil else { return }
+        await loadSubagents(id, force: true)
+    }
+
+    /// Folds the five-second session list into any open subagent lists so
+    /// running state and cost stay current without a second fetch.
+    private func syncSubagentLists(with sessions: [Session]) {
+        for parentID in Array(subagentLists.keys) {
+            guard var list = subagentLists[parentID] else { continue }
+            var changed = false
+
+            for session in sessions where session.parentID == parentID {
+                if let index = list.sessions.firstIndex(where: { $0.id == session.id }) {
+                    if list.sessions[index] != session {
+                        list.sessions[index] = session
+                        changed = true
+                    }
+                } else {
+                    list.sessions.append(session)
+                    changed = true
+                }
+            }
+
+            if changed {
+                list.sessions = SubagentOrdering.sorted(list.sessions, activeIDs: activeIDs)
+                subagentLists[parentID] = list
+            }
+        }
     }
 
     // MARK: - Derived data

@@ -49,9 +49,13 @@ observations. Last updated 2026-10-21.
 - **Waiting-for-approval is best-effort.** `permission.asked` payloads have
   changed shape across OpenCode versions. The label falls back from `message` to
   `title` to `action · resource`.
-- **Live activity is only on the Live tab and session header.** The Projects
-  tab's running list is still a single line; `ActivityLine` could be reused
-  there if those rows grow a second line.
+- **Live activity is shown on the Live tab, the session header, and the
+  Subagents tab.** The Projects tab's running list is still a single line;
+  `ActivityLine` could be reused there if those rows grow a second line.
+- **The subagent tree loads one level at a time.** Direct children come from
+  `/api/session?parentID=…` (limit 50); deeper levels load when opened. There is
+  no aggregate cost roll-up and no recursive prefetch, and a parent with more
+  than 50 children shows the newest 50.
 - **The step timer resets at each `session.step.started`.** Total session
   elapsed stays on the stats line, and a finished tool freezes its own timer
   until the next event arrives.
