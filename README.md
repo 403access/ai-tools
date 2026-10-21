@@ -10,7 +10,8 @@ running, the number of active sessions. Clicking it opens a panel with **live**
 activity, a full **session** view, per-project **analytics**, and a **usage**
 overview. The iOS app has the same four areas, adapted for touch, with the same
 dark panel design and a floating tab dock. Its Appearance setting can follow the
-system or stay dark/light.
+system or stay dark/light. Both apps can also start a new session and send a
+prompt into an open conversation.
 
 macOS panel:
 
@@ -40,6 +41,12 @@ iOS app:
 - Click any session to open its details: the full conversation, a prompts-only
   list with copy buttons, and expandable reasoning and tool calls. The view
   keeps updating while the session runs and pages back through history.
+- **Reply from the conversation.** The composer at the bottom of the Chat tab
+  sends a prompt into that session. A running session queues the message until
+  the current turn finishes, and the conversation refreshes as it arrives.
+- **Start a new session** from the Live tab or a project page: choose a project
+  directory, an optional title, and an optional first message. The new session
+  opens immediately, and the first message is sent in the same step.
 - **Stats** tab: prompts, steps, tool-call reliability, per-tool failure counts
   and median durations, the recent failures with their errors, file impact, and
   the token mix for that session.
@@ -92,7 +99,8 @@ iOS app:
 - The iOS app adds search, pull-to-refresh, and deep links to a session, with
   the same live-activity folding as the Mac app.
 
-Both apps are **monitor-only**: they never start, stop, or modify sessions.
+Both apps can start sessions and send prompts; neither stops or deletes
+sessions.
 
 ## How it works
 
@@ -103,7 +111,7 @@ OpenCodeBar Hub sits between that service and the apps:
 
 ```
 OpenCode service (loopback, Basic auth)
-          │  read-only REST + SSE
+          │  REST + SSE
           ▼
 OpenCodeBar Hub (Bun + SQLite, Bearer auth)
           │  cached REST + SSE, mirrored shapes
@@ -118,14 +126,16 @@ The hub:
    password from `~/.config/opencode/service.json`
    (or `$XDG_CONFIG_HOME/opencode/service.json`), the URL from
    `opencode service status`, then `lsof`, then the server log.
-2. Polls read-only endpoints on a 5s / 60s cadence, subscribes to `/api/event`,
+2. Polls read endpoints on a 5s / 60s cadence, subscribes to `/api/event`,
    and writes sessions, projects, messages, stats, and Go plan usage into
    `~/.local/share/opencodebar/hub.sqlite`. The cache keeps serving when OpenCode
-   stops or restarts on a new port.
+   stops or restarts on a new port. Writes from the apps — creating a session
+   and prompting one — are forwarded to the same service.
 3. Serves a stable API that mirrors OpenCode's shapes — `/api/session`,
    `/api/session/{id}`, `/api/session/{id}/message`, `/api/session/{id}/changes`,
    `/api/session/{id}/stats`, `/api/project`, `/api/project/{id}/changes`,
-   `/api/experimental/session/stats` — plus `/api/usage`, `/api/health`,
+   `/api/experimental/session/stats` — plus `/api/session/{id}/prompt`
+   (`POST`), `/api/session` (`POST`), `/api/usage`, `/api/health`,
    `/api/sync`, and `/api/event`. Clients authenticate with a Bearer token.
 4. Forwards OpenCode events to every connected client, so both apps update live.
    The stream also carries `hub.*` notices (`hub.connected`, `hub.sessions`,
@@ -133,7 +143,8 @@ The hub:
 
 Endpoints the hub reads from OpenCode: `/api/info`, `/api/session`,
 `/api/session/active`, `/api/session/{id}`, `/api/session/{id}/message`,
-`/api/project`, `/api/experimental/session/stats`, and `/api/event`.
+`/api/project`, `/api/experimental/session/stats`, and `/api/event`. It writes
+through `POST /api/session` and `POST /api/session/{id}/prompt`.
 
 The event stream does more than trigger refreshes. `session.step.*`,
 `session.reasoning.*`, `session.text.*`, `session.tool.*`, `session.usage.*`,
@@ -283,6 +294,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
   Models/GoUsage.swift      Go plan windows (shared)
   Views/                    SwiftUI panel, tabs, heatmap, components
     ChangeViews.swift       patch cards and change summaries
+    NewSessionSheet.swift   start a session with an optional first prompt
   Preview/PreviewRunner.swift
 
 Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
@@ -291,6 +303,7 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   HubSettings.swift           URL + token storage and pairing links
   LiveView.swift              running/recent sessions
   SessionDetailView.swift     conversation, changes, prompts, subagents
+  NewSessionSheet.swift       start a session from the phone
   MobileMessageViews.swift    message cards
   MobileChangeViews.swift     patch cards and change summaries
   ProjectsView.swift          project list + search
@@ -350,7 +363,9 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
 
 - The Mac app needs macOS 14+; the mobile app needs iOS 17+. The hub is a Bun
   process that must be reachable over the network for the phone.
-- Monitor-only by design; neither app controls sessions.
+- The apps can start sessions and send prompts, but not interrupt, stop, or
+  delete them. Prompts sent to a running session are queued behind the current
+  turn.
 - The hub relies on the local OpenCode service; when the service is stopped it
   keeps serving cached data and shows an offline state, reconnecting when
   OpenCode returns.

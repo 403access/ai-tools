@@ -440,6 +440,29 @@ final class MobileStore: ObservableObject {
         return try await api.sessionMessages(id: sessionID, limit: limit, cursor: cursor)
     }
 
+    /// Creates a session in a project directory. The caller decides when to
+    /// navigate to it, since the mobile app owns its navigation path.
+    func createSession(title: String?, directory: String) async throws -> Session {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+        let session = try await api.createSession(title: title, directory: directory)
+        sessions.insert(session, at: 0)
+        await refreshLive()
+        return session
+    }
+
+    /// Sends a prompt into an existing session. Running sessions queue the
+    /// message by default so it does not interrupt the current turn.
+    func promptSession(
+        id: String,
+        text: String,
+        delivery: PromptDelivery? = nil
+    ) async throws {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+        try await api.promptSession(id: id, text: text, delivery: delivery)
+        activeIDs.insert(id)
+        await refreshLive()
+    }
+
     func loadProject(_ id: String, force: Bool = false) async {
         guard let api else { return }
         if !force, projectDetails[id]?.isLoading == true { return }

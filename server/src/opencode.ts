@@ -189,15 +189,21 @@ export class OpenCodeClient {
     return new URL(path, this.location.url).toString();
   }
 
-  async get<T>(path: string, timeoutMs = this.timeoutMs): Promise<T> {
+  private async request<T>(
+    path: string,
+    init: { method?: string; body?: unknown; timeoutMs?: number } = {},
+  ): Promise<T> {
     let response: Response;
     try {
       response = await fetch(this.url(path), {
+        method: init.method ?? "GET",
         headers: {
           Authorization: this.authHeader,
           Accept: "application/json",
+          ...(init.body === undefined ? {} : { "Content-Type": "application/json" }),
         },
-        signal: AbortSignal.timeout(timeoutMs),
+        body: init.body === undefined ? undefined : JSON.stringify(init.body),
+        signal: AbortSignal.timeout(init.timeoutMs ?? this.timeoutMs),
       });
     } catch (error) {
       throw new OpenCodeError(
@@ -213,6 +219,8 @@ export class OpenCodeClient {
       );
     }
 
+    if (response.status === 204) return undefined as T;
+
     try {
       return (await response.json()) as T;
     } catch (error) {
@@ -220,6 +228,39 @@ export class OpenCodeClient {
         `Could not read OpenCode response: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+  async get<T>(path: string, timeoutMs = this.timeoutMs): Promise<T> {
+    return this.request<T>(path, { timeoutMs });
+  }
+
+  async post<T>(path: string, body: unknown, timeoutMs = this.timeoutMs): Promise<T> {
+    return this.request<T>(path, { method: "POST", body, timeoutMs });
+  }
+
+  /** Creates a session in the given directory. The service picks the default agent/model. */
+  async createSession(input: { title?: string; directory: string }): Promise<Session> {
+    const response = await this.post<{ data: Session }>("/api/session", {
+      title: input.title,
+      location: { directory: input.directory },
+    });
+    return response.data;
+  }
+
+  /**
+   * Admits a message into a session and schedules the agent loop. `delivery`
+   * defaults to the service's behaviour; "queue" waits for the current run and
+   * "steer" delivers into it.
+   */
+  async promptSession(
+    id: string,
+    text: string,
+    delivery?: "steer" | "queue",
+  ): Promise<unknown> {
+    return this.post<unknown>(`/api/session/${encodeURIComponent(id)}/prompt`, {
+      text,
+      delivery,
+    });
   }
 
   async serverInfo(): Promise<ServerInfo> {

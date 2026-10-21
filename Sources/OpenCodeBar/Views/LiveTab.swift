@@ -2,15 +2,39 @@ import SwiftUI
 
 struct LiveTab: View {
     @EnvironmentObject var state: AppState
+    @State private var showingNewSession = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
                 SectionHeader("Running") {
-                    Text("\(state.runningSessions.count)")
-                        .font(.system(size: 10, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundStyle(state.runningSessions.isEmpty ? .secondary : Theme.running)
+                    HStack(spacing: 7) {
+                        Text("\(state.runningSessions.count)")
+                            .font(.system(size: 10, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundStyle(state.runningSessions.isEmpty ? .secondary : Theme.running)
+
+                        Button {
+                            showingNewSession = true
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 8, weight: .bold))
+                                Text("New")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule().fill(Theme.accent.opacity(0.14))
+                            )
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.accent)
+                        .help("Start a new session")
+                        .accessibilityLabel("New session")
+                    }
                 }
 
                 if state.runningSessions.isEmpty {
@@ -60,6 +84,10 @@ struct LiveTab: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showingNewSession) {
+            NewSessionSheet()
+                .environmentObject(state)
         }
     }
 }

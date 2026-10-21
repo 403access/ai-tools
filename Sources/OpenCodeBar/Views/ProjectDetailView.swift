@@ -10,6 +10,7 @@ struct ProjectDetailView: View {
     let project: Project
 
     @State private var copiedPath = false
+    @State private var showingNewSession = false
 
     private var detail: AppState.ProjectDetail? { state.projectDetails[project.id] }
     private var running: [Session] { state.runningSessions(in: project) }
@@ -92,6 +93,10 @@ struct ProjectDetailView: View {
         }
         .onExitCommand {
             state.closeProject()
+        }
+        .sheet(isPresented: $showingNewSession) {
+            NewSessionSheet(directory: project.canonical)
+                .environmentObject(state)
         }
     }
 
@@ -191,6 +196,15 @@ struct ProjectDetailView: View {
     /// they stay visible while the analytics below scroll.
     private var actions: some View {
         HStack(spacing: 2) {
+            actionButton(
+                "plus",
+                help: directoryExists ? "New session in this project" : "Project folder not found",
+                tint: Theme.accent,
+                disabled: !directoryExists
+            ) {
+                showingNewSession = true
+            }
+
             actionButton(
                 "folder",
                 help: directoryExists ? "Open in Finder" : "Project folder not found",

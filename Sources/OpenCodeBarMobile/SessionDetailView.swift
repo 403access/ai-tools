@@ -27,6 +27,11 @@ struct SessionDetailView: View {
     @State private var earlierError: String?
     @State private var errorMessage: String?
     @State private var didAutoScroll = false
+    @State private var draft = ""
+    @State private var isSending = false
+    @State private var sendError: String?
+    @State private var scrollRequest = 0
+    @FocusState private var composerFocused: Bool
 
     private let bottomAnchor = "session-mobile-bottom"
 
@@ -86,8 +91,16 @@ struct SessionDetailView: View {
                 guard newMode == .conversation || newMode == .prompts else { return }
                 scrollToBottom(proxy, animated: false)
             }
+            .onChange(of: scrollRequest) { _, _ in
+                scrollToBottom(proxy, animated: true)
+            }
         }
         .mobileScreenBackground()
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if mode == .conversation {
+                composer
+            }
+        }
         .navigationTitle(session.displayTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -191,6 +204,92 @@ struct SessionDetailView: View {
             return Fmt.elapsed(since: session.time.createdDate)
         }
         return Fmt.elapsed(since: session.time.createdDate, now: session.time.updatedDate)
+    }
+
+    // MARK: - Composer
+
+    private var canSend: Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
+    }
+
+    private var composer: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            if let sendError {
+                Text(sendError)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(alignment: .center, spacing: 8) {
+                TextField(
+                    isRunning ? "Queue a message…" : "Message this session…",
+                    text: $draft,
+                    axis: .vertical
+                )
+                .textFieldStyle(.plain)
+                .font(.subheadline)
+                .lineLimit(1...5)
+                .focused($composerFocused)
+                .submitLabel(.send)
+                .onSubmit { Task { await send() } }
+
+                Button {
+                    Task { await send() }
+                } label: {
+                    if isSending {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 26))
+                            .foregroundStyle(canSend ? Theme.accent : Color.secondary.opacity(0.45))
+                    }
+                }
+                .buttonStyle(.plain)
+                .frame(width: 30, height: 30)
+                .contentShape(Rectangle())
+                .disabled(!canSend)
+                .accessibilityLabel("Send message")
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(MobileTheme.field)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(
+                        composerFocused ? Theme.accent.opacity(0.5) : MobileTheme.border,
+                        lineWidth: 1
+                    )
+            )
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 8)
+        .background(.ultraThinMaterial)
+    }
+
+    private func send() async {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !isSending else { return }
+
+        isSending = true
+        sendError = nil
+        do {
+            try await store.promptSession(
+                id: sessionID,
+                text: text,
+                delivery: isRunning ? .queue : nil
+            )
+            draft = ""
+            await loadLatest()
+            scrollRequest += 1
+        } catch {
+            sendError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        isSending = false
     }
 
     // MARK: - Content

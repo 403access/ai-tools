@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { HUB_VERSION, lanAddresses, type HubConfig } from "./config.ts";
 import type { HubDB } from "./db.ts";
 import type { Hub } from "./hub.ts";
+import { OpenCodeError } from "./opencode.ts";
 import type { ActiveSessionsResponse, HubEvent, ServerInfo } from "./types.ts";
 
 export interface ApiDeps {
@@ -31,6 +32,22 @@ function json(data: unknown, status = 200, extra: Record<string, string> = {}): 
 
 function error(message: string, status = 400): Response {
   return json({ error: { message } }, status);
+}
+
+interface JSONBody {
+  [key: string]: unknown;
+}
+
+/** Reads a JSON object body, returning null when the payload is malformed. */
+async function readJSONBody(request: Request): Promise<JSONBody | null> {
+  try {
+    const value: unknown = await request.json();
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as JSONBody)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -198,6 +215,27 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
         return json({ data });
       }
 
+      if (pathname === "/api/session" && request.method === "POST") {
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+
+        const location = body.location;
+        const directory =
+          location && typeof location === "object"
+            ? (location as Record<string, unknown>).directory
+            : undefined;
+        if (typeof directory !== "string" || !directory.trim()) {
+          return error("A location.directory is required", 400);
+        }
+
+        const title = typeof body.title === "string" ? body.title.trim() : "";
+        const session = await hub.createSession({
+          title: title || undefined,
+          directory: directory.trim(),
+        });
+        return json({ data: session });
+      }
+
       if (pathname === "/api/session/active" && request.method === "GET") {
         return json(activeResponse(db));
       }
@@ -223,6 +261,26 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
         if (parts.length === 4 && parts[3] === "stats") {
           const stats = await hub.sessionStats(id);
           return stats ? json({ data: stats }) : error("Session not found", 404);
+        }
+
+        if (parts.length === 4 && parts[3] === "prompt") {
+          if (request.method !== "POST") return error("Method not allowed", 405);
+
+          const body = await readJSONBody(request);
+          if (!body) return error("Expected a JSON body", 400);
+
+          const text = typeof body.text === "string" ? body.text.trim() : "";
+          if (!text) return error("Prompt text is required", 400);
+
+          let delivery: "steer" | "queue" | undefined;
+          if (body.delivery !== undefined && body.delivery !== null) {
+            if (body.delivery !== "steer" && body.delivery !== "queue") {
+              return error("delivery must be steer or queue", 400);
+            }
+            delivery = body.delivery;
+          }
+
+          return json(await hub.promptSession(id, text, delivery));
         }
 
         if (parts.length === 3) {
@@ -267,6 +325,9 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
       console.error(`[hub] ${request.method} ${pathname} failed: ${message}`);
+      if (caught instanceof OpenCodeError) {
+        return error(message, caught.status ?? 502);
+      }
       return error(message, 500);
     }
   };

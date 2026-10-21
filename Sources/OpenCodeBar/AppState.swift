@@ -625,6 +625,31 @@ final class AppState: ObservableObject {
         return try await api.sessionMessages(id: sessionID, limit: limit, cursor: cursor)
     }
 
+    /// Creates a session in `directory` and opens it. Used by the New Session
+    /// sheet on the Live and Project detail views.
+    func createSession(title: String?, directory: String) async throws -> Session {
+        guard let api else { throw APIError.transport("Not connected to OpenCode") }
+        let session = try await api.createSession(title: title, directory: directory)
+        sessions.insert(session, at: 0)
+        sessionStack.removeAll()
+        selectedSession = session
+        await refreshLive()
+        return session
+    }
+
+    /// Sends a prompt into an open session. Running sessions queue the message
+    /// by default so it does not interrupt the current turn.
+    func promptSession(
+        id: String,
+        text: String,
+        delivery: PromptDelivery? = nil
+    ) async throws {
+        guard let api else { throw APIError.transport("Not connected to OpenCode") }
+        try await api.promptSession(id: id, text: text, delivery: delivery)
+        activeIDs.insert(id)
+        await refreshLive()
+    }
+
     /// Fetches the file patches written by a session. The hub hydrates message
     /// history on demand, so the first call may page through a long session.
     func loadChanges(_ sessionID: String, force: Bool = false) async {

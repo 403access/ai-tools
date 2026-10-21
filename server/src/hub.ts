@@ -429,6 +429,36 @@ export class Hub {
     return this.db.getSession(id);
   }
 
+  /** Starts a new OpenCode session in a project directory. */
+  async createSession(input: { title?: string; directory: string }): Promise<Session> {
+    const client = this.client ?? (await this.ensureClient());
+    if (!client) throw new OpenCodeError("OpenCode is offline", 503);
+
+    const session = await client.createSession(input);
+    this.db.upsertSessions([session]);
+    this.broadcast({ type: "hub.sessions", data: { at: Date.now() } });
+    return session;
+  }
+
+  /**
+   * Sends a prompt into an existing session. The service admits the message
+   * durably and schedules the agent loop, so the session is marked running
+   * immediately rather than waiting for the next poll.
+   */
+  async promptSession(
+    id: string,
+    text: string,
+    delivery?: "steer" | "queue",
+  ): Promise<unknown> {
+    const client = this.client ?? (await this.ensureClient());
+    if (!client) throw new OpenCodeError("OpenCode is offline", 503);
+
+    const result = await client.promptSession(id, text, delivery);
+    this.db.markActive(id, true);
+    this.broadcast({ type: "hub.sessions", data: { at: Date.now() } });
+    return result;
+  }
+
   async children(parentID: string): Promise<Session[]> {
     const cached = this.db.getSessions({ parentID, limit: 50 });
     const client = this.client ?? (await this.ensureClient());

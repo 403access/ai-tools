@@ -4,6 +4,8 @@ struct LiveView: View {
     @EnvironmentObject private var settings: HubSettingsStore
     @EnvironmentObject private var store: MobileStore
     @State private var path = NavigationPath()
+    @State private var showingNewSession = false
+    @State private var sessionToOpen: Session?
 
     var body: some View {
         let connection = store.connection
@@ -28,7 +30,18 @@ struct LiveView: View {
                     MobileBrandTitle()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    ConnectionPill(connection: connection, activeCount: activeCount)
+                    HStack(spacing: 10) {
+                        Button {
+                            showingNewSession = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .disabled(!settings.isConfigured)
+                        .accessibilityLabel("New session")
+
+                        ConnectionPill(connection: connection, activeCount: activeCount)
+                    }
                 }
             }
             .refreshable { await store.refreshAll() }
@@ -38,7 +51,19 @@ struct LiveView: View {
             .task(id: store.lastUpdated) {
                 openRequestedSession()
             }
+            .sheet(isPresented: $showingNewSession, onDismiss: openCreatedSession) {
+                MobileNewSessionSheet { session in
+                    sessionToOpen = session
+                }
+                .environmentObject(store)
+            }
         }
+    }
+
+    private func openCreatedSession() {
+        guard let session = sessionToOpen else { return }
+        sessionToOpen = nil
+        path.append(session)
     }
 
     #if DEBUG

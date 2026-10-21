@@ -12,6 +12,8 @@ enum APIError: LocalizedError {
     case badURL
     case unauthorized
     case status(Int)
+    /// A hub request failed with a server-provided message.
+    case request(Int, String)
     case badResponse
     case decoding(String)
     case transport(String)
@@ -21,6 +23,7 @@ enum APIError: LocalizedError {
         case .badURL: return "Invalid hub URL"
         case .unauthorized: return "Hub token rejected"
         case .status(let code): return "Hub returned HTTP \(code)"
+        case .request(let code, let message): return "\(message) (HTTP \(code))"
         case .badResponse: return "Unexpected hub response"
         case .decoding(let detail): return "Failed to read hub response: \(detail)"
         case .transport(let detail): return detail
@@ -47,6 +50,14 @@ struct HubUsageResponse: Decodable, Sendable {
     var fetchedDate: Date? {
         fetchedAt.map { Date(timeIntervalSince1970: $0 / 1000) }
     }
+}
+
+/// How a message should be admitted while a session is already running.
+enum PromptDelivery: String, Encodable, Sendable {
+    /// Wait for the current run to finish, then start a new turn.
+    case queue
+    /// Deliver into the current turn.
+    case steer
 }
 
 /// Health snapshot for the connection footer and settings screen.
@@ -135,6 +146,49 @@ struct HubAPI: Sendable {
         return response.data
     }
 
+    /// Starts a new session in a project directory. The hub asks OpenCode to
+    /// pick the default agent and model.
+    func createSession(title: String?, directory: String) async throws -> Session {
+        struct Location: Encodable { var directory: String }
+        struct Body: Encodable {
+            var title: String?
+            var location: Location
+        }
+
+        let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let body = Body(
+            title: trimmedTitle.isEmpty ? nil : trimmedTitle,
+            location: Location(directory: directory)
+        )
+        let data = try await send(
+            "/api/session",
+            method: "POST",
+            body: try JSONEncoder().encode(body)
+        )
+        do {
+            return try Self.decoder.decode(SessionEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    /// Sends a prompt into an existing session. If the session is running,
+    /// `delivery` decides whether the message waits or steers the current turn.
+    func promptSession(id: String, text: String, delivery: PromptDelivery? = nil) async throws {
+        struct Body: Encodable {
+            var text: String
+            var delivery: PromptDelivery?
+        }
+
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let body = Body(text: text, delivery: delivery)
+        _ = try await send(
+            "/api/session/\(encoded)/prompt",
+            method: "POST",
+            body: try JSONEncoder().encode(body)
+        )
+    }
+
     func sessionMessages(
         id: String,
         limit: Int = 100,
@@ -219,8 +273,12 @@ struct HubAPI: Sendable {
     }
 
     @discardableResult
-    func send(_ path: String, method: String = "GET") async throws -> Data {
-        let request = try request(path, method: method)
+    func send(_ path: String, method: String = "GET", body: Data? = nil) async throws -> Data {
+        var request = try request(path, method: method)
+        if let body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
         let started = Date()
         Self.debugLog("[hub] start \(method) \(path)")
         let data: Data
@@ -242,9 +300,21 @@ struct HubAPI: Sendable {
         case 401, 403:
             throw APIError.unauthorized
         default:
-            throw APIError.status(http.statusCode)
+            throw APIError.request(http.statusCode, Self.serverMessage(from: data))
         }
         return data
+    }
+
+    /// Extracts the hub's `{"error":{"message":"…"}}` payload for display.
+    private static func serverMessage(from data: Data) -> String {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let error = object["error"] as? [String: Any],
+              let message = error["message"] as? String,
+              !message.isEmpty
+        else {
+            return "Hub request failed"
+        }
+        return message
     }
 
     /// Opt-in tracing, enabled with `OPENCODEBAR_DEBUG_SUBAGENTS=1`. Uses
