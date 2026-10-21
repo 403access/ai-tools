@@ -1,4 +1,4 @@
-.PHONY: build test app run restart preview shots site clean icon hub hub-dev hub-test mobile-project mobile-build mobile-run mobile-icon
+.PHONY: build test app run restart preview shots site clean icon hub hub-dev hub-test mobile-project mobile-build mobile-run mobile-device mobile-icon
 
 # Compile the Swift package (debug).
 build:
@@ -81,6 +81,13 @@ mobile-build: mobile-project
 # running hub automatically when ~/.config/opencode/opencodebar-hub.json exists.
 mobile-run: mobile-build
 	Scripts/run-mobile.sh
+
+# Build, sign, install, and launch the iOS app on a connected iPhone or iPad.
+# Pairs over the Mac's LAN address when ~/.config/opencode/opencodebar-hub.json
+# exists. Use DEVICE=… to pick among several devices; DEVELOPMENT_TEAM=… when
+# the signing team cannot be auto-detected.
+mobile-device: mobile-project
+	DEVICE="$(DEVICE)" DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)" Scripts/run-mobile-device.sh
 
 clean:
 	swift package clean

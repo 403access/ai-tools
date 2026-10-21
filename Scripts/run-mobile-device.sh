@@ -1,0 +1,337 @@
+#!/usr/bin/env bash
+#
+# Build, install, and launch the iOS app on a physical iPhone or iPad, then
+# pair it with the running hub over the LAN.
+#
+#   Scripts/run-mobile-device.sh
+#   Scripts/run-mobile-device.sh --device "iPhone von Oli"
+#   DEVICE="iPhone von Oli" Scripts/run-mobile-device.sh
+#   DEVELOPMENT_TEAM=ABCDE12345 Scripts/run-mobile-device.sh
+#
+# The device must be unlocked, trusted, and have Developer Mode enabled. Signing
+# uses the first "Apple Development" identity unless DEVELOPMENT_TEAM is set.
+# Pairing uses the Mac's LAN address because 127.0.0.1 on the phone means the
+# phone itself.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BUNDLE_ID="dev.opencodebar.mobile"
+DERIVED="$ROOT/.build/ios-device"
+APP="$DERIVED/Build/Products/Debug-iphoneos/OpenCodeBar.app"
+HUB_CONFIG="${HUB_CONFIG:-$HOME/.config/opencode/opencodebar-hub.json}"
+
+usage() {
+    cat <<'TEXT'
+Build, install, and launch OpenCodeBar on a connected iPhone or iPad.
+
+Usage:
+  Scripts/run-mobile-device.sh                  build and run on the only device
+  Scripts/run-mobile-device.sh -d "My iPhone"   pick a device by name
+  Scripts/run-mobile-device.sh --no-build       install the last build
+  Scripts/run-mobile-device.sh --console        stream the app's log output
+  Scripts/run-mobile-device.sh --help
+
+Environment:
+  DEVICE             Device name, UDID, serial number, or identifier
+  DEVELOPMENT_TEAM   10-character Apple Team ID (otherwise auto-detected)
+  OPENCODEBAR_HUB_URL / OPENCODEBAR_HUB_TOKEN
+                     Override the hub connection from opencodebar-hub.json
+  HUB_LAN_IP         Mac LAN address to pair with (otherwise auto-detected)
+
+First run: connect the device, unlock it, tap Trust, and enable
+Settings → Privacy & Security → Developer Mode.
+TEXT
+}
+
+device="${DEVICE:-}"
+build=1
+console=0
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -d|--device)
+            if [ $# -lt 2 ]; then
+                echo "run-mobile-device: $1 needs a value" >&2
+                exit 2
+            fi
+            device="$2"
+            shift 2
+            ;;
+        --device=*)
+            device="${1#*=}"
+            shift
+            ;;
+        -n|--no-build)
+            build=0
+            shift
+            ;;
+        --console)
+            console=1
+            shift
+            ;;
+        *)
+            echo "run-mobile-device: unknown option '$1'" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+if ! command -v xcrun >/dev/null 2>&1; then
+    echo "run-mobile-device: xcrun not found; install Xcode first." >&2
+    exit 1
+fi
+
+# Pick a physical device. Prefer a connected one; if none is connected, accept a
+# single paired device so Wi-Fi devices can still be reached by devicectl.
+device_line=""
+if ! device_line="$(
+    xcrun devicectl list devices --json-output - 2>/dev/null | python3 -c '
+import json
+import sys
+
+wanted = sys.argv[1].strip().lower()
+data = json.load(sys.stdin)
+
+devices = []
+for entry in data.get("result", {}).get("devices", []):
+    hardware = (entry.get("properties") or {}).get("hardware") or entry.get("hardwareProperties") or {}
+    connection = (entry.get("properties") or {}).get("connection") or entry.get("connectionProperties") or {}
+    details = entry.get("deviceProperties") or {}
+
+    if hardware.get("platform") != "iOS":
+        continue
+    if hardware.get("reality") != "physical":
+        continue
+
+    devices.append({
+        "id": entry.get("identifier", ""),
+        "name": details.get("name") or entry.get("name") or hardware.get("marketingName") or "iPhone",
+        "model": hardware.get("marketingName", ""),
+        "state": connection.get("state", "unknown"),
+        "udid": hardware.get("udid", ""),
+        "serial": hardware.get("serialNumber", ""),
+        "ecid": str(hardware.get("ecid", "")),
+    })
+
+def label(item):
+    if item["model"] and item["model"] != item["name"]:
+        return "%s (%s)" % (item["name"], item["model"])
+    return item["name"]
+
+def matches(item):
+    if not wanted:
+        return False
+    values = [item["id"], item["udid"], item["serial"], item["ecid"], item["name"], item["model"]]
+    return any(wanted == value.lower() for value in values if value) or wanted in item["name"].lower()
+
+if wanted:
+    found = [item for item in devices if matches(item)]
+    if not found:
+        print("No physical iOS device matches %r. Known devices:" % sys.argv[1], file=sys.stderr)
+        for item in devices:
+            print("  %s — %s (%s)" % (label(item), item["state"], item["udid"] or item["id"]), file=sys.stderr)
+        sys.exit(2)
+    if len(found) > 1:
+        print("%r matches more than one device; use a UDID:" % sys.argv[1], file=sys.stderr)
+        for item in found:
+            print("  %s — %s" % (label(item), item["udid"] or item["id"]), file=sys.stderr)
+        sys.exit(3)
+    chosen = found[0]
+else:
+    connected = [item for item in devices if item["state"] == "connected"]
+    if len(connected) == 1:
+        chosen = connected[0]
+    elif len(connected) > 1:
+        print("More than one device is connected; pass --device:", file=sys.stderr)
+        for item in connected:
+            print("  %s — %s" % (label(item), item["udid"] or item["id"]), file=sys.stderr)
+        sys.exit(4)
+    elif len(devices) == 1:
+        print("Note: %s is not currently connected; trying anyway." % label(devices[0]), file=sys.stderr)
+        chosen = devices[0]
+    else:
+        print("No physical iOS device found. Connect and unlock an iPhone or iPad,", file=sys.stderr)
+        print("tap Trust, and enable Developer Mode, then run this again.", file=sys.stderr)
+        sys.exit(5)
+
+print("\t".join([chosen["id"], label(chosen), chosen["state"], chosen["udid"]]))
+' "$device"
+)"; then
+    echo "run-mobile-device: could not select a device." >&2
+    exit 1
+fi
+
+IFS=$'\t' read -r DEVICE_ID DEVICE_NAME DEVICE_STATE DEVICE_UDID <<<"$device_line"
+if [ -z "$DEVICE_ID" ]; then
+    echo "run-mobile-device: could not determine the device identifier." >&2
+    exit 1
+fi
+if [ -n "$DEVICE_UDID" ]; then
+    echo "Using device $DEVICE_NAME ($DEVICE_UDID)"
+else
+    echo "Using device $DEVICE_NAME ($DEVICE_ID)"
+fi
+if [ "$DEVICE_STATE" != "connected" ]; then
+    echo "Warning: the device reports '$DEVICE_STATE'. It may still be reachable over Wi-Fi;"
+    echo "keep it unlocked and on the same network, or plug it in."
+fi
+
+cert_team="$(
+    security find-identity -v -p codesigning 2>/dev/null \
+        | sed -nE 's/.*Apple Development: .*\(([A-Z0-9]{10})\)".*/\1/p' \
+        | head -1
+)"
+
+# The team on the certificate can be stale (for example after switching Apple
+# IDs). Prefer a team Xcode actually has an account for, using the identity's
+# team when it is still listed.
+team="${DEVELOPMENT_TEAM:-}"
+if [ -z "$team" ]; then
+    team="$(
+        defaults export com.apple.dt.Xcode - 2>/dev/null | python3 -c '
+import plistlib
+import sys
+
+team_on_certificate = sys.argv[1]
+try:
+    prefs = plistlib.loads(sys.stdin.buffer.read())
+except Exception:
+    sys.exit(0)
+
+teams = []
+for entries in (prefs.get("IDEProvisioningTeams") or {}).values():
+    for entry in entries or []:
+        if entry.get("teamID") and entry not in teams:
+            teams.append(entry)
+
+if not teams:
+    sys.exit(0)
+
+ids = [entry["teamID"] for entry in teams]
+if team_on_certificate in ids:
+    print(team_on_certificate)
+    sys.exit(0)
+
+last = prefs.get("IDEProvisioningTeamManagerLastSelectedTeamID")
+if last in ids:
+    print(last)
+    sys.exit(0)
+
+paid = [entry for entry in teams if not entry.get("isFreeProvisioningTeam")]
+print((paid or teams)[0]["teamID"])
+' "$cert_team" 2>/dev/null || true
+    )"
+fi
+if [ -z "$team" ]; then
+    team="$cert_team"
+fi
+if [ -z "$team" ]; then
+    cat >&2 <<'TEXT'
+run-mobile-device: no Apple Development signing identity found.
+Sign in to Xcode (Settings → Accounts) or set DEVELOPMENT_TEAM to your Team ID.
+TEXT
+    exit 1
+fi
+
+if [ "$build" -eq 1 ]; then
+    # A specific destination lets Xcode register the device and include it in
+    # the provisioning profile. Offline devices cannot be prepared that way, so
+    # fall back to a generic build and let devicectl report connectivity.
+    destination="generic/platform=iOS"
+    if [ "$DEVICE_STATE" = "connected" ] && [ -n "$DEVICE_UDID" ]; then
+        destination="platform=iOS,id=$DEVICE_UDID"
+    fi
+
+    echo "==> Building $BUNDLE_ID for device (team $team)"
+    if ! (
+        cd "$ROOT"
+        xcodegen generate
+        xcodebuild \
+            -project OpenCodeBarMobile.xcodeproj \
+            -scheme OpenCodeBarMobile \
+            -configuration Debug \
+            -destination "$destination" \
+            -derivedDataPath "$DERIVED" \
+            -allowProvisioningUpdates \
+            -allowProvisioningDeviceRegistration \
+            DEVELOPMENT_TEAM="$team" \
+            CODE_SIGN_STYLE=Automatic \
+            build
+    ); then
+        cat >&2 <<'TEXT'
+run-mobile-device: device build failed.
+If this was a signing error, open Xcode → Settings → Accounts and sign in with
+the Apple ID that owns the development team, then run this script again.
+TEXT
+        exit 1
+    fi
+elif [ ! -d "$APP" ]; then
+    echo "run-mobile-device: no device build at $APP; run without --no-build first." >&2
+    exit 1
+fi
+
+hub_url="${OPENCODEBAR_HUB_URL:-${HUB_URL:-}}"
+hub_token="${OPENCODEBAR_HUB_TOKEN:-${HUB_TOKEN:-}}"
+if [ -f "$HUB_CONFIG" ]; then
+    if [ -z "$hub_url" ]; then
+        hub_url="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("url", ""))' "$HUB_CONFIG")"
+    fi
+    if [ -z "$hub_token" ]; then
+        hub_token="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("token", ""))' "$HUB_CONFIG")"
+    fi
+fi
+
+lan_ip="${HUB_LAN_IP:-}"
+if [ -z "$lan_ip" ]; then
+    for iface in $(netstat -rn -f inet 2>/dev/null | awk '$1 == "default" { print $NF; exit }') en0 en1 en2; do
+        lan_ip="$(ipconfig getifaddr "$iface" 2>/dev/null || true)"
+        [ -n "$lan_ip" ] && break
+    done
+fi
+
+pair_url=""
+if [ -n "$hub_url" ] && [ -n "$hub_token" ]; then
+    if [ -z "$lan_ip" ]; then
+        echo "Warning: no LAN address found; skipping automatic pairing (set HUB_LAN_IP)."
+    else
+        pair_url="$(
+            HUB_TOKEN="$hub_token" python3 - "$hub_url" "$lan_ip" <<'PY'
+import os
+import sys
+import urllib.parse
+
+url, lan = sys.argv[1], sys.argv[2]
+token = os.environ.get("HUB_TOKEN", "")
+parts = urllib.parse.urlsplit(url)
+if parts.hostname in {"127.0.0.1", "localhost", "0.0.0.0", "::1"}:
+    netloc = lan
+    if parts.port:
+        netloc = f"{netloc}:{parts.port}"
+    url = f"{parts.scheme or 'http'}://{netloc}"
+print("opencodebar://pair?url=" + urllib.parse.quote(url, safe="") + "&token=" + urllib.parse.quote(token, safe=""))
+PY
+        )"
+    fi
+elif [ ! -f "$HUB_CONFIG" ]; then
+    echo "No hub config found at $HUB_CONFIG — pair from the app's Settings, or set OPENCODEBAR_HUB_URL/TOKEN."
+fi
+
+echo "==> Installing on $DEVICE_NAME"
+xcrun devicectl device install app --device "$DEVICE_ID" "$APP"
+
+launch_args=(--device "$DEVICE_ID" --terminate-existing)
+if [ "$console" -eq 1 ]; then
+    launch_args+=(--console)
+fi
+if [ -n "$pair_url" ]; then
+    launch_args+=(--payload-url "$pair_url")
+    echo "Pairing with the hub at $(python3 -c 'import sys,urllib.parse; print(urllib.parse.parse_qs(urllib.parse.urlsplit(sys.argv[1]).query)["url"][0])' "$pair_url")"
+fi
+
+echo "==> Launching $BUNDLE_ID"
+xcrun devicectl device process launch "${launch_args[@]}" "$BUNDLE_ID"
