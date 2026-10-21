@@ -7,23 +7,23 @@ import UIKit
 enum MobileTheme {
     static let background = dynamic(
         dark: UIColor(red: 0.071, green: 0.075, blue: 0.086, alpha: 1),
-        light: UIColor(red: 0.949, green: 0.953, blue: 0.965, alpha: 1)
+        light: UIColor(red: 0.925, green: 0.941, blue: 0.953, alpha: 1)
     )
 
     static let bar = dynamic(
         dark: UIColor(red: 0.106, green: 0.114, blue: 0.129, alpha: 1),
-        light: UIColor(red: 0.984, green: 0.984, blue: 0.992, alpha: 1)
+        light: UIColor(red: 0.976, green: 0.984, blue: 0.988, alpha: 1)
     )
 
     /// Fill for fields and other recessed controls on top of a card.
     static let field = dynamic(
         dark: UIColor.white.withAlphaComponent(0.055),
-        light: UIColor.black.withAlphaComponent(0.045)
+        light: UIColor(red: 0.894, green: 0.918, blue: 0.933, alpha: 1)
     )
 
     static let border = dynamic(
         dark: UIColor.white.withAlphaComponent(0.09),
-        light: UIColor.black.withAlphaComponent(0.07)
+        light: UIColor.black.withAlphaComponent(0.08)
     )
 
     private static func dynamic(dark: UIColor, light: UIColor) -> Color {
@@ -43,15 +43,23 @@ struct MobileBackground: View {
             MobileTheme.background
 
             GeometryReader { geo in
+                if colorScheme == .light {
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.65), .clear],
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                }
+
                 RadialGradient(
-                    colors: [Theme.accent.opacity(colorScheme == .dark ? 0.10 : 0.09), .clear],
+                    colors: [Theme.accent.opacity(colorScheme == .dark ? 0.10 : 0.13), .clear],
                     center: .topLeading,
                     startRadius: 0,
                     endRadius: max(geo.size.width, geo.size.height) * 0.72
                 )
 
                 RadialGradient(
-                    colors: [Theme.input.opacity(colorScheme == .dark ? 0.075 : 0.06), .clear],
+                    colors: [Theme.input.opacity(colorScheme == .dark ? 0.075 : 0.10), .clear],
                     center: .topTrailing,
                     startRadius: 0,
                     endRadius: max(geo.size.width, geo.size.height) * 0.62

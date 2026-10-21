@@ -110,6 +110,7 @@ struct RootView: View {
 /// Mac panel, moved to the thumb reach on iPhone.
 struct MobileTabBar: View {
     @Binding var selection: RootView.Tab
+    @Environment(\.colorScheme) private var colorScheme
     @Namespace private var selectionNamespace
 
     var body: some View {
@@ -132,7 +133,12 @@ struct MobileTabBar: View {
                     .background {
                         if selection == tab {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.primary.opacity(0.11))
+                                .fill(colorScheme == .dark ? Color.primary.opacity(0.11) : .white)
+                                .shadow(
+                                    color: colorScheme == .dark ? .clear : .black.opacity(0.10),
+                                    radius: 3,
+                                    y: 1
+                                )
                                 .matchedGeometryEffect(id: "selection", in: selectionNamespace)
                         }
                     }
@@ -152,6 +158,10 @@ struct MobileTabBar: View {
             RoundedRectangle(cornerRadius: 19, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+        .shadow(
+            color: .black.opacity(colorScheme == .dark ? 0.35 : 0.12),
+            radius: 18,
+            y: 8
+        )
     }
 }
