@@ -117,8 +117,8 @@ final class AppState: ObservableObject {
 
     @Published private(set) var statsFetchedAt: Date?
 
-    private var api: OpenCodeAPI?
-    private var location: ServiceLocation?
+    private var api: HubAPI?
+    private var location: HubLocation?
     private var cache = UsageCache()
     private var eventTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
@@ -196,29 +196,32 @@ final class AppState: ObservableObject {
         defer { discovering = false }
 
         guard let location = await discover() else {
-            connection = .offline("Service not found")
+            connection = .offline("Hub not found")
             if stats != nil { statsStale = true }
             return
         }
         self.location = location
-        self.api = OpenCodeAPI(location: location)
+        self.api = HubAPI(location: location)
         // Connect before the slower history/stats fetches so live events from
         // the first seconds after launch are not missed.
         startEvents()
         await refreshAll()
     }
 
-    private func discover() async -> ServiceLocation? {
+    private func discover() async -> HubLocation? {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(returning: ServiceDiscovery.load())
+                continuation.resume(returning: HubDiscovery.load())
             }
         }
     }
 
     private func startEvents() {
         guard let location, eventTask == nil else { return }
-        eventTask = EventStream.connect(location: location) { [weak self] event in
+        eventTask = HubEventStream.connect(
+            baseURL: location.url,
+            token: location.token
+        ) { [weak self] event in
             Task { @MainActor in self?.handle(event) }
         }
     }
@@ -338,13 +341,11 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Fetches Go plan quota. Cheap when no key is configured: `auth.json` is
-    /// re-read each cycle so a new key is picked up without a restart.
+    /// Fetches Go plan quota from the hub, which owns the usage key and keeps a
+    /// last-known-good copy in SQLite. Cheap when no key is configured: the hub
+    /// says so without making a request.
     func refreshGoUsage() async {
-        guard let key = GoUsageClient.apiKey() else {
-            goUsage = .unavailable
-            return
-        }
+        guard let api else { return }
         switch goUsage {
         case .ready, .stale:
             break // Keep showing the current numbers while refreshing.
@@ -352,12 +353,31 @@ final class AppState: ObservableObject {
             goUsage = .loading
         }
         do {
-            let usage = try await GoUsageClient.fetch(key: key)
-            goUsage = .ready(usage)
-            goUsageFetchedAt = Date()
-            cache.goUsage = usage
-            cache.goUsageFetchedAt = goUsageFetchedAt
-            cache.save()
+            let response = try await api.usage()
+            guard response.configured else {
+                goUsage = .unavailable
+                goUsageFetchedAt = nil
+                return
+            }
+            if let usage = response.data {
+                if let error = response.error, !error.isEmpty {
+                    goUsage = .stale(usage, reason: error)
+                } else {
+                    goUsage = .ready(usage)
+                }
+                goUsageFetchedAt = response.fetchedDate ?? Date()
+                cache.goUsage = usage
+                cache.goUsageFetchedAt = goUsageFetchedAt
+                cache.save()
+            } else if let error = response.error {
+                if let cached = cache.goUsage {
+                    goUsage = .stale(cached, reason: error)
+                } else {
+                    goUsage = .failed(error)
+                }
+            } else {
+                goUsage = .unavailable
+            }
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             if let cached = cache.goUsage {
@@ -400,7 +420,7 @@ final class AppState: ObservableObject {
     /// Folds an event into the matching session's activity, updates live
     /// cost/tokens, and refreshes the list (debounced) as before.
     private func handle(_ event: OpenCodeEvent) {
-        if event.type == "server.connected" {
+        if event.type == "server.connected" || event.type == "hub.connected" {
             if eventStreamConnected {
                 // Events may have been missed while the stream was down; mark
                 // the snapshots stale so the next refresh rebuilds them.
@@ -410,6 +430,10 @@ final class AppState: ObservableObject {
                 }
             }
             eventStreamConnected = true
+        }
+
+        if event.type == "hub.usage" {
+            Task { await refreshGoUsage() }
         }
 
         if let id = event.sessionID {
@@ -433,6 +457,7 @@ final class AppState: ObservableObject {
         }
 
         if event.type == "server.connected"
+            || event.type.hasPrefix("hub.")
             || event.type.hasPrefix("session.")
             || event.type.hasPrefix("message.")
             || event.type.hasPrefix("permission.") {

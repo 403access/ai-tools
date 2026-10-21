@@ -1,0 +1,17 @@
+{
+  "name": "opencodebar-hub",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SQLite-backed sync hub for OpenCodeBar (macOS + iOS)",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch run src/index.ts",
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -116,7 +116,9 @@ struct TodoProgressRow: View {
 
                 ProgressView(value: activity.todoFraction)
                     .progressViewStyle(.linear)
+                    #if os(macOS)
                     .controlSize(.mini)
+                    #endif
                     .tint(Theme.accent)
                     .frame(width: 46)
             }

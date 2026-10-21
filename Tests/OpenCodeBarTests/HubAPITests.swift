@@ -1,0 +1,124 @@
+import XCTest
+@testable import OpenCodeBar
+
+/// Guards the JSON contract between the hub and the clients. The hub mirrors
+/// OpenCode's shapes and adds a few of its own, so these fixtures double as
+/// documentation of what the server must keep returning.
+final class HubAPITests: XCTestCase {
+    private func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
+        try JSONDecoder().decode(T.self, from: Data(json.utf8))
+    }
+
+    func testUsageResponseKeepsLastGoodPayloadWithError() throws {
+        let json = """
+        {
+          "data": { "rolling": { "percent": 12, "resetsAt": "2026-10-21T23:00:00Z" } },
+          "fetchedAt": 1792595500600,
+          "stale": true,
+          "error": "Go API key expired — create a new one in Console",
+          "configured": true
+        }
+        """
+        let response = try decode(HubUsageResponse.self, json)
+        XCTAssertTrue(response.configured)
+        XCTAssertEqual(response.stale, true)
+        XCTAssertEqual(response.data?.rolling?.percent, 12)
+        XCTAssertEqual(response.error?.isEmpty, false)
+        XCTAssertNotNil(response.fetchedDate)
+    }
+
+    func testUsageResponseReportsUnconfiguredHub() throws {
+        let json = """
+        { "data": null, "fetchedAt": null, "stale": false, "error": null, "configured": false }
+        """
+        let response = try decode(HubUsageResponse.self, json)
+        XCTAssertFalse(response.configured)
+        XCTAssertNil(response.data)
+        XCTAssertNil(response.fetchedDate)
+    }
+
+    func testSessionsResponseDecodesHubShape() throws {
+        let json = """
+        {
+          "data": [
+            {
+              "id": "ses_1",
+              "parentID": "ses_parent",
+              "projectID": "prj_1",
+              "agent": "build",
+              "model": { "id": "deepseek-v4.1-flash", "providerID": "opencode" },
+              "cost": 0.21,
+              "tokens": { "input": 10, "output": 20, "reasoning": 3, "cache": { "read": 4, "write": 5 } },
+              "time": { "created": 1792592046011, "updated": 1792595523652, "idle": 1792595414457 },
+              "title": "Mobile app with shared server",
+              "location": { "directory": "/Users/example/ai-tools" }
+            }
+          ]
+        }
+        """
+        let response = try decode(SessionsResponse.self, json)
+        XCTAssertEqual(response.data.count, 1)
+        let session = try XCTUnwrap(response.data.first)
+        XCTAssertEqual(session.id, "ses_1")
+        XCTAssertEqual(session.parentID, "ses_parent")
+        XCTAssertEqual(session.agent, "build")
+        XCTAssertEqual(session.model?.id, "deepseek-v4.1-flash")
+        XCTAssertEqual(session.tokens.total, 42)
+        XCTAssertEqual(session.directory, "/Users/example/ai-tools")
+        XCTAssertTrue(session.isSubagent)
+    }
+
+    func testStatsResponseDecodesCachedPayloadWithFlags() throws {
+        let json = """
+        {
+          "data": {
+            "range": { "from": 1, "to": 2 },
+            "steps": 43642,
+            "sessions": 570,
+            "subagents": 3,
+            "prompts": 99,
+            "cost": 12.5,
+            "tokens": { "input": 1, "output": 2, "reasoning": 3, "cache": { "read": 4, "write": 5 } },
+            "tools": { "mode": "enabled", "totals": { "calls": 10, "succeeded": 9, "failed": 1, "unfinished": 0 } },
+            "streak": 39,
+            "activeDays": 49,
+            "activity": [ { "date": "2026-10-21", "steps": 1373 } ],
+            "models": []
+          },
+          "fetchedAt": 1792595500600,
+          "stale": false
+        }
+        """
+        let response = try decode(StatsResponse.self, json)
+        XCTAssertEqual(response.data.steps, 43_642)
+        XCTAssertEqual(response.data.steps(onDay: "2026-10-21"), 1_373)
+        XCTAssertEqual(response.data.maxSteps, 1_373)
+    }
+
+    func testHealthResponseDecodesHubAndOpenCodeStatus() throws {
+        let json = """
+        {
+          "ok": true,
+          "version": "1.0.0",
+          "hub": { "version": "1.0.0", "uptime": 10440, "sessions": 570, "messages": 148, "projects": 16 },
+          "opencode": {
+            "connected": true,
+            "url": "http://127.0.0.1:49374",
+            "version": "2.1.1",
+            "lastSync": 1792595515303,
+            "lastError": null
+          }
+        }
+        """
+        let response = try decode(HubHealthResponse.self, json)
+        XCTAssertEqual(response.hub?.sessions, 570)
+        XCTAssertEqual(response.opencode?.connected, true)
+        XCTAssertEqual(response.opencode?.version, "2.1.1")
+    }
+
+    func testTransportErrorsTriggerRediscovery() {
+        XCTAssertTrue(APIError.transport("connection refused").shouldRediscover)
+        XCTAssertTrue(APIError.unauthorized.shouldRediscover)
+        XCTAssertFalse(APIError.status(503).shouldRediscover)
+    }
+}

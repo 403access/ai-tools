@@ -1,11 +1,16 @@
 # OpenCodeBar
 
-A native macOS menu bar app that shows what your [OpenCode](https://opencode.ai)
-background service is doing — at a glance, without leaving your current window.
+Watch your [OpenCode](https://opencode.ai) work from a native macOS menu bar app
+and from an iPhone/iPad app. Both talk to **OpenCodeBar Hub**, a small Bun +
+SQLite server that ingests your local OpenCode service and keeps one shared,
+cached history — so the phone can see the Mac's sessions, projects, and usage.
 
-The menu bar item displays a terminal glyph and, when sessions are running, the
-number of active sessions. Clicking it opens a panel with **live** activity, a
-full **session** view, per-project **analytics**, and a **usage** overview.
+On macOS the menu bar item displays a terminal glyph and, when sessions are
+running, the number of active sessions. Clicking it opens a panel with **live**
+activity, a full **session** view, per-project **analytics**, and a **usage**
+overview. The iOS app has the same four areas, adapted for touch.
+
+macOS panel:
 
 ![Live tab](docs/screenshots/live.png)
 ![Session detail](docs/screenshots/session.png)
@@ -13,6 +18,13 @@ full **session** view, per-project **analytics**, and a **usage** overview.
 ![Projects tab](docs/screenshots/projects.png)
 ![Project detail](docs/screenshots/project-detail.png)
 ![Usage tab](docs/screenshots/usage.png)
+
+iOS app:
+
+![iOS live](docs/screenshots/ios-live.png)
+![iOS session](docs/screenshots/ios-session.png)
+![iOS projects](docs/screenshots/ios-projects.png)
+![iOS usage](docs/screenshots/ios-usage.png)
 
 ## Features
 
@@ -60,27 +72,55 @@ full **session** view, per-project **analytics**, and a **usage** overview.
 - Per-model breakdown with steps and cost.
 - Tool call success/failure summary.
 
-The app is **monitor-only**: it never starts, stops, or modifies sessions.
+**Shared hub**
+- One Bun + SQLite server ingests OpenCode once and serves both apps behind a
+  Bearer token. Sessions, messages, stats, and Go plan limits are cached in
+  `~/.local/share/opencodebar/hub.sqlite`, so the iOS app — and the Mac app when
+  OpenCode is stopped — still show history and last-known numbers.
+- The iOS app adds search, pull-to-refresh, and deep links to a session, with
+  the same live-activity folding as the Mac app.
+
+Both apps are **monitor-only**: they never start, stop, or modify sessions.
 
 ## How it works
 
 OpenCode runs a client-server architecture. Interfaces such as the TUI talk to a
 background service that listens on loopback and is protected by HTTP Basic auth.
 
-OpenCodeBar:
+OpenCodeBar Hub sits between that service and the apps:
 
-1. Reads the service password from `~/.config/opencode/service.json`
-   (or `$XDG_CONFIG_HOME/opencode/service.json`).
-2. Discovers the service URL with `opencode service status`, falling back to
-   `lsof` and the server log.
-3. Polls a few read-only endpoints and subscribes to `/api/event` for instant
-   updates. If the service restarts on a new port, the app rediscovers it
-   automatically.
+```
+OpenCode service (loopback, Basic auth)
+          │  read-only REST + SSE
+          ▼
+OpenCodeBar Hub (Bun + SQLite, Bearer auth)
+          │  cached REST + SSE, mirrored shapes
+    ┌─────┴─────┐
+    ▼           ▼
+ macOS app   iOS app
+```
 
-Endpoints used: `/api/info`, `/api/session`, `/api/session/active`,
-`/api/session/{id}`, `/api/session/{id}/message`, `/api/project`,
-`/api/experimental/session/stats`, and
-`/api/event`.
+The hub:
+
+1. Discovers the local OpenCode service the same way the old app did — the
+   password from `~/.config/opencode/service.json`
+   (or `$XDG_CONFIG_HOME/opencode/service.json`), the URL from
+   `opencode service status`, then `lsof`, then the server log.
+2. Polls read-only endpoints on a 5s / 60s cadence, subscribes to `/api/event`,
+   and writes sessions, projects, messages, stats, and Go plan usage into
+   `~/.local/share/opencodebar/hub.sqlite`. The cache keeps serving when OpenCode
+   stops or restarts on a new port.
+3. Serves a stable API that mirrors OpenCode's shapes — `/api/session`,
+   `/api/session/{id}`, `/api/session/{id}/message`, `/api/project`,
+   `/api/experimental/session/stats` — plus `/api/usage`, `/api/health`,
+   `/api/sync`, and `/api/event`. Clients authenticate with a Bearer token.
+4. Forwards OpenCode events to every connected client, so both apps update live.
+   The stream also carries `hub.*` notices (`hub.connected`, `hub.sessions`,
+   `hub.stats`, `hub.usage`) that tell clients when cached data changed.
+
+Endpoints the hub reads from OpenCode: `/api/info`, `/api/session`,
+`/api/session/active`, `/api/session/{id}`, `/api/session/{id}/message`,
+`/api/project`, `/api/experimental/session/stats`, and `/api/event`.
 
 The event stream does more than trigger refreshes. `session.step.*`,
 `session.reasoning.*`, `session.text.*`, `session.tool.*`, `session.usage.*`,
@@ -88,18 +128,29 @@ and `permission.*` events are folded into a per-session activity snapshot, which
 is what the Live rows show. Cost and token counts move as `session.usage.updated`
 arrives instead of waiting for the next poll. When the stream is missed — on
 launch or after a reconnect — the newest messages are read back to rebuild the
-snapshot, including the latest `todowrite` list.
+snapshot, including the latest `todowrite` list. Both apps fold events the same
+way from the shared payloads.
 
 The trend charts use the stats API's daily activity for steps, and group the
 full session list (`/api/session?limit=1000`, fetched on the slow cycle) by day
 for cost and tokens. Project pages use the same series scoped to that project.
+Message history is cached the first time a session is opened, so paging back
+through it works offline.
 
-The Projects tab reuses those with a scope: `/api/experimental/session/stats?project={id}`
-and `/api/session?project={id}`, fetched only when you open a project.
+### Connecting the apps
 
-For Go plan limits the app additionally calls the console's usage endpoint,
-`https://opencode.ai/zen/go/v1/usage`. That data is not part of the local
-service API, and the key is resolved in this order:
+The hub writes its URL and token to `~/.config/opencode/opencodebar-hub.json`
+(owner-only) when it starts, so the Mac app connects with no configuration. The
+iOS app pairs by pasting that URL and token, or the
+`opencodebar://pair?url=…&token=…` link the hub prints. Overrides:
+
+1. `$OPENCODEBAR_HUB_URL` / `$OPENCODEBAR_HUB_TOKEN`
+2. `hubURL` / `hubToken` in `~/.config/opencode/opencodebar.json`
+3. the generated `opencodebar-hub.json`
+
+For Go plan limits the hub calls the console's usage endpoint,
+`https://opencode.ai/zen/go/v1/usage`, and caches the result for both apps. The
+key is resolved in this order:
 
 1. `$OPENCODE_GO_USAGE_KEY`
 2. `$OPENCODE_API_KEY`
@@ -111,12 +162,28 @@ without replacing the credential OpenCode uses for inference.
 
 ## Requirements
 
-- macOS 14 (Sonoma) or later.
-- Xcode or the Swift toolchain (`swift` on your `PATH`).
+- macOS 14 (Sonoma) or later for the menu bar app.
+- iOS 17 or later for the mobile app (simulator or device).
+- [Bun](https://bun.sh) 1.1+ for the hub, and Xcode or the Swift toolchain
+  (`swift` on your `PATH`) for the Mac app.
+- Xcode with the iOS simulator, plus [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+  (`brew install xcodegen`), to build the iOS app.
 - OpenCode V2 running as the background service (`opencode service status`
   prints a URL).
 
 ## Build and run
+
+```sh
+# 1. Start the hub. The first run generates a token and prints the URL,
+#    LAN address, and a pairing link for the phone.
+make hub
+
+# 2. Build and launch the macOS menu bar app.
+make run
+
+# 3. Build, install, and launch the iOS app in a simulator, paired with the hub.
+make mobile-run
+```
 
 ```sh
 make run        # build dist/OpenCodeBar.app and launch it
@@ -135,19 +202,25 @@ CONFIG=debug Scripts/restart.sh    # rebuild a debug bundle instead
 Other targets:
 
 ```sh
-make build      # swift build (debug)
-make test       # swift test
-make app        # assemble dist/OpenCodeBar.app (release)
-make preview    # open the panel in a normal window for design work
-make shots      # regenerate docs/screenshots
-make icon       # regenerate the app icon
-make clean      # remove build artifacts and dist/
+make build         # swift build (debug)
+make test          # swift test
+make app           # assemble dist/OpenCodeBar.app (release)
+make preview       # open the panel in a normal window for design work
+make shots         # regenerate docs/screenshots
+make icon          # regenerate the app icon
+make hub           # run the SQLite sync hub (foreground)
+make hub-dev       # hub with auto-reload
+make hub-test      # hub unit tests (Bun)
+make mobile-build  # build the iOS app for the simulator
+make mobile-run    # build, install, launch, and pair the iOS app
+make clean         # remove build artifacts and dist/
 ```
 
-The first build generates `Assets/AppIcon.icns` and ad-hoc signs the bundle.
+The first Mac build generates `Assets/AppIcon.icns` and ad-hoc signs the bundle.
 
-To launch at login, add `dist/OpenCodeBar.app` in **System Settings → General →
-Login Items**.
+To launch the Mac app at login, add `dist/OpenCodeBar.app` in **System Settings →
+General → Login Items**. The hub can run as a launch agent if you want the phone
+to reach it without starting a terminal.
 
 ## Website
 
@@ -166,28 +239,55 @@ branch → `main` / `/docs`**. It is then served at
 ## Project layout
 
 ```
-Sources/OpenCodeBar/
+Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
   OpenCodeBarApp.swift      MenuBarExtra scene
   main.swift                entry point (also handles --preview)
   AppState.swift            observable state, polling, derived data
   Core/
-    ServiceDiscovery.swift  password + URL discovery
-    OpenCodeAPI.swift       async HTTP client
-    GoUsageClient.swift     Go plan usage (console endpoint)
-    EventStream.swift       SSE subscription with reconnect
-  Models/Models.swift       Codable models for the API
-  Models/SessionActivity.swift  live "what is it doing" state
+    HubAPI.swift            async client for the hub (shared with iOS)
+    HubEventStream.swift    SSE subscription with reconnect (shared)
+    HubDiscovery.swift      reads the hub URL + token (macOS)
+    ServiceDiscovery.swift  OpenCode config paths
+    UsageCache.swift        last-known usage on disk
+  Models/Models.swift       Codable models for the API (shared)
+  Models/OpenCodeEvent.swift  decoded event payloads (shared)
+  Models/SessionActivity.swift  live "what is it doing" state (shared)
   Models/SubagentOrdering.swift  running-first ordering for child sessions
+  Models/GoUsage.swift      Go plan windows (shared)
   Views/                    SwiftUI panel, tabs, heatmap, components
-  Views/LiveActivityView.swift  activity line and todo progress
-  Views/SubagentViews.swift  subagent row with live activity
   Preview/PreviewRunner.swift
+
+Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
+  OpenCodeBarMobileApp.swift  app entry + tab bar
+  MobileStore.swift           observable state for the hub
+  HubSettings.swift           URL + token storage and pairing links
+  LiveView.swift              running/recent sessions
+  SessionDetailView.swift     conversation, prompts, subagents
+  MobileMessageViews.swift    message cards
+  ProjectsView.swift          project list + search
+  ProjectDetailView.swift     scoped analytics
+  UsageView.swift             plan limits, trends, stats
+  MobileCharts.swift          Swift Charts trend cards
+  SettingsView.swift          pairing and status
+  MobileComponents.swift      shared mobile views
+
+server/                       Bun + TypeScript + SQLite hub
+  src/index.ts                entry point and startup output
+  src/config.ts               env/config resolution, pairing link
+  src/opencode.ts             OpenCode discovery, REST, SSE, Go usage
+  src/db.ts                   SQLite schema and queries
+  src/hub.ts                  polling, event fan-out, cached reads
+  src/api.ts                  HTTP routes and SSE clients
+  test/                       Bun tests for the database and API
+
+project.yml                   XcodeGen spec for the iOS app
+Mobile/Info.plist             generated by XcodeGen
 Scripts/
-  build-app.sh              assemble the .app bundle
-  restart.sh                rebuild and restart the app
-  make-icon.swift           generate the app icon
-Tests/OpenCodeBarTests/
-  SessionActivityTests.swift  event folding, tool summaries, todo parsing
+  build-app.sh                assemble the macOS .app bundle
+  restart.sh                  rebuild and restart the Mac app
+  run-mobile.sh               install, launch, and pair the iOS app
+  make-icon.swift             generate the app icon
+Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
 ```
 
 ## Development notes
@@ -201,11 +301,17 @@ Tests/OpenCodeBarTests/
   render the session detail view, or `--project-detail` for the first project's
   detail page. `--session <id>` opens a specific session; combine it with
   `--detail-mode subagents` to inspect a session's child sessions.
-- `OPENCODEBAR_DEBUG_SUBAGENTS=1` logs subagent fetches and HTTP requests to
-  stderr.
+- `OPENCODEBAR_DEBUG_SUBAGENTS=1` logs hub/subagent requests to stdout.
 - The menu bar glyph uses SF Symbols (`terminal` / `terminal.fill`).
-- `OPENCODE_GO_USAGE_URL` points the Go limits client at a different URL, which
-  is how the Plan limits UI is exercised without a live Go key.
+- iOS screenshot tooling (Debug builds): `OPENCODEBAR_TAB=live|projects|usage|settings`
+  selects the starting tab, and `OPENCODEBAR_OPEN_SESSION=running` (or a session
+  id) opens a session on launch. With `simctl`:
+  `SIMCTL_CHILD_OPENCODEBAR_TAB=usage xcrun simctl launch booted dev.opencodebar.mobile`.
+- Hub environment: `OPENCODEBAR_HUB_PORT` (default 8787),
+  `OPENCODEBAR_HUB_HOST`, `OPENCODEBAR_HUB_DB`, `OPENCODEBAR_HUB_TOKEN`,
+  `OPENCODEBAR_HUB_URL` (clients), `OPENCODEBAR_LOG_LEVEL`.
+- `OPENCODE_GO_USAGE_URL` points the hub's Go limits client at a different URL,
+  which is how the Plan limits UI is exercised without a live Go key.
 - `OPENCODE_API_KEY` overrides the Go API key read from `auth.json`, and
   `OPENCODE_GO_USAGE_KEY` overrides both. GUI-launched builds may not inherit
   a shell environment, so `~/.config/opencode/opencodebar.json` is usually the
@@ -213,14 +319,22 @@ Tests/OpenCodeBarTests/
 
 ## Limitations
 
-- macOS only.
-- Monitor-only by design; it does not control sessions.
-- Relies on the local OpenCode service; when the service is stopped the panel
-  shows an offline state and reconnects automatically.
+- The Mac app needs macOS 14+; the mobile app needs iOS 17+. The hub is a Bun
+  process that must be reachable over the network for the phone.
+- Monitor-only by design; neither app controls sessions.
+- The hub relies on the local OpenCode service; when the service is stopped it
+  keeps serving cached data and shows an offline state, reconnecting when
+  OpenCode returns.
 - Go plan limits come from an undocumented console endpoint. Credits, the
   auto-recharge setting, and extra usage are console-only and are not shown.
-- Usage numbers are cached at `~/Library/Caches/OpenCodeBar/usage.json` (safe to
-  delete). A stale cache is always preferred over an empty tab, so a very old
-  file can be shown alongside its age.
+- The hub binds `0.0.0.0` by default so the phone can reach it; a Bearer token
+  is always required. Use a trusted network, or set `OPENCODEBAR_HUB_HOST=127.0.0.1`
+  and a tunnel if you need remote access.
+- The iOS app allows arbitrary HTTP loads because the hub is usually a plain
+  HTTP address on the LAN; there is no App Store signing setup in the repo yet.
+- Mac usage numbers are cached at `~/Library/Caches/OpenCodeBar/usage.json` (safe
+  to delete), and the hub caches everything in
+  `~/.local/share/opencodebar/hub.sqlite` (also safe to delete). A stale cache is
+  always preferred over an empty tab.
 
 See [NOTES.md](NOTES.md) for follow-ups and known polish items.

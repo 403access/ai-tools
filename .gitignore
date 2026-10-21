@@ -5,3 +5,6 @@ dist/
 *.xcodeproj
 Assets/AppIcon.iconset/
 Assets/AppIcon.icns
+server/node_modules/
+server/.bun/
+Mobile/Info.plist

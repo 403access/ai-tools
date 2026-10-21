@@ -1,6 +1,6 @@
 import Foundation
 
-/// One decoded server-sent event. Only the fields the panel needs are kept;
+/// One decoded server-sent event. Only the fields the clients need are kept;
 /// tool inputs are decoded lazily into `JSONValue` so individual tools can pick
 /// out a command, path or todo list.
 struct OpenCodeEvent: Decodable, Sendable {
@@ -77,64 +77,6 @@ struct OpenCodeEvent: Decodable, Sendable {
                 return action
             }
             return permission
-        }
-    }
-}
-
-/// Subscribes to the OpenCode server-sent event stream so the panel can update
-/// the moment a session starts, stops, or produces activity.
-enum EventStream {
-    /// Opens a long-lived SSE connection and invokes `onEvent` for every
-    /// decoded event. Reconnects with backoff until the returned task is
-    /// cancelled.
-    static func connect(
-        location: ServiceLocation,
-        onEvent: @escaping @Sendable (OpenCodeEvent) -> Void
-    ) -> Task<Void, Never> {
-        Task.detached(priority: .background) {
-            var backoff: UInt64 = 1
-            while !Task.isCancelled {
-                do {
-                    try await stream(location: location, onEvent: onEvent)
-                    backoff = 1
-                } catch {
-                    // Connection dropped; fall through to the backoff delay.
-                }
-                if Task.isCancelled { break }
-                try? await Task.sleep(nanoseconds: backoff * 1_000_000_000)
-                backoff = min(backoff * 2, 20)
-            }
-        }
-    }
-
-    private static func stream(
-        location: ServiceLocation,
-        onEvent: @escaping @Sendable (OpenCodeEvent) -> Void
-    ) async throws {
-        let token = "opencode:\(location.password)"
-        var request = URLRequest(url: location.url.appendingPathComponent("api/event"))
-        request.setValue("Basic " + Data(token.utf8).base64EncodedString(), forHTTPHeaderField: "Authorization")
-        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 60 * 60
-
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 60 * 60
-        let session = URLSession(configuration: config)
-        defer { session.invalidateAndCancel() }
-
-        let (bytes, response) = try await session.bytes(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-
-        for try await line in bytes.lines {
-            if Task.isCancelled { break }
-            guard line.hasPrefix("data:") else { continue }
-            let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
-            guard !payload.isEmpty, let data = payload.data(using: .utf8),
-                  let event = try? JSONDecoder().decode(OpenCodeEvent.self, from: data)
-            else { continue }
-            onEvent(event)
         }
     }
 }

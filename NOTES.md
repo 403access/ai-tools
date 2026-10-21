@@ -3,6 +3,42 @@
 Working notes for OpenCodeBar: follow-ups, known polish items, and environment
 observations. Last updated 2026-10-21.
 
+## Hub and mobile (v2)
+
+The app is now two clients over one hub:
+
+- `server/` — Bun + TypeScript + SQLite. Discovers OpenCode, polls it, stores
+  sessions/projects/messages/stats/usage, mirrors the read API, and forwards the
+  event stream. Tests: `make hub-test`.
+- `Sources/OpenCodeBarMobile/` — iOS app (XcodeGen target) with the same four
+  areas as the Mac panel. Build: `make mobile-run`.
+
+Follow-ups worth considering:
+
+- **Ship the hub as a launch agent.** Right now `make hub` is a foreground
+  process. A `launchd` plist (with `KeepAlive`) would let the phone reach the
+  hub without a terminal open. Documented as a note in the README.
+- **iOS distribution.** The repo builds for the simulator only (no team,
+  no asset catalog, no App Store signing). A real device needs a development
+  team and an app icon; `NSAllowsArbitraryLoads` should become a scoped ATS
+  exception (or an HTTPS tunnel) before any store build.
+- **Remote access.** The hub binds `0.0.0.0` with a Bearer token. For use away
+  from home, prefer a tunnel (Tailscale/Cloudflare) and
+  `OPENCODEBAR_HUB_HOST=127.0.0.1` rather than exposing the port.
+- **Message cache growth.** Every session opened is cached in
+  `messages` forever. Add a retention policy (e.g. keep the newest N per
+  session, or drop sessions untouched for 90 days) once the DB grows.
+- **Server-side activity snapshots.** Clients fold events into `SessionActivity`
+  themselves (shared Swift code). A newly connected client has no history until
+  it seeds from the newest messages, which is fine for now but means the first
+  render can lag a few seconds. Storing snapshots in SQLite and serving
+  `/api/activity` would remove that.
+- **iOS extras.** Home Screen widget for active sessions, Live Activity for a
+  running session, and background refresh would make the phone more useful
+  without opening the app.
+- **Website.** `docs/index.html` still describes the macOS-only app; it should
+  gain the iOS screenshots and a short hub section.
+
 ## Next steps
 
 - **Go plan limits: credits and extra usage.** The Usage tab now shows the
@@ -107,3 +143,12 @@ observations. Last updated 2026-10-21.
 - Service discovery depends on `~/.config/opencode/service.json` and the
   `opencode` CLI. Both were confirmed present and working on this machine
   (OpenCode v2.0.32).
+- **Port 8787 was already taken on this machine** by an unrelated
+  `node server/index.mjs`, so the hub was run with
+  `OPENCODEBAR_HUB_PORT=8788`. The hub writes the port it actually bound into
+  `~/.config/opencode/opencodebar-hub.json`, and both clients read it from
+  there, so any free port works. `make hub` uses 8787 by default.
+- **Hub state lives in `~/.local/share/opencodebar/hub.sqlite`** (WAL mode) and
+  the generated connection file is `~/.config/opencode/opencodebar-hub.json`
+  (mode 0600). Both are safe to delete; the hub recreates them and the token
+  changes.
