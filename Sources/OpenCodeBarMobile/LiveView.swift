@@ -6,6 +6,8 @@ struct LiveView: View {
     @State private var path = NavigationPath()
     @State private var showingNewSession = false
     @State private var sessionToOpen: Session?
+    @State private var selectedProjectID: String?
+    @State private var timeFilter: SessionTimeFilter = .all
 
     var body: some View {
         let connection = store.connection
@@ -144,17 +146,24 @@ struct LiveView: View {
     }
 
     private var recentSection: some View {
-        let sessions = Array(store.recentSessions.prefix(30))
+        let sessions = Array(filteredRecent.prefix(30))
         let ids = sessions.map(\.id)
 
         return VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("Recent")
+            SectionHeader("Recent") {
+                HStack(spacing: 6) {
+                    projectFilterMenu
+                    timeFilterMenu
+                }
+            }
 
             if sessions.isEmpty {
                 EmptyState(
-                    icon: "clock",
-                    title: "No recent sessions",
-                    subtitle: "Your session history will show up here."
+                    icon: filtersActive ? "line.3.horizontal.decrease.circle" : "clock",
+                    title: filtersActive ? "No matching sessions" : "No recent sessions",
+                    subtitle: filtersActive
+                        ? "Try another project or date range."
+                        : "Your session history will show up here."
                 )
                 .transition(.opacity)
             } else {
@@ -171,6 +180,119 @@ struct LiveView: View {
             }
         }
         .animateRecentInsertion(ids: ids)
+    }
+
+    private var activeProjectID: String? {
+        guard let selectedProjectID, store.projects[selectedProjectID] != nil else {
+            return nil
+        }
+        return selectedProjectID
+    }
+
+    private var filteredRecent: [Session] {
+        SessionFiltering.apply(
+            to: store.recentSessions,
+            projectID: activeProjectID,
+            time: timeFilter,
+            projects: store.projects
+        )
+    }
+
+    /// Projects that have recent sessions, so the menu stays relevant.
+    private var filterProjects: [Project] {
+        let recent = store.recentSessions
+        return store.orderedProjects.filter { project in
+            recent.contains {
+                SessionFiltering.matchesProject(
+                    $0,
+                    projectID: project.id,
+                    projects: store.projects
+                )
+            }
+        }
+    }
+
+    private var selectedProjectName: String {
+        guard let activeProjectID else { return "All projects" }
+        return store.projects[activeProjectID]?.displayName
+            ?? filterProjects.first { $0.id == activeProjectID }?.displayName
+            ?? "All projects"
+    }
+
+    private var filtersActive: Bool {
+        activeProjectID != nil || timeFilter != .all
+    }
+
+    private var projectFilterMenu: some View {
+        Menu {
+            Button {
+                selectedProjectID = nil
+            } label: {
+                if activeProjectID == nil {
+                    Label("All projects", systemImage: "checkmark")
+                } else {
+                    Text("All projects")
+                }
+            }
+
+            if !filterProjects.isEmpty {
+                Divider()
+            }
+
+            ForEach(filterProjects) { project in
+                Button {
+                    selectedProjectID = project.id
+                } label: {
+                    if activeProjectID == project.id {
+                        Label(project.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(project.displayName)
+                    }
+                }
+            }
+        } label: {
+            filterChip(icon: "folder", title: selectedProjectName)
+        }
+        .accessibilityLabel("Filter by project")
+        .accessibilityValue(selectedProjectName)
+    }
+
+    private var timeFilterMenu: some View {
+        Menu {
+            ForEach(SessionTimeFilter.allCases) { option in
+                Button {
+                    timeFilter = option
+                } label: {
+                    if option == timeFilter {
+                        Label(option.title, systemImage: "checkmark")
+                    } else {
+                        Text(option.title)
+                    }
+                }
+            }
+        } label: {
+            filterChip(icon: "calendar", title: timeFilter.shortTitle)
+        }
+        .accessibilityLabel("Filter by date")
+        .accessibilityValue(timeFilter.title)
+    }
+
+    private func filterChip(icon: String, title: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .bold))
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Image(systemName: "chevron.down")
+                .font(.system(size: 8, weight: .bold))
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(Color.primary.opacity(0.07)))
+        .contentShape(Capsule())
     }
 }
 

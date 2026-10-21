@@ -3,10 +3,12 @@ import SwiftUI
 struct LiveTab: View {
     @EnvironmentObject var state: AppState
     @State private var showingNewSession = false
+    @State private var selectedProjectID: String?
+    @State private var timeFilter: SessionTimeFilter = .all
 
     var body: some View {
         let running = state.runningSessions
-        let recent = Array(state.recentSessions.prefix(20))
+        let recent = Array(filteredRecent.prefix(20))
 
         return VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
@@ -69,13 +71,20 @@ struct LiveTab: View {
             .animateRecentInsertion(ids: running.map(\.id))
 
             VStack(alignment: .leading, spacing: 8) {
-                SectionHeader("Recent")
+                SectionHeader("Recent") {
+                    HStack(spacing: 5) {
+                        projectFilterMenu
+                        timeFilterMenu
+                    }
+                }
 
                 if recent.isEmpty {
                     EmptyState(
-                        icon: "clock",
-                        title: "No recent sessions",
-                        subtitle: "Your session history will show up here."
+                        icon: filtersActive ? "line.3.horizontal.decrease.circle" : "clock",
+                        title: filtersActive ? "No matching sessions" : "No recent sessions",
+                        subtitle: filtersActive
+                            ? "Try another project or date range."
+                            : "Your session history will show up here."
                     )
                     .transition(.opacity)
                 } else {
@@ -98,6 +107,119 @@ struct LiveTab: View {
             NewSessionSheet()
                 .environmentObject(state)
         }
+    }
+
+    private var activeProjectID: String? {
+        guard let selectedProjectID, state.projects[selectedProjectID] != nil else {
+            return nil
+        }
+        return selectedProjectID
+    }
+
+    private var filteredRecent: [Session] {
+        SessionFiltering.apply(
+            to: state.recentSessions,
+            projectID: activeProjectID,
+            time: timeFilter,
+            projects: state.projects
+        )
+    }
+
+    /// Projects that have recent sessions, so the menu stays relevant.
+    private var filterProjects: [Project] {
+        let recent = state.recentSessions
+        return state.orderedProjects.filter { project in
+            recent.contains {
+                SessionFiltering.matchesProject(
+                    $0,
+                    projectID: project.id,
+                    projects: state.projects
+                )
+            }
+        }
+    }
+
+    private var selectedProjectName: String {
+        guard let activeProjectID else { return "All projects" }
+        return state.projects[activeProjectID]?.displayName
+            ?? filterProjects.first { $0.id == activeProjectID }?.displayName
+            ?? "All projects"
+    }
+
+    private var filtersActive: Bool {
+        activeProjectID != nil || timeFilter != .all
+    }
+
+    private var projectFilterMenu: some View {
+        Menu {
+            Button {
+                selectedProjectID = nil
+            } label: {
+                if activeProjectID == nil {
+                    Label("All projects", systemImage: "checkmark")
+                } else {
+                    Text("All projects")
+                }
+            }
+
+            if !filterProjects.isEmpty {
+                Divider()
+            }
+
+            ForEach(filterProjects) { project in
+                Button {
+                    selectedProjectID = project.id
+                } label: {
+                    if activeProjectID == project.id {
+                        Label(project.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(project.displayName)
+                    }
+                }
+            }
+        } label: {
+            filterChip(icon: "folder", title: selectedProjectName)
+        }
+        .fixedSize()
+        .controlSize(.small)
+        .help("Filter by project")
+        .accessibilityLabel("Filter by project")
+        .accessibilityValue(selectedProjectName)
+    }
+
+    private var timeFilterMenu: some View {
+        Menu {
+            ForEach(SessionTimeFilter.allCases) { option in
+                Button {
+                    timeFilter = option
+                } label: {
+                    if option == timeFilter {
+                        Label(option.title, systemImage: "checkmark")
+                    } else {
+                        Text(option.title)
+                    }
+                }
+            }
+        } label: {
+            filterChip(icon: "calendar", title: timeFilter.shortTitle)
+        }
+        .fixedSize()
+        .controlSize(.small)
+        .help("Filter by date")
+        .accessibilityLabel("Filter by date")
+        .accessibilityValue(timeFilter.title)
+    }
+
+    private func filterChip(icon: String, title: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8, weight: .bold))
+            Text(title)
+                .font(.system(size: 9, weight: .semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .foregroundStyle(.secondary)
     }
 }
 
