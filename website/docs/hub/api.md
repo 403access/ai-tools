@@ -38,13 +38,16 @@ Clients identify themselves so the Settings screen can list connected devices:
 
 | Header | Example | Notes |
 | --- | --- | --- |
-| `X-OpenCodeBar-Device-Id` | stable UUID | Required to register a device |
+| `X-OpenCodeBar-Device-Id` | stable UUID | Required to register a device; survives reinstalls |
 | `X-OpenCodeBar-Device-Name` | `Oli's MacBook` | Defaults to `Unknown device` |
 | `X-OpenCodeBar-Platform` | `macOS`, `iOS`, `iPadOS` | Defaults to `unknown` |
 | `X-OpenCodeBar-App-Version` | `1.0.0` | Optional |
 
 Headers are optional for basic API use. A request without a device id does not
-appear in the device list.
+appear in the device list. The Mac app derives its id from the machine's
+hardware UUID; the iOS app keeps its id in the keychain. When a known device
+reconnects with a new id, the hub folds the old row into the new one instead of
+listing the device twice.
 
 ## Responses
 

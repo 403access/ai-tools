@@ -44,6 +44,10 @@ X-OpenCodeBar-Platform
 X-OpenCodeBar-App-Version
 ```
 
+The id is stable across app updates and reinstalls. If an older client
+reconnects with a fresh id, the hub merges the previous row so the device is
+listed once.
+
 ### Pairing
 
 The pairing card shows a QR code and the

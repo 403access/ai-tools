@@ -80,8 +80,9 @@ app and applies the pairing values.
 Open **Settings** on the Mac, then scan the QR code or copy the pairing link.
 The QR code uses the Mac's LAN address, or a running `make hub-tunnel` URL, so
 the phone can reach it. The phone appears in the Mac's **Devices** list after
-its first authenticated request. Each installation gets a stable device id,
-name, platform, and app version.
+its first authenticated request. Each device gets a stable id (its hardware
+UUID on macOS, a keychain-backed UUID on iOS) plus a name, platform, and app
+version, so reinstalling the app does not add a second entry.
 
 ## If pairing fails
 

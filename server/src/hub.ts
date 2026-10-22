@@ -1,5 +1,5 @@
 import { HUB_VERSION, type HubConfig } from "./config.ts";
-import { HubDB } from "./db.ts";
+import { DEVICE_STALE_MS, HubDB } from "./db.ts";
 import {
   OpenCodeClient,
   OpenCodeError,
@@ -416,7 +416,7 @@ export class Hub {
     const streaming = new Set(
       [...this.clients.values()].filter((id): id is string => Boolean(id)),
     );
-    const recentCutoff = Date.now() - 20_000;
+    const recentCutoff = Date.now() - DEVICE_STALE_MS;
     return this.db.getDevices().map((device) => ({
       ...device,
       connected: streaming.has(device.id) || device.lastSeen >= recentCutoff,
