@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createHandler } from "../src/api.ts";
 import type { HubConfig } from "../src/config.ts";
 import { HubDB } from "../src/db.ts";
@@ -303,6 +306,53 @@ describe("hub API reads", () => {  test("serves cached sessions, active ids and 
     );
     expect(empty.data).toEqual([]);
     db.close();
+  });
+
+  test("serves project files from the project directory", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "opencodebar-api-files-"));
+    mkdirSync(join(directory, "nested"));
+    writeFileSync(join(directory, "a.txt"), "a\n");
+    writeFileSync(join(directory, "nested", "b.txt"), "b\n");
+
+    const { db, handler } = setup();
+    db.replaceProjects([
+      {
+        id: "prj_files",
+        canonical: directory,
+        time: { created: 1, updated: 2 },
+        sandboxes: [],
+      },
+    ]);
+
+    try {
+      const response = await handler(request("/api/project/prj_files/files"));
+      expect(response.status).toBe(200);
+      const payload = await body<{
+        data: {
+          files: Array<{ path: string }>;
+          vcs: string | null;
+          changed: number;
+          total: number;
+          truncated: boolean;
+        };
+      }>(response);
+      expect(payload.data.files.map((file) => file.path)).toEqual([
+        "a.txt",
+        "nested/b.txt",
+      ]);
+      expect(payload.data.vcs).toBeNull();
+      expect(payload.data.changed).toBe(0);
+      expect(payload.data.total).toBe(2);
+      expect(payload.data.truncated).toBe(false);
+
+      expect((await handler(request("/api/project/nope/files"))).status).toBe(404);
+      expect(
+        (await handler(request("/api/project/prj_files/files", { method: "POST" }))).status,
+      ).toBe(405);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+      db.close();
+    }
   });
 
   test("serves cached stats and the usage state", async () => {

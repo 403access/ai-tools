@@ -68,6 +68,8 @@ struct ProjectDetailView: View {
                             LoadingState(message: "Loading project…")
                         }
 
+                        filesSection
+
                         changesSection
 
                         if !detail.sessions.isEmpty {
@@ -89,7 +91,8 @@ struct ProjectDetailView: View {
         .task(id: project.id) {
             async let detail: Void = state.loadProject(project.id)
             async let changes: Void = state.loadProjectChanges(project.id)
-            _ = await (detail, changes)
+            async let files: Void = state.loadProjectFiles(project.id)
+            _ = await (detail, changes, files)
         }
         .onExitCommand {
             state.closeProject()
@@ -313,6 +316,34 @@ struct ProjectDetailView: View {
                     .foregroundStyle(.secondary)
             }
             ProjectChangesView(changes: changes)
+        }
+    }
+
+    // MARK: - Files
+
+    @ViewBuilder
+    private var filesSection: some View {
+        let filesState = state.projectFiles[project.id]
+        if let filesState, filesState.isLoading && filesState.files == nil {
+            SectionHeader("Files")
+            LoadingState(message: "Reading project folder…")
+        } else if let filesState, let error = filesState.error, filesState.files == nil {
+            SectionHeader("Files")
+            NoticeRow(
+                icon: "exclamationmark.triangle.fill",
+                message: error,
+                tint: Theme.warn
+            )
+        } else if let files = filesState?.files {
+            SectionHeader("Files") {
+                Text("\(files.total)")
+                    .font(.system(size: 10, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            ProjectFilesView(files: files) {
+                Task { await state.loadProjectFiles(project.id, force: true) }
+            }
         }
     }
 

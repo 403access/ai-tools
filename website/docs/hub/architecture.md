@@ -87,6 +87,16 @@ Message history is cached the first time a session is opened, so paging back
 works offline. Changes mirror the `metadata.files` patches found in cached
 messages, so they survive an OpenCode restart.
 
+## Project files
+
+`/api/project/{id}/files` reads the project folder directly, so it reflects
+the current disk state rather than the message cache. Inside a git work tree,
+`git ls-files` supplies tracked and untracked-but-not-ignored paths and
+`git status --porcelain` marks added, modified, deleted, and renamed files.
+Other folders fall back to a recursive walk that skips common build and cache
+directories. The response is capped at 20,000 paths and reports `truncated`
+when it is shortened.
+
 ## Session stats
 
 Project and global stats come from OpenCode's stats API with `tools=detail`,

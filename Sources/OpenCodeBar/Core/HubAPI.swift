@@ -238,6 +238,14 @@ struct HubAPI: Sendable {
         return response.data
     }
 
+    /// Every file in the project folder, with git working-tree status when the
+    /// project is a repository.
+    func projectFiles(id: String) async throws -> ProjectFiles {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: ProjectFilesResponse = try await get("/api/project/\(encoded)/files")
+        return response.data
+    }
+
     func projects() async throws -> [Project] {
         try await get("/api/project")
     }

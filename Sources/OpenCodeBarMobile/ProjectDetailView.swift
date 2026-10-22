@@ -61,6 +61,8 @@ struct ProjectDetailView: View {
                         LoadingState(message: "Loading project…")
                     }
 
+                    filesSection
+
                     changesSection
 
                     if !detail.sessions.isEmpty {
@@ -98,12 +100,14 @@ struct ProjectDetailView: View {
         .task(id: project.id) {
             async let detail = store.loadProject(project.id)
             async let changes = store.loadProjectChanges(project.id)
-            _ = await (detail, changes)
+            async let files = store.loadProjectFiles(project.id)
+            _ = await (detail, changes, files)
         }
         .refreshable {
             async let detail = store.loadProject(project.id, force: true)
             async let changes = store.loadProjectChanges(project.id, force: true)
-            _ = await (detail, changes)
+            async let files = store.loadProjectFiles(project.id, force: true)
+            _ = await (detail, changes, files)
             await store.refreshLive()
         }
     }
@@ -129,6 +133,32 @@ struct ProjectDetailView: View {
                     .foregroundStyle(.secondary)
             }
             ProjectChangesView(changes: changes)
+        }
+    }
+
+    @ViewBuilder
+    private var filesSection: some View {
+        let state = store.projectFiles[project.id]
+        if let state, state.isLoading && state.files == nil {
+            SectionHeader("Files")
+            LoadingState(message: "Reading project folder…")
+        } else if let state, let error = state.error, state.files == nil {
+            SectionHeader("Files")
+            NoticeRow(
+                icon: "exclamationmark.triangle.fill",
+                message: error,
+                tint: Theme.warn
+            )
+        } else if let files = state?.files {
+            SectionHeader("Files") {
+                Text("\(files.total)")
+                    .font(.caption.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            MobileProjectFilesView(files: files) {
+                Task { await store.loadProjectFiles(project.id, force: true) }
+            }
         }
     }
 

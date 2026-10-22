@@ -173,6 +173,34 @@ export interface ChangesResponse {
   data: FileDiff[];
 }
 
+/** Working-tree state of a file, from `git status`. */
+export type ProjectFileStatus = "added" | "modified" | "deleted" | "renamed";
+
+/** One file inside a project directory. */
+export interface ProjectFile {
+  /** Path relative to the project root, using forward slashes. */
+  path: string;
+  /** Omitted when the file matches the index. */
+  status?: ProjectFileStatus;
+}
+
+/** The project file browser payload. */
+export interface ProjectFiles {
+  files: ProjectFile[];
+  /** `"git"` when status was read from a work tree, otherwise null. */
+  vcs: string | null;
+  /** Number of files with a status. */
+  changed: number;
+  /** Number of files before the response was capped. */
+  total: number;
+  /** True when `files` omits entries because the project is very large. */
+  truncated: boolean;
+}
+
+export interface ProjectFilesResponse {
+  data: ProjectFiles;
+}
+
 export interface MessageCursor {
   previous?: string;
   next?: string;

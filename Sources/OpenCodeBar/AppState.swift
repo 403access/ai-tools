@@ -62,6 +62,13 @@ final class AppState: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct ProjectFilesState: Equatable {
+        var files: ProjectFiles?
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     struct SessionStatsState: Equatable {
         var stats: SessionStats?
         var isLoading = false
@@ -109,6 +116,8 @@ final class AppState: ObservableObject {
     @Published var sessionChanges: [String: ChangesState] = [:]
     /// Project-wide changes, aggregated across its newest sessions.
     @Published var projectChanges: [String: ChangesState] = [:]
+    /// Files inside each project folder, with git working-tree status.
+    @Published var projectFiles: [String: ProjectFilesState] = [:]
     /// Per-session stats (prompts, tool reliability, failures), loaded when the
     /// Stats tab opens.
     @Published var sessionStats: [String: SessionStatsState] = [:]
@@ -887,6 +896,37 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Fetches the files in a project folder. The hub reads the directory and
+    /// reports git working-tree status, so this is refreshed when the page
+    /// reopens or the user asks for a refresh.
+    func loadProjectFiles(_ projectID: String, force: Bool = false) async {
+        guard let api else { return }
+        if projectFiles[projectID]?.isLoading == true { return }
+        if !force, let loaded = projectFiles[projectID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+
+        var state = projectFiles[projectID] ?? ProjectFilesState()
+        state.isLoading = true
+        state.error = nil
+        projectFiles[projectID] = state
+
+        do {
+            let files = try await api.projectFiles(id: projectID)
+            projectFiles[projectID] = ProjectFilesState(files: files, loadedAt: Date())
+        } catch {
+            var failed = projectFiles[projectID] ?? ProjectFilesState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                projectFiles[projectID] = failed
+                return
+            }
+            failed.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            projectFiles[projectID] = failed
+        }
+    }
+
     // MARK: - Projects
 
     /// Opens the full detail page for a project, loading its scoped stats and
@@ -933,6 +973,7 @@ final class AppState: ObservableObject {
         if let updated = projects[project.id] { selectedProject = updated }
         await loadProject(project.id, force: true)
         await loadProjectChanges(project.id, force: true)
+        await loadProjectFiles(project.id, force: true)
     }
 
     // MARK: - Subagents

@@ -22,6 +22,10 @@ Select a project to see:
 - **Trend** — an interactive daily chart for steps, cost, or tokens over the
   last 30 / 90 / 365 days or all time, scoped to the project.
 - **Analytics** — steps, prompts, sessions, cost, tokens, streak, and model mix.
+- **Files** — every file in the project folder, including untracked files, with
+  git working-tree status for added, modified, and deleted files. Switch
+  between **All** and **Changed**, or filter by path. Folders that are not git
+  work trees still list their files, without status.
 - **Changes** — patches written by the project's newest sessions, grouped by
   session and file.
 - **Tool reliability** — total calls plus per-tool succeeded, failed, and

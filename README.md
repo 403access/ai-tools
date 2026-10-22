@@ -74,9 +74,12 @@ iOS app:
   recently active next. Select one to open its detail page: what is running
   right now — with elapsed time, tappable into the session view — plus scoped
   analytics (steps, cost, tokens, streak, model mix) and recent sessions with
-  their cost. A **Changes** section aggregates the patches written by the
-  project's newest sessions, grouped by session and file. Quick actions open
-  the project in Finder or Terminal and copy its path.
+  their cost. A **Files** section lists every file in the project folder,
+  including untracked files, and marks git working-tree changes as added,
+  modified, or deleted; filter it to changed files or search by path. A
+  **Changes** section aggregates the patches written by the project's newest
+  sessions, grouped by session and file. Quick actions open the project in
+  Finder or Terminal and copy its path.
 - Tool reliability for the project: total calls plus per-tool succeeded, failed,
   and unfinished counts with median durations.
 - Scoped trends: an interactive daily chart for steps, cost, or tokens over the
@@ -166,9 +169,10 @@ The hub:
 3. Serves a stable API that mirrors OpenCode's shapes — `/api/session`,
    `/api/session/{id}`, `/api/session/{id}/message`, `/api/session/{id}/changes`,
    `/api/session/{id}/stats`, `/api/project`, `/api/project/{id}/changes`,
-   `/api/experimental/session/stats` — plus `/api/session/{id}/prompt`
-   (`POST`), `/api/session` (`POST`), `/api/usage`, `/api/health`, `/api/devices`,
-   `/api/sync`, `/api/server/restart` (`POST`), and `/api/event`. Clients
+   `/api/project/{id}/files`, `/api/experimental/session/stats` — plus
+   `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`), `/api/usage`,
+   `/api/health`, `/api/devices`, `/api/sync`, `/api/server/restart` (`POST`),
+   and `/api/event`. Clients
    authenticate with a Bearer token and identify their platform with
    `X-OpenCodeBar-*` headers so the settings screen can list connected devices.
 4. Forwards OpenCode events to every connected client, so both apps update live.

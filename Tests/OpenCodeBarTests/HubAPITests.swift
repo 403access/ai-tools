@@ -207,6 +207,36 @@ final class HubAPITests: XCTestCase {
         XCTAssertEqual(change.patchLines.count, 6)
     }
 
+    func testProjectFilesResponseDecodesGitStatus() throws {
+        let json = """
+        {
+          "data": {
+            "files": [
+              { "path": "README.md" },
+              { "path": "Sources/App.swift", "status": "modified" },
+              { "path": "Sources/New.swift", "status": "added" },
+              { "path": "Sources/Old.swift", "status": "deleted" }
+            ],
+            "vcs": "git",
+            "changed": 3,
+            "total": 4,
+            "truncated": false
+          }
+        }
+        """
+        let response = try decode(ProjectFilesResponse.self, json)
+        XCTAssertEqual(response.data.vcs, "git")
+        XCTAssertEqual(response.data.total, 4)
+        XCTAssertEqual(response.data.changed, 3)
+        XCTAssertFalse(response.data.truncated)
+        XCTAssertEqual(response.data.files.count, 4)
+        XCTAssertFalse(response.data.files[0].isChanged)
+        XCTAssertEqual(response.data.files[1].statusLabel, "Modified")
+        XCTAssertEqual(response.data.files[1].directory, "Sources/")
+        XCTAssertEqual(response.data.files[1].name, "App.swift")
+        XCTAssertEqual(response.data.files[2].statusIcon, "plus.circle.fill")
+    }
+
     func testToolMetadataExposesFileChanges() throws {
         let json = """
         {

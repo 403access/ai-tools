@@ -49,6 +49,13 @@ final class MobileStore: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct ProjectFilesState: Equatable {
+        var files: ProjectFiles?
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     struct SessionStatsState: Equatable {
         var stats: SessionStats?
         var isLoading = false
@@ -90,6 +97,7 @@ final class MobileStore: ObservableObject {
     @Published var projectDetails: [String: ProjectDetail] = [:]
     @Published var sessionChanges: [String: ChangesState] = [:]
     @Published var projectChanges: [String: ChangesState] = [:]
+    @Published var projectFiles: [String: ProjectFilesState] = [:]
     @Published var sessionStats: [String: SessionStatsState] = [:]
     @Published var subagentLists: [String: SubagentList] = [:]
     @Published var lastUpdated: Date?
@@ -177,6 +185,7 @@ final class MobileStore: ObservableObject {
         projectDetails = [:]
         sessionChanges = [:]
         projectChanges = [:]
+        projectFiles = [:]
         sessionStats = [:]
         subagentLists = [:]
         lastUpdated = nil
@@ -580,6 +589,35 @@ final class MobileStore: ObservableObject {
             }
             failed.error = message(for: error)
             projectChanges[projectID] = failed
+        }
+    }
+
+    /// Loads every file in a project folder, with git working-tree status.
+    func loadProjectFiles(_ projectID: String, force: Bool = false) async {
+        guard let api else { return }
+        if projectFiles[projectID]?.isLoading == true { return }
+        if !force, let loaded = projectFiles[projectID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+
+        var state = projectFiles[projectID] ?? ProjectFilesState()
+        state.isLoading = true
+        state.error = nil
+        projectFiles[projectID] = state
+
+        do {
+            let files = try await api.projectFiles(id: projectID)
+            projectFiles[projectID] = ProjectFilesState(files: files, loadedAt: Date())
+        } catch {
+            var failed = projectFiles[projectID] ?? ProjectFilesState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                projectFiles[projectID] = failed
+                return
+            }
+            failed.error = message(for: error)
+            projectFiles[projectID] = failed
         }
     }
 

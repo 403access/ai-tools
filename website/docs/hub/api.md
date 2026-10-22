@@ -139,9 +139,35 @@ service to steer the running turn. When omitted, the hub decides.
 | `GET` | `/api/project` | All projects |
 | `GET` | `/api/project/{id}` | One project |
 | `GET` | `/api/project/{id}/changes` | Aggregated project changes |
+| `GET` | `/api/project/{id}/files` | Project files with git status |
 
 `/api/project/{id}/changes` accepts `sessions` (default 10, max 100) for how
 many newer sessions to hydrate.
+
+`/api/project/{id}/files` reads the project folder on the hub's machine. When
+the folder is a git work tree, tracked and untracked-but-not-ignored files are
+listed and working-tree changes are marked:
+
+```json
+{
+  "data": {
+    "files": [
+      { "path": "README.md" },
+      { "path": "Sources/App.swift", "status": "modified" },
+      { "path": "Sources/New.swift", "status": "added" },
+      { "path": "Sources/Old.swift", "status": "deleted" }
+    ],
+    "vcs": "git",
+    "changed": 3,
+    "total": 4,
+    "truncated": false
+  }
+}
+```
+
+`status` is one of `added`, `modified`, `deleted`, or `renamed`. Without git,
+`vcs` is `null` and no statuses are returned. Responses are capped at 20,000
+entries; `truncated` marks a shortened list.
 
 ### Stats and usage
 

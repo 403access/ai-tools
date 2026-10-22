@@ -94,6 +94,10 @@ Follow-ups worth considering:
   (scoped stats and sessions), refreshed with the 60s cycle while its detail
   page stays open. Fine for a handful of projects; a bulk endpoint would be
   better if the list ever needs totals inline.
+- **Project files shell out to git on each open.** `/api/project/{id}/files`
+  runs `git ls-files` and `git status` per request and caps at 20k paths, which
+  is fine for normal repos but would benefit from a short-lived cache (keyed by
+  directory and index mtime) for very large work trees.
 - **Session stats hydrate message history on first open.** `/api/session/{id}/stats`
   pages through up to 30 pages (8s timeout per page) before aggregating tool
   calls, so a very long session can take a few seconds. The response's

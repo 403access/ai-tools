@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { HUB_VERSION, lanAddresses, type HubConfig } from "./config.ts";
 import type { HubDB } from "./db.ts";
+import { listProjectFiles, ProjectFilesError } from "./files.ts";
 import type { Hub } from "./hub.ts";
 import { OpenCodeError } from "./opencode.ts";
 import type { ActiveSessionsResponse, HubEvent, ServerInfo } from "./types.ts";
@@ -240,6 +241,19 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
         const id = decodeURIComponent(parts[2]!);
         const sessions = intParam(url.searchParams.get("sessions"), 10, 1, 100);
         return json({ data: await hub.projectChanges(id, sessions) });
+      }
+
+      if (parts[0] === "api" && parts[1] === "project" && parts[3] === "files" && parts.length === 4) {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+        const id = decodeURIComponent(parts[2]!);
+        const project = db.getProject(id);
+        if (!project) return error("Project not found", 404);
+        try {
+          return json({ data: await listProjectFiles(project.canonical) });
+        } catch (caught) {
+          if (caught instanceof ProjectFilesError) return error(caught.message, caught.status);
+          throw caught;
+        }
       }
 
       if (pathname === "/api/session" && request.method === "GET") {
