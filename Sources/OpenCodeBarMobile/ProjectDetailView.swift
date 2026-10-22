@@ -8,91 +8,110 @@ struct ProjectDetailView: View {
     private var detail: MobileStore.ProjectDetail? { store.projectDetails[project.id] }
     private var running: [Session] { store.runningSessions(in: project) }
 
+    private let topAnchor = "project-detail-top"
+
+    /// Re-asserts the top position shortly after the push animation, so an
+    /// inherited offset from the previous screen cannot leave the summary
+    /// header off-screen.
+    private func scrollToTop(_ proxy: ScrollViewProxy) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            proxy.scrollTo(topAnchor, anchor: .top)
+        }
+    }
+
     var body: some View {
         // Capture this before building the toolbar: SwiftUI can evaluate
         // toolbar content in a hosting context that does not inherit the
         // screen's environment objects.
         let runningCount = running.count
 
-        return ScrollView {
-            // Eager stack: this page contains a live running section
-            // (TimelineView), and lazy layout can fight the scroll offset while
-            // those rows update. Sections inside still page their own data.
-            VStack(alignment: .leading, spacing: 14) {
-                summary
-                runningSection
+        return ScrollViewReader { proxy in
+            ScrollView {
+                // Eager stack: this page contains a live running section
+                // (TimelineView), and lazy layout can fight the scroll offset
+                // while those rows update. Sections inside still page their data.
+                VStack(alignment: .leading, spacing: 14) {
+                    // Anchor at the top so the summary header is what a reset
+                    // scrolls to, and so a push never starts below it.
+                    Color.clear.frame(height: 1).id(topAnchor)
 
-                if let detail {
-                    if let error = detail.error, detail.stats == nil {
-                        NoticeRow(icon: "exclamationmark.triangle.fill", message: error, tint: Theme.warn)
-                    } else if let stats = detail.stats {
-                        statsGrid(stats)
+                    summary
+                    runningSection
 
-                        SectionHeader("Trend")
-                        UsageTrendCard(stats: stats, sessions: detail.sessions)
-
-                        if let totals = stats.tools.totals {
-                            SectionHeader("Tool calls") {
-                                if let rate = totals.successRate {
-                                    Text("\(Int((rate * 100).rounded()))% success")
-                                        .font(.caption2.weight(.semibold))
-                                        .monospacedDigit()
-                                        .foregroundStyle(
-                                            rate >= 0.98 ? Theme.accent
-                                                : rate >= 0.90 ? Theme.warn : Theme.danger
-                                        )
+                    if let detail {
+                        if let error = detail.error, detail.stats == nil {
+                            NoticeRow(icon: "exclamationmark.triangle.fill", message: error, tint: Theme.warn)
+                        } else if let stats = detail.stats {
+                            statsGrid(stats)
+    
+                            SectionHeader("Trend")
+                            UsageTrendCard(stats: stats, sessions: detail.sessions)
+    
+                            if let totals = stats.tools.totals {
+                                SectionHeader("Tool calls") {
+                                    if let rate = totals.successRate {
+                                        Text("\(Int((rate * 100).rounded()))% success")
+                                            .font(.caption2.weight(.semibold))
+                                            .monospacedDigit()
+                                            .foregroundStyle(
+                                                rate >= 0.98 ? Theme.accent
+                                                    : rate >= 0.90 ? Theme.warn : Theme.danger
+                                            )
+                                    }
+                                }
+                                ToolSummaryCard(totals: totals, mode: stats.tools.mode)
+    
+                                if let usage = stats.tools.usage, !usage.isEmpty {
+                                    SectionHeader("Tools") {
+                                        Text("\(usage.count)")
+                                            .font(.caption.weight(.bold))
+                                            .monospacedDigit()
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    ToolUsageBreakdown(usage: usage)
                                 }
                             }
-                            ToolSummaryCard(totals: totals, mode: stats.tools.mode)
-
-                            if let usage = stats.tools.usage, !usage.isEmpty {
-                                SectionHeader("Tools") {
-                                    Text("\(usage.count)")
-                                        .font(.caption.weight(.bold))
-                                        .monospacedDigit()
-                                        .foregroundStyle(.secondary)
-                                }
-                                ToolUsageBreakdown(usage: usage)
+    
+                            if !stats.models.isEmpty {
+                                SectionHeader("Models")
+                                ModelBreakdownCard(models: stats.models)
                             }
+                        } else if detail.isLoading {
+                            ProjectDetailSkeleton()
+                                .shimmering()
                         }
-
-                        if !stats.models.isEmpty {
-                            SectionHeader("Models")
-                            ModelBreakdownCard(models: stats.models)
+    
+                        filesSection
+    
+                        changesSection
+    
+                        if !detail.sessions.isEmpty {
+                            let sessions = Array(detail.sessions.prefix(40))
+                            SectionHeader("Sessions") {
+                                Text("\(detail.sessions.count)")
+                                    .font(.caption.weight(.bold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
+                            ForEach(sessions) { session in
+                                NavigationLink(value: session) {
+                                    RecentSessionRow(session: session, project: project.displayName)
+                                }
+                                .buttonStyle(.plain)
+                                .transition(.recentInsertion)
+                            }
+                            .animateRecentInsertion(ids: sessions.map(\.id))
                         }
-                    } else if detail.isLoading {
+                    } else {
                         ProjectDetailSkeleton()
                             .shimmering()
                     }
-
-                    filesSection
-
-                    changesSection
-
-                    if !detail.sessions.isEmpty {
-                        let sessions = Array(detail.sessions.prefix(40))
-                        SectionHeader("Sessions") {
-                            Text("\(detail.sessions.count)")
-                                .font(.caption.weight(.bold))
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-                        }
-                        ForEach(sessions) { session in
-                            NavigationLink(value: session) {
-                                RecentSessionRow(session: session, project: project.displayName)
-                            }
-                            .buttonStyle(.plain)
-                            .transition(.recentInsertion)
-                        }
-                        .animateRecentInsertion(ids: sessions.map(\.id))
-                    }
-                } else {
-                    ProjectDetailSkeleton()
-                        .shimmering()
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .onAppear { scrollToTop(proxy) }
         }
         .mobileScreenBackground()
         .navigationTitle(project.displayName)

@@ -69,6 +69,10 @@ struct SessionDetailView: View {
                 // The running summary updates every second, and a lazy outer
                 // stack can otherwise disturb the scroll position while it does.
                 VStack(alignment: .leading, spacing: 12) {
+                    // Anchor at the very top so scrolling to it keeps the
+                    // summary header visible (the Mac panel does the same).
+                    Color.clear.frame(height: 1).id(topAnchor)
+
                     summary
 
                     Picker("View", selection: $mode) {
@@ -77,8 +81,6 @@ struct SessionDetailView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-
-                    Color.clear.frame(height: 1).id(topAnchor)
 
                     content
                 }
@@ -99,6 +101,11 @@ struct SessionDetailView: View {
             }
             .onChange(of: scrollRequest) { _, _ in
                 scrollToTop(proxy, animated: true)
+            }
+            .onAppear {
+                // A pushed screen can briefly inherit the previous scroll
+                // offset; re-assert the top so the summary stays visible.
+                scrollToTop(proxy, animated: false)
             }
         }
         .mobileScreenBackground()
@@ -391,10 +398,12 @@ struct SessionDetailView: View {
                         .transition(.recentInsertion)
                 }
                 .animateRecentInsertion(ids: messages.map(\.id))
-            }
 
-            if previousCursor != nil {
-                loadEarlierButton
+                // Inside the lazy stack so its onAppear only fires when the
+                // user reaches the end, not on the first layout.
+                if previousCursor != nil {
+                    loadEarlierButton
+                }
             }
         }
     }
@@ -420,10 +429,10 @@ struct SessionDetailView: View {
                         .transition(.recentInsertion)
                 }
                 .animateRecentInsertion(ids: prompts.map(\.id))
-            }
 
-            if previousCursor != nil {
-                loadEarlierButton
+                if previousCursor != nil {
+                    loadEarlierButton
+                }
             }
         }
     }
