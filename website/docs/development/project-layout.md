@@ -40,6 +40,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
 Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   OpenCodeBarMobileApp.swift      app entry + floating tab dock
   MobileStore.swift               observable hub state
+  MobileDatabase.swift            local SQLite cache + incremental sync
   HubSettings.swift               URL/token storage and pairing links
   PairingScanner.swift            camera QR scanner for pairing
   LiveView.swift                  running/recent sessions

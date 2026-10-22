@@ -243,7 +243,7 @@ struct HubAPI: Sendable {
         if let cursor, let value = cursor.addingPercentEncoding(withAllowedCharacters: .alphanumerics) {
             path += "&cursor=\(value)"
         }
-        if let since {
+        if let since, since.isFinite, since > 0 {
             path += "&since=\(Int(since))"
         }
         return try await get(path)

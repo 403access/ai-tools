@@ -248,8 +248,9 @@ text.
 curl -N -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8787/api/event
 ```
 
-The stream does not replay missed events. Reconnect and refresh the cached read
-endpoints; the hub rebuilds live activity from the newest messages when needed.
+The stream does not replay missed events. Reconnect and catch up with the
+incremental `GET /api/sync` feed (then read the cached endpoints for details);
+the hub rebuilds live activity from the newest messages when needed.
 
 ## Session stats shape
 

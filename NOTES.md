@@ -1,7 +1,7 @@
 # Notes
 
 Working notes for OpenCodeBar: follow-ups, known polish items, and environment
-observations. Last updated 2026-10-22.
+observations. Last updated 2026-10-23.
 
 ## Hub and mobile (v2)
 
