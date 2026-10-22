@@ -175,9 +175,9 @@ These were intentionally left out of this pass:
 2. **Cache chart series by range in the store.** The views now build each
    series once; a store-level cache would also remove the remaining per-render
    work when returning to the Usage tab.
-3. **Incremental message updates.** The detail view still refetches the newest
-   30 messages while a session runs. A cursor/`since` query on the hub would
-   make streaming updates proportional to new output.
+3. **Incremental message updates.** *Done on iOS (2026-10-23):* the detail view
+   now renders cached messages and asks the hub for `message?since=<newest>`.
+   The Mac detail view still refetches its newest window.
 4. **Server-side activity snapshots and bulk stats.** This would remove the
    first-render seeding lag and make project totals cheaper to show inline
    (already noted in `NOTES.md`).

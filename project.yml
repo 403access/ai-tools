@@ -31,6 +31,8 @@ targets:
       - path: Sources/OpenCodeBar/Views/HeatmapView.swift
       - path: Sources/OpenCodeBar/Views/LiveActivityView.swift
       - path: Mobile/Assets.xcassets
+    dependencies:
+      - sdk: libsqlite3.tbd
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.opencodebar.mobile

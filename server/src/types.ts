@@ -220,6 +220,23 @@ export interface ActiveSessionsResponse {
   data: Record<string, { type: string }>;
 }
 
+/**
+ * Incremental change feed for the native clients. `sessions` and `projects`
+ * only contain rows that changed after the client's last revision; the deleted
+ * arrays carry tombstones. A `full` response must replace the client's local
+ * copy instead of merging into it.
+ */
+export interface SyncResponse {
+  revision: number;
+  full: boolean;
+  sessions: Session[];
+  deletedSessions: string[];
+  projects: Project[];
+  deletedProjects: string[];
+  /** Sessions currently running, always sent in full (it is a short list). */
+  active: string[];
+}
+
 export interface StatsResponse {
   data: Stats;
   fetchedAt?: number;

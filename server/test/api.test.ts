@@ -281,6 +281,38 @@ describe("hub API reads", () => {  test("serves cached sessions, active ids and 
     db.close();
   });
 
+  test("serves an incremental session feed", async () => {
+    const { db, handler } = setup();
+    db.upsertSessions([session("ses_1", 1_000)]);
+
+    const full = await body<{
+      revision: number;
+      full: boolean;
+      sessions: Session[];
+      active: string[];
+    }>(await handler(request("/api/sync")));
+    expect(full.full).toBe(true);
+    expect(full.sessions.map((s) => s.id)).toEqual(["ses_1"]);
+
+    db.upsertSessions([session("ses_2", 2_000)]);
+    const delta = await body<{
+      revision: number;
+      full: boolean;
+      sessions: Session[];
+      deletedSessions: string[];
+    }>(await handler(request(`/api/sync?since=${full.revision}`)));
+    expect(delta.full).toBe(false);
+    expect(delta.sessions.map((s) => s.id)).toEqual(["ses_2"]);
+    expect(delta.revision).toBeGreaterThan(full.revision);
+
+    const quiet = await body<{ sessions: Session[]; revision: number }>(
+      await handler(request(`/api/sync?since=${delta.revision}`)),
+    );
+    expect(quiet.sessions).toEqual([]);
+    expect(quiet.revision).toBe(delta.revision);
+    db.close();
+  });
+
   test("pages cached messages when OpenCode is offline", async () => {
     const { db, handler } = setup();
     db.upsertMessages("ses_1", [
@@ -297,6 +329,11 @@ describe("hub API reads", () => {  test("serves cached sessions, active ids and 
       ),
     );
     expect(second.data[0]?.id).toBe("m1");
+
+    const delta = await body<MessagePage>(
+      await handler(request("/api/session/ses_1/message?since=150")),
+    );
+    expect(delta.data.map((message) => message.id)).toEqual(["m2"]);
     db.close();
   });
 

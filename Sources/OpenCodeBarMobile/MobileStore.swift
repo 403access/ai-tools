@@ -112,15 +112,16 @@ final class MobileStore: ObservableObject {
     private var projectNames: [String: String] = [:]
 
     private let settingsStore: HubSettingsStore
+    private let database: MobileDatabase?
     private var api: HubAPI?
     private var hubVersion: String?
+    private var cachedRevision = 0
     private var liveTask: Task<Void, Never>?
     private var slowTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
     private var debounceTask: Task<Void, Never>?
     private var started = false
     private var statsFetchedAt: Date?
-    private var historyFetchedAt: Date?
     private var seeding: Set<String> = []
     private var seedAttempts: [String: Date] = [:]
     private var eventStreamConnected = false
@@ -130,6 +131,7 @@ final class MobileStore: ObservableObject {
 
     init(settings: HubSettingsStore) {
         self.settingsStore = settings
+        self.database = MobileDatabase()
     }
 
     // MARK: - Lifecycle
@@ -146,6 +148,16 @@ final class MobileStore: ObservableObject {
 
         connection = .connecting
         api = HubAPI(location: location)
+
+        // A cache belongs to one hub. Pairing a different server must not mix
+        // its sessions into this one, so start from scratch when the URL moves.
+        let hubURL = location.url.absoluteString
+        if database?.matches(hubURL: hubURL) == false {
+            database?.clear()
+        }
+        database?.setHubURL(hubURL)
+        hydrateFromCache()
+
         startEvents(location: location)
         Task { await bootstrap() }
         startTimers()
@@ -169,7 +181,6 @@ final class MobileStore: ObservableObject {
                 try? await Task.sleep(nanoseconds: 60_000_000_000)
                 guard !Task.isCancelled else { break }
                 await self?.refreshStats(force: true)
-                await self?.refreshHistory(force: true)
                 await self?.refreshUsage(force: true)
             }
         }
@@ -210,6 +221,8 @@ final class MobileStore: ObservableObject {
     /// Applies saved settings and starts over. Used after the setup screen saves.
     func reconnect() {
         stop()
+        database?.clear()
+        cachedRevision = 0
         sessions = []
         activeIDs = []
         projects = [:]
@@ -227,7 +240,6 @@ final class MobileStore: ObservableObject {
         subagentLists = [:]
         lastUpdated = nil
         statsFetchedAt = nil
-        historyFetchedAt = nil
         hubError = nil
         eventStreamConnected = false
         seedAttempts = [:]
@@ -246,6 +258,8 @@ final class MobileStore: ObservableObject {
     /// configuration.
     func disconnect() {
         stop()
+        database?.clear()
+        cachedRevision = 0
         connection = .disabled
         hubHealth = nil
     }
@@ -265,6 +279,31 @@ final class MobileStore: ObservableObject {
         await refreshAll()
     }
 
+    /// Restores the last snapshot before any network work, so the app opens on
+    /// cached sessions and usage instead of skeletons.
+    private func hydrateFromCache() {
+        guard let snapshot = database?.loadSnapshot() else { return }
+        cachedRevision = snapshot.revision
+        if !snapshot.sessions.isEmpty {
+            let ordered = SessionOrdering.mostRecentFirst(snapshot.sessions)
+            sessions = ordered
+            history = ordered
+        }
+        projects = Dictionary(
+            snapshot.projects.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        stats = snapshot.stats
+        usage = snapshot.usage
+        usageFetchedAt = snapshot.usage?.fetchedDate
+        lastUpdated = snapshot.lastSyncedAt
+        // Running flags are only trusted briefly; the first delta corrects them.
+        if let at = snapshot.activeAt, Date().timeIntervalSince(at) < 120 {
+            activeIDs = Set(snapshot.active)
+        }
+        rebuildDerived()
+    }
+
     private var displayVersion: String {
         hubHealth?.opencode?.version ?? hubHealth?.hub?.version ?? hubVersion ?? "hub"
     }
@@ -274,11 +313,12 @@ final class MobileStore: ObservableObject {
     func refreshAll() async {
         async let live: Void = refreshLive()
         async let stats: Void = refreshStats(force: true)
-        async let history: Void = refreshHistory(force: true)
         async let usage: Void = refreshUsage(force: true)
-        _ = await (live, stats, history, usage)
+        _ = await (live, stats, usage)
     }
 
+    /// Catches up with the hub. The first request is a full snapshot; later
+    /// requests only carry rows whose revision moved.
     func refreshLive() async {
         guard let api else {
             if case .disabled = connection {} else { connection = .offline("Hub not configured") }
@@ -289,38 +329,9 @@ final class MobileStore: ObservableObject {
         defer { isRefreshing = false }
 
         do {
-            async let active = api.activeSessionIDs()
-            async let recent = api.sessions(limit: 60)
-            async let projectList = api.projects()
-            let (activeKeys, recentSessions, projectsValue) = try await (active, recent, projectList)
-
-            let newActiveIDs = Set(activeKeys)
-            var merged = recentSessions
-            let present = Set(recentSessions.map(\.id))
-            let missing = activeKeys.filter { !present.contains($0) }
-            if !missing.isEmpty {
-                let fetched = await withTaskGroup(of: Session?.self) { group in
-                    for id in missing {
-                        group.addTask { try? await api.session(id: id) }
-                    }
-                    var result: [Session] = []
-                    for await session in group {
-                        if let session { result.append(session) }
-                    }
-                    return result
-                }
-                merged.append(contentsOf: fetched)
-            }
-
-            let newSessions = SessionOrdering.mostRecentFirst(merged)
-            let newProjects = Dictionary(projectsValue.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-
-            if newActiveIDs != activeIDs { activeIDs = newActiveIDs }
-            if newSessions != sessions { sessions = newSessions }
-            if newProjects != projects { projects = newProjects }
-            pruneActivity()
-            rebuildDerived()
-            syncSubagentLists(with: newSessions)
+            let response = try await api.sync(since: cachedRevision > 0 ? cachedRevision : nil)
+            apply(response)
+            await fillMissingActiveSessions(response.active, api: api)
             connection = .connected(version: displayVersion)
             hubError = nil
             lastUpdated = Date()
@@ -333,6 +344,103 @@ final class MobileStore: ObservableObject {
         seedActivities()
     }
 
+    /// Merges a delta into the in-memory store and the local database.
+    private func apply(_ response: HubSyncResponse) {
+        let sessionsChanged = response.full
+            || !response.sessions.isEmpty
+            || !response.deletedSessions.isEmpty
+
+        if sessionsChanged {
+            var byID: [String: Session]
+            if response.full {
+                byID = Dictionary(
+                    response.sessions.map { ($0.id, $0) },
+                    uniquingKeysWith: { first, _ in first }
+                )
+            } else {
+                byID = Dictionary(
+                    sessions.map { ($0.id, $0) },
+                    uniquingKeysWith: { first, _ in first }
+                )
+                for session in response.sessions { byID[session.id] = session }
+                for id in response.deletedSessions { byID.removeValue(forKey: id) }
+            }
+
+            let ordered = SessionOrdering.mostRecentFirst(Array(byID.values))
+            if ordered != sessions { sessions = ordered }
+            if history != ordered { history = ordered }
+            syncSubagentLists(with: response.sessions)
+        }
+
+        if response.full || !response.projects.isEmpty || !response.deletedProjects.isEmpty {
+            var byID: [String: Project]
+            if response.full {
+                byID = Dictionary(
+                    response.projects.map { ($0.id, $0) },
+                    uniquingKeysWith: { first, _ in first }
+                )
+            } else {
+                byID = projects
+                for project in response.projects { byID[project.id] = project }
+                for id in response.deletedProjects { byID.removeValue(forKey: id) }
+            }
+            if byID != projects { projects = byID }
+        }
+
+        let newActive = Set(response.active)
+        let activeChanged = newActive != activeIDs
+        if activeChanged { activeIDs = newActive }
+
+        // Persist before rebuilding derived feeds; the next launch hydrates from
+        // exactly this snapshot.
+        if response.full {
+            database?.replaceSessions(sessions)
+            database?.replaceProjects(Array(projects.values))
+        } else {
+            database?.upsertSessions(response.sessions)
+            database?.deleteSessions(response.deletedSessions)
+            database?.upsertProjects(response.projects)
+            database?.deleteProjects(response.deletedProjects)
+        }
+        cachedRevision = response.revision
+        database?.setRevision(response.revision)
+        if activeChanged { database?.setActive(response.active) }
+
+        pruneActivity()
+        rebuildDerived()
+    }
+
+    /// A running session older than the full snapshot window could still be
+    /// missing from the local list. Fetch just those ids, as the old poll did.
+    private func fillMissingActiveSessions(_ active: [String], api: HubAPI) async {
+        let known = Set(sessions.map(\.id))
+        let missing = active.filter { !known.contains($0) }
+        guard !missing.isEmpty else { return }
+
+        let fetched = await withTaskGroup(of: Session?.self) { group in
+            for id in missing {
+                group.addTask { try? await api.session(id: id) }
+            }
+            var result: [Session] = []
+            for await session in group {
+                if let session { result.append(session) }
+            }
+            return result
+        }
+        guard !fetched.isEmpty else { return }
+
+        var byID = Dictionary(
+            sessions.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        for session in fetched { byID[session.id] = session }
+        let ordered = SessionOrdering.mostRecentFirst(Array(byID.values))
+        if ordered != sessions { sessions = ordered }
+        if history != ordered { history = ordered }
+        database?.upsertSessions(fetched)
+        rebuildDerived()
+    }
+
     func refreshStats(force: Bool = false) async {
         guard let api else { return }
         if !force, let fetched = statsFetchedAt, Date().timeIntervalSince(fetched) < 30 { return }
@@ -341,20 +449,16 @@ final class MobileStore: ObservableObject {
             stats = fresh
             statsFetchedAt = Date()
             statsStale = false
+            database?.putStats(fresh)
         } catch {
             if stats != nil { statsStale = true }
         }
     }
 
+    /// The local cache already holds every session the hub knows about, so the
+    /// usage charts no longer need a separate 1,000-row history request.
     func refreshHistory(force: Bool = false) async {
-        guard let api else { return }
-        if !force, let fetched = historyFetchedAt, Date().timeIntervalSince(fetched) < 60 { return }
-        do {
-            history = SessionOrdering.mostRecentFirst(try await api.sessions(limit: 1_000))
-            historyFetchedAt = Date()
-        } catch {
-            // Keep the previous history; charts still render.
-        }
+        if history != sessions { history = sessions }
     }
 
     func refreshUsage(force: Bool = false) async {
@@ -367,6 +471,7 @@ final class MobileStore: ObservableObject {
             let response = try await api.usage()
             usage = response
             usageFetchedAt = response.fetchedDate ?? Date()
+            database?.putUsage(response)
         } catch {
             // Keep the last response; the view shows its existing state.
         }
@@ -462,6 +567,7 @@ final class MobileStore: ObservableObject {
             sessions[index].cost = cost
             sessions[index].tokens = tokens
             updateDerivedSession(sessions[index])
+            database?.upsertSessions([sessions[index]])
         }
         for parentID in Array(subagentLists.keys) {
             guard var list = subagentLists[parentID],
@@ -527,13 +633,28 @@ final class MobileStore: ObservableObject {
         cache = trimmed
     }
 
+    /// Newest cached messages, available before the network request finishes.
+    func cachedMessages(for sessionID: String, limit: Int = 100) -> [SessionMessage] {
+        database?.messages(for: sessionID, limit: limit) ?? []
+    }
+
+    /// Fetches messages from the hub and writes them to the local cache. When
+    /// `since` is set, only messages at/after that timestamp are returned.
     func messages(
         for sessionID: String,
         limit: Int = 100,
-        cursor: String? = nil
+        cursor: String? = nil,
+        since: Double? = nil
     ) async throws -> SessionMessagesResponse {
         guard let api else { throw APIError.transport("Not connected to the hub") }
-        return try await api.sessionMessages(id: sessionID, limit: limit, cursor: cursor)
+        let response = try await api.sessionMessages(
+            id: sessionID,
+            limit: limit,
+            cursor: cursor,
+            since: since
+        )
+        database?.upsertMessages(response.data, for: sessionID)
+        return response
     }
 
     /// Creates a session in a project directory. The caller decides when to
@@ -542,6 +663,8 @@ final class MobileStore: ObservableObject {
         guard let api else { throw APIError.transport("Not connected to the hub") }
         let session = try await api.createSession(title: title, directory: directory)
         sessions.insert(session, at: 0)
+        history.insert(session, at: 0)
+        database?.upsertSessions([session])
         rebuildDerived()
         await refreshLive()
         return session
@@ -861,6 +984,9 @@ final class MobileStore: ObservableObject {
         }
         if let index = recentSessions.firstIndex(where: { $0.id == session.id }) {
             recentSessions[index] = session
+        }
+        if let index = history.firstIndex(where: { $0.id == session.id }) {
+            history[index] = session
         }
     }
 

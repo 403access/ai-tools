@@ -13,9 +13,11 @@ the current turn (or steered if the client requests it).
 
 ## Hub dependency
 
-The phone always needs a reachable hub. The Mac app uses the hub too, so without
-it you lose live updates and cached history. The hub is a foreground Bun process
-unless you wrap it in a launch agent.
+The phone always needs a reachable hub for live updates. The iOS app still
+renders its last local snapshot while the hub is unreachable, but new data
+requires the hub. The Mac app uses the hub too, so without it you lose live
+updates and cached history. The hub is a foreground Bun process unless you wrap
+it in a launch agent.
 
 ## Go plan limits
 
@@ -24,9 +26,10 @@ and auto-recharge are console-only and are not shown.
 
 ## Cache growth
 
-Every session opened is cached, and the changes table mirrors every patch found
-in those messages. There is no retention policy yet; long-lived installs may
-need to prune or recreate `hub.sqlite`.
+Every session opened is cached on the hub, and the changes table mirrors every
+patch found in those messages. There is no hub retention policy yet; long-lived
+installs may need to prune or recreate `hub.sqlite`. The iOS app keeps its own
+cache and retains the newest 500 messages per opened session.
 
 ## Hydration windows
 
@@ -45,7 +48,9 @@ aggregate cost roll-up. A parent with more than 50 children shows the newest 50.
 
 - Cost and token trends are grouped by the day a session was last updated, not
   by individual messages.
-- The full session list used for charts is capped (currently 1,000 sessions).
+- The full session list used for charts is capped on the hub (5,000 rows). The
+  iOS app charts its incrementally synced session cache; the Mac app still
+  fetches 1,000 sessions.
 - The “All” chart range uses one bar per day; very long histories can look
   dense.
 

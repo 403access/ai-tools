@@ -40,7 +40,7 @@ enum APIError: LocalizedError {
 
 /// Go usage state as cached by the hub. `data` is the last good payload even
 /// when `error` is set, which is what makes stale-but-useful limits possible.
-struct HubUsageResponse: Decodable, Sendable {
+struct HubUsageResponse: Codable, Sendable {
     var data: GoUsage?
     var fetchedAt: Double?
     var stale: Bool?
@@ -83,6 +83,18 @@ struct HubHealthResponse: Decodable, Sendable {
         var lastSync: Double?
         var lastError: String?
     }
+}
+
+/// Incremental change feed returned by `GET /api/sync`. A `full` response
+/// replaces the local copy; otherwise only the listed rows changed.
+struct HubSyncResponse: Decodable, Sendable {
+    var revision: Int
+    var full: Bool
+    var sessions: [Session]
+    var deletedSessions: [String]
+    var projects: [Project]
+    var deletedProjects: [String]
+    var active: [String]
 }
 
 /// Thin async client over the OpenCodeBar hub. Endpoint shapes mirror the
@@ -223,12 +235,16 @@ struct HubAPI: Sendable {
     func sessionMessages(
         id: String,
         limit: Int = 100,
-        cursor: String? = nil
+        cursor: String? = nil,
+        since: Double? = nil
     ) async throws -> SessionMessagesResponse {
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         var path = "/api/session/\(encoded)/message?limit=\(limit)"
         if let cursor, let value = cursor.addingPercentEncoding(withAllowedCharacters: .alphanumerics) {
             path += "&cursor=\(value)"
+        }
+        if let since {
+            path += "&since=\(Int(since))"
         }
         return try await get(path)
     }
@@ -280,6 +296,15 @@ struct HubAPI: Sendable {
 
     func usage() async throws -> HubUsageResponse {
         try await get("/api/usage")
+    }
+
+    /// Fetches only the sessions and projects that changed after `since`.
+    /// Passing `nil` asks for a full snapshot (first launch, or after a reset).
+    func sync(since: Int?) async throws -> HubSyncResponse {
+        if let since {
+            return try await get("/api/sync?since=\(since)")
+        }
+        return try await get("/api/sync")
     }
 
     /// Asks the hub to pull fresh data from OpenCode. Best effort — failures are

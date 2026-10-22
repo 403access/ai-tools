@@ -556,20 +556,34 @@ export class Hub {
     }
   }
 
-  async messages(id: string, limit = 100, cursor?: string | null): Promise<MessagesResponse> {
+  async messages(
+    id: string,
+    limit = 100,
+    cursor?: string | null,
+    since?: number,
+  ): Promise<MessagesResponse> {
     const client = this.client ?? (await this.ensureClient());
     if (client) {
       try {
+        if (since !== undefined) {
+          // Refresh the newest window so in-place streaming updates are cached,
+          // then answer from the cache with only the messages the client lacks.
+          const page = await client.messages(id, Math.max(limit, 100));
+          if (page.data?.length) this.db.upsertMessages(id, page.data);
+          return { data: this.db.getMessagesSince(id, since) };
+        }
         const response = await client.messages(id, limit, cursor);
         if (response.data?.length) this.db.upsertMessages(id, response.data);
         return response;
       } catch (error) {
         this.noteError(error);
+        if (since !== undefined) return { data: this.db.getMessagesSince(id, since) };
         const cached = this.db.getMessages(id, limit, cursor);
         if (cached.data.length || this.db.getMessageCount(id) === 0) return cached;
         throw error;
       }
     }
+    if (since !== undefined) return { data: this.db.getMessagesSince(id, since) };
     return this.db.getMessages(id, limit, cursor);
   }
 

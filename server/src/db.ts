@@ -13,6 +13,7 @@ import {
   type SessionMessage,
   type SessionStats,
   type Stats,
+  type SyncResponse,
   type TokenUsage,
   type ToolFailure,
   type ToolTotals,
@@ -330,7 +331,7 @@ export class HubDB {
 
   private migrate(): void {
     const version = number((this.db.query("PRAGMA user_version").get() as Row | null)?.user_version);
-    if (version >= 4) return;
+    if (version >= 5) return;
 
     if (version < 1) this.db.exec(`
       CREATE TABLE IF NOT EXISTS projects (
@@ -479,6 +480,49 @@ export class HubDB {
       `);
       this.db.exec("PRAGMA user_version = 4;");
     }
+
+    if (version < 5) {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS sync_log (
+          rev INTEGER PRIMARY KEY AUTOINCREMENT,
+          kind TEXT NOT NULL,
+          entity_id TEXT NOT NULL,
+          deleted INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE INDEX IF NOT EXISTS sync_log_kind_rev ON sync_log(kind, rev);
+      `);
+      this.db.exec("PRAGMA user_version = 5;");
+    }
+  }
+
+  /**
+   * Appends one row to the incremental sync feed. Clients ask for everything
+   * with a revision greater than their own, so only real changes are logged.
+   */
+  private logChange(kind: "session" | "project", id: string, deleted = false): void {
+    const result = this.db
+      .prepare("INSERT INTO sync_log (kind, entity_id, deleted) VALUES (?, ?, ?)")
+      .run(kind, id, deleted ? 1 : 0);
+    // Amortise pruning so the feed stays bounded without a count per write.
+    if (Number(result.lastInsertRowid) % 10_000 === 0) this.pruneSyncLog();
+  }
+
+  private syncRevision(): number {
+    const row = this.db
+      .query("SELECT COALESCE(MAX(rev), 0) AS rev FROM sync_log")
+      .get() as Row;
+    return number(row.rev);
+  }
+
+  /**
+   * Drops very old feed rows. Clients whose revision falls behind the retained
+   * window are told to do a full sync instead.
+   */
+  private pruneSyncLog(keep = 50_000): void {
+    this.db
+      .prepare("DELETE FROM sync_log WHERE rev <= (SELECT MAX(rev) - ? FROM sync_log)")
+      .run(keep);
   }
 
   /**
@@ -582,27 +626,22 @@ export class HubDB {
   // MARK: - Projects
 
   replaceProjects(projects: Project[], now = Date.now()): void {
-    const insert = this.db.prepare(`
-      INSERT INTO projects (id, canonical, vcs, name, created, updated, active, sandboxes, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const run = this.db.transaction((items: Project[]) => {
-      this.db.exec("DELETE FROM projects");
-      for (const project of items) {
-        insert.run(
-          project.id,
-          project.canonical ?? "",
-          project.vcs ?? null,
-          project.name ?? null,
-          number(project.time?.created),
-          number(project.time?.updated),
-          optionalNumber(project.time?.active) ?? null,
-          JSON.stringify(project.sandboxes ?? []),
-          now,
-        );
+    this.upsertProjects(projects, now);
+
+    // The upstream project list is authoritative, so anything missing locally
+    // has been removed. Record a tombstone for the clients before dropping it.
+    const keep = new Set(projects.map((project) => project.id));
+    const rows = this.db.query("SELECT id FROM projects").all() as Row[];
+    const remove = this.db.prepare("DELETE FROM projects WHERE id = ?");
+    const run = this.db.transaction(() => {
+      for (const row of rows) {
+        const id = String(row.id);
+        if (keep.has(id)) continue;
+        remove.run(id);
+        this.logChange("project", id, true);
       }
     });
-    run(projects);
+    run();
   }
 
   upsertProjects(projects: Project[], now = Date.now()): void {
@@ -618,10 +657,17 @@ export class HubDB {
         active = excluded.active,
         sandboxes = excluded.sandboxes,
         synced_at = excluded.synced_at
+      WHERE projects.canonical IS NOT excluded.canonical
+         OR projects.vcs IS NOT excluded.vcs
+         OR projects.name IS NOT excluded.name
+         OR projects.created IS NOT excluded.created
+         OR projects.updated IS NOT excluded.updated
+         OR projects.active IS NOT excluded.active
+         OR projects.sandboxes IS NOT excluded.sandboxes
     `);
     const run = this.db.transaction((items: Project[]) => {
       for (const project of items) {
-        insert.run(
+        const result = insert.run(
           project.id,
           project.canonical ?? "",
           project.vcs ?? null,
@@ -632,6 +678,7 @@ export class HubDB {
           JSON.stringify(project.sandboxes ?? []),
           now,
         );
+        if (result.changes > 0) this.logChange("project", project.id);
       }
     });
     run(projects);
@@ -672,10 +719,25 @@ export class HubDB {
         subpath = excluded.subpath,
         directory = excluded.directory,
         synced_at = excluded.synced_at
+      WHERE sessions.parent_id IS NOT excluded.parent_id
+         OR sessions.project_id IS NOT excluded.project_id
+         OR sessions.agent IS NOT excluded.agent
+         OR sessions.model IS NOT excluded.model
+         OR sessions.cost IS NOT excluded.cost
+         OR sessions.tokens IS NOT excluded.tokens
+         OR sessions.outcome IS NOT excluded.outcome
+         OR sessions.created IS NOT excluded.created
+         OR sessions.updated IS NOT excluded.updated
+         OR sessions.idle IS NOT excluded.idle
+         OR sessions.viewed IS NOT excluded.viewed
+         OR sessions.archived IS NOT excluded.archived
+         OR sessions.title IS NOT excluded.title
+         OR sessions.subpath IS NOT excluded.subpath
+         OR sessions.directory IS NOT excluded.directory
     `);
     const run = this.db.transaction((items: Session[]) => {
       for (const session of items) {
-        insert.run(
+        const result = insert.run(
           session.id,
           session.parentID ?? null,
           session.projectID ?? "",
@@ -694,6 +756,9 @@ export class HubDB {
           session.location?.directory ?? null,
           now,
         );
+        // `changes` is zero when the WHERE clause skipped an identical row, so
+        // the feed only records sessions that actually moved.
+        if (result.changes > 0) this.logChange("session", session.id);
       }
     });
     run(sessions);
@@ -718,14 +783,15 @@ export class HubDB {
     if (cost === undefined && tokens === undefined) return;
     const row = this.db.query("SELECT cost, tokens FROM sessions WHERE id = ?").get(id) as Row | null;
     if (!row) return;
-    this.db
-      .prepare("UPDATE sessions SET cost = ?, tokens = ?, synced_at = ? WHERE id = ?")
-      .run(
-        cost ?? number(row.cost),
-        tokens ? JSON.stringify(tokens) : String(row.tokens ?? "{}"),
-        now,
-        id,
-      );
+    const nextCost = cost ?? number(row.cost);
+    const nextTokens = tokens ? JSON.stringify(tokens) : String(row.tokens ?? "{}");
+    const result = this.db
+      .prepare(
+        `UPDATE sessions SET cost = ?, tokens = ?, synced_at = ?
+         WHERE id = ? AND (cost IS NOT ? OR tokens IS NOT ?)`,
+      )
+      .run(nextCost, nextTokens, now, id, nextCost, nextTokens);
+    if (result.changes > 0) this.logChange("session", id);
   }
 
   getSessions(query: SessionQuery = {}): Session[] {
@@ -763,6 +829,84 @@ export class HubDB {
   getSession(id: string): Session | null {
     const row = this.db.query("SELECT * FROM sessions WHERE id = ?").get(id) as Row | null;
     return row ? rowToSession(row) : null;
+  }
+
+  /**
+   * Everything a client needs to catch up from `since`. When the client is new,
+   * ahead of the hub (its database was reset), or older than the retained feed,
+   * the response is a full snapshot instead of a delta.
+   */
+  getSync(since?: number): SyncResponse {
+    const revision = this.syncRevision();
+    const minRow = this.db.query("SELECT MIN(rev) AS rev FROM sync_log").get() as Row | null;
+    const oldest = optionalNumber(minRow?.rev);
+
+    const requested = typeof since === "number" && Number.isFinite(since) ? Math.floor(since) : undefined;
+    const full =
+      requested === undefined ||
+      requested <= 0 ||
+      requested > revision ||
+      (oldest !== undefined && requested < oldest - 1);
+
+    if (full) {
+      return {
+        revision,
+        full: true,
+        sessions: this.getSessions({ limit: 5_000 }),
+        deletedSessions: [],
+        projects: this.getProjects(),
+        deletedProjects: [],
+        active: this.getSessions({ active: true, limit: 5_000 }).map((session) => session.id),
+      };
+    }
+
+    const changedSessions = this.db
+      .query(
+        `SELECT * FROM sessions
+         WHERE id IN (
+           SELECT entity_id FROM sync_log
+           WHERE kind = 'session' AND deleted = 0 AND rev > ? AND rev <= ?
+         )
+         ORDER BY updated DESC`,
+      )
+      .all(requested, revision) as Row[];
+
+    const deletedSessions = this.db
+      .query(
+        `SELECT DISTINCT entity_id AS id FROM sync_log
+         WHERE kind = 'session' AND deleted = 1 AND rev > ? AND rev <= ?
+           AND entity_id NOT IN (SELECT id FROM sessions)`,
+      )
+      .all(requested, revision) as Row[];
+
+    const changedProjects = this.db
+      .query(
+        `SELECT * FROM projects
+         WHERE id IN (
+           SELECT entity_id FROM sync_log
+           WHERE kind = 'project' AND deleted = 0 AND rev > ? AND rev <= ?
+         )
+         ORDER BY updated DESC`,
+      )
+      .all(requested, revision) as Row[];
+
+    const deletedProjects = this.db
+      .query(
+        `SELECT DISTINCT entity_id AS id FROM sync_log
+         WHERE kind = 'project' AND deleted = 1 AND rev > ? AND rev <= ?
+           AND entity_id NOT IN (SELECT id FROM projects)`,
+      )
+      .all(requested, revision) as Row[];
+
+    return {
+      revision,
+      full: false,
+      sessions: changedSessions.map(rowToSession),
+      deletedSessions: deletedSessions.map((row) => String(row.id)),
+      projects: changedProjects.map(rowToProject),
+      deletedProjects: deletedProjects.map((row) => String(row.id)),
+      active: this.getSessions({ active: true, limit: 5_000 }).map((session) => session.id),
+    };
   }
 
   // MARK: - Messages
@@ -1032,6 +1176,20 @@ export class HubDB {
       page.cursor = { next: encodeMessageCursor(last) };
     }
     return page;
+  }
+
+  /** Cached messages created or updated at/after `since`, newest first. */
+  getMessagesSince(sessionID: string, since: number, limit = 500): SessionMessage[] {
+    const capped = Math.min(Math.max(Math.floor(limit), 1), 1_000);
+    const rows = this.db
+      .query(
+        `SELECT * FROM messages
+         WHERE session_id = ?
+           AND (created >= ? OR COALESCE(completed, streamed, 0) >= ?)
+         ORDER BY created DESC, id DESC LIMIT ?`,
+      )
+      .all(sessionID, since, since, capped) as Row[];
+    return rows.map(rowToMessage);
   }
 
   getMessageCount(sessionID: string): number {

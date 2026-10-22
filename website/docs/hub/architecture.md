@@ -90,6 +90,23 @@ Message history is cached the first time a session is opened, so paging back
 works offline. Changes mirror the `metadata.files` patches found in cached
 messages, so they survive an OpenCode restart.
 
+## Incremental sync
+
+The hub records every real session and project change in a `sync_log` with a
+monotonic revision. Identical poll results are skipped, so a quiet hub writes
+nothing. `GET /api/sync?since=<revision>` returns only the rows (and deletion
+tombstones) after that revision; the first request, a reset hub, or a revision
+older than the retained window gets a full snapshot instead. Clients store the
+revision with their local copy and send it on the next poll.
+
+The iOS app keeps its own SQLite cache in
+`Library/Application Support/OpenCodeBar/opencodebar.sqlite`: sessions,
+projects, the newest 500 messages per opened session, stats, and usage. It
+renders that snapshot on launch, then applies deltas from `/api/sync` and writes
+them back. Session detail pages show cached messages immediately and ask for
+`message?since=<newest>` while a session runs, instead of refetching the whole
+window. Pairing a different hub clears the cache so the two servers never mix.
+
 ## Project files
 
 `/api/project/{id}/files` reads the project folder directly, so it reflects

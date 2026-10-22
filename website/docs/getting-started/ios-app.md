@@ -110,6 +110,18 @@ pairing use the tunnel URL instead of the LAN address.
 
 The token is stored on the device. It is not synced to iCloud by OpenCodeBar.
 
+## Offline cache
+
+The iOS app keeps a local SQLite cache in
+`Library/Application Support/OpenCodeBar/opencodebar.sqlite`. Sessions,
+projects, stats, usage, and the newest messages of opened sessions are written
+there, so a cold launch renders the last snapshot before the first request
+finishes. The app then asks the hub for changes since its last revision with
+`GET /api/sync?since=…`; a quiet hub returns empty arrays, and only sessions
+that actually moved are transferred. Pairing a different hub clears the cache.
+
+Deleting the app removes the cache. There is no cache control in Settings yet.
+
 ## App permissions
 
 - **Local Network** — required to reach the hub on your Mac.

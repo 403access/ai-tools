@@ -121,6 +121,9 @@ iOS app:
 - Search projects, pull to refresh any screen, and open a session from a deep
   link. Settings shows hub and OpenCode health, cached session/message counts,
   uptime, and last sync.
+- A local SQLite cache renders the last snapshot on launch, then asks the hub
+  for changes only (`/api/sync?since=…`) instead of re-reading every session and
+  project on each poll. Opened sessions keep their newest messages on device too.
 - Appearance can follow the system or stay dark or light.
 - Pair by scanning the QR code in the Mac app's Settings tab, pasting the hub
   URL and token, or the `opencodebar://pair?url=…&token=…` link the hub prints;
@@ -173,8 +176,9 @@ The hub:
    `/api/session/{id}/stats`, `/api/project`, `/api/project/{id}/changes`,
    `/api/project/{id}/files`, `/api/experimental/session/stats` — plus
    `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`), `/api/usage`,
-   `/api/health`, `/api/devices`, `/api/settings` (`GET`/`PATCH`), `/api/sync`,
-   `/api/server/restart` (`POST`), and `/api/event`. Clients
+   `/api/health`, `/api/devices`, `/api/settings` (`GET`/`PATCH`),
+   `/api/sync` (`GET` delta feed, `POST` force sync), `/api/server/restart`
+   (`POST`), and `/api/event`. Clients
    authenticate with a Bearer token and identify their platform with
    `X-OpenCodeBar-*` headers so the settings screen can list connected devices.
 4. Forwards OpenCode events to every connected client, so both apps update live.
@@ -198,8 +202,9 @@ snapshot, including the latest `todowrite` list. Both apps fold events the same
 way from the shared payloads.
 
 The trend charts use the stats API's daily activity for steps, and group the
-full session list (`/api/session?limit=1000`, fetched on the slow cycle) by day
-for cost and tokens. Project pages use the same series scoped to that project.
+full session list by day for cost and tokens (the iOS app reuses its local
+session cache; the Mac fetches `/api/session?limit=1000` on the slow cycle).
+Project pages use the same series scoped to that project.
 Message history is cached the first time a session is opened, so paging back
 through it works offline. The Changes views read the `metadata.files` patches
 that OpenCode attaches to edit/write tool calls; the hub extracts them while
@@ -526,8 +531,9 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
 - The iOS app allows arbitrary HTTP loads because the hub is usually a plain
   HTTP address on the LAN; there is no App Store signing setup in the repo yet.
 - Mac usage numbers are cached at `~/Library/Caches/OpenCodeBar/usage.json` (safe
-  to delete), and the hub caches everything in
-  `~/.local/share/opencodebar/hub.sqlite` (also safe to delete). A stale cache is
-  always preferred over an empty tab.
+  to delete), the iOS app caches sessions, projects, messages, stats, and usage
+  in its Application Support container (safe to delete or reinstall), and the hub
+  caches everything in `~/.local/share/opencodebar/hub.sqlite` (also safe to
+  delete). A stale cache is always preferred over an empty tab.
 
 See [NOTES.md](NOTES.md) for follow-ups and known polish items.

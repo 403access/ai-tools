@@ -344,7 +344,14 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
         if (parts.length === 4 && parts[3] === "message") {
           const limit = intParam(url.searchParams.get("limit"), 100, 1, 500);
           const cursor = url.searchParams.get("cursor");
-          const page = await hub.messages(id, limit, cursor);
+          const sinceParam = url.searchParams.get("since");
+          const since = sinceParam === null ? undefined : Number.parseFloat(sinceParam);
+          const page = await hub.messages(
+            id,
+            limit,
+            cursor,
+            since !== undefined && Number.isFinite(since) ? since : undefined,
+          );
           return json(page);
         }
 
@@ -403,6 +410,13 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
 
       if (pathname === "/api/event" && request.method === "GET") {
         return eventStream(hub, request, device?.id);
+      }
+
+      if (pathname === "/api/sync" && request.method === "GET") {
+        const raw = url.searchParams.get("since");
+        const parsed = raw === null ? undefined : Number.parseInt(raw, 10);
+        const since = parsed !== undefined && Number.isFinite(parsed) ? parsed : undefined;
+        return json(db.getSync(since));
       }
 
       if (pathname === "/api/sync" && request.method === "POST") {

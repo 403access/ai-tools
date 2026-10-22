@@ -243,7 +243,7 @@ struct SessionStatsResponse: Decodable {
 // MARK: - Session messages
 
 /// Arbitrary JSON, used for tool inputs and metadata whose shape varies by tool.
-enum JSONValue: Decodable, Hashable, Sendable {
+enum JSONValue: Codable, Hashable, Sendable {
     case string(String)
     case number(Double)
     case bool(Bool)
@@ -270,6 +270,18 @@ enum JSONValue: Decodable, Hashable, Sendable {
                 in: container,
                 debugDescription: "Unsupported JSON value"
             )
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let value): try container.encode(value)
+        case .number(let value): try container.encode(value)
+        case .bool(let value): try container.encode(value)
+        case .null: try container.encodeNil()
+        case .array(let values): try container.encode(values)
+        case .object(let values): try container.encode(values)
         }
     }
 
@@ -342,7 +354,7 @@ struct SessionMessagesResponse: Decodable {
     }
 }
 
-struct SessionMessage: Decodable, Identifiable, Equatable {
+struct SessionMessage: Codable, Identifiable, Equatable {
     var id: String
     var type: String
     var time: Time
@@ -353,7 +365,7 @@ struct SessionMessage: Decodable, Identifiable, Equatable {
     var cost: Double?
     var tokens: TokenUsage?
 
-    struct Time: Decodable, Equatable {
+    struct Time: Codable, Equatable {
         var created: Double
         var streamed: Double?
         var completed: Double?
@@ -568,7 +580,7 @@ struct FileChangeGroup: Identifiable {
     }
 }
 
-struct MessagePart: Decodable, Equatable {
+struct MessagePart: Codable, Equatable {
     var type: String
     var id: String?
     var text: String?
@@ -576,13 +588,13 @@ struct MessagePart: Decodable, Equatable {
     var state: ToolState?
     var time: Time?
 
-    struct Time: Decodable, Equatable {
+    struct Time: Codable, Equatable {
         var created: Double?
         var ran: Double?
         var completed: Double?
     }
 
-    struct ToolState: Decodable, Equatable {
+    struct ToolState: Codable, Equatable {
         var status: String?
         var input: JSONValue?
         var content: [MessagePart]?

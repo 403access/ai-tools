@@ -133,7 +133,9 @@ curl -X PATCH http://127.0.0.1:8787/api/settings \
 | `q` | — | Search text |
 
 `GET /api/session/{id}/message` supports `limit` (default 100, max 500) and
-`cursor` from the previous response.
+`cursor` from the previous response. Pass `since=<milliseconds>` to ask for only
+the messages created or updated at/after that timestamp; the response is a delta
+and has no cursor.
 
 Create a session:
 
@@ -203,8 +205,35 @@ entries; `truncated` marks a shortened list.
 | `GET` | `/api/experimental/session/stats` | Global stats, optional `project` |
 | `GET` | `/api/usage` | Go plan windows and cached usage |
 | `GET` | `/api/search?q=…&limit=…` | Search sessions |
+| `GET` | `/api/sync` | Incremental session/project feed |
 | `POST` | `/api/sync` | Force a sync |
 | `POST` | `/api/server/restart` | Restart the hub process |
+
+### Incremental sync
+
+`GET /api/sync` is the feed the iOS app uses instead of re-reading every
+session and project on each poll. Without `since` it returns a full snapshot;
+with `since=<revision>` it returns only the rows that changed after that
+revision:
+
+```json
+{
+  "revision": 4821,
+  "full": false,
+  "sessions": [{ "id": "ses_…", "time": { "updated": 1760000000000 } }],
+  "deletedSessions": [],
+  "projects": [],
+  "deletedProjects": ["prj_old"],
+  "active": ["ses_…"]
+}
+```
+
+Clients keep `revision` and send it back on the next request. `full: true` means
+the client must replace its local copy rather than merge; this happens on the
+first request, when the client's revision is ahead of a reset hub, or when it
+falls behind the retained change window. The active list is always sent in full.
+No-op polls are not logged, so a quiet hub returns empty arrays and the same
+revision.
 
 ### Events
 

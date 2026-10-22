@@ -90,6 +90,45 @@ Remaining performance follow-ups are listed in `performance/after.md`
 (observable slices per screen, store-level chart caches, incremental message
 updates, server-side activity snapshots, and Instruments/UI benchmarks).
 
+## Local cache and incremental sync (2026-10-23)
+
+The iOS app now has a local SQLite cache and no longer re-reads the full
+session/project lists on every poll.
+
+- `server/src/db.ts` records real session/project changes in `sync_log` with a
+  monotonic revision (`PRAGMA user_version = 5`). `upsertSessions`,
+  `upsertProjects` and `updateSessionUsage` use a change-detecting
+  `ON CONFLICT … WHERE`, so identical poll results write nothing. Project
+  removals append tombstones instead of `DELETE`-ing the table and reinserting
+  it. The feed keeps the newest 50,000 changes and falls back to a full snapshot
+  for older revisions.
+- `GET /api/sync?since=<revision>` returns `full`, changed `sessions` and
+  `projects`, `deletedSessions`/`deletedProjects`, and the always-complete
+  `active` list. `GET /api/session/{id}/message?since=<ms>` returns cached
+  messages created/updated after the client's newest message.
+- `Sources/OpenCodeBarMobile/MobileDatabase.swift` stores sessions, projects,
+  the newest 500 messages per opened session, global stats and Go usage as JSON
+  blobs in `Application Support/OpenCodeBar/opencodebar.sqlite`. `MobileStore`
+  hydrates from it before networking, applies `/api/sync` deltas, writes them
+  back, and clears the cache when the paired hub URL changes. The session detail
+  view renders cached messages, then asks for `since` deltas while running.
+- History for the Usage charts comes from the synced session cache; the iOS
+  `refreshHistory` no longer fetches `/api/session?limit=1000` every minute.
+
+Follow-ups:
+
+- **The Mac app still polls full lists.** `AppState` can adopt `/api/sync` and
+  the same SQLite cache; it shares `HubAPI`, so the client side is small.
+- **No cache controls or size readout on iOS.** A Settings row showing the cache
+  size and a "Clear cached data" action would help when troubleshooting.
+- **No background refresh.** The cache makes cold launches fast but does not
+  update while the app is suspended; a `BGAppRefreshTask` would fill that gap.
+- **The change feed is write-driven only.** A session whose `time.updated` does
+  not move but whose cost/tokens change is caught by
+  `session.usage.updated` only if the hub receives that event; the 60s slow poll
+  also upserts the session. If that ever proves insufficient, add a periodic
+  full reconcile on the client.
+
 ## Next steps
 
 - **Go plan limits: credits and extra usage.** The Usage tab now shows the
