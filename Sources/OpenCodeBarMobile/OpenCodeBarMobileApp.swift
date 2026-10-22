@@ -59,6 +59,7 @@ struct RootView: View {
 
     @EnvironmentObject private var settings: HubSettingsStore
     @EnvironmentObject private var store: MobileStore
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Tab = .live
 
     var body: some View {
@@ -102,6 +103,16 @@ struct RootView: View {
             guard settings.applyPairingLink(url.absoluteString) else { return }
             store.reconnect()
             selection = .live
+        }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:
+                store.resume()
+            case .background:
+                store.pause()
+            default:
+                break
+            }
         }
     }
 }

@@ -42,6 +42,10 @@ struct ProjectUsage: Identifiable, Hashable, Sendable {
 enum UsageSeries {
     /// Builds one point per day between the range start and today. Days without
     /// activity are kept as zeroes so gaps are visible in the chart.
+    ///
+    /// Day keys are formatted once for the whole window and activity entries are
+    /// compared as `yyyy-MM-dd` strings, so the work scales with the number of
+    /// sessions and days rather than with a formatter call per item.
     static func build(
         stats: Stats?,
         sessions: [Session],
@@ -61,10 +65,12 @@ enum UsageSeries {
         )
         guard start <= today else { return [] }
 
+        let startKey = Fmt.dayString(start)
+        let todayKey = Fmt.dayString(today)
+
         var stepsByDay: [String: Int] = [:]
         for entry in stats?.activity ?? [] {
-            guard let date = Fmt.date(fromDay: entry.date),
-                  date >= start, date <= today else { continue }
+            guard entry.date >= startKey, entry.date <= todayKey else { continue }
             stepsByDay[entry.date, default: 0] += entry.steps
         }
 
@@ -72,11 +78,24 @@ enum UsageSeries {
             var cost = 0.0
             var tokens = 0.0
         }
+        // One dictionary entry per day in the window; sessions then look up the
+        // start-of-day date instead of formatting a new string each time.
+        var dayKeys: [Date: String] = [:]
+        dayKeys.reserveCapacity(366)
+        var days: [Date] = []
+        days.reserveCapacity(366)
+        var date = start
+        while date <= today {
+            dayKeys[date] = Fmt.dayString(date)
+            days.append(date)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
+            date = next
+        }
+
         var sessionsByDay: [String: SessionTotals] = [:]
         for session in sessions {
-            let date = calendar.startOfDay(for: session.time.updatedDate)
-            guard date >= start, date <= today else { continue }
-            let key = Fmt.dayString(date)
+            let day = calendar.startOfDay(for: session.time.updatedDate)
+            guard let key = dayKeys[day] else { continue }
             var totals = sessionsByDay[key] ?? SessionTotals()
             totals.cost += session.cost
             totals.tokens += session.tokens.generated
@@ -84,22 +103,44 @@ enum UsageSeries {
         }
 
         var points: [DailyUsage] = []
-        var date = start
-        while date <= today {
-            let key = Fmt.dayString(date)
+        points.reserveCapacity(days.count)
+        for day in days {
+            let key = dayKeys[day] ?? Fmt.dayString(day)
             let totals = sessionsByDay[key]
             points.append(
                 DailyUsage(
-                    date: date,
+                    date: day,
                     steps: stepsByDay[key] ?? 0,
                     cost: totals?.cost ?? 0,
                     tokens: totals?.tokens ?? 0
                 )
             )
-            guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
-            date = next
         }
         return points
+    }
+
+    /// Aggregates consecutive days so long ranges (a year, or all history) draw
+    /// a readable number of bars instead of one sub-pixel mark per day.
+    static func bucketed(_ points: [DailyUsage], maxPoints: Int = 120) -> [DailyUsage] {
+        guard maxPoints > 1, points.count > maxPoints else { return points }
+        let size = Int((Double(points.count) / Double(maxPoints)).rounded(.up))
+        guard size > 1 else { return points }
+
+        var result: [DailyUsage] = []
+        result.reserveCapacity(points.count / size + 1)
+        var index = 0
+        while index < points.count {
+            let end = min(index + size, points.count)
+            var bucket = points[index]
+            for point in points[(index + 1)..<end] {
+                bucket.steps += point.steps
+                bucket.cost += point.cost
+                bucket.tokens += point.tokens
+            }
+            result.append(bucket)
+            index = end
+        }
+        return result
     }
 
     /// Top projects by spend inside the range, for the global comparison chart.
@@ -152,14 +193,16 @@ enum UsageSeries {
         }
 
         var earliest = today
-        for entry in stats?.activity ?? [] {
-            if let date = Fmt.date(fromDay: entry.date), date < earliest {
-                earliest = date
-            }
-        }
         for session in sessions {
             let date = calendar.startOfDay(for: session.time.updatedDate)
             if date < earliest { earliest = date }
+        }
+        // Activity days are already yyyy-MM-dd strings, so take the smallest
+        // lexicographically and parse only that one.
+        if let earliestKey = (stats?.activity ?? []).map(\.date).min(),
+           let date = Fmt.date(fromDay: earliestKey),
+           date < earliest {
+            earliest = date
         }
         if let from = stats?.range.fromDate, from < earliest {
             earliest = calendar.startOfDay(for: from)

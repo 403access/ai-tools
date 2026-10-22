@@ -5,18 +5,30 @@ import SwiftUI
 /// opens the session detail view.
 struct ProjectsTab: View {
     @EnvironmentObject var state: AppState
+    @State private var limit = ProjectsTab.pageSize
+
+    private static let pageSize = 20
 
     var body: some View {
         if state.projects.isEmpty {
-            EmptyState(
-                icon: "folder",
-                title: state.connection.isConnected ? "No projects yet" : state.connection.label,
-                subtitle: "Projects appear once OpenCode has run in a directory."
-            )
+            if state.isInitialLoading {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionHeader("Projects")
+                    SessionListSkeleton(count: 5)
+                        .shimmering()
+                }
+            } else {
+                EmptyState(
+                    icon: "folder",
+                    title: state.connection.isConnected ? "No projects yet" : state.connection.label,
+                    subtitle: "Projects appear once OpenCode has run in a directory."
+                )
+            }
         } else {
             let projects = state.orderedProjects
+            let visible = Array(projects.prefix(limit))
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(projects) { project in
+                ForEach(visible) { project in
                     Button {
                         state.open(project)
                     } label: {
@@ -27,8 +39,32 @@ struct ProjectsTab: View {
                     .help("Show \(project.displayName) analytics and sessions")
                     .transition(.recentInsertion)
                 }
+
+                if projects.count > limit {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            limit += Self.pageSize
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("Show \(min(projects.count - limit, Self.pageSize)) more")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.accent)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.primary.opacity(0.04))
+                    )
+                }
             }
-            .animateRecentInsertion(ids: projects.map(\.id))
+            .animateRecentInsertion(ids: visible.map(\.id))
         }
     }
 }

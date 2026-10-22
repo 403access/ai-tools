@@ -20,10 +20,16 @@ enum Fmt {
     }
 
     static func grouped(_ value: Int) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        return f.string(from: NSNumber(value: value)) ?? "\(value)"
+        groupedFormatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
+
+    /// NumberFormatter allocation is expensive and `grouped` is called for every
+    /// stat tile, tool row and chart label, so keep one instance around.
+    private static let groupedFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter
+    }()
 
     static func usd(_ value: Double) -> String {
         if value <= 0 { return "$0.00" }

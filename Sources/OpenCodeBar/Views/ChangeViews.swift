@@ -6,12 +6,11 @@ import SwiftUI
 struct ChangeSummaryBar: View {
     let changes: [FileChange]
 
-    private var additions: Int { changes.reduce(0) { $0 + $1.additions } }
-    private var deletions: Int { changes.reduce(0) { $0 + $1.deletions } }
-    private var files: Int { Set(changes.map(\.displayPath)).count }
-
     var body: some View {
-        HStack(spacing: 10) {
+        let additions = changes.reduce(0) { $0 + $1.additions }
+        let deletions = changes.reduce(0) { $0 + $1.deletions }
+        let files = Set(changes.map(\.displayPath)).count
+        return HStack(spacing: 10) {
             Label(files == 1 ? "1 file" : "\(files) files", systemImage: "doc.on.doc")
                 .foregroundStyle(.secondary)
             Text(verbatim: "+\(additions)").foregroundStyle(Theme.accent)
@@ -43,14 +42,16 @@ struct FileChangeCard: View {
     }
 
     private var lines: [String] { change.patchLines }
-    private var visibleLines: [String] {
+    private func visibleLines(from lines: [String]) -> [String] {
         if expanded { return lines }
         guard collapsedLines > 0 else { return [] }
         return Array(lines.prefix(collapsedLines))
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let lines = self.lines
+        let visibleLines = visibleLines(from: lines)
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
                 Image(systemName: change.statusIcon)
                     .font(.system(size: 9, weight: .semibold))
@@ -165,7 +166,9 @@ struct SessionChangesView: View {
     private var groups: [FileChangeGroup] { FileChangeGroup.grouped(changes) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        let groups = self.groups
+        let groupCount = groups.count
+        return VStack(alignment: .leading, spacing: 7) {
             if showsSummary {
                 ChangeSummaryBar(changes: changes)
             }
@@ -187,7 +190,7 @@ struct SessionChangesView: View {
                     ForEach(Array(group.changes.enumerated()), id: \.element.id) { index, change in
                         FileChangeCard(
                             change: change,
-                            defaultExpanded: expandFirst && groups.count <= 3 && index == 0,
+                            defaultExpanded: expandFirst && groupCount <= 3 && index == 0,
                             collapsedLines: collapsedLines
                         )
                     }
@@ -236,7 +239,8 @@ struct ProjectChangesView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let groups = self.groups
+        return VStack(alignment: .leading, spacing: 8) {
             ChangeSummaryBar(changes: changes)
 
             ForEach(groups) { group in

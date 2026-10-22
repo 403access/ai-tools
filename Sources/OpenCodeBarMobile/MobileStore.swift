@@ -103,6 +103,13 @@ final class MobileStore: ObservableObject {
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
     @Published var hubError: String?
+    /// Derived feeds, rebuilt once per refresh instead of on every read.
+    @Published private(set) var runningSessions: [Session] = []
+    @Published private(set) var recentSessions: [Session] = []
+    @Published private(set) var orderedProjects: [Project] = []
+    private var runningByProject: [String: [Session]] = [:]
+    private var subagentCounts: [String: Int] = [:]
+    private var projectNames: [String: String] = [:]
 
     private let settingsStore: HubSettingsStore
     private var api: HubAPI?
@@ -117,6 +124,9 @@ final class MobileStore: ObservableObject {
     private var seeding: Set<String> = []
     private var seedAttempts: [String: Date] = [:]
     private var eventStreamConnected = false
+    private var isRefreshingUsage = false
+    private var isRefreshingHealth = false
+    private var isPaused = false
 
     init(settings: HubSettingsStore) {
         self.settingsStore = settings
@@ -127,6 +137,7 @@ final class MobileStore: ObservableObject {
     func start() {
         guard !started else { return }
         started = true
+        isPaused = false
 
         guard let location = settingsStore.settings.location else {
             connection = .disabled
@@ -137,6 +148,13 @@ final class MobileStore: ObservableObject {
         api = HubAPI(location: location)
         startEvents(location: location)
         Task { await bootstrap() }
+        startTimers()
+    }
+
+    /// The polling loops, split out so they can be paused when the app is
+    /// backgrounded without tearing down the connection state.
+    private func startTimers() {
+        guard liveTask == nil else { return }
 
         liveTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -152,13 +170,15 @@ final class MobileStore: ObservableObject {
                 guard !Task.isCancelled else { break }
                 await self?.refreshStats(force: true)
                 await self?.refreshHistory(force: true)
-                await self?.refreshUsage()
+                await self?.refreshUsage(force: true)
             }
         }
     }
 
-    func stop() {
-        started = false
+    /// Stops network work while the app is in the background. The cached data
+    /// stays in memory so the first frame back is instant.
+    func pause() {
+        isPaused = true
         liveTask?.cancel()
         slowTask?.cancel()
         eventTask?.cancel()
@@ -167,6 +187,23 @@ final class MobileStore: ObservableObject {
         slowTask = nil
         eventTask = nil
         debounceTask = nil
+    }
+
+    /// Reconnects the event stream and resumes polling after returning to the
+    /// foreground, then refreshes once so stale data is corrected immediately.
+    func resume() {
+        guard started, isPaused else { return }
+        isPaused = false
+        if eventTask == nil, let location = settingsStore.settings.location {
+            startEvents(location: location)
+        }
+        startTimers()
+        Task { await refreshAll() }
+    }
+
+    func stop() {
+        started = false
+        pause()
         api = nil
     }
 
@@ -195,6 +232,12 @@ final class MobileStore: ObservableObject {
         eventStreamConnected = false
         seedAttempts = [:]
         seeding = []
+        runningSessions = []
+        recentSessions = []
+        orderedProjects = []
+        runningByProject = [:]
+        subagentCounts = [:]
+        projectNames = [:]
         connection = .connecting
         start()
     }
@@ -229,10 +272,11 @@ final class MobileStore: ObservableObject {
     // MARK: - Refresh
 
     func refreshAll() async {
-        await refreshLive()
-        await refreshStats(force: true)
-        await refreshHistory(force: true)
-        await refreshUsage()
+        async let live: Void = refreshLive()
+        async let stats: Void = refreshStats(force: true)
+        async let history: Void = refreshHistory(force: true)
+        async let usage: Void = refreshUsage(force: true)
+        _ = await (live, stats, history, usage)
     }
 
     func refreshLive() async {
@@ -250,20 +294,33 @@ final class MobileStore: ObservableObject {
             async let projectList = api.projects()
             let (activeKeys, recentSessions, projectsValue) = try await (active, recent, projectList)
 
-            activeIDs = Set(activeKeys)
-            pruneActivity()
-
+            let newActiveIDs = Set(activeKeys)
             var merged = recentSessions
             let present = Set(recentSessions.map(\.id))
-            for id in activeKeys where !present.contains(id) {
-                if let session = try? await api.session(id: id) {
-                    merged.insert(session, at: 0)
+            let missing = activeKeys.filter { !present.contains($0) }
+            if !missing.isEmpty {
+                let fetched = await withTaskGroup(of: Session?.self) { group in
+                    for id in missing {
+                        group.addTask { try? await api.session(id: id) }
+                    }
+                    var result: [Session] = []
+                    for await session in group {
+                        if let session { result.append(session) }
+                    }
+                    return result
                 }
+                merged.append(contentsOf: fetched)
             }
 
-            sessions = SessionOrdering.mostRecentFirst(merged)
-            syncSubagentLists(with: merged)
-            projects = Dictionary(projectsValue.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let newSessions = SessionOrdering.mostRecentFirst(merged)
+            let newProjects = Dictionary(projectsValue.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+            if newActiveIDs != activeIDs { activeIDs = newActiveIDs }
+            if newSessions != sessions { sessions = newSessions }
+            if newProjects != projects { projects = newProjects }
+            pruneActivity()
+            rebuildDerived()
+            syncSubagentLists(with: newSessions)
             connection = .connected(version: displayVersion)
             hubError = nil
             lastUpdated = Date()
@@ -300,8 +357,12 @@ final class MobileStore: ObservableObject {
         }
     }
 
-    func refreshUsage() async {
+    func refreshUsage(force: Bool = false) async {
         guard let api else { return }
+        guard !isRefreshingUsage else { return }
+        if !force, let fetched = usageFetchedAt, Date().timeIntervalSince(fetched) < 30 { return }
+        isRefreshingUsage = true
+        defer { isRefreshingUsage = false }
         do {
             let response = try await api.usage()
             usage = response
@@ -313,6 +374,9 @@ final class MobileStore: ObservableObject {
 
     func refreshHealth() async {
         guard let api else { return }
+        guard !isRefreshingHealth else { return }
+        isRefreshingHealth = true
+        defer { isRefreshingHealth = false }
         do {
             let health = try await api.health()
             hubHealth = health
@@ -355,6 +419,7 @@ final class MobileStore: ObservableObject {
                 liveActivity.removeValue(forKey: id)
                 activeIDs.remove(id)
                 seedAttempts.removeValue(forKey: id)
+                rebuildDerived()
             default:
                 if event.updatesActivity {
                     var activity = liveActivity[id] ?? SessionActivity(
@@ -379,11 +444,15 @@ final class MobileStore: ObservableObject {
     }
 
     private func scheduleLiveRefresh() {
-        debounceTask?.cancel()
+        guard debounceTask == nil else { return }
         debounceTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            guard !Task.isCancelled else { return }
+            try? await Task.sleep(nanoseconds: 750_000_000)
+            guard !Task.isCancelled else {
+                self?.debounceTask = nil
+                return
+            }
             await self?.refreshLive()
+            self?.debounceTask = nil
         }
     }
 
@@ -392,6 +461,7 @@ final class MobileStore: ObservableObject {
         if let index = sessions.firstIndex(where: { $0.id == id }) {
             sessions[index].cost = cost
             sessions[index].tokens = tokens
+            updateDerivedSession(sessions[index])
         }
         for parentID in Array(subagentLists.keys) {
             guard var list = subagentLists[parentID],
@@ -440,6 +510,23 @@ final class MobileStore: ObservableObject {
 
     // MARK: - Detail data
 
+    /// Keeps the on-demand caches bounded so opening many sessions or projects
+    /// does not keep every message, patch and file list alive.
+    private func trimCache<T>(
+        _ cache: inout [String: T],
+        loadedAt: (T) -> Date?,
+        limit: Int = 16,
+        pinning key: String? = nil
+    ) {
+        guard cache.count > limit else { return }
+        let kept = cache
+            .sorted { (loadedAt($0.value) ?? .distantPast) > (loadedAt($1.value) ?? .distantPast) }
+            .prefix(limit)
+        var trimmed = Dictionary(uniqueKeysWithValues: kept.map { ($0.key, $0.value) })
+        if let key, let pinned = cache[key] { trimmed[key] = pinned }
+        cache = trimmed
+    }
+
     func messages(
         for sessionID: String,
         limit: Int = 100,
@@ -455,6 +542,7 @@ final class MobileStore: ObservableObject {
         guard let api else { throw APIError.transport("Not connected to the hub") }
         let session = try await api.createSession(title: title, directory: directory)
         sessions.insert(session, at: 0)
+        rebuildDerived()
         await refreshLive()
         return session
     }
@@ -469,6 +557,7 @@ final class MobileStore: ObservableObject {
         guard let api else { throw APIError.transport("Not connected to the hub") }
         try await api.promptSession(id: id, text: text, delivery: delivery)
         activeIDs.insert(id)
+        rebuildDerived()
         await refreshLive()
     }
 
@@ -479,6 +568,7 @@ final class MobileStore: ObservableObject {
            Date().timeIntervalSince(loaded) < 30 {
             return
         }
+        defer { trimCache(&projectDetails, loadedAt: { $0.loadedAt }, pinning: id) }
 
         projectDetails[id, default: ProjectDetail()].isLoading = true
         do {
@@ -507,6 +597,7 @@ final class MobileStore: ObservableObject {
            Date().timeIntervalSince(loaded) < 30 {
             return
         }
+        defer { trimCache(&sessionChanges, loadedAt: { $0.loadedAt }, pinning: sessionID) }
 
         var state = sessionChanges[sessionID] ?? ChangesState()
         state.isLoading = true
@@ -539,6 +630,7 @@ final class MobileStore: ObservableObject {
            Date().timeIntervalSince(loaded) < 30 {
             return
         }
+        defer { trimCache(&sessionStats, loadedAt: { $0.loadedAt }, pinning: sessionID) }
 
         var state = sessionStats[sessionID] ?? SessionStatsState()
         state.isLoading = true
@@ -568,6 +660,7 @@ final class MobileStore: ObservableObject {
            Date().timeIntervalSince(loaded) < 30 {
             return
         }
+        defer { trimCache(&projectChanges, loadedAt: { $0.loadedAt }, pinning: projectID) }
 
         var state = projectChanges[projectID] ?? ChangesState()
         state.isLoading = true
@@ -600,6 +693,7 @@ final class MobileStore: ObservableObject {
            Date().timeIntervalSince(loaded) < 30 {
             return
         }
+        defer { trimCache(&projectFiles, loadedAt: { $0.loadedAt }, pinning: projectID) }
 
         var state = projectFiles[projectID] ?? ProjectFilesState()
         state.isLoading = true
@@ -628,6 +722,7 @@ final class MobileStore: ObservableObject {
            Date().timeIntervalSince(loaded) < 30 {
             return
         }
+        defer { trimCache(&subagentLists, loadedAt: { $0.loadedAt }, pinning: parentID) }
 
         var list = subagentLists[parentID] ?? SubagentList()
         list.isLoading = true
@@ -709,55 +804,77 @@ final class MobileStore: ObservableObject {
 
     var activeCount: Int { activeIDs.count }
 
-    var runningSessions: [Session] {
-        sessions
-            .filter { activeIDs.contains($0.id) }
-            .sorted { $0.time.updated > $1.time.updated }
+    /// True until the first poll has produced anything to show.
+    var isInitialLoading: Bool {
+        lastUpdated == nil && sessions.isEmpty && stats == nil
     }
 
-    var recentSessions: [Session] {
-        sessions
-            .filter { !activeIDs.contains($0.id) }
-            .sorted { $0.time.updated > $1.time.updated }
+    /// Rebuilds the feeds the views read. Called after the session list,
+    /// running set or project map changes, so filtering and sorting happen once
+    /// per refresh rather than on every view body evaluation.
+    private func rebuildDerived() {
+        var running: [Session] = []
+        var recent: [Session] = []
+        running.reserveCapacity(min(sessions.count, activeIDs.count))
+        recent.reserveCapacity(sessions.count)
+        for session in sessions {
+            if activeIDs.contains(session.id) {
+                running.append(session)
+            } else {
+                recent.append(session)
+            }
+        }
+        running.sort { $0.time.updated > $1.time.updated }
+        recent.sort { $0.time.updated > $1.time.updated }
+
+        if running != runningSessions { runningSessions = running }
+        if recent != recentSessions { recentSessions = recent }
+
+        runningByProject = ProjectOrdering.runningByProject(sessions: sessions, activeIDs: activeIDs)
+        var counts: [String: Int] = [:]
+        for session in sessions where activeIDs.contains(session.id) {
+            if let parentID = session.parentID {
+                counts[parentID, default: 0] += 1
+            }
+        }
+        subagentCounts = counts
+
+        let ordered = ProjectOrdering.ordered(
+            projects: projects,
+            runningCounts: runningByProject.mapValues(\.count)
+        )
+        if ordered != orderedProjects { orderedProjects = ordered }
+
+        var names: [String: String] = [:]
+        names.reserveCapacity(projects.count)
+        for project in projects.values {
+            names[project.id] = project.displayName
+        }
+        projectNames = names
     }
 
-    /// Projects with running work first, then most recently active. Duplicate
-    /// records for the same directory are merged, matching the Mac app.
-    var orderedProjects: [Project] {
-        Dictionary(grouping: projects.values, by: \.canonical)
-            .values
-            .compactMap { records in records.max(by: ranksBelow) }
-            .sorted { ranksBelow($1, than: $0) }
-    }
-
-    private func ranksBelow(_ lhs: Project, than rhs: Project) -> Bool {
-        let left = runningSessions(in: lhs).count
-        let right = runningSessions(in: rhs).count
-        if left != right { return left < right }
-        let leftVCS = lhs.vcs?.isEmpty == false
-        let rightVCS = rhs.vcs?.isEmpty == false
-        if leftVCS != rightVCS { return !leftVCS }
-        return lhs.lastActiveDate < rhs.lastActiveDate
-    }
-
-    func runningSessions(in project: Project) -> [Session] {
-        sessions
-            .filter { $0.projectID == project.id && activeIDs.contains($0.id) }
-            .sorted { $0.time.updated > $1.time.updated }
-    }
-
-    func sessions(in project: Project) -> [Session] {
-        SessionOrdering.mostRecentFirst(sessions.filter { $0.projectID == project.id })
-    }
-
-    func activeSubagentCount(for sessionID: String) -> Int {
-        sessions.reduce(0) { count, session in
-            count + (session.parentID == sessionID && activeIDs.contains(session.id) ? 1 : 0)
+    /// Keeps the derived feeds in step when a single session's cost or tokens
+    /// move on an event, without rebuilding the whole list.
+    private func updateDerivedSession(_ session: Session) {
+        if let index = runningSessions.firstIndex(where: { $0.id == session.id }) {
+            runningSessions[index] = session
+        }
+        if let index = recentSessions.firstIndex(where: { $0.id == session.id }) {
+            recentSessions[index] = session
         }
     }
 
+    func runningSessions(in project: Project) -> [Session] {
+        runningByProject[project.id] ?? []
+    }
+
+    func activeSubagentCount(for sessionID: String) -> Int {
+        subagentCounts[sessionID] ?? 0
+    }
+
     func projectName(for session: Session) -> String {
-        Fmt.projectName(for: session, projects: projects)
+        if let name = projectNames[session.projectID] { return name }
+        return Fmt.projectName(for: session, projects: projects)
     }
 
     var todaySteps: Int {

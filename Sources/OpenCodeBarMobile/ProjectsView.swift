@@ -6,6 +6,9 @@ struct ProjectsView: View {
     @EnvironmentObject private var store: MobileStore
     @State private var query = ""
     @State private var path = NavigationPath()
+    @State private var limit = ProjectsView.pageSize
+
+    private static let pageSize = 20
 
     private var projects: [Project] {
         let ordered = store.orderedProjects
@@ -30,14 +33,23 @@ struct ProjectsView: View {
                     }
                 } else if projects.isEmpty {
                     ScrollView {
-                        EmptyState(
-                            icon: "folder",
-                            title: store.orderedProjects.isEmpty ? "No projects yet" : "No matches",
-                            subtitle: store.orderedProjects.isEmpty
-                                ? "Projects appear after OpenCode has run in them."
-                                : "Try a different name or path."
-                        )
-                        .padding(16)
+                        if store.isInitialLoading {
+                            VStack(alignment: .leading, spacing: 8) {
+                                SectionHeader("Projects")
+                                SessionListSkeleton(count: 5)
+                                    .shimmering()
+                            }
+                            .padding(16)
+                        } else {
+                            EmptyState(
+                                icon: "folder",
+                                title: store.orderedProjects.isEmpty ? "No projects yet" : "No matches",
+                                subtitle: store.orderedProjects.isEmpty
+                                    ? "Projects appear after OpenCode has run in them."
+                                    : "Try a different name or path."
+                            )
+                            .padding(16)
+                        }
                     }
                 } else {
                     projectList
@@ -82,10 +94,11 @@ struct ProjectsView: View {
     #endif
 
     private var projectList: some View {
-        let ids = projects.map(\.id)
+        let visible = Array(projects.prefix(limit))
+        let ids = visible.map(\.id)
 
         return ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
+            LazyVStack(alignment: .leading, spacing: 8) {
                 SectionHeader("Projects") {
                     Text("\(projects.count)")
                         .font(.caption.weight(.bold))
@@ -93,7 +106,7 @@ struct ProjectsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                ForEach(projects) { project in
+                ForEach(visible) { project in
                     NavigationLink(value: project) {
                         ProjectRow(
                             project: project,
@@ -103,6 +116,29 @@ struct ProjectsView: View {
                     }
                     .buttonStyle(.plain)
                     .transition(.recentInsertion)
+                }
+
+                if projects.count > limit {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            limit += Self.pageSize
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "chevron.down")
+                                .font(.caption.weight(.bold))
+                            Text("Show \(min(projects.count - limit, Self.pageSize)) more")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.accent)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.primary.opacity(0.04))
+                    )
                 }
 
                 Text("\(store.orderedProjects.count) projects · running work first")
@@ -115,6 +151,7 @@ struct ProjectsView: View {
             .padding(.bottom, 10)
         }
         .animateRecentInsertion(ids: ids)
+        .onChange(of: query) { _, _ in limit = Self.pageSize }
     }
 }
 

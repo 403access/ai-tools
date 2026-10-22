@@ -4,7 +4,7 @@ import UIKit
 // Mobile conversation rendering. Mirrors the Mac panel's message cards, with
 // larger type and touch-sized controls.
 
-struct MessageCard: View {
+struct MessageCard: View, Equatable {
     let message: SessionMessage
 
     var body: some View {
@@ -258,10 +258,14 @@ struct ToolPartView: View {
     }
 }
 
-struct PromptRow: View {
+struct PromptRow: View, Equatable {
     let index: Int
     let message: SessionMessage
     @State private var copied = false
+
+    static func == (lhs: PromptRow, rhs: PromptRow) -> Bool {
+        lhs.index == rhs.index && lhs.message == rhs.message
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

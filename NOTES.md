@@ -61,6 +61,30 @@ Follow-ups worth considering:
   `/docs/` by `.github/workflows/deploy-pages.yml`. Keep both in sync when
   screens, commands, or endpoints change.
 
+## Performance (2026-10-22)
+
+A pass over both clients is documented in [`performance/before.md`](performance/before.md)
+and [`performance/after.md`](performance/after.md), with a reproducible
+microbenchmark (`make bench`).
+
+- Both stores now cache derived feeds (running/recent sessions, ordered projects,
+  per-project running rows, subagent counts, project names). Project ordering
+  moved to `Models/ProjectOrdering.swift` and no longer filters the session list
+  for every comparison.
+- Usage series are built once per body, use string day keys instead of a
+  formatter call per item, and are bucketed to ~120 bars for `1Y`/`All`.
+- `Fmt.grouped` reuses one `NumberFormatter`.
+- Shared skeletons (`Views/PerformanceViews.swift`) replace spinner-only loading
+  states; conversations and long lists are lazy, recent/project lists page in
+  20-row chunks, and reaching the end of a conversation pages automatically.
+- Event-driven refreshes are throttled, independent requests run concurrently,
+  duplicate first-load requests were removed, and iOS pauses polling in the
+  background. On-demand caches are bounded to 16 entries.
+
+Remaining performance follow-ups are listed in `performance/after.md`
+(observable slices per screen, store-level chart caches, incremental message
+updates, server-side activity snapshots, and Instruments/UI benchmarks).
+
 ## Next steps
 
 - **Go plan limits: credits and extra usage.** The Usage tab now shows the
@@ -159,8 +183,9 @@ Follow-ups worth considering:
   exposes daily steps, so cost and token series come from the session list; a
   long session puts all of its spend on the day it was last updated. The charts
   fetch the newest 1,000 sessions, so very large histories would be truncated.
-- **The "All" chart range uses one bar per day.** With years of history the bars
-  become sub-pixel; bucket by week or month once the range passes a threshold.
+- **The "All" chart range is down-sampled.** Series longer than 120 points are
+  bucketed into ~120 bars, so a multi-year range is readable and cheap to draw;
+  the x axis represents a bucket rather than a single day.
 
 ## Environment observations
 

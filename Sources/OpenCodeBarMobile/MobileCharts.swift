@@ -55,25 +55,16 @@ struct UsageTrendCard: View {
     @State private var metric: UsageMetric = .steps
     @State private var range: UsageRange = .month
 
-    private var points: [DailyUsage] {
-        UsageSeries.build(stats: stats, sessions: sessions, range: range)
-    }
-
-    private var total: Double {
-        points.reduce(0) { $0 + metric.value($1) }
-    }
-
-    private var peak: Double {
-        points.map(metric.value).max() ?? 0
-    }
-
-    private var average: Double {
-        guard !points.isEmpty else { return 0 }
-        return total / Double(points.count)
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let points = UsageSeries.bucketed(
+            UsageSeries.build(stats: stats, sessions: sessions, range: range),
+            maxPoints: 120
+        )
+        let total = points.reduce(0) { $0 + metric.value($1) }
+        let peak = points.map(metric.value).max() ?? 0
+        let average = points.isEmpty ? 0 : total / Double(points.count)
+
+        return VStack(alignment: .leading, spacing: 12) {
             Picker("Metric", selection: $metric) {
                 ForEach(UsageMetric.allCases) { option in
                     Text(option.title).tag(option)
@@ -82,7 +73,7 @@ struct UsageTrendCard: View {
             .pickerStyle(.segmented)
 
             HStack {
-                Text("\(points.count) days")
+                Text("\(points.count) bars")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -176,7 +167,8 @@ struct TopProjectsCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let entries = entries
+        return VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Top projects")
                     .font(.caption2.weight(.bold))

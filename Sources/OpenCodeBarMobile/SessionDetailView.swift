@@ -24,6 +24,7 @@ struct SessionDetailView: View {
     @State private var previousCursor: String?
     @State private var isLoading = true
     @State private var isLoadingEarlier = false
+    @State private var isFetchingLatest = false
     @State private var earlierError: String?
     @State private var errorMessage: String?
     @State private var didAutoScroll = false
@@ -64,6 +65,9 @@ struct SessionDetailView: View {
 
         return ScrollViewReader { proxy in
             ScrollView {
+                // Keep the page itself eager; the message list below is lazy.
+                // The running summary updates every second, and a lazy outer
+                // stack can otherwise disturb the scroll position while it does.
                 VStack(alignment: .leading, spacing: 12) {
                     summary
 
@@ -121,7 +125,9 @@ struct SessionDetailView: View {
             }
         }
         .task(id: refreshKey) {
-            await loadLatest()
+            if mode == .conversation || mode == .prompts {
+                await loadLatest()
+            }
             if mode == .changes {
                 await store.loadChanges(sessionID)
             } else if mode == .stats {
@@ -133,11 +139,13 @@ struct SessionDetailView: View {
         }
         .task(id: mode) {
             switch mode {
+            case .conversation, .prompts:
+                if messages.isEmpty { await loadLatest() }
             case .changes:
                 await store.loadChanges(sessionID)
             case .stats:
                 await store.loadSessionStats(sessionID)
-            default:
+            case .subagents:
                 break
             }
         }
@@ -320,13 +328,15 @@ struct SessionDetailView: View {
     private var stats: some View {
         let state = store.sessionStats[sessionID]
         if let state, state.isLoading && state.stats == nil {
-            loading("Measuring this session…")
+            StatsDetailSkeleton()
+                .shimmering()
         } else if let state, let error = state.error, state.stats == nil {
             errorState(error, title: "Couldn't load stats")
         } else if let stats = state?.stats {
             MobileSessionStatsView(stats: stats)
         } else {
-            loading("Loading stats…")
+            StatsDetailSkeleton()
+                .shimmering()
         }
     }
 
@@ -334,7 +344,8 @@ struct SessionDetailView: View {
     private var changes: some View {
         let state = store.sessionChanges[sessionID]
         if let state, state.isLoading && state.changes.isEmpty {
-            loading("Loading file changes…")
+            ChangesSkeleton()
+                .shimmering()
         } else if let state, let error = state.error, state.changes.isEmpty {
             errorState(error, title: "Couldn't load changes")
         } else if let changes = state?.changes, !changes.isEmpty {
@@ -351,7 +362,8 @@ struct SessionDetailView: View {
     @ViewBuilder
     private var conversation: some View {
         if isLoading && messages.isEmpty {
-            loading("Loading conversation…")
+            ConversationSkeleton(count: 5)
+                .shimmering()
         } else if let errorMessage, messages.isEmpty {
             errorState(errorMessage)
         } else if messages.isEmpty {
@@ -361,22 +373,25 @@ struct SessionDetailView: View {
                 subtitle: "The conversation will appear as the model responds."
             )
         } else {
-            if isRunning {
-                HStack(spacing: 6) {
-                    PulsingDot(size: 5)
-                    Text("Generating…")
-                        .font(.caption)
-                        .foregroundStyle(Theme.running)
+            LazyVStack(alignment: .leading, spacing: 8) {
+                if isRunning {
+                    HStack(spacing: 6) {
+                        PulsingDot(size: 5)
+                        Text("Generating…")
+                            .font(.caption)
+                            .foregroundStyle(Theme.running)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 4)
-            }
 
-            ForEach(messages) { message in
-                MessageCard(message: message)
-                    .transition(.recentInsertion)
+                ForEach(messages) { message in
+                    MessageCard(message: message)
+                        .equatable()
+                        .transition(.recentInsertion)
+                }
+                .animateRecentInsertion(ids: messages.map(\.id))
             }
-            .animateRecentInsertion(ids: messages.map(\.id))
 
             if previousCursor != nil {
                 loadEarlierButton
@@ -398,11 +413,14 @@ struct SessionDetailView: View {
                 subtitle: "Prompts you send to this session appear here."
             )
         } else {
-            ForEach(Array(prompts.enumerated()), id: \.element.id) { index, message in
-                PromptRow(index: prompts.count - index, message: message)
-                    .transition(.recentInsertion)
+            LazyVStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(prompts.enumerated()), id: \.element.id) { index, message in
+                    PromptRow(index: prompts.count - index, message: message)
+                        .equatable()
+                        .transition(.recentInsertion)
+                }
+                .animateRecentInsertion(ids: prompts.map(\.id))
             }
-            .animateRecentInsertion(ids: prompts.map(\.id))
 
             if previousCursor != nil {
                 loadEarlierButton
@@ -414,7 +432,8 @@ struct SessionDetailView: View {
     private var subagents: some View {
         if let list = store.subagentList(for: sessionID) {
             if list.isLoading && list.sessions.isEmpty {
-                loading("Loading subagents…")
+                SessionListSkeleton(count: 2)
+                    .shimmering()
             } else if list.sessions.isEmpty {
                 if let error = list.error {
                     errorState(error, title: "Couldn't load subagents")
@@ -457,7 +476,8 @@ struct SessionDetailView: View {
                 }
             }
         } else {
-            loading("Loading subagents…")
+            SessionListSkeleton(count: 2)
+                .shimmering()
         }
     }
 
@@ -495,6 +515,11 @@ struct SessionDetailView: View {
                     .foregroundStyle(Theme.danger)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+        // Reaching the end of the loaded window pages the next one in, so long
+        // sessions scroll without a tap. The button stays for accessibility.
+        .onAppear {
+            Task { await loadEarlier() }
         }
     }
 
@@ -545,11 +570,19 @@ struct SessionDetailView: View {
     // MARK: - Loading
 
     private func loadLatest() async {
+        guard !isFetchingLatest else { return }
+        isFetchingLatest = true
         if messages.isEmpty { isLoading = true }
-        defer { isLoading = false }
+        defer {
+            isLoading = false
+            isFetchingLatest = false
+        }
 
         do {
-            let response = try await store.messages(for: sessionID, limit: 100)
+            // The first page fills the view; later refreshes only need the
+            // newest window, which is where streaming output lands.
+            let limit = messages.isEmpty ? 100 : 30
+            let response = try await store.messages(for: sessionID, limit: limit)
             guard !Task.isCancelled else { return }
             let fresh = response.data
             let freshIDs = Set(fresh.map(\.id))
@@ -559,7 +592,8 @@ struct SessionDetailView: View {
                 return message.time.created < cutoff
             }
 
-            messages = MessageOrdering.mostRecentFirst(fresh + retained)
+            let merged = MessageOrdering.mostRecentFirst(fresh + retained)
+            if merged != messages { messages = merged }
             if retained.isEmpty {
                 previousCursor = response.cursor?.previous
             }

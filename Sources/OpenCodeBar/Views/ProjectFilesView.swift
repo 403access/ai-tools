@@ -17,17 +17,25 @@ struct ProjectFilesView: View {
         var id: String { rawValue }
     }
 
-    private var visible: [ProjectFile] {
+    /// Computed once per body below; the previous computed property was read
+    /// three times (empty check, count and the list), so a 20k-file project paid
+    /// the full scan three times on every keystroke.
+    private func visibleFiles() -> [ProjectFile] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return files.files.filter { file in
+        let source = files.files
+        guard !needle.isEmpty else {
+            guard filter == .changed else { return source }
+            return source.filter(\.isChanged)
+        }
+        return source.filter { file in
             if filter == .changed && !file.isChanged { return false }
-            guard !needle.isEmpty else { return true }
             return file.path.localizedCaseInsensitiveContains(needle)
         }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        let visible = visibleFiles()
+        return VStack(alignment: .leading, spacing: 7) {
             controls
             searchField
 

@@ -137,6 +137,14 @@ final class AppState: ObservableObject {
     @Published private(set) var settingsUpdatedAt: Date?
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
+    /// Derived feeds, rebuilt once per refresh instead of being filtered and
+    /// sorted every time a view reads them.
+    @Published private(set) var runningSessions: [Session] = []
+    @Published private(set) var recentSessions: [Session] = []
+    @Published private(set) var orderedProjects: [Project] = []
+    private var runningByProject: [String: [Session]] = [:]
+    private var subagentCounts: [String: Int] = [:]
+    private var projectNames: [String: String] = [:]
     /// Session whose detail view is open, if any. Kept in sync with the
     /// session list so a running session's header keeps updating.
     @Published var selectedSession: Session?
@@ -208,6 +216,7 @@ final class AppState: ObservableObject {
     private var debounceTask: Task<Void, Never>?
     private var discovering = false
     private var started = false
+    private var isRefreshingUsage = false
     private var historyFetchedAt: Date?
     /// Sessions whose activity is currently being seeded from messages.
     private var seeding: Set<String> = []
@@ -320,10 +329,14 @@ final class AppState: ObservableObject {
     // MARK: - Refresh
 
     func refreshAll() async {
-        await refreshLive()
-        await refreshStats(force: true)
-        await refreshHistory(force: true)
-        await refreshGoUsage()
+        // These endpoints are independent; issuing them together keeps the
+        // initial panel load roughly as fast as the slowest one instead of
+        // adding their latencies.
+        async let live: Void = refreshLive()
+        async let stats: Void = refreshStats(force: true)
+        async let history: Void = refreshHistory(force: true)
+        async let usage: Void = refreshGoUsage()
+        _ = await (live, stats, history, usage)
         if let project = selectedProject { await loadProject(project.id, force: true) }
     }
 
@@ -343,22 +356,38 @@ final class AppState: ObservableObject {
 
             let (activeIDs, recentSessions, projectListValue) = try await (active, recent, projectList)
 
-            self.activeIDs = Set(activeIDs)
-            self.pruneActivity()
+            let newActiveIDs = Set(activeIDs)
             var merged = recentSessions
             let present = Set(recentSessions.map(\.id))
             let missing = activeIDs.filter { !present.contains($0) }
-            for id in missing {
-                if let session = try? await api.session(id: id) {
-                    merged.insert(session, at: 0)
+            if !missing.isEmpty {
+                // A running session can briefly be absent from the recent page.
+                // Fetch the stragglers concurrently instead of serially.
+                let fetched = await withTaskGroup(of: Session?.self) { group in
+                    for id in missing {
+                        group.addTask { try? await api.session(id: id) }
+                    }
+                    var result: [Session] = []
+                    for await session in group {
+                        if let session { result.append(session) }
+                    }
+                    return result
                 }
+                merged.append(contentsOf: fetched)
             }
-            self.sessions = SessionOrdering.mostRecentFirst(merged)
-            self.syncSubagentLists(with: merged)
-            self.projects = Dictionary(projectListValue.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+            let newSessions = SessionOrdering.mostRecentFirst(merged)
+            let newProjects = Dictionary(projectListValue.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+            if newActiveIDs != self.activeIDs { self.activeIDs = newActiveIDs }
+            if newSessions != self.sessions { self.sessions = newSessions }
+            if newProjects != self.projects { self.projects = newProjects }
+            self.pruneActivity()
+            self.rebuildDerived()
+            self.syncSubagentLists(with: newSessions)
 
             if let selected = selectedSession,
-               let updated = merged.first(where: { $0.id == selected.id }) {
+               let updated = newSessions.first(where: { $0.id == selected.id }) {
                 selectedSession = updated
             }
 
@@ -523,6 +552,9 @@ final class AppState: ObservableObject {
     /// says so without making a request.
     func refreshGoUsage() async {
         guard let api else { return }
+        guard !isRefreshingUsage else { return }
+        isRefreshingUsage = true
+        defer { isRefreshingUsage = false }
         switch goUsage {
         case .ready, .stale:
             break // Keep showing the current numbers while refreshing.
@@ -566,11 +598,18 @@ final class AppState: ObservableObject {
     }
 
     private func scheduleLiveRefresh() {
-        debounceTask?.cancel()
+        // Throttle instead of debounce: a busy event stream cancels a debounce
+        // forever, so the list would not refresh until it went quiet. One
+        // scheduled refresh at a time keeps the poll responsive under load.
+        guard debounceTask == nil else { return }
         debounceTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            guard !Task.isCancelled else { return }
+            try? await Task.sleep(nanoseconds: 750_000_000)
+            guard !Task.isCancelled else {
+                self?.debounceTask = nil
+                return
+            }
             await self?.refreshLive()
+            self?.debounceTask = nil
         }
     }
 
@@ -584,14 +623,6 @@ final class AppState: ObservableObject {
     func fetchSession(id: String) async -> Session? {
         guard let api else { return nil }
         return try? await api.session(id: id)
-    }
-
-    /// Number of active child sessions for a running session. Subagents appear
-    /// in the session list like any other session, with `parentID` set.
-    func activeSubagentCount(for sessionID: String) -> Int {
-        sessions.reduce(0) { count, session in
-            count + (session.parentID == sessionID && activeIDs.contains(session.id) ? 1 : 0)
-        }
     }
 
     /// Folds an event into the matching session's activity, updates live
@@ -619,6 +650,7 @@ final class AppState: ObservableObject {
                 liveActivity.removeValue(forKey: id)
                 activeIDs.remove(id)
                 seedAttempts.removeValue(forKey: id)
+                rebuildDerived()
             default:
                 if event.updatesActivity {
                     var activity = liveActivity[id] ?? SessionActivity(
@@ -653,6 +685,7 @@ final class AppState: ObservableObject {
         if let index = sessions.firstIndex(where: { $0.id == id }) {
             sessions[index].cost = cost
             sessions[index].tokens = tokens
+            updateDerivedSession(sessions[index])
             if selectedSession?.id == id {
                 selectedSession = sessions[index]
             }
@@ -782,6 +815,7 @@ final class AppState: ObservableObject {
         guard let api else { throw APIError.transport("Not connected to OpenCode") }
         let session = try await api.createSession(title: title, directory: directory)
         sessions.insert(session, at: 0)
+        rebuildDerived()
         sessionStack.removeAll()
         selectedSession = session
         await refreshLive()
@@ -798,6 +832,7 @@ final class AppState: ObservableObject {
         guard let api else { throw APIError.transport("Not connected to OpenCode") }
         try await api.promptSession(id: id, text: text, delivery: delivery)
         activeIDs.insert(id)
+        rebuildDerived()
         await refreshLive()
     }
 
@@ -810,6 +845,7 @@ final class AppState: ObservableObject {
            Date().timeIntervalSince(loaded) < 30 {
             return
         }
+        defer { trimCache(&sessionChanges, loadedAt: { $0.loadedAt }, pinning: sessionID) }
 
         var state = sessionChanges[sessionID] ?? ChangesState()
         state.isLoading = true
@@ -840,6 +876,7 @@ final class AppState: ObservableObject {
            Date().timeIntervalSince(loaded) < 30 {
             return
         }
+        defer { trimCache(&sessionStats, loadedAt: { $0.loadedAt }, pinning: sessionID) }
 
         var state = sessionStats[sessionID] ?? SessionStatsState()
         state.isLoading = true
@@ -875,6 +912,7 @@ final class AppState: ObservableObject {
            Date().timeIntervalSince(loaded) < 30 {
             return
         }
+        defer { trimCache(&projectChanges, loadedAt: { $0.loadedAt }, pinning: projectID) }
 
         var state = projectChanges[projectID] ?? ChangesState()
         state.isLoading = true
@@ -906,6 +944,7 @@ final class AppState: ObservableObject {
            Date().timeIntervalSince(loaded) < 30 {
             return
         }
+        defer { trimCache(&projectFiles, loadedAt: { $0.loadedAt }, pinning: projectID) }
 
         var state = projectFiles[projectID] ?? ProjectFilesState()
         state.isLoading = true
@@ -949,6 +988,7 @@ final class AppState: ObservableObject {
            Date().timeIntervalSince(loaded) < 30 {
             return
         }
+        defer { trimCache(&projectDetails, loadedAt: { $0.loadedAt }, pinning: id) }
 
         projectDetails[id, default: ProjectDetail()].isLoading = true
         do {
@@ -1002,6 +1042,7 @@ final class AppState: ObservableObject {
            Date().timeIntervalSince(loaded) < 30 {
             return
         }
+        defer { trimCache(&subagentLists, loadedAt: { $0.loadedAt }, pinning: parentID) }
 
         DebugLog.subagents("[subagents] start \(parentID)")
 
@@ -1065,52 +1106,98 @@ final class AppState: ObservableObject {
 
     // MARK: - Derived data
 
-    var runningSessions: [Session] {
-        sessions
-            .filter { activeIDs.contains($0.id) }
-            .sorted { $0.time.updated > $1.time.updated }
-    }
-
-    var recentSessions: [Session] {
-        sessions
-            .filter { !activeIDs.contains($0.id) }
-            .sorted { $0.time.updated > $1.time.updated }
-    }
-
     var activeCount: Int { activeIDs.count }
 
-    /// Projects with running work first, then most recently active.
-    ///
-    /// OpenCode can hold more than one record for the same directory — a legacy
-    /// record alongside the live one — so records are merged by canonical path,
-    /// keeping whichever has activity.
-    var orderedProjects: [Project] {
-        Dictionary(grouping: projects.values, by: \.canonical)
-            .values
-            .compactMap { records in records.max(by: ranksBelow) }
-            .sorted { ranksBelow($1, than: $0) } // reversed: best first
+    /// True until the first poll has produced anything to show. Screens use it
+    /// to render skeletons instead of an empty state that would flash away.
+    var isInitialLoading: Bool {
+        lastUpdated == nil && sessions.isEmpty && stats == nil
     }
 
-    /// Ordering used both to pick a winner among duplicate records and to sort
-    /// the list: running work, then real VCS projects, then recent activity.
-    private func ranksBelow(_ lhs: Project, than rhs: Project) -> Bool {
-        let left = runningSessions(in: lhs).count
-        let right = runningSessions(in: rhs).count
-        if left != right { return left < right }
-        let leftVCS = lhs.vcs?.isEmpty == false
-        let rightVCS = rhs.vcs?.isEmpty == false
-        if leftVCS != rightVCS { return !leftVCS }
-        return lhs.lastActiveDate < rhs.lastActiveDate
+    /// Keeps the on-demand caches bounded. Opening many sessions or projects in
+    /// one run would otherwise keep every message, patch and file list alive
+    /// for the life of the app.
+    private func trimCache<T>(
+        _ cache: inout [String: T],
+        loadedAt: (T) -> Date?,
+        limit: Int = 16,
+        pinning key: String? = nil
+    ) {
+        guard cache.count > limit else { return }
+        let kept = cache
+            .sorted { (loadedAt($0.value) ?? .distantPast) > (loadedAt($1.value) ?? .distantPast) }
+            .prefix(limit)
+        var trimmed = Dictionary(uniqueKeysWithValues: kept.map { ($0.key, $0.value) })
+        if let key, let pinned = cache[key] { trimmed[key] = pinned }
+        cache = trimmed
+    }
+
+    /// Rebuilds the feeds the views read. Called after the session list,
+    /// running set or project map changes, so filtering and sorting happen once
+    /// per refresh instead of on every view body evaluation.
+    private func rebuildDerived() {
+        var running: [Session] = []
+        var recent: [Session] = []
+        running.reserveCapacity(min(sessions.count, activeIDs.count))
+        recent.reserveCapacity(sessions.count)
+        for session in sessions {
+            if activeIDs.contains(session.id) {
+                running.append(session)
+            } else {
+                recent.append(session)
+            }
+        }
+        running.sort { $0.time.updated > $1.time.updated }
+        recent.sort { $0.time.updated > $1.time.updated }
+
+        if running != runningSessions { runningSessions = running }
+        if recent != recentSessions { recentSessions = recent }
+
+        runningByProject = ProjectOrdering.runningByProject(sessions: sessions, activeIDs: activeIDs)
+        var counts: [String: Int] = [:]
+        for session in sessions where activeIDs.contains(session.id) {
+            if let parentID = session.parentID {
+                counts[parentID, default: 0] += 1
+            }
+        }
+        subagentCounts = counts
+
+        let ordered = ProjectOrdering.ordered(
+            projects: projects,
+            runningCounts: runningByProject.mapValues(\.count)
+        )
+        if ordered != orderedProjects { orderedProjects = ordered }
+
+        var names: [String: String] = [:]
+        names.reserveCapacity(projects.count)
+        for project in projects.values {
+            names[project.id] = project.displayName
+        }
+        projectNames = names
+    }
+
+    /// Keeps the derived feeds in step when a single session's cost or tokens
+    /// move on an event, without rebuilding and re-sorting the whole list.
+    private func updateDerivedSession(_ session: Session) {
+        if let index = runningSessions.firstIndex(where: { $0.id == session.id }) {
+            runningSessions[index] = session
+        }
+        if let index = recentSessions.firstIndex(where: { $0.id == session.id }) {
+            recentSessions[index] = session
+        }
     }
 
     func runningSessions(in project: Project) -> [Session] {
-        sessions
-            .filter { $0.projectID == project.id && activeIDs.contains($0.id) }
-            .sorted { $0.time.updated > $1.time.updated }
+        runningByProject[project.id] ?? []
+    }
+
+    func activeSubagentCount(for sessionID: String) -> Int {
+        subagentCounts[sessionID] ?? 0
     }
 
     func projectName(for session: Session) -> String {
-        Fmt.projectName(for: session, projects: projects)
+        if let name = projectNames[session.projectID] { return name }
+        return Fmt.projectName(for: session, projects: projects)
     }
 
     var todaySteps: Int {

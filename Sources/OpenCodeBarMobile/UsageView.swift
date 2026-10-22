@@ -42,7 +42,7 @@ struct UsageView: View {
     private var content: some View {
         if let stats = store.stats {
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                LazyVStack(alignment: .leading, spacing: 14) {
                     if store.statsStale {
                         NoticeRow(
                             icon: "clock.arrow.circlepath",
@@ -93,8 +93,13 @@ struct UsageView: View {
             }
         } else {
             ScrollView {
-                LoadingState(message: store.connection.isConnected ? "Loading usage…" : store.connection.label)
-                    .padding()
+                if store.isInitialLoading {
+                    UsageSkeleton()
+                        .padding()
+                } else {
+                    LoadingState(message: store.connection.isConnected ? "Loading usage…" : store.connection.label)
+                        .padding()
+                }
             }
         }
     }

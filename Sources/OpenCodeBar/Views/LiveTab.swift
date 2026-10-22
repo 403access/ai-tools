@@ -6,10 +6,12 @@ struct LiveTab: View {
     @State private var selectedProjectID: String?
     @State private var timeFilter: SessionTimeFilter = .all
     @State private var groupedByTime = false
+    @State private var recentLimit = LiveTab.recentPageSize
 
     var body: some View {
         let running = state.runningSessions
-        let recent = Array(filteredRecent.prefix(20))
+        let recent = Array(filteredRecent.prefix(recentLimit))
+        let isLoading = state.isInitialLoading
 
         return VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
@@ -43,7 +45,10 @@ struct LiveTab: View {
                     }
                 }
 
-                if running.isEmpty {
+                if isLoading && running.isEmpty {
+                    SessionListSkeleton(count: 2, showsActivity: true)
+                        .shimmering()
+                } else if running.isEmpty {
                     EmptyState(
                         icon: "moon.zzz.fill",
                         title: "No active sessions",
@@ -80,7 +85,10 @@ struct LiveTab: View {
                     }
                 }
 
-                if recent.isEmpty {
+                if isLoading && recent.isEmpty {
+                    SessionListSkeleton(count: 4)
+                        .shimmering()
+                } else if recent.isEmpty {
                     EmptyState(
                         icon: filtersActive ? "line.3.horizontal.decrease.circle" : "clock",
                         title: filtersActive ? "No matching sessions" : "No recent sessions",
@@ -98,9 +106,17 @@ struct LiveTab: View {
                             }
                         }
                     }
+
+                    if filteredRecent.count > recentLimit {
+                        showMoreButton(remaining: filteredRecent.count - recentLimit)
+                    }
                 } else {
                     ForEach(recent) { session in
                         recentButton(session)
+                    }
+
+                    if filteredRecent.count > recentLimit {
+                        showMoreButton(remaining: filteredRecent.count - recentLimit)
                     }
                 }
             }
@@ -110,6 +126,37 @@ struct LiveTab: View {
             NewSessionSheet()
                 .environmentObject(state)
         }
+        .onChange(of: activeProjectID) { _, _ in recentLimit = Self.recentPageSize }
+        .onChange(of: timeFilter) { _, _ in recentLimit = Self.recentPageSize }
+    }
+
+    private static let recentPageSize = 20
+
+    /// Reveals the next page of recent rows. The data is already in memory; this
+    /// keeps the initial render (and its view tree) small.
+    private func showMoreButton(remaining: Int) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.16)) {
+                recentLimit += Self.recentPageSize
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                Text(remaining > 0 ? "Show \(min(remaining, Self.recentPageSize)) more" : "Show more")
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.accent)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
+        .help("Show more recent sessions")
     }
 
     private func recentButton(_ session: Session) -> some View {

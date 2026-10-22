@@ -342,7 +342,7 @@ struct SessionMessagesResponse: Decodable {
     }
 }
 
-struct SessionMessage: Decodable, Identifiable {
+struct SessionMessage: Decodable, Identifiable, Equatable {
     var id: String
     var type: String
     var time: Time
@@ -353,7 +353,7 @@ struct SessionMessage: Decodable, Identifiable {
     var cost: Double?
     var tokens: TokenUsage?
 
-    struct Time: Decodable {
+    struct Time: Decodable, Equatable {
         var created: Double
         var streamed: Double?
         var completed: Double?
@@ -568,7 +568,7 @@ struct FileChangeGroup: Identifiable {
     }
 }
 
-struct MessagePart: Decodable {
+struct MessagePart: Decodable, Equatable {
     var type: String
     var id: String?
     var text: String?
@@ -576,13 +576,13 @@ struct MessagePart: Decodable {
     var state: ToolState?
     var time: Time?
 
-    struct Time: Decodable {
+    struct Time: Decodable, Equatable {
         var created: Double?
         var ran: Double?
         var completed: Double?
     }
 
-    struct ToolState: Decodable {
+    struct ToolState: Decodable, Equatable {
         var status: String?
         var input: JSONValue?
         var content: [MessagePart]?

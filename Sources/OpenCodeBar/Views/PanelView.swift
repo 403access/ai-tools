@@ -54,10 +54,6 @@ struct PanelView: View {
         .frame(height: Self.contentHeight)
         .animation(.easeInOut(duration: 0.18), value: state.selectedSession?.id)
         .animation(.easeInOut(duration: 0.18), value: state.selectedProject?.id)
-        .task {
-            await state.refreshLive()
-            await state.refreshStats()
-        }
     }
 }
 

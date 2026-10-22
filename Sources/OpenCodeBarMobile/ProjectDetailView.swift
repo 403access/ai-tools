@@ -15,6 +15,9 @@ struct ProjectDetailView: View {
         let runningCount = running.count
 
         return ScrollView {
+            // Eager stack: this page contains a live running section
+            // (TimelineView), and lazy layout can fight the scroll offset while
+            // those rows update. Sections inside still page their own data.
             VStack(alignment: .leading, spacing: 14) {
                 summary
                 runningSection
@@ -58,7 +61,8 @@ struct ProjectDetailView: View {
                             ModelBreakdownCard(models: stats.models)
                         }
                     } else if detail.isLoading {
-                        LoadingState(message: "Loading project…")
+                        ProjectDetailSkeleton()
+                            .shimmering()
                     }
 
                     filesSection
@@ -83,7 +87,8 @@ struct ProjectDetailView: View {
                         .animateRecentInsertion(ids: sessions.map(\.id))
                     }
                 } else {
-                    LoadingState(message: "Loading project…")
+                    ProjectDetailSkeleton()
+                        .shimmering()
                 }
             }
             .padding(.horizontal, 16)
@@ -117,7 +122,8 @@ struct ProjectDetailView: View {
         let state = store.projectChanges[project.id]
         if let state, state.isLoading && state.changes.isEmpty {
             SectionHeader("Changes")
-            LoadingState(message: "Collecting file changes…")
+            ChangesSkeleton()
+                .shimmering()
         } else if let state, let error = state.error, state.changes.isEmpty {
             SectionHeader("Changes")
             NoticeRow(
@@ -141,7 +147,8 @@ struct ProjectDetailView: View {
         let state = store.projectFiles[project.id]
         if let state, state.isLoading && state.files == nil {
             SectionHeader("Files")
-            LoadingState(message: "Reading project folder…")
+            SessionListSkeleton(count: 3)
+                .shimmering()
         } else if let state, let error = state.error, state.files == nil {
             SectionHeader("Files")
             NoticeRow(

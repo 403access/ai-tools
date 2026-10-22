@@ -1,4 +1,4 @@
-.PHONY: build test app run restart preview shots site docs docs-build docs-serve clean icon hub hub-dev hub-test hub-tunnel mobile-project mobile-build mobile-run mobile-device mobile-icon
+.PHONY: build test app run restart preview shots site docs docs-build docs-serve clean icon hub hub-dev hub-test hub-tunnel mobile-project mobile-build mobile-run mobile-device mobile-icon bench
 
 # Compile the Swift package (debug).
 build:
@@ -7,6 +7,10 @@ build:
 # Run the unit tests.
 test:
 	swift test
+
+# Run the shared-code performance microbenchmarks.
+bench:
+	Scripts/perf-benchmark.sh
 
 # Assemble dist/OpenCodeBar.app (release).
 app:

@@ -301,6 +301,7 @@ Other targets:
 ```sh
 make build         # swift build (debug)
 make test          # swift test
+make bench         # shared-code performance microbenchmarks
 make app           # assemble dist/OpenCodeBar.app (release)
 make preview       # open the panel in a normal window for design work
 make shots         # regenerate docs/screenshots
@@ -398,6 +399,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     QRCode.swift            pairing QR rendering
   Models/Models.swift       Codable models for the API (shared)
   Models/OpenCodeEvent.swift  decoded event payloads (shared)
+  Models/ProjectOrdering.swift  project merge + ordering from running counts (shared)
   Models/SessionActivity.swift  live "what is it doing" state (shared)
   Models/SubagentOrdering.swift  running-first ordering for child sessions
   Models/SessionOrdering.swift  most-recent-first ordering for feeds
@@ -406,6 +408,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
   Views/                    SwiftUI panel, tabs, heatmap, components
     ChangeViews.swift       patch cards and change summaries
     NewSessionSheet.swift   start a session with an optional first prompt
+    PerformanceViews.swift  skeleton placeholders and shimmer (shared)
     SessionStatsView.swift  per-session reliability and failures
     SettingsTab.swift       connected devices and server controls
     SubagentViews.swift     tap-through child-session tree
@@ -451,6 +454,10 @@ docs/                         static marketing site
   assets/
   screenshots/                shared screenshots used by README and site
 
+performance/                  performance analysis and results
+  before.md                   baseline hot paths and measurements
+  after.md                    implemented changes, results, follow-ups
+
 .github/workflows/
   deploy-pages.yml            build marketing + docs, deploy GitHub Pages
 
@@ -461,6 +468,8 @@ Scripts/
   restart.sh                  rebuild and restart the Mac app
   run-mobile.sh               install, launch, and pair the iOS app in a simulator
   run-mobile-device.sh        the same on a physical iPhone/iPad
+  perf-benchmark.sh           compile and run the shared-code microbenchmarks
+  PerfBenchmark.swift         synthetic data + measurements for the benchmark
   make-icon.swift             generate the app icon
 Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
 ```

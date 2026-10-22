@@ -68,17 +68,13 @@ struct UsageTrendCard: View {
     @State private var metric: UsageMetric = .steps
     @State private var range: UsageRange = .month
 
-    private var points: [DailyUsage] {
-        UsageSeries.build(stats: stats, sessions: sessions, range: range)
-    }
-
-    private var hasData: Bool {
-        points.contains { metric.value($0) > 0 }
-    }
-
     var body: some View {
-        let points = points
-        VStack(alignment: .leading, spacing: 8) {
+        let points = UsageSeries.bucketed(
+            UsageSeries.build(stats: stats, sessions: sessions, range: range),
+            maxPoints: 120
+        )
+        let hasData = points.contains { metric.value($0) > 0 }
+        return VStack(alignment: .leading, spacing: 8) {
             header
 
             if hasData {
@@ -253,7 +249,7 @@ struct ProjectUsageCard: View {
 
     var body: some View {
         let rows = rows
-        VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Text("Top projects by cost")
                     .font(.system(size: 10, weight: .medium))

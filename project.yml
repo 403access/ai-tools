@@ -27,6 +27,7 @@ targets:
       - path: Sources/OpenCodeBar/Support/SpeechInput.swift
       - path: Sources/OpenCodeBar/Views/Theme.swift
       - path: Sources/OpenCodeBar/Views/Components.swift
+      - path: Sources/OpenCodeBar/Views/PerformanceViews.swift
       - path: Sources/OpenCodeBar/Views/HeatmapView.swift
       - path: Sources/OpenCodeBar/Views/LiveActivityView.swift
       - path: Mobile/Assets.xcassets

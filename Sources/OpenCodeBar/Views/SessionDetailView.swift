@@ -18,6 +18,7 @@ struct SessionDetailView: View {
     @State private var previousCursor: String?
     @State private var isLoading = true
     @State private var isLoadingEarlier = false
+    @State private var isFetchingLatest = false
     @State private var earlierError: String?
     @State private var errorMessage: String?
     @State private var draft = ""
@@ -105,7 +106,9 @@ struct SessionDetailView: View {
         .padding(.bottom, 8)
         .onDisappear { dictation.cancel() }
         .task(id: refreshKey) {
-            await loadLatest()
+            if mode == .conversation || mode == .prompts {
+                await loadLatest()
+            }
             if mode == .changes {
                 await state.loadChanges(session.id)
             } else if mode == .stats {
@@ -117,11 +120,13 @@ struct SessionDetailView: View {
         }
         .task(id: mode) {
             switch mode {
+            case .conversation, .prompts:
+                if messages.isEmpty { await loadLatest() }
             case .changes:
                 await state.loadChanges(session.id)
             case .stats:
                 await state.loadSessionStats(session.id)
-            default:
+            case .subagents:
                 break
             }
         }
@@ -331,7 +336,8 @@ struct SessionDetailView: View {
     @ViewBuilder
     private var conversation: some View {
         if isLoading && messages.isEmpty {
-            LoadingState(message: "Loading conversation…")
+            ConversationSkeleton(count: 5)
+                .shimmering()
         } else if let errorMessage, messages.isEmpty {
             errorState(errorMessage)
         } else if messages.isEmpty {
@@ -341,22 +347,25 @@ struct SessionDetailView: View {
                 subtitle: "The conversation will appear as the model responds."
             )
         } else {
-            if isRunning {
-                HStack(spacing: 6) {
-                    PulsingDot(size: 5)
-                    Text("Generating…")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Theme.running)
+            LazyVStack(alignment: .leading, spacing: 7) {
+                if isRunning {
+                    HStack(spacing: 6) {
+                        PulsingDot(size: 5)
+                        Text("Generating…")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Theme.running)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 3)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 3)
-            }
 
-            ForEach(messages) { message in
-                MessageCard(message: message)
-                    .transition(.recentInsertion)
+                ForEach(messages) { message in
+                    MessageCard(message: message)
+                        .equatable()
+                        .transition(.recentInsertion)
+                }
+                .animateRecentInsertion(ids: messages.map(\.id))
             }
-            .animateRecentInsertion(ids: messages.map(\.id))
 
             if previousCursor != nil {
                 loadEarlierButton
@@ -370,13 +379,15 @@ struct SessionDetailView: View {
     private var stats: some View {
         let statsState = state.sessionStats[session.id]
         if let statsState, statsState.isLoading && statsState.stats == nil {
-            LoadingState(message: "Measuring this session…")
+            StatsDetailSkeleton()
+                .shimmering()
         } else if let statsState, let error = statsState.error, statsState.stats == nil {
             errorState(error)
         } else if let stats = statsState?.stats {
             SessionStatsView(stats: stats)
         } else {
-            LoadingState(message: "Loading stats…")
+            StatsDetailSkeleton()
+                .shimmering()
         }
     }
 
@@ -386,7 +397,8 @@ struct SessionDetailView: View {
     private var changes: some View {
         let changesState = state.sessionChanges[session.id]
         if let changesState, changesState.isLoading && changesState.changes.isEmpty {
-            LoadingState(message: "Collecting file changes…")
+            ChangesSkeleton()
+                .shimmering()
         } else if let changesState, let error = changesState.error, changesState.changes.isEmpty {
             errorState(error)
         } else if let changes = changesState?.changes, !changes.isEmpty {
@@ -417,11 +429,14 @@ struct SessionDetailView: View {
                 subtitle: "Prompts you send to this session appear here."
             )
         } else {
-            ForEach(Array(prompts.enumerated()), id: \.element.id) { index, message in
-                PromptRow(index: prompts.count - index, message: message)
-                    .transition(.recentInsertion)
+            LazyVStack(alignment: .leading, spacing: 7) {
+                ForEach(Array(prompts.enumerated()), id: \.element.id) { index, message in
+                    PromptRow(index: prompts.count - index, message: message)
+                        .equatable()
+                        .transition(.recentInsertion)
+                }
+                .animateRecentInsertion(ids: prompts.map(\.id))
             }
-            .animateRecentInsertion(ids: prompts.map(\.id))
 
             if previousCursor != nil {
                 loadEarlierButton
@@ -435,7 +450,8 @@ struct SessionDetailView: View {
     private var subagents: some View {
         if let list = state.subagentList(for: session.id) {
             if list.isLoading && list.sessions.isEmpty {
-                LoadingState(message: "Loading subagents…")
+                SessionListSkeleton(count: 2)
+                    .shimmering()
             } else if list.sessions.isEmpty {
                 if let error = list.error {
                     subagentError(error)
@@ -482,7 +498,8 @@ struct SessionDetailView: View {
                 }
             }
         } else {
-            LoadingState(message: "Loading subagents…")
+            SessionListSkeleton(count: 2)
+                .shimmering()
         }
     }
 
@@ -544,6 +561,11 @@ struct SessionDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        // Reaching the end of the loaded window pages the next one in, so long
+        // sessions scroll without a tap. The button stays for keyboard use.
+        .onAppear {
+            Task { await loadEarlier() }
+        }
     }
 
     private func errorState(_ message: String) -> some View {
@@ -583,11 +605,20 @@ struct SessionDetailView: View {
     // MARK: - Loading
 
     private func loadLatest() async {
+        guard !isFetchingLatest else { return }
+        isFetchingLatest = true
         if messages.isEmpty { isLoading = true }
-        defer { isLoading = false }
+        defer {
+            isLoading = false
+            isFetchingLatest = false
+        }
 
         do {
-            let response = try await state.messages(for: session.id, limit: 100)
+            // The first page needs enough history to fill the view; later
+            // refreshes only need the newest window, which is where streaming
+            // output lands.
+            let limit = messages.isEmpty ? 100 : 30
+            let response = try await state.messages(for: session.id, limit: limit)
             guard !Task.isCancelled else { return }
 
             // Keep any older pages the user already loaded; refresh the newest
@@ -600,7 +631,8 @@ struct SessionDetailView: View {
                 return message.time.created < cutoff
             }
 
-            messages = MessageOrdering.mostRecentFirst(fresh + retained)
+            let merged = MessageOrdering.mostRecentFirst(fresh + retained)
+            if merged != messages { messages = merged }
             if retained.isEmpty {
                 previousCursor = response.cursor?.previous
             }
@@ -636,7 +668,7 @@ struct SessionDetailView: View {
 
 // MARK: - Messages
 
-private struct MessageCard: View {
+private struct MessageCard: View, Equatable {
     let message: SessionMessage
 
     var body: some View {
@@ -898,7 +930,7 @@ private struct ToolPartView: View {
     }
 }
 
-private struct PromptRow: View {
+private struct PromptRow: View, Equatable {
     let index: Int
     let message: SessionMessage
 

@@ -65,7 +65,8 @@ struct ProjectDetailView: View {
 
                             ModelBreakdown(models: stats.models)
                         } else if detail.isLoading {
-                            LoadingState(message: "Loading project…")
+                            ProjectDetailSkeleton()
+                                .shimmering()
                         }
 
                         filesSection
@@ -77,7 +78,8 @@ struct ProjectDetailView: View {
                             ProjectSessions(sessions: Array(detail.sessions.prefix(20)))
                         }
                     } else {
-                        LoadingState(message: "Loading project…")
+                        ProjectDetailSkeleton()
+                            .shimmering()
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -300,7 +302,8 @@ struct ProjectDetailView: View {
         let changesState = state.projectChanges[project.id]
         if let changesState, changesState.isLoading && changesState.changes.isEmpty {
             SectionHeader("Changes")
-            LoadingState(message: "Collecting file changes…")
+            ChangesSkeleton()
+                .shimmering()
         } else if let changesState, let error = changesState.error, changesState.changes.isEmpty {
             SectionHeader("Changes")
             NoticeRow(

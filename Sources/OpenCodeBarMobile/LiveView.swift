@@ -9,6 +9,7 @@ struct LiveView: View {
     @State private var selectedProjectID: String?
     @State private var timeFilter: SessionTimeFilter = .all
     @State private var groupedByTime = false
+    @State private var recentLimit = LiveView.recentPageSize
 
     var body: some View {
         let connection = store.connection
@@ -88,6 +89,10 @@ struct LiveView: View {
 
     private var content: some View {
         ScrollView {
+            // Keep this an eager VStack: the list is paged (20 rows), and the
+            // running rows contain live TimelineViews. A LazyVStack re-lays out
+            // on every streaming update, which can fight the scroll view's
+            // restored offset in the simulator.
             VStack(alignment: .leading, spacing: 16) {
                 if case .offline(let reason) = store.connection {
                     NoticeRow(icon: "wifi.exclamationmark", message: reason, tint: Theme.warn)
@@ -107,6 +112,8 @@ struct LiveView: View {
             .padding(.top, 12)
             .padding(.bottom, 10)
         }
+        .onChange(of: activeProjectID) { _, _ in recentLimit = Self.recentPageSize }
+        .onChange(of: timeFilter) { _, _ in recentLimit = Self.recentPageSize }
     }
 
     private var runningSection: some View {
@@ -122,12 +129,17 @@ struct LiveView: View {
             }
 
             if sessions.isEmpty {
-                EmptyState(
-                    icon: "moon.zzz.fill",
-                    title: "No active sessions",
-                    subtitle: "Sessions appear here the moment they start."
-                )
-                .transition(.opacity)
+                if store.isInitialLoading {
+                    SessionListSkeleton(count: 2, showsActivity: true)
+                        .shimmering()
+                } else {
+                    EmptyState(
+                        icon: "moon.zzz.fill",
+                        title: "No active sessions",
+                        subtitle: "Sessions appear here the moment they start."
+                    )
+                    .transition(.opacity)
+                }
             } else {
                 ForEach(sessions) { session in
                     NavigationLink(value: session) {
@@ -147,8 +159,9 @@ struct LiveView: View {
     }
 
     private var recentSection: some View {
-        let sessions = Array(filteredRecent.prefix(30))
+        let sessions = Array(filteredRecent.prefix(recentLimit))
         let ids = sessions.map(\.id)
+        let remaining = filteredRecent.count - sessions.count
 
         return VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Recent") {
@@ -160,14 +173,19 @@ struct LiveView: View {
             }
 
             if sessions.isEmpty {
-                EmptyState(
-                    icon: filtersActive ? "line.3.horizontal.decrease.circle" : "clock",
-                    title: filtersActive ? "No matching sessions" : "No recent sessions",
-                    subtitle: filtersActive
-                        ? "Try another project or date range."
-                        : "Your session history will show up here."
-                )
-                .transition(.opacity)
+                if store.isInitialLoading {
+                    SessionListSkeleton(count: 4)
+                        .shimmering()
+                } else {
+                    EmptyState(
+                        icon: filtersActive ? "line.3.horizontal.decrease.circle" : "clock",
+                        title: filtersActive ? "No matching sessions" : "No recent sessions",
+                        subtitle: filtersActive
+                            ? "Try another project or date range."
+                            : "Your session history will show up here."
+                    )
+                    .transition(.opacity)
+                }
             } else if groupedByTime {
                 ForEach(SessionGrouping.groupByTime(sessions)) { section in
                     VStack(alignment: .leading, spacing: 8) {
@@ -182,9 +200,35 @@ struct LiveView: View {
                     recentLink(session)
                 }
             }
+
+            if remaining > 0 {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.16)) {
+                        recentLimit += Self.recentPageSize
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.bold))
+                        Text("Show \(min(remaining, Self.recentPageSize)) more")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.accent)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.primary.opacity(0.04))
+                )
+                .accessibilityLabel("Show more recent sessions")
+            }
         }
         .animateRecentInsertion(ids: ids)
     }
+
+    private static let recentPageSize = 20
 
     private func recentLink(_ session: Session) -> some View {
         NavigationLink(value: session) {

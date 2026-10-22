@@ -94,7 +94,11 @@ struct UsageTab: View {
             }
             .task { await state.refreshHistory() }
         } else {
-            LoadingState(message: state.connection.isConnected ? "Loading usage…" : state.connection.label)
+            if state.isInitialLoading {
+                UsageSkeleton()
+            } else {
+                LoadingState(message: state.connection.isConnected ? "Loading usage…" : state.connection.label)
+            }
         }
     }
 
