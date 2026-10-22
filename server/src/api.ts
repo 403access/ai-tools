@@ -1,10 +1,22 @@
 import { timingSafeEqual } from "node:crypto";
-import { HUB_VERSION, lanAddresses, type HubConfig } from "./config.ts";
+import {
+  clampEventThrottle,
+  HUB_VERSION,
+  lanAddresses,
+  MAX_EVENT_THROTTLE_MS,
+  MIN_EVENT_THROTTLE_MS,
+  type HubConfig,
+} from "./config.ts";
 import type { HubDB } from "./db.ts";
 import { listProjectFiles, ProjectFilesError } from "./files.ts";
 import type { Hub } from "./hub.ts";
 import { OpenCodeError } from "./opencode.ts";
-import type { ActiveSessionsResponse, HubEvent, ServerInfo } from "./types.ts";
+import type {
+  ActiveSessionsResponse,
+  HubEvent,
+  HubSettings,
+  ServerInfo,
+} from "./types.ts";
 
 export interface ApiDeps {
   db: HubDB;
@@ -12,6 +24,8 @@ export interface ApiDeps {
   config: HubConfig;
   /** Restarts the hub process, exposed to the settings screen. */
   restart?: () => void;
+  /** Persists settings changed over the API, so they survive a restart. */
+  persistSettings?: (config: HubConfig) => void;
 }
 
 interface DeviceIdentity {
@@ -46,7 +60,7 @@ function deviceFromRequest(request: Request): DeviceIdentity | null {
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Authorization, Content-Type, Last-Event-ID",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -101,6 +115,14 @@ function intParam(value: string | null, fallback: number, min: number, max: numb
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(Math.max(parsed, min), max);
+}
+
+function settingsPayload(config: HubConfig): HubSettings {
+  return {
+    eventThrottleMs: config.eventThrottleMs,
+    eventThrottleMinMs: MIN_EVENT_THROTTLE_MS,
+    eventThrottleMaxMs: MAX_EVENT_THROTTLE_MS,
+  };
 }
 
 function activeResponse(db: HubDB): ActiveSessionsResponse {
@@ -172,7 +194,7 @@ function eventStream(hub: Hub, request: Request, deviceID?: string): Response {
 }
 
 export function createHandler(deps: ApiDeps): (request: Request) => Promise<Response> {
-  const { db, hub, config, restart } = deps;
+  const { db, hub, config, restart, persistSettings } = deps;
 
   return async (request: Request): Promise<Response> => {
     if (request.method === "OPTIONS") {
@@ -201,6 +223,28 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
 
       if (pathname === "/api/devices" && request.method === "GET") {
         return json({ data: hub.devices() });
+      }
+
+      if (pathname === "/api/settings") {
+        if (request.method === "GET") {
+          return json({ data: settingsPayload(config) });
+        }
+        if (request.method === "PATCH") {
+          const body = await readJSONBody(request);
+          if (!body) return error("Expected a JSON body", 400);
+
+          const value = body.eventThrottleMs;
+          if (typeof value !== "number" || !Number.isFinite(value)) {
+            return error("eventThrottleMs must be a number", 400);
+          }
+
+          // The hub clamps out-of-range values, so older clients that send a
+          // too-small interval still get a usable setting instead of an error.
+          hub.setEventThrottle(clampEventThrottle(value));
+          persistSettings?.(config);
+          return json({ data: settingsPayload(config) });
+        }
+        return error("Method not allowed", 405);
       }
 
       if (pathname === "/api/health" || pathname === "/api/hub/info") {

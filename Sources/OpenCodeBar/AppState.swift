@@ -129,9 +129,12 @@ final class AppState: ObservableObject {
     /// Server information shown on the Settings tab.
     @Published var hubInfo: ServerInfo?
     @Published var hubHealth: HubHealthResponse?
+    /// Tunable hub behaviour, such as the event-stream throttle.
+    @Published var serverSettings: ServerSettings?
     @Published var settingsError: String?
     @Published var settingsNotice: String?
     @Published var isRefreshingSettings = false
+    @Published var isUpdatingSettings = false
     @Published var isSyncing = false
     @Published var isRestartingServer = false
     @Published private(set) var settingsUpdatedAt: Date?
@@ -431,10 +434,39 @@ final class AppState: ObservableObject {
             self.devices = deviceList
             self.hubInfo = serverInfo
             self.hubHealth = serverHealth
+            // Hubs that predate the settings endpoint still expose devices and
+            // health, so a missing payload must not fail the whole refresh.
+            if let settings = try? await api.settings() {
+                self.serverSettings = settings
+            }
             self.settingsUpdatedAt = Date()
             self.settingsError = nil
         } catch {
             self.settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Changes how often the hub forwards event updates to the connected apps.
+    /// A larger window relieves pressure from streaming sessions at the cost of
+    /// slightly less immediate live rows.
+    func updateEventThrottle(_ milliseconds: Int) async {
+        guard let api else {
+            await bootstrap()
+            return
+        }
+        guard !isUpdatingSettings else { return }
+        isUpdatingSettings = true
+        defer { isUpdatingSettings = false }
+
+        do {
+            let settings = try await api.updateSettings(eventThrottleMs: milliseconds)
+            self.serverSettings = settings
+            self.settingsError = nil
+            self.settingsNotice = settings.eventThrottleMs == 0
+                ? "Live updates are sent immediately"
+                : "Updates throttled to \(settings.eventThrottleMs) ms"
+        } catch {
+            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 

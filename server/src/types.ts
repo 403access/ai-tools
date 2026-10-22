@@ -271,6 +271,21 @@ export interface DevicesResponse {
   data: ConnectedDevice[];
 }
 
+/**
+ * Hub behaviour that the settings screen can tune without restarting. The
+ * bounds are included so clients do not have to hard-code the accepted range.
+ */
+export interface HubSettings {
+  /** Coalescing window for event-stream updates; `0` sends every event. */
+  eventThrottleMs: number;
+  eventThrottleMinMs: number;
+  eventThrottleMaxMs: number;
+}
+
+export interface HubSettingsResponse {
+  data: HubSettings;
+}
+
 export interface HubHealth {
   version: string;
   uptime: number;

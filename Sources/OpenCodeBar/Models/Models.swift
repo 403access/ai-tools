@@ -704,3 +704,16 @@ struct ConnectedDevice: Decodable, Identifiable {
 struct DevicesResponse: Decodable {
     var data: [ConnectedDevice]
 }
+
+/// Hub behaviour the Settings tab can tune. The hub clamps values, so the
+/// bounds are only used to label the controls.
+struct ServerSettings: Decodable, Equatable {
+    /// Coalescing window for event-stream updates; `0` forwards everything.
+    var eventThrottleMs: Int
+    var eventThrottleMinMs: Int?
+    var eventThrottleMaxMs: Int?
+}
+
+struct ServerSettingsResponse: Decodable {
+    var data: ServerSettings
+}

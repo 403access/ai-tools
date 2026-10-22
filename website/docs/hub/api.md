@@ -78,6 +78,33 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `GET` | `/api/hub/info` | Alias for health |
 | `GET` | `/api/info` | Server info, URLs, capabilities, and hub health |
 | `GET` | `/api/devices` | Connected devices |
+| `GET` | `/api/settings` | Tunable hub settings |
+| `PATCH` | `/api/settings` | Update the event throttle |
+
+`/api/settings` returns the coalescing window applied to event-stream updates:
+
+```json
+{
+  "data": {
+    "eventThrottleMs": 250,
+    "eventThrottleMinMs": 0,
+    "eventThrottleMaxMs": 5000
+  }
+}
+```
+
+`eventThrottleMs` is the maximum frequency at which updates reach the apps:
+events queued during the window are folded together (streamed text deltas are
+merged, older copies of the same session event are dropped). `0` forwards every
+event immediately. The hub clamps values to the reported bounds, applies the
+change without a restart, and persists it for the next launch:
+
+```bash
+curl -X PATCH http://127.0.0.1:8787/api/settings \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"eventThrottleMs":500}'
+```
 
 ### Sessions
 
@@ -182,8 +209,11 @@ entries; `truncated` marks a shortened list.
 ### Events
 
 `GET /api/event` is a Server-Sent Events stream. It sends `retry: 2000`, a
-`data:` JSON event for every OpenCode/hub event, and a `: ping` comment every 15
-seconds.
+`data:` JSON event for each OpenCode/hub update, and a `: ping` comment every 15
+seconds. Updates are batched according to the hub's `eventThrottleMs` setting
+(see `/api/settings`): pending events of the same kind are folded into one
+delivery per window, and streamed text/reasoning deltas keep their combined
+text.
 
 ```bash
 curl -N -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8787/api/event

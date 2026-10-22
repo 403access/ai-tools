@@ -6,7 +6,7 @@ import { createHandler } from "../src/api.ts";
 import type { HubConfig } from "../src/config.ts";
 import { HubDB } from "../src/db.ts";
 import { Hub } from "../src/hub.ts";
-import type { Session } from "../src/types.ts";
+import type { HubEvent, Session } from "../src/types.ts";
 
 const TOKEN = "test-token";
 
@@ -21,6 +21,8 @@ function config(overrides: Partial<HubConfig> = {}): HubConfig {
     fastPollMs: 5_000,
     slowPollMs: 60_000,
     usagePollMs: 60_000,
+    // Tests assert deliveries directly, so keep the default un-throttled.
+    eventThrottleMs: 0,
     logLevel: "warn",
     ...overrides,
   };
@@ -195,6 +197,47 @@ describe("hub API devices", () => {
     const { handler, db } = setup();
     const response = await handler(request("/api/server/restart", { method: "POST" }));
     expect(response.status).toBe(501);
+    db.close();
+  });
+
+  test("reads and updates the event throttle", async () => {
+    const { handler, hub, db } = setup();
+
+    const initial = await body<{ data: { eventThrottleMs: number; eventThrottleMaxMs: number } }>(
+      await handler(request("/api/settings")),
+    );
+    expect(initial.data.eventThrottleMs).toBe(0);
+    expect(initial.data.eventThrottleMaxMs).toBe(5_000);
+
+    const update = await handler(
+      request("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventThrottleMs: 400 }),
+      }),
+    );
+    expect(update.status).toBe(200);
+    expect((await body<{ data: { eventThrottleMs: number } }>(update)).data.eventThrottleMs).toBe(400);
+    expect(hub.config.eventThrottleMs).toBe(400);
+
+    const clamped = await handler(
+      request("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventThrottleMs: 99_999 }),
+      }),
+    );
+    expect((await body<{ data: { eventThrottleMs: number } }>(clamped)).data.eventThrottleMs).toBe(5_000);
+
+    const invalid = await handler(
+      request("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventThrottleMs: "fast" }),
+      }),
+    );
+    expect(invalid.status).toBe(400);
+
     db.close();
   });
 });
@@ -448,6 +491,51 @@ describe("hub events", () => {
     const health = hub.health();
     expect(health.sessions).toBe(1);
     expect(health.opencode.connected).toBe(false);
+    db.close();
+  });
+
+  test("coalesces updates into one delivery per throttle window", async () => {
+    const { db, hub } = setup({ eventThrottleMs: 40 });
+    const received: HubEvent[] = [];
+    const remove = hub.addClient((event) => received.push(event));
+
+    hub.broadcast({
+      type: "session.text.delta",
+      data: { sessionID: "ses_1", partID: "part_1", delta: "hel" },
+    });
+    hub.broadcast({
+      type: "session.text.delta",
+      data: { sessionID: "ses_1", partID: "part_1", delta: "lo" },
+    });
+    hub.broadcast({ type: "session.tool.progress", data: { sessionID: "ses_1", id: "call_1" } });
+    hub.broadcast({ type: "session.tool.progress", data: { sessionID: "ses_1", id: "call_1" } });
+
+    // Only the greeting is immediate; the rest waits for the window to close.
+    expect(received.map((event) => event.type)).toEqual(["hub.connected"]);
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    remove();
+
+    expect(received.map((event) => event.type)).toEqual([
+      "hub.connected",
+      "session.text.delta",
+      "session.tool.progress",
+    ]);
+    expect(received[1]?.data?.delta).toBe("hello");
+    db.close();
+  });
+
+  test("sends queued updates immediately when throttling is turned off", () => {
+    const { db, hub } = setup({ eventThrottleMs: 1_000 });
+    const received: HubEvent[] = [];
+    hub.addClient((event) => received.push(event));
+
+    hub.broadcast({ type: "hub.sessions", data: { activeCount: 1 } });
+    expect(received).toHaveLength(1);
+
+    hub.setEventThrottle(0);
+    expect(received.map((event) => event.type)).toEqual(["hub.connected", "hub.sessions"]);
+    expect(hub.config.eventThrottleMs).toBe(0);
     db.close();
   });
 });

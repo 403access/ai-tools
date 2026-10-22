@@ -6,6 +6,16 @@ import { dirname, join } from "node:path";
 export const HUB_VERSION = "1.0.0";
 export const DEFAULT_PORT = 8787;
 
+/** Coalescing window for event-stream updates sent to the apps. */
+export const DEFAULT_EVENT_THROTTLE_MS = 250;
+export const MIN_EVENT_THROTTLE_MS = 0;
+export const MAX_EVENT_THROTTLE_MS = 5_000;
+
+export function clampEventThrottle(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_EVENT_THROTTLE_MS;
+  return Math.min(Math.max(Math.round(value), MIN_EVENT_THROTTLE_MS), MAX_EVENT_THROTTLE_MS);
+}
+
 export interface HubConfig {
   host: string;
   port: number;
@@ -19,6 +29,11 @@ export interface HubConfig {
   fastPollMs: number;
   slowPollMs: number;
   usagePollMs: number;
+  /**
+   * Coalesces event-stream updates for this many milliseconds before sending
+   * them to the apps. `0` forwards every event immediately.
+   */
+  eventThrottleMs: number;
   logLevel: "debug" | "info" | "warn";
 }
 
@@ -127,6 +142,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): HubConfig {
     fastPollMs: num(env.OPENCODEBAR_FAST_POLL_MS) ?? 5_000,
     slowPollMs: num(env.OPENCODEBAR_SLOW_POLL_MS) ?? 60_000,
     usagePollMs: num(env.OPENCODEBAR_USAGE_POLL_MS) ?? 60_000,
+    eventThrottleMs: clampEventThrottle(
+      num(env.OPENCODEBAR_EVENT_THROTTLE_MS) ??
+        num(saved?.eventThrottleMs) ??
+        DEFAULT_EVENT_THROTTLE_MS,
+    ),
     logLevel: (str(env.OPENCODEBAR_LOG_LEVEL) as HubConfig["logLevel"]) ?? "info",
   };
 }
@@ -142,6 +162,7 @@ export function writeHubConfig(config: HubConfig, port = config.port): void {
     token: config.token,
     port,
     version: HUB_VERSION,
+    eventThrottleMs: config.eventThrottleMs,
     updatedAt: new Date().toISOString(),
   };
   writeFileSync(config.configPath, JSON.stringify(payload, null, 2) + "\n", {

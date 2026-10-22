@@ -12,7 +12,13 @@ import { Hub } from "./hub.ts";
 const config = loadConfig();
 const db = new HubDB(config.dbPath);
 const hub = new Hub(config, db);
-const handler = createHandler({ db, hub, config, restart: restartHub });
+const handler = createHandler({
+  db,
+  hub,
+  config,
+  restart: restartHub,
+  persistSettings: (settings) => writeHubConfig(settings, settings.port),
+});
 
 /**
  * Binds the HTTP server. If the configured port is busy and it was not set

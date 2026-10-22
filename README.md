@@ -132,7 +132,9 @@ iOS app:
   cached in `~/.local/share/opencodebar/hub.sqlite`, so the iOS app — and the Mac
   app when OpenCode is stopped — still show history and last-known numbers.
 - The hub discovers the local service, polls read endpoints, forwards the SSE
-  stream, and forwards prompts and new-session requests back to OpenCode.
+  stream, and forwards prompts and new-session requests back to OpenCode. A
+  configurable throttle folds rapid updates before sending them to the apps, so
+  busy sessions do not flood the connection.
 
 Both apps can start sessions and send prompts; neither stops or deletes
 sessions.
@@ -171,13 +173,15 @@ The hub:
    `/api/session/{id}/stats`, `/api/project`, `/api/project/{id}/changes`,
    `/api/project/{id}/files`, `/api/experimental/session/stats` — plus
    `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`), `/api/usage`,
-   `/api/health`, `/api/devices`, `/api/sync`, `/api/server/restart` (`POST`),
-   and `/api/event`. Clients
+   `/api/health`, `/api/devices`, `/api/settings` (`GET`/`PATCH`), `/api/sync`,
+   `/api/server/restart` (`POST`), and `/api/event`. Clients
    authenticate with a Bearer token and identify their platform with
    `X-OpenCodeBar-*` headers so the settings screen can list connected devices.
 4. Forwards OpenCode events to every connected client, so both apps update live.
-   The stream also carries `hub.*` notices (`hub.connected`, `hub.sessions`,
-   `hub.stats`, `hub.usage`) that tell clients when cached data changed.
+   Rapid updates are coalesced into a configurable window (`eventThrottleMs`,
+   250 ms by default) before delivery. The stream also carries `hub.*` notices
+   (`hub.connected`, `hub.sessions`, `hub.stats`, `hub.usage`) that tell clients
+   when cached data changed.
 
 Endpoints the hub reads from OpenCode: `/api/info`, `/api/session`,
 `/api/session/active`, `/api/session/{id}`, `/api/session/{id}/message`,

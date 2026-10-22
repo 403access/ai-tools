@@ -124,6 +124,24 @@ struct HubAPI: Sendable {
         return response.data
     }
 
+    /// Current hub behaviour, including the event update throttle.
+    func settings() async throws -> ServerSettings {
+        let response: ServerSettingsResponse = try await get("/api/settings")
+        return response.data
+    }
+
+    /// Changes the coalescing window for updates sent to the apps. The hub
+    /// applies it immediately and persists it for the next launch.
+    func updateSettings(eventThrottleMs: Int) async throws -> ServerSettings {
+        let body = try JSONEncoder().encode(["eventThrottleMs": eventThrottleMs])
+        let data = try await send("/api/settings", method: "PATCH", body: body)
+        do {
+            return try Self.decoder.decode(ServerSettingsResponse.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     /// Restarts the hub process. The connection may drop briefly while it
     /// rebinds its port.
     func restartServer() async throws {

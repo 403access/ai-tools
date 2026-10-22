@@ -19,6 +19,7 @@ struct SettingsTab: View {
             }
 
             serverSection
+            updatesSection
             devicesSection
             pairingSection
             connectionSection
@@ -118,6 +119,80 @@ struct SettingsTab: View {
             }
             .card()
         }
+    }
+
+    // MARK: - Updates
+
+    private var updatesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Updates") {
+                if state.isUpdatingSettings {
+                    ProgressView().controlSize(.small).scaleEffect(0.65)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Streaming sessions can emit many events per second. The hub batches updates for the Mac and phone apps before forwarding them, which keeps the connection quieter while a session runs.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let settings = state.serverSettings {
+                    HStack(spacing: 8) {
+                        Text("Throttle")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 8)
+
+                        Picker("Throttle", selection: throttleBinding) {
+                            ForEach(throttleOptions, id: \.self) { value in
+                                Text(throttleLabel(value)).tag(value)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 96)
+                        .disabled(state.isUpdatingSettings)
+                    }
+
+                    Text(settings.eventThrottleMs == 0
+                         ? "Every event is forwarded as it arrives."
+                         : "Updates are delivered at most once every \(throttleLabel(settings.eventThrottleMs)). Higher values reduce traffic but make live rows slightly less immediate.")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("Update settings are unavailable on this hub.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .card()
+        }
+    }
+
+    private var throttleBinding: Binding<Int> {
+        Binding(
+            get: { state.serverSettings?.eventThrottleMs ?? 0 },
+            set: { value in
+                Task { await state.updateEventThrottle(value) }
+            }
+        )
+    }
+
+    private var throttleOptions: [Int] {
+        var values = [0, 100, 250, 500, 1_000, 2_000]
+        if let current = state.serverSettings?.eventThrottleMs, !values.contains(current) {
+            values.append(current)
+            values.sort()
+        }
+        return values
+    }
+
+    private func throttleLabel(_ milliseconds: Int) -> String {
+        if milliseconds == 0 { return "Off" }
+        if milliseconds % 1_000 == 0 { return "\(milliseconds / 1_000) s" }
+        return "\(milliseconds) ms"
     }
 
     // MARK: - Devices

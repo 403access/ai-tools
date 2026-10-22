@@ -80,6 +80,11 @@ microbenchmark (`make bench`).
 - Event-driven refreshes are throttled, independent requests run concurrently,
   duplicate first-load requests were removed, and iOS pauses polling in the
   background. On-demand caches are bounded to 16 entries.
+- The hub coalesces updates before fan-out (`eventThrottleMs`, 250 ms by
+  default; Settings → Updates or `PATCH /api/settings`). Pending updates for the
+  same session/type keep the latest copy, and streamed text/reasoning deltas are
+  merged, so busy sessions send a handful of events per window instead of one
+  per token.
 
 Remaining performance follow-ups are listed in `performance/after.md`
 (observable slices per screen, store-level chart caches, incremental message

@@ -22,6 +22,7 @@ file. Client overrides work the same way.
 | `OPENCODEBAR_FAST_POLL_MS` | `5000` | Fast poll interval |
 | `OPENCODEBAR_SLOW_POLL_MS` | `60000` | Slow poll interval |
 | `OPENCODEBAR_USAGE_POLL_MS` | `60000` | Go usage poll interval |
+| `OPENCODEBAR_EVENT_THROTTLE_MS` | `250` | Coalescing window for event updates sent to the apps; `0` forwards every event |
 | `OPENCODEBAR_LOG_LEVEL` | `info` | `debug`, `info`, or `warn` |
 | `OPENCODE_GO_USAGE_URL` | OpenCode console endpoint | Override the usage endpoint |
 | `OPENCODE_GO_USAGE_KEY` | resolved | Usage-only key |
@@ -29,6 +30,11 @@ file. Client overrides work the same way.
 
 `XDG_CONFIG_HOME` and `XDG_DATA_HOME` are respected when resolving config and
 database paths.
+
+The update throttle is also editable from the Mac app's **Settings → Updates**
+(or `PATCH /api/settings`). The hub applies changes immediately and records the
+value in `opencodebar-hub.json`, so it survives a restart. An environment
+variable still wins over the saved value.
 
 ## Generated files
 
@@ -100,6 +106,12 @@ Increase polling only for a busy local service:
 
 ```bash
 OPENCODEBAR_FAST_POLL_MS=10000 OPENCODEBAR_SLOW_POLL_MS=120000 make hub
+```
+
+Batch event updates more aggressively for a busy session or a slow phone link:
+
+```bash
+OPENCODEBAR_EVENT_THROTTLE_MS=500 make hub
 ```
 
 Debug logging:

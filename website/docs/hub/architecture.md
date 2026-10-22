@@ -60,7 +60,10 @@ All values are configurable. See [Configuration](configuration.md).
 ## Event folding
 
 The hub subscribes to OpenCode's `/api/event` SSE stream and forwards events to
-every connected client. It also folds them into a per-session activity snapshot:
+every connected client. Before delivery it folds pending updates for one window
+(250 ms by default, tunable in Settings → Updates): repeated events for the same
+session/type keep only the latest copy, and streamed text/reasoning deltas keep
+their combined text. It also folds events into a per-session activity snapshot:
 
 - `session.step.*`
 - `session.reasoning.*`
