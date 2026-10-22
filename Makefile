@@ -1,4 +1,4 @@
-.PHONY: build test app run restart preview shots site clean icon hub hub-dev hub-test mobile-project mobile-build mobile-run mobile-device mobile-icon
+.PHONY: build test app run restart preview shots site docs docs-build docs-serve clean icon hub hub-dev hub-test mobile-project mobile-build mobile-run mobile-device mobile-icon
 
 # Compile the Swift package (debug).
 build:
@@ -39,10 +39,23 @@ shots:
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/projects.png --scale 2 --tab projects
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/project-detail.png --scale 2 --tab projects --project-detail
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/usage.png --scale 2 --tab usage
+	cp docs/screenshots/*.png website/static/img/screenshots/
 
 # Open the static website locally.
 site:
 	open docs/index.html
+
+# Run the Docusaurus documentation site (hot reload).
+docs:
+	cd website && npm install && npm run start
+
+# Build the documentation site for production.
+docs-build:
+	cd website && npm ci && npm run build
+
+# Build and serve the production documentation locally.
+docs-serve: docs-build
+	cd website && npm run serve
 
 # Regenerate the app icon.
 icon:
@@ -96,4 +109,5 @@ mobile-device: mobile-project
 clean:
 	swift package clean
 	rm -rf dist server/node_modules
+	rm -rf website/node_modules website/build website/.docusaurus
 	rm -rf OpenCodeBarMobile.xcodeproj

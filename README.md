@@ -5,6 +5,8 @@ and from an iPhone/iPad app. Both talk to **OpenCodeBar Hub**, a small Bun +
 SQLite server that ingests your local OpenCode service and keeps one shared,
 cached history — so the phone can see the Mac's sessions, projects, and usage.
 
+📚 **Documentation:** <https://403access.github.io/ai-tools/docs/>
+
 On macOS the menu bar item displays a terminal glyph and, when sessions are
 running, the number of active sessions. Clicking it opens a panel with **live**
 activity, a full **session** view, per-project **analytics**, and a **usage**
@@ -39,7 +41,9 @@ iOS app:
   now — the current tool and its command or path, streaming reasoning, todo
   progress, and the number of running subagents — alongside a pulsing indicator,
   project, model, agent, live cost, elapsed time, and token count.
-- Recent sessions with project, model, relative time, cost, and tokens.
+- Recent sessions with project, model, relative time, cost, and tokens. Filter
+  the list by project and by date (all time, today, last 7 days, or last 30
+  days).
 - Click any session to open its details: the full conversation with the newest
   message first, a prompts-only list with copy buttons, and expandable reasoning
   and tool calls. The view keeps updating while the session runs and pages back
@@ -242,6 +246,7 @@ without replacing the credential OpenCode uses for inference.
   development team, and Developer Mode enabled on the device.
 - OpenCode V2 running as the background service (`opencode service status`
   prints a URL).
+- Node.js 20+ to build the Docusaurus documentation site.
 
 ## Build and run
 
@@ -289,6 +294,9 @@ make hub-test      # hub unit tests (Bun)
 make mobile-build  # build the iOS app for the simulator
 make mobile-run    # build, install, launch, and pair the iOS app in a simulator
 make mobile-device # the same on a connected iPhone/iPad
+make docs          # run the Docusaurus docs site locally
+make docs-build    # build the docs for production
+make docs-serve    # build and serve the docs locally
 make clean         # remove build artifacts and dist/
 ```
 
@@ -315,19 +323,41 @@ To launch the Mac app at login, add `dist/OpenCodeBar.app` in **System Settings 
 General → Login Items**. The hub can run as a launch agent if you want the phone
 to reach it without starting a terminal.
 
-## Website
+## Website and docs
 
-A static landing page lives in [`docs/`](docs/index.html) and uses the same
-screenshots referenced above. It is plain HTML/CSS with a small progressive-
-enhancement script — no build step.
+The project has two published surfaces:
+
+- [`docs/`](docs/index.html) — the static marketing page. Plain HTML/CSS with a
+  small progressive-enhancement script; no build step.
+- [`website/`](website/) — a Docusaurus 3 documentation site with guides, an API
+  reference, configuration, development notes, and troubleshooting.
 
 ```sh
-open docs/index.html
+make site         # open the marketing page
+make docs         # run the docs site locally (hot reload)
+make docs-build   # production docs build
+make docs-serve   # build and serve the production docs
 ```
 
-To publish it with GitHub Pages: **Settings → Pages → Source: Deploy from a
-branch → `main` / `/docs`**. It is then served at
-`https://403access.github.io/ai-tools/`.
+The docs dev server runs at `http://localhost:3000/ai-tools/docs/`, matching the
+published base path.
+
+### GitHub Pages
+
+`.github/workflows/deploy-pages.yml` builds both surfaces and deploys one
+artifact:
+
+```
+/                     marketing page from docs/
+/docs/                Docusaurus build from website/
+```
+
+In the repository, set **Settings → Pages → Build and deployment → Source:
+GitHub Actions**. Pushes to `main` that touch `docs/`, `website/`, or the
+workflow then publish:
+
+- <https://403access.github.io/ai-tools/>
+- <https://403access.github.io/ai-tools/docs/>
 
 ## Project layout
 
@@ -350,6 +380,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
   Models/SessionActivity.swift  live "what is it doing" state (shared)
   Models/SubagentOrdering.swift  running-first ordering for child sessions
   Models/SessionOrdering.swift  most-recent-first ordering for feeds
+  Models/SessionFilter.swift  project/date filters for recent feeds
   Models/GoUsage.swift      Go plan windows (shared)
   Views/                    SwiftUI panel, tabs, heatmap, components
     ChangeViews.swift       patch cards and change summaries
@@ -386,6 +417,21 @@ server/                       Bun + TypeScript + SQLite hub
   src/hub.ts                  polling, event fan-out, cached reads
   src/api.ts                  HTTP routes and SSE clients
   test/                       Bun tests for the database and API
+
+website/                      Docusaurus documentation site
+  docs/                       guides, API reference, configuration, help
+  src/                        theme components and custom CSS
+  static/img/                 docs logo and screenshots
+  docusaurus.config.js        site config for /ai-tools/docs/
+  sidebars.js                 documentation navigation
+
+docs/                         static marketing site
+  index.html
+  assets/
+  screenshots/                shared screenshots used by README and site
+
+.github/workflows/
+  deploy-pages.yml            build marketing + docs, deploy GitHub Pages
 
 project.yml                   XcodeGen spec for the iOS app
 Mobile/Info.plist             generated by XcodeGen

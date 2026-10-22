@@ -1,0 +1,382 @@
+/**
+ * OpenCodeBar docs theme. Mirrors the marketing site: deep green-black
+ * surfaces, mint accents, and a soft grid behind the content.
+ */
+
+:root {
+  --ifm-color-primary: #12a184;
+  --ifm-color-primary-dark: #0f8f75;
+  --ifm-color-primary-darker: #0d816a;
+  --ifm-color-primary-darkest: #0a6a57;
+  --ifm-color-primary-light: #17b596;
+  --ifm-color-primary-lighter: #1ac0a0;
+  --ifm-color-primary-lightest: #36d6b5;
+
+  --ifm-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter,
+    Roboto, Helvetica, Arial, sans-serif;
+  --ifm-font-family-monospace: ui-monospace, 'SF Mono', SFMono-Regular, Menlo,
+    Consolas, monospace;
+  --ifm-code-font-size: 92%;
+  --ifm-heading-font-weight: 680;
+  --ifm-line-height-base: 1.68;
+  --ifm-global-radius: 12px;
+  --ifm-card-border-radius: 16px;
+  --ifm-background-surface-color: #f4f8f6;
+  --ifm-toc-border-color: rgba(10, 31, 25, 0.1);
+  --ifm-table-stripe-background: rgba(10, 31, 25, 0.035);
+
+  --ocb-bg: #080b0a;
+  --ocb-surface: rgba(255, 255, 255, 0.035);
+  --ocb-border: rgba(255, 255, 255, 0.09);
+  --ocb-border-strong: rgba(255, 255, 255, 0.14);
+  --ocb-text: #e9f1ee;
+  --ocb-muted: #93a8a0;
+  --ocb-faint: #6b7d77;
+  --ocb-accent: #4dd99e;
+  --ocb-accent-bright: #61eda8;
+  --ocb-blue: #6b9efb;
+  --ocb-purple: #c78bfa;
+  --ocb-amber: #fdb85a;
+}
+
+[data-theme='dark'] {
+  --ifm-background-color: var(--ocb-bg);
+  --ifm-background-surface-color: #0d1211;
+  --ifm-navbar-background-color: rgba(8, 11, 10, 0.82);
+  --ifm-footer-background-color: #050807;
+  --ifm-font-color-base: var(--ocb-text);
+  --ifm-heading-color: #f4fbf8;
+  --ifm-color-emphasis-300: rgba(255, 255, 255, 0.14);
+  --ifm-color-emphasis-600: #93a8a0;
+  --ifm-color-emphasis-700: #b6c8c0;
+  --ifm-toc-border-color: var(--ocb-border);
+  --ifm-table-border-color: rgba(255, 255, 255, 0.1);
+  --ifm-table-stripe-background: rgba(255, 255, 255, 0.025);
+  --ifm-code-background: rgba(255, 255, 255, 0.06);
+  --ifm-pre-background: #0a0e0d;
+  --ifm-hover-overlay: rgba(77, 217, 158, 0.08);
+  --docusaurus-highlighted-code-line-bg: rgba(77, 217, 158, 0.14);
+}
+
+html[data-theme='dark'] body {
+  background:
+    radial-gradient(900px 520px at 72% -8%, rgba(77, 217, 158, 0.12), transparent 62%),
+    radial-gradient(760px 520px at 6% -4%, rgba(107, 158, 251, 0.09), transparent 60%),
+    var(--ocb-bg);
+}
+
+html[data-theme='dark'] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 10%, transparent 72%);
+  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 10%, transparent 72%);
+}
+
+/* ---------- Navbar ---------- */
+
+.navbar {
+  backdrop-filter: saturate(160%) blur(14px);
+  -webkit-backdrop-filter: saturate(160%) blur(14px);
+  border-bottom: 1px solid var(--ocb-border);
+  box-shadow: none;
+}
+
+.navbar__title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.navbar__logo {
+  height: 30px;
+  width: 30px;
+}
+
+.navbar__link {
+  font-size: 0.94rem;
+}
+
+[data-theme='dark'] .navbar__link:hover,
+[data-theme='dark'] .navbar__link--active {
+  color: var(--ocb-accent-bright);
+}
+
+/* ---------- Hero ---------- */
+
+.docsHero {
+  position: relative;
+  margin: 0.5rem auto 3rem;
+  padding: 2.5rem 1.25rem 2rem;
+  max-width: 900px;
+  text-align: center;
+}
+
+.docsHeroGlow {
+  position: absolute;
+  inset: -10% 5% 30%;
+  z-index: -1;
+  background: radial-gradient(
+    ellipse at 50% 20%,
+    rgba(77, 217, 158, 0.18),
+    transparent 68%
+  );
+  filter: blur(10px);
+}
+
+.docsHeroLogo {
+  display: block;
+  margin: 0 auto 1rem;
+  filter: drop-shadow(0 18px 34px rgba(18, 161, 132, 0.28));
+}
+
+.docsHeroEyebrow {
+  margin: 0 0 0.7rem;
+  color: var(--ocb-accent);
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.78rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.docsHero h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 5vw, 3.7rem);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+}
+
+.docsHeroLede {
+  max-width: 640px;
+  margin: 1.1rem auto 0;
+  color: var(--ocb-muted);
+  font-size: clamp(1rem, 1.8vw, 1.15rem);
+}
+
+.docsHeroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  justify-content: center;
+  margin-top: 1.7rem;
+}
+
+[data-theme='dark'] .docsHeroActions .button--secondary {
+  border: 1px solid var(--ocb-border);
+  background: var(--ocb-surface);
+  color: var(--ocb-text);
+}
+
+[data-theme='dark'] .docsHeroActions .button--outline {
+  border-color: var(--ocb-border-strong);
+  color: var(--ocb-text);
+}
+
+/* ---------- Feature cards on the intro ---------- */
+
+.featureGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin: 1.5rem 0 2.2rem;
+}
+
+.featureCard {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--ifm-toc-border-color);
+  border-radius: 14px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.02)
+  );
+}
+
+[data-theme='light'] .featureCard {
+  background: #fff;
+  box-shadow: 0 10px 26px -22px rgba(10, 31, 25, 0.4);
+}
+
+.featureCard h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.featureCard p {
+  margin: 0;
+  color: var(--ocb-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+[data-theme='light'] .featureCard p {
+  color: #5d716a;
+}
+
+/* ---------- Figures ---------- */
+
+.docsFigure {
+  margin: 1.6rem 0;
+  text-align: center;
+}
+
+.docsFigure img {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  border: 1px solid var(--ocb-border-strong);
+  border-radius: 14px;
+  box-shadow: 0 28px 60px -30px rgba(0, 0, 0, 0.8);
+}
+
+.docsFigure figcaption {
+  margin-top: 0.6rem;
+  color: var(--ocb-muted);
+  font-size: 0.85rem;
+}
+
+.screenshotGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.4rem;
+  align-items: start;
+}
+
+.screenshotGrid .docsFigure {
+  margin: 0;
+}
+
+/* ---------- Tables and code ---------- */
+
+.markdown table {
+  display: table;
+  width: 100%;
+}
+
+.markdown table code {
+  white-space: nowrap;
+}
+
+[data-theme='dark'] .markdown code {
+  border: 1px solid var(--ocb-border);
+  color: #cfe9df;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='dark'] .markdown pre code {
+  border: 0;
+  background: transparent;
+}
+
+[data-theme='dark'] .theme-code-block {
+  border: 1px solid var(--ocb-border);
+  box-shadow: none;
+}
+
+[data-theme='dark'] .admonition {
+  border-left-width: 3px;
+}
+
+[data-theme='dark'] .pagination-nav__link {
+  border-color: var(--ocb-border);
+  background: var(--ocb-surface);
+}
+
+[data-theme='dark'] .pagination-nav__link:hover {
+  border-color: rgba(77, 217, 158, 0.45);
+}
+
+[data-theme='dark'] .menu__link--active:not(.menu__link--sublist) {
+  color: var(--ocb-accent-bright);
+}
+
+[data-theme='dark'] .table-of-contents__link--active {
+  color: var(--ocb-accent-bright);
+}
+
+[data-theme='dark'] .footer {
+  border-top: 1px solid var(--ocb-border);
+}
+
+[data-theme='dark'] .footer__title {
+  color: var(--ocb-text);
+}
+
+[data-theme='dark'] .footer__link-item {
+  color: var(--ocb-muted);
+}
+
+[data-theme='dark'] .footer__link-item:hover {
+  color: var(--ocb-accent-bright);
+}
+
+/* ---------- Utilities used in MDX ---------- */
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--ifm-toc-border-color);
+  border-radius: 999px;
+  color: var(--ocb-muted);
+  background: var(--ocb-surface);
+  font-size: 0.78rem;
+}
+
+[data-theme='light'] .badge {
+  background: #fff;
+  color: #5d716a;
+}
+
+.lead {
+  color: var(--ocb-muted);
+  font-size: 1.08rem;
+}
+
+[data-theme='light'] .lead {
+  color: #5d716a;
+}
+
+.smallNote {
+  color: var(--ocb-faint);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 996px) {
+  .featureGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .docsHero {
+    padding-top: 1.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .featureGrid,
+  .screenshotGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .docsHeroActions .button {
+    width: 100%;
+  }
+
+  .docsFigure img {
+    max-width: 100%;
+  }
+}

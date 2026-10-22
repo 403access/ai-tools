@@ -1,7 +1,7 @@
 # Notes
 
 Working notes for OpenCodeBar: follow-ups, known polish items, and environment
-observations. Last updated 2026-10-21.
+observations. Last updated 2026-10-22.
 
 ## Hub and mobile (v2)
 
@@ -47,9 +47,11 @@ Follow-ups worth considering:
 - **iOS extras.** Home Screen widget for active sessions, Live Activity for a
   running session, and background refresh would make the phone more useful
   without opening the app.
-- **Website.** `docs/index.html` now covers both apps, the iOS screenshots, the
-  shared hub, and the updated install flow. Keep it in sync when screens or the
-  setup commands change.
+- **Website and docs.** `docs/index.html` covers both apps, screenshots, the
+  shared hub, and the install flow. The Docusaurus site in `website/` holds the
+  full guides, API reference, configuration, and troubleshooting, published at
+  `/docs/` by `.github/workflows/deploy-pages.yml`. Keep both in sync when
+  screens, commands, or endpoints change.
 
 ## Next steps
 
