@@ -421,7 +421,7 @@
           </li>
           <li>
             <h3>Pair your iPhone or iPad (optional)</h3>
-            <p><code>make mobile-run</code> builds and launches the iOS simulator and pairs it when the hub config exists. For a physical device, <code>make mobile-device</code> builds, signs, installs, and pairs over the Mac's LAN address — set <code>DEVICE=…</code> if more than one is connected. You can also scan the pairing QR code from the Mac app's Settings tab.</p>
+            <p><code>make mobile-run</code> builds and launches the iOS simulator and pairs it when the hub config exists. For a physical device, <code>make mobile-device</code> builds, signs, installs, and pairs over the Mac's LAN address, or over a <code>make hub-tunnel</code> URL when the phone is on cellular. Set <code>DEVICE=…</code> if more than one is connected. You can also scan the pairing QR code from the Mac app's Settings tab.</p>
           </li>
         </ol>
 

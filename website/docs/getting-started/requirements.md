@@ -60,5 +60,7 @@ LAN (or through a tunnel).
   and monthly usage. See [Go plan usage](../hub/go-usage.md).
 - **A physical device.** The simulator works without signing; a real device
   needs an Apple Development team.
+- **Remote access.** Install `cloudflared` (`brew install cloudflared`) for
+  `make hub-tunnel`, or use Tailscale. Neither is needed on the same Wi-Fi.
 
 Next: [install the hub](install-hub.md).

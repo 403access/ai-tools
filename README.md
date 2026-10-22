@@ -215,12 +215,25 @@ The hub writes its URL and token to `~/.config/opencode/opencodebar-hub.json`
 (owner-only) when it starts, so the Mac app connects with no configuration. The
 iOS app pairs by scanning the QR code in the Mac app's Settings tab, or by
 pasting that URL and token, or the `opencodebar://pair?url=…&token=…` link the
-hub prints. The QR code uses the Mac's LAN address so the phone can reach the
-hub. Overrides:
+hub prints. The QR code uses the Mac's LAN address (or a running
+`make hub-tunnel` URL) so the phone can reach the hub. Overrides:
 
 1. `$OPENCODEBAR_HUB_URL` / `$OPENCODEBAR_HUB_TOKEN`
 2. `hubURL` / `hubToken` in `~/.config/opencode/opencodebar.json`
 3. the generated `opencodebar-hub.json`
+
+On cellular, or on any network where the Mac is not directly reachable, start a
+tunnel in a second terminal:
+
+```sh
+make hub-tunnel     # Cloudflare quick tunnel, no account needed
+```
+
+It prints a public HTTPS URL and a fresh pairing link, and writes
+`~/.config/opencode/opencodebar-hub-tunnel.json` while it runs. `make
+mobile-device` picks that URL up automatically, and the Mac app's pairing QR
+code uses it too. Every request still needs the hub token. For a stable address,
+run Tailscale on both devices and pair with the Mac's Tailscale IP instead.
 
 For Go plan limits the hub calls the console's usage endpoint,
 `https://opencode.ai/zen/go/v1/usage`, and caches the result for both apps. The
@@ -291,6 +304,7 @@ make icon          # regenerate the app icon
 make hub           # run the SQLite sync hub (foreground)
 make hub-dev       # hub with auto-reload
 make hub-test      # hub unit tests (Bun)
+make hub-tunnel    # expose the hub through a Cloudflare quick tunnel
 make mobile-build  # build the iOS app for the simulator
 make mobile-run    # build, install, launch, and pair the iOS app in a simulator
 make mobile-device # the same on a connected iPhone/iPad
@@ -304,8 +318,11 @@ make clean         # remove build artifacts and dist/
 back to the team on your Apple Development certificate; set `DEVELOPMENT_TEAM=…`
 to choose another team. If more than one phone is connected, pick one with
 `DEVICE="iPhone von Oli"` (name, UDID, or serial number). The script reuses the
-hub's token but pairs over the Mac's LAN address, since `127.0.0.1` on the phone
-points at the phone itself. It all happens in one step:
+hub's token and pairs over the Mac's LAN address when the phone is on the same
+Wi-Fi, or over a running `make hub-tunnel` URL when one is available. That
+second case is what makes the app work on cellular — including while the Mac is
+tethered through the phone's hotspot, where iOS does not route back to the Mac.
+It all happens in one step:
 
 ```sh
 make mobile-device DEVICE="iPhone von Oli"

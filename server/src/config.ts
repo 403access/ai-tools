@@ -166,6 +166,9 @@ export function lanAddresses(port: number): LanAddress[] {
   for (const [name, addresses] of Object.entries(networkInterfaces())) {
     for (const address of addresses ?? []) {
       if (address.family !== "IPv4" || address.internal) continue;
+      // 169.254/16 is self-assigned link-local (it also shows up on inactive
+      // interfaces) and a phone cannot use it.
+      if (address.address.startsWith("169.254.")) continue;
       result.push({
         interface: name,
         address: address.address,

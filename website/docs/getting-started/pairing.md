@@ -33,6 +33,26 @@ payloads.
 `make mobile-run` and `make mobile-device` apply the pairing automatically when
 the generated hub config exists.
 
+## Cellular and remote access
+
+The LAN address only works on the same Wi-Fi. For cellular, or when the Mac is
+not directly reachable, start a tunnel and pair over its public HTTPS URL:
+
+```bash
+make hub-tunnel       # prints the URL and a pairing link; keep it running
+make mobile-device    # picks the tunnel URL up automatically
+```
+
+The tunnel URL is also used by the Mac app's QR code while the tunnel runs. For
+a stable private address, use Tailscale on both devices and pair with the Mac's
+`100.x.y.z` address.
+
+:::note
+USB tethering is one-way for app traffic: the Mac can use the phone's data, but
+iOS apps cannot connect back to the tethered Mac at `192.0.0.2`. Use the tunnel
+in that case.
+:::
+
 ## Override order
 
 Clients resolve the hub connection in this order:
@@ -58,14 +78,16 @@ app and applies the pairing values.
 ## Add another phone
 
 Open **Settings** on the Mac, then scan the QR code or copy the pairing link.
-The QR code uses the Mac's LAN address so the phone can reach it. The phone
-appears in the Mac's **Devices** list after its first authenticated request.
-Each installation gets a stable device id, name, platform, and app version.
+The QR code uses the Mac's LAN address, or a running `make hub-tunnel` URL, so
+the phone can reach it. The phone appears in the Mac's **Devices** list after
+its first authenticated request. Each installation gets a stable device id,
+name, platform, and app version.
 
 ## If pairing fails
 
 - Use the Mac's LAN address, not `127.0.0.1`, on a physical phone.
-- Put both devices on the same Wi-Fi network.
+- Put both devices on the same Wi-Fi network, or run `make hub-tunnel` and use
+  the printed HTTPS URL.
 - Allow Local Network access for OpenCodeBar in
   **System Settings → Privacy & Security → Local Network**.
 - Check that the hub is still running and the port did not change.

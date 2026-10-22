@@ -93,6 +93,26 @@ The hub is a normal Bun process, so you can wrap it in a `launchd` agent if you
 want it to survive logout or run at login. Keep in mind that only one hub should
 own a given SQLite database and OpenCode service at a time.
 
+## Reach it from another network
+
+The hub listens on `0.0.0.0`, so a phone on the same Wi-Fi can use the LAN
+address. On cellular, or on a different network, start a Cloudflare quick tunnel
+in a second terminal:
+
+```bash
+make hub-tunnel
+```
+
+It prints a public HTTPS URL and a pairing link, and writes
+`~/.config/opencode/opencodebar-hub-tunnel.json` so `make mobile-device` and the
+Mac app's QR code use it while it runs. No Cloudflare account is required, but
+the URL changes each time and only works while the process is alive. Every
+request still requires the hub token.
+
+For a stable private address, use Tailscale on the Mac and the phone and pair
+with the Mac's `100.x.y.z` address. See [Security](../hub/security.md) before
+exposing the hub.
+
 ## Where the data lives
 
 | Path | Purpose |

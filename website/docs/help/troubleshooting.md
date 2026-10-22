@@ -63,6 +63,11 @@ Environment overrides take precedence over the generated file. Unset
 
 - Use the Mac's LAN address, not `127.0.0.1`.
 - Put both devices on the same Wi-Fi network.
+- On cellular, or when the Mac is not reachable on the LAN, run
+  `make hub-tunnel` on the Mac and use the printed HTTPS URL (or rerun
+  `make mobile-device`, which picks it up automatically).
+- USB tethering does not route back to the Mac. The Mac can use the phone's
+  data, but iOS apps cannot reach `192.0.0.2`, so use the tunnel there too.
 - Allow **Local Network** access for OpenCodeBar on both devices.
 - Allow incoming connections for Bun/the hub port in the macOS firewall.
 - Test from another device: `curl http://<mac-lan-ip>:8787/api/ping`.

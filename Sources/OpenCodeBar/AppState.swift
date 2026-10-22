@@ -164,6 +164,9 @@ final class AppState: ObservableObject {
     /// reachable from the phone and is kept as-is.
     private func pairingHubURL(fallingBackTo fallback: URL) -> URL {
         guard isLoopback(fallback) else { return fallback }
+        // A running `make hub-tunnel` URL works from cellular, where the Mac's
+        // LAN address is unreachable.
+        if let tunnel = HubDiscovery.activeTunnelURL() { return tunnel }
         let lan = hubInfo?.urls?.compactMap(URL.init(string:)).first { !isLoopback($0) }
         return lan ?? fallback
     }

@@ -21,13 +21,21 @@ Follow-ups worth considering:
 - **iOS distribution.** The repo builds for the simulator and installs on a
   connected device with `make mobile-device`, which uses the Apple Development
   identity and team already configured in Xcode (override with
-  `DEVELOPMENT_TEAM=…` or `DEVICE=…`). There is still no App Store/TestFlight
+  `DEVELOPMENT_TEAM=…` or `DEVICE=…`) and pairs over the LAN or a running
+  `make hub-tunnel` URL. There is still no App Store/TestFlight
   distribution setup (distribution certificate, upload workflow), and
   `NSAllowsArbitraryLoads` should become a scoped ATS exception (or an HTTPS
   tunnel) before any store build.
-- **Remote access.** The hub binds `0.0.0.0` with a Bearer token. For use away
-  from home, prefer a tunnel (Tailscale/Cloudflare) and
-  `OPENCODEBAR_HUB_HOST=127.0.0.1` rather than exposing the port.
+- **Remote access.** The hub binds `0.0.0.0` with a Bearer token.
+  `make hub-tunnel` starts a Cloudflare quick tunnel, prints a pairing link, and
+  writes `~/.config/opencode/opencodebar-hub-tunnel.json`; `make mobile-device`
+  and the Mac app's QR code prefer that URL while it runs. Quick tunnels are
+  ephemeral and public, so for regular use prefer Tailscale (or a named
+  Cloudflare tunnel) and `OPENCODEBAR_HUB_HOST=127.0.0.1`.
+- **USB tethering is one-way for app traffic.** With the iPhone providing
+  Personal Hotspot, the Mac gets `192.0.0.2/32` on `en0` and reaches the
+  internet, but iOS apps on the phone cannot connect back to `192.0.0.2`
+  (Safari reports “not connected to the internet”). Use the tunnel or Wi-Fi.
 - **Message cache growth.** Every session opened is cached in
   `messages` forever, and the `changes` table mirrors every patch found there.
   Add a retention policy (e.g. keep the newest N per session, or drop sessions
@@ -183,3 +191,8 @@ Follow-ups worth considering:
   the generated connection file is `~/.config/opencode/opencodebar-hub.json`
   (mode 0600). Both are safe to delete; the hub recreates them and the token
   changes.
+- **Quick tunnels were verified on this machine with `cloudflared 2026.10.1`
+  and the iPhone on 5G.** The tunnel record is
+  `~/.config/opencode/opencodebar-hub-tunnel.json` (mode 0600) and is removed
+  when `Scripts/hub-tunnel.sh` exits. `cloudflared` is at
+  `/opt/homebrew/bin/cloudflared`.

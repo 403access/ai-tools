@@ -1,4 +1,4 @@
-.PHONY: build test app run restart preview shots site docs docs-build docs-serve clean icon hub hub-dev hub-test mobile-project mobile-build mobile-run mobile-device mobile-icon
+.PHONY: build test app run restart preview shots site docs docs-build docs-serve clean icon hub hub-dev hub-test hub-tunnel mobile-project mobile-build mobile-run mobile-device mobile-icon
 
 # Compile the Swift package (debug).
 build:
@@ -75,6 +75,12 @@ hub-dev:
 # Hub unit tests (Bun).
 hub-test:
 	cd server && bun install && bun test
+
+# Expose the running hub through a Cloudflare quick tunnel. Needed when the
+# phone is on cellular, or when USB tethering does not route back to the Mac.
+# Keep it running alongside `make hub`; `make mobile-device` reuses the URL.
+hub-tunnel:
+	Scripts/hub-tunnel.sh
 
 # Generate the iOS Xcode project from project.yml.
 mobile-project:

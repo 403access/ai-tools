@@ -60,7 +60,9 @@ aggregate cost roll-up. A parent with more than 50 children shows the newest 50.
 ## Local network
 
 The hub binds `0.0.0.0` by default. It is meant for a trusted LAN or a private
-tunnel. It is not hardened for direct internet exposure.
+tunnel. It is not hardened for direct internet exposure. `make hub-tunnel`
+provides an ephemeral Cloudflare HTTPS URL for cellular use; the URL changes on
+each run and stops working when the process exits.
 
 ## Not implemented yet
 

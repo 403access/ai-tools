@@ -52,9 +52,10 @@ the live state in view while a session runs.
 
 ## Can I use it away from home?
 
-Use a private tunnel such as Tailscale or Cloudflare Tunnel. The hub speaks
-plain HTTP, so do not expose its port directly to the internet. You can bind to
-loopback and tunnel to it. See [Security](../hub/security.md).
+Use a private tunnel such as Tailscale, or run `make hub-tunnel` for a
+Cloudflare quick tunnel, which needs no account and prints a public HTTPS URL.
+The hub speaks plain HTTP, so do not expose its port directly to the internet.
+You can bind to loopback and tunnel to it. See [Security](../hub/security.md).
 
 ## Does it work with OpenCode v1?
 

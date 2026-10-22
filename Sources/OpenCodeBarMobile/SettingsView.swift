@@ -201,7 +201,7 @@ struct SettingsView: View {
             }
             .card(padding: 12)
 
-            sectionNote("Use the Mac's LAN address — for example http://192.168.1.10:8787 — while the phone is on the same network. The hub prints the URL, token, and a pairing link when it starts.")
+            sectionNote("Use the Mac's LAN address — for example http://192.168.1.10:8787 — while the phone is on the same network. On cellular, run `make hub-tunnel` on the Mac and enter the printed HTTPS URL. The hub prints the URL, token, and a pairing link when it starts.")
         }
     }
 
@@ -255,7 +255,7 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 helpRow("On your Mac, run `make hub` in the ai-tools folder.", icon: "terminal")
-                helpRow("Keep the Mac awake and on the same Wi-Fi network.", icon: "wifi")
+                helpRow("On the same Wi-Fi, use the Mac's LAN address. On cellular, run `make hub-tunnel` and use the printed HTTPS URL.", icon: "wifi")
                 helpRow("If the connection fails, allow OpenCodeBar in System Settings → Network → Local Network.", icon: "hand.raised")
             }
             .card(padding: 12)

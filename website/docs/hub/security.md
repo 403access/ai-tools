@@ -27,9 +27,21 @@ devices.
 ## Do not expose the hub directly to the internet
 
 The hub speaks plain HTTP, not HTTPS. For access away from home, use a private
-tunnel such as Tailscale or Cloudflare Tunnel, or keep
+tunnel such as Tailscale, or the `make hub-tunnel` Cloudflare quick tunnel,
+which terminates TLS at Cloudflare. You can also keep
 `OPENCODEBAR_HUB_HOST=127.0.0.1` and forward through a tunnel that terminates
 TLS.
+
+```bash
+# Hub on loopback only, exposed through a quick tunnel
+OPENCODEBAR_HUB_HOST=127.0.0.1 make hub
+make hub-tunnel
+```
+
+A quick tunnel is public while it runs. The random hostname is hard to guess and
+every hub request still requires the Bearer token, but treat the URL like the
+pairing link: stop the tunnel when you are done. Quick tunnels are intended for
+personal use and have no uptime guarantee.
 
 If you only use the Mac app, bind to loopback:
 

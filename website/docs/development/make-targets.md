@@ -19,6 +19,7 @@ sidebar_position: 2
 | `make hub` | Install and run the SQLite hub |
 | `make hub-dev` | Hub with auto-reload |
 | `make hub-test` | Bun hub tests |
+| `make hub-tunnel` | Expose the running hub through a Cloudflare quick tunnel |
 | `make mobile-project` | Generate the iOS Xcode project |
 | `make mobile-build` | Build the iOS app for the simulator |
 | `make mobile-run` | Build, install, launch, and pair the simulator app |
@@ -41,6 +42,10 @@ make mobile-run
 
 # Phone on a real device
 make mobile-device DEVICE="iPhone von Oli"
+
+# Phone on cellular
+make hub-tunnel        # terminal 2: public HTTPS URL
+make mobile-device     # picks the tunnel up automatically
 
 # Docs while editing markdown
 make docs
@@ -65,5 +70,18 @@ make mobile-device DEVELOPMENT_TEAM=ABCDE12345
 ```
 
 The script uses the team selected in Xcode, falling back to the team on your
-Apple Development certificate. It pairs over the Mac's LAN address. See
-[iOS app](../getting-started/ios-app.md).
+Apple Development certificate. It pairs over the Mac's LAN address, or over a
+running `make hub-tunnel` URL, because `127.0.0.1` on the phone means the phone
+itself. See [iOS app](../getting-started/ios-app.md).
+
+## `make hub-tunnel`
+
+```bash
+make hub-tunnel
+```
+
+Starts `Scripts/hub-tunnel.sh`, which runs a Cloudflare quick tunnel to the local
+hub and prints the public URL plus a pairing link. It also writes
+`~/.config/opencode/opencodebar-hub-tunnel.json` (owner-only) for automatic
+pairing. The URL stops working when you press Ctrl-C. Requires `cloudflared`
+(`brew install cloudflared`).

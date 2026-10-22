@@ -10,8 +10,10 @@
 #
 # The device must be unlocked, trusted, and have Developer Mode enabled. Signing
 # uses the first "Apple Development" identity unless DEVELOPMENT_TEAM is set.
-# Pairing uses the Mac's LAN address because 127.0.0.1 on the phone means the
-# phone itself.
+# Pairing uses an address the phone can reach because 127.0.0.1 on the phone
+# means the phone itself. A running `make hub-tunnel` URL is preferred; Tailscale
+# and the Mac's Wi-Fi/Ethernet address also work. USB Personal Hotspot does not:
+# iOS apps cannot route back to the tethered Mac at 192.0.0.2.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -36,7 +38,11 @@ Environment:
   DEVELOPMENT_TEAM   10-character Apple Team ID (otherwise auto-detected)
   OPENCODEBAR_HUB_URL / OPENCODEBAR_HUB_TOKEN
                      Override the hub connection from opencodebar-hub.json
-  HUB_LAN_IP         Mac LAN address to pair with (otherwise auto-detected)
+  HUB_LAN_IP         Address the phone should use (otherwise auto-detected).
+                     Tailscale and Wi-Fi/Ethernet work; a running
+                     `make hub-tunnel` URL is preferred automatically.
+  OPENCODEBAR_TUNNEL_CONFIG
+                     Tunnel record written by make hub-tunnel
 
 First run: connect the device, unlock it, tap Trust, and enable
 Settings → Privacy & Security → Developer Mode.
@@ -277,6 +283,8 @@ fi
 
 hub_url="${OPENCODEBAR_HUB_URL:-${HUB_URL:-}}"
 hub_token="${OPENCODEBAR_HUB_TOKEN:-${HUB_TOKEN:-}}"
+explicit_hub_url=0
+[ -n "$hub_url" ] && explicit_hub_url=1
 if [ -f "$HUB_CONFIG" ]; then
     if [ -z "$hub_url" ]; then
         hub_url="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("url", ""))' "$HUB_CONFIG")"
@@ -286,33 +294,118 @@ if [ -f "$HUB_CONFIG" ]; then
     fi
 fi
 
+# Prefer a running `make hub-tunnel` quick tunnel. A direct LAN address works on
+# the same Wi-Fi, but not on cellular, and iOS does not route from an app back
+# to a Mac tethered through the phone's own hotspot.
+tunnel_config="${OPENCODEBAR_TUNNEL_CONFIG:-$HOME/.config/opencode/opencodebar-hub-tunnel.json}"
+using_tunnel=0
+if [ "$explicit_hub_url" -eq 0 ] && [ -f "$tunnel_config" ]; then
+    tunnel_url="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("url", ""))' "$tunnel_config" 2>/dev/null || true)"
+    tunnel_pid="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("pid", ""))' "$tunnel_config" 2>/dev/null || true)"
+    tunnel_alive=1
+    if [ -n "$tunnel_pid" ] && ! kill -0 "$tunnel_pid" 2>/dev/null; then
+        tunnel_alive=0
+    fi
+    if [ "$tunnel_alive" -eq 1 ] && [ -n "$tunnel_url" ] \
+        && curl -fsS -m 5 "${tunnel_url}/api/ping" >/dev/null 2>&1; then
+        hub_url="$tunnel_url"
+        using_tunnel=1
+    else
+        echo "Note: ignoring the stale tunnel in $tunnel_config. Run \`make hub-tunnel\` again for remote access."
+    fi
+fi
+
+# Pick the address the phone should use to reach this Mac. `ipconfig getifaddr`
+# only reports DHCP leases, and USB tethering hands out 192.0.0.2/32, so read
+# addresses straight from ifconfig. Preference:
+#   1. HUB_LAN_IP (explicit override)
+#   2. Tailscale 100.64.0.0/10
+#   3. the default-route interface (Wi-Fi/Ethernet)
+#   4. any other private IPv4
+# Link-local 169.254.x.x is ignored. The iPhone USB hotspot address (192.0.0.2
+# with gateway 192.0.0.1) is skipped: the Mac can use the phone's data, but iOS
+# apps cannot route back to the Mac. `make hub-tunnel` covers that case.
+default_iface="$(netstat -rn -f inet 2>/dev/null | awk '$1 == "default" { print $NF; exit }')"
+default_gateway="$(netstat -rn -f inet 2>/dev/null | awk '$1 == "default" { print $2; exit }')"
 lan_ip="${HUB_LAN_IP:-}"
 if [ -z "$lan_ip" ]; then
-    for iface in $(netstat -rn -f inet 2>/dev/null | awk '$1 == "default" { print $NF; exit }') en0 en1 en2; do
-        lan_ip="$(ipconfig getifaddr "$iface" 2>/dev/null || true)"
-        [ -n "$lan_ip" ] && break
-    done
+    lan_ip="$(
+        python3 - "$default_iface" "$default_gateway" <<'PY'
+import ipaddress
+import subprocess
+import sys
+
+default_iface, default_gateway = sys.argv[1], sys.argv[2]
+
+interfaces = []
+current = None
+for line in subprocess.run(["ifconfig"], capture_output=True, text=True).stdout.splitlines():
+    if line and not line[0].isspace() and ":" in line:
+        current = line.split(":", 1)[0]
+    elif current and line.startswith("\tinet "):
+        interfaces.append((current, line.split()[1]))
+
+def score(item):
+    iface, ip = item
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return 99
+    if address.is_loopback or address.is_link_local or address.is_unspecified:
+        return 99
+    # USB Personal Hotspot: the Mac is 192.0.0.2 and the phone is the gateway.
+    # The phone cannot route to this address, so never pair with it.
+    if iface == default_iface and ip == "192.0.0.2" and default_gateway == "192.0.0.1":
+        return 99
+    # Tailscale is reachable from any network that also runs Tailscale.
+    if address in ipaddress.ip_network("100.64.0.0/10"):
+        return 1
+    if iface == default_iface:
+        return 2
+    if address.is_private:
+        return 3
+    return 4
+
+usable = sorted((item for item in interfaces if score(item) < 99), key=score)
+print(usable[0][1] if usable else "")
+PY
+    )"
 fi
 
 pair_url=""
 if [ -n "$hub_url" ] && [ -n "$hub_token" ]; then
-    if [ -z "$lan_ip" ]; then
-        echo "Warning: no LAN address found; skipping automatic pairing (set HUB_LAN_IP)."
+    if [ -z "$lan_ip" ] && python3 -c '
+import sys
+import urllib.parse
+host = urllib.parse.urlsplit(sys.argv[1]).hostname or ""
+sys.exit(0 if host in {"127.0.0.1", "localhost", "0.0.0.0", "::1", ""} else 1)
+' "$hub_url"; then
+        echo "Warning: no reachable address found; skipping automatic pairing." >&2
+        echo "On cellular or USB tethering, run 'make hub-tunnel' first." >&2
+        echo "Otherwise set HUB_LAN_IP or OPENCODEBAR_HUB_URL." >&2
     else
         pair_url="$(
-            HUB_TOKEN="$hub_token" python3 - "$hub_url" "$lan_ip" <<'PY'
+            HUB_TOKEN="$hub_token" HUB_LAN_IP="$lan_ip" python3 - "$hub_url" <<'PY'
 import os
 import sys
 import urllib.parse
 
-url, lan = sys.argv[1], sys.argv[2]
+url = sys.argv[1]
 token = os.environ.get("HUB_TOKEN", "")
+lan = os.environ.get("HUB_LAN_IP", "")
 parts = urllib.parse.urlsplit(url)
-if parts.hostname in {"127.0.0.1", "localhost", "0.0.0.0", "::1"}:
+
+# 127.0.0.1 on the phone means the phone itself. Substitute the address the
+# phone can reach, but keep an explicit non-loopback URL (Tailscale, tunnel,
+# another host) exactly as the user provided it.
+if parts.hostname in {"127.0.0.1", "localhost", "0.0.0.0", "::1", None}:
+    if not lan:
+        sys.exit(0)
     netloc = lan
     if parts.port:
         netloc = f"{netloc}:{parts.port}"
     url = f"{parts.scheme or 'http'}://{netloc}"
+
 print("opencodebar://pair?url=" + urllib.parse.quote(url, safe="") + "&token=" + urllib.parse.quote(token, safe=""))
 PY
         )"
@@ -330,7 +423,13 @@ if [ "$console" -eq 1 ]; then
 fi
 if [ -n "$pair_url" ]; then
     launch_args+=(--payload-url "$pair_url")
-    echo "Pairing with the hub at $(python3 -c 'import sys,urllib.parse; print(urllib.parse.parse_qs(urllib.parse.urlsplit(sys.argv[1]).query)["url"][0])' "$pair_url")"
+    pair_target="$(python3 -c 'import sys,urllib.parse; print(urllib.parse.parse_qs(urllib.parse.urlsplit(sys.argv[1]).query)["url"][0])' "$pair_url")"
+    if [ "$using_tunnel" -eq 1 ]; then
+        echo "Pairing over the Cloudflare tunnel at $pair_target"
+    else
+        echo "Pairing with the hub at $pair_target"
+        echo "If the phone is on cellular, run 'make hub-tunnel' first and rerun this script."
+    fi
 fi
 
 echo "==> Launching $BUNDLE_ID"
