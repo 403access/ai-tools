@@ -8,6 +8,7 @@ struct LiveView: View {
     @State private var sessionToOpen: Session?
     @State private var selectedProjectID: String?
     @State private var timeFilter: SessionTimeFilter = .all
+    @State private var groupedByTime = false
 
     var body: some View {
         let connection = store.connection
@@ -154,6 +155,7 @@ struct LiveView: View {
                 HStack(spacing: 6) {
                     projectFilterMenu
                     timeFilterMenu
+                    groupingToggle
                 }
             }
 
@@ -166,20 +168,69 @@ struct LiveView: View {
                         : "Your session history will show up here."
                 )
                 .transition(.opacity)
+            } else if groupedByTime {
+                ForEach(SessionGrouping.groupByTime(sessions)) { section in
+                    VStack(alignment: .leading, spacing: 8) {
+                        groupHeader(section.group.title)
+                        ForEach(section.sessions) { session in
+                            recentLink(session)
+                        }
+                    }
+                }
             } else {
                 ForEach(sessions) { session in
-                    NavigationLink(value: session) {
-                        RecentSessionRow(
-                            session: session,
-                            project: store.projectName(for: session)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.recentInsertion)
+                    recentLink(session)
                 }
             }
         }
         .animateRecentInsertion(ids: ids)
+    }
+
+    private func recentLink(_ session: Session) -> some View {
+        NavigationLink(value: session) {
+            RecentSessionRow(
+                session: session,
+                project: store.projectName(for: session)
+            )
+        }
+        .buttonStyle(.plain)
+        .transition(.recentInsertion)
+    }
+
+    private func groupHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .textCase(.uppercase)
+            .tracking(0.4)
+            .foregroundStyle(.tertiary)
+            .padding(.leading, 2)
+            .padding(.top, 2)
+    }
+
+    private var groupingToggle: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                groupedByTime.toggle()
+            }
+        } label: {
+            Image(systemName: "calendar.badge.clock")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(groupedByTime ? Theme.accent : Color.secondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule().fill(
+                        groupedByTime
+                            ? Theme.accent.opacity(0.14)
+                            : Color.primary.opacity(0.07)
+                    )
+                )
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Group recent sessions by date")
+        .accessibilityValue(groupedByTime ? "On" : "Off")
+        .accessibilityAddTraits(groupedByTime ? .isSelected : [])
     }
 
     private var activeProjectID: String? {

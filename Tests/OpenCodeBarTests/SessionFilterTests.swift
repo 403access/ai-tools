@@ -143,6 +143,103 @@ final class SessionFilterTests: XCTestCase {
         XCTAssertEqual(filtered.map(\.id), ["ses_first"])
     }
 
+    func testGroupingBucketsSessionsByDayAndKeepsNewestFirst() {
+        let sessions = [
+            session("ses_today_old", updated: date(year: 2026, month: 10, day: 22, hour: 8)),
+            session("ses_today_new", updated: date(year: 2026, month: 10, day: 22, hour: 11)),
+            session("ses_yesterday", updated: date(year: 2026, month: 10, day: 21, hour: 23)),
+            session("ses_week", updated: date(year: 2026, month: 10, day: 18)),
+            session("ses_month", updated: date(year: 2026, month: 10, day: 1)),
+            session("ses_older", updated: date(year: 2026, month: 8, day: 1)),
+        ]
+
+        let sections = SessionGrouping.groupByTime(
+            sessions,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(
+            sections.map(\.group),
+            [.today, .yesterday, .previous7Days, .previous30Days, .older]
+        )
+        XCTAssertEqual(
+            sections[0].sessions.map(\.id),
+            ["ses_today_new", "ses_today_old"]
+        )
+        XCTAssertEqual(sections[1].sessions.map(\.id), ["ses_yesterday"])
+        XCTAssertEqual(sections[2].sessions.map(\.id), ["ses_week"])
+        XCTAssertEqual(sections[3].sessions.map(\.id), ["ses_month"])
+        XCTAssertEqual(sections[4].sessions.map(\.id), ["ses_older"])
+    }
+
+    func testGroupingOmitsEmptyBuckets() {
+        let sessions = [
+            session("ses_first", updated: date(year: 2026, month: 10, day: 22, hour: 9)),
+            session("ses_second", updated: date(year: 2026, month: 10, day: 22, hour: 10)),
+        ]
+
+        let sections = SessionGrouping.groupByTime(
+            sessions,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(sections.map(\.group), [.today])
+        XCTAssertEqual(sections[0].sessions.map(\.id), ["ses_second", "ses_first"])
+    }
+
+    func testGroupingBoundariesUseStartOfDay() {
+        XCTAssertEqual(
+            SessionTimeGroup.bucket(
+                for: date(year: 2026, month: 10, day: 22),
+                now: now,
+                calendar: calendar
+            ),
+            .today
+        )
+        XCTAssertEqual(
+            SessionTimeGroup.bucket(
+                for: date(year: 2026, month: 10, day: 21),
+                now: now,
+                calendar: calendar
+            ),
+            .yesterday
+        )
+        XCTAssertEqual(
+            SessionTimeGroup.bucket(
+                for: date(year: 2026, month: 10, day: 15),
+                now: now,
+                calendar: calendar
+            ),
+            .previous7Days
+        )
+        XCTAssertEqual(
+            SessionTimeGroup.bucket(
+                for: date(year: 2026, month: 10, day: 14, hour: 23, minute: 59),
+                now: now,
+                calendar: calendar
+            ),
+            .previous30Days
+        )
+        XCTAssertEqual(
+            SessionTimeGroup.bucket(
+                for: date(year: 2026, month: 9, day: 22),
+                now: now,
+                calendar: calendar
+            ),
+            .previous30Days
+        )
+        XCTAssertEqual(
+            SessionTimeGroup.bucket(
+                for: date(year: 2026, month: 9, day: 21, hour: 23, minute: 59),
+                now: now,
+                calendar: calendar
+            ),
+            .older
+        )
+    }
+
     func testProjectAndTimeFiltersCombine() {
         let projects = ["project-a": project("project-a", canonical: "/repo/one")]
         let recent = session("ses_recent", updated: now)

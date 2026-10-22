@@ -52,6 +52,94 @@ enum SessionTimeFilter: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Day-based buckets for grouping the recent session feed. Boundaries are
+/// counted in whole calendar days so rows do not drift between groups while
+/// the clock moves through the day.
+enum SessionTimeGroup: String, CaseIterable, Identifiable, Sendable {
+    case today
+    case yesterday
+    case previous7Days
+    case previous30Days
+    case older
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .today: return "Today"
+        case .yesterday: return "Yesterday"
+        case .previous7Days: return "Previous 7 days"
+        case .previous30Days: return "Previous 30 days"
+        case .older: return "Older"
+        }
+    }
+
+    /// The first matching bucket for `date`, in display order.
+    static func bucket(
+        for date: Date,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> SessionTimeGroup {
+        let startOfToday = calendar.startOfDay(for: now)
+        if date >= startOfToday { return .today }
+
+        guard let startOfYesterday = calendar.date(
+            byAdding: .day,
+            value: -1,
+            to: startOfToday
+        ) else { return .older }
+        if date >= startOfYesterday { return .yesterday }
+
+        guard let startOf7DaysAgo = calendar.date(
+            byAdding: .day,
+            value: -7,
+            to: startOfToday
+        ) else { return .older }
+        if date >= startOf7DaysAgo { return .previous7Days }
+
+        guard let startOf30DaysAgo = calendar.date(
+            byAdding: .day,
+            value: -30,
+            to: startOfToday
+        ) else { return .older }
+        if date >= startOf30DaysAgo { return .previous30Days }
+
+        return .older
+    }
+}
+
+/// A non-empty time bucket in the grouped recent feed.
+struct SessionTimeGroupSection: Identifiable {
+    let group: SessionTimeGroup
+    let sessions: [Session]
+
+    var id: SessionTimeGroup { group }
+}
+
+/// Splits a recent-session feed into ordered day buckets, keeping the newest
+/// session first inside each bucket and omitting empty buckets.
+enum SessionGrouping {
+    static func groupByTime(
+        _ sessions: [Session],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [SessionTimeGroupSection] {
+        let ordered = SessionOrdering.mostRecentFirst(sessions)
+        return SessionTimeGroup.allCases.compactMap { group in
+            let matching = ordered.filter {
+                SessionTimeGroup.bucket(
+                    for: $0.time.updatedDate,
+                    now: now,
+                    calendar: calendar
+                ) == group
+            }
+            return matching.isEmpty
+                ? nil
+                : SessionTimeGroupSection(group: group, sessions: matching)
+        }
+    }
+}
+
 /// Shared filtering for the recent session feeds in both apps.
 enum SessionFiltering {
     static func apply(

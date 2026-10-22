@@ -43,6 +43,10 @@ Both apps have filter chips in the Recent header:
   same directory are matched by canonical path, so they filter as one.
 - **Date** — all time, today, last 7 days, or last 30 days.
 
+The calendar toggle next to the filters groups the recent list by day: today,
+yesterday, previous 7 days, previous 30 days, and older. Turn it off to return
+to a single list.
+
 Filters apply only to the recent list, not to running sessions. When no rows
 match, the empty state suggests trying another project or range.
 
