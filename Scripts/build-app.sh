@@ -31,8 +31,9 @@ rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
 cp "$BIN" "$BUNDLE/Contents/MacOS/$APP_NAME"
 
-# App icon (generated once, cached in Assets/).
-if [ ! -f "$ROOT/Assets/AppIcon.icns" ]; then
+# App icon (generated from Scripts/make-icon.swift; regenerated when the
+# generator changes).
+if [ ! -f "$ROOT/Assets/AppIcon.icns" ] || [ "$ROOT/Scripts/make-icon.swift" -nt "$ROOT/Assets/AppIcon.icns" ]; then
     echo "==> Generating app icon"
     mkdir -p "$ROOT/Assets"
     if swift "$ROOT/Scripts/make-icon.swift" "$ROOT/Assets/AppIcon.iconset"; then

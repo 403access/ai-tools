@@ -93,7 +93,7 @@ mobile-project:
 # Regenerate the iOS app icon from the same glyph as the Mac app.
 mobile-icon:
 	rm -rf .build/ios-icon.iconset
-	swift Scripts/make-icon.swift .build/ios-icon.iconset
+	swift Scripts/make-icon.swift --full-bleed .build/ios-icon.iconset
 	mkdir -p Mobile/Assets.xcassets/AppIcon.appiconset
 	cp .build/ios-icon.iconset/icon_512x512@2x.png Mobile/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
 	rm -rf .build/ios-icon.iconset
