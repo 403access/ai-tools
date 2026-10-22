@@ -52,6 +52,7 @@ const sidebars = {
         'development/project-layout',
         'development/screenshots',
         'development/docs-site',
+        'development/icon-history',
       ],
     },
     {
