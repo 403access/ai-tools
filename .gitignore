@@ -3,8 +3,8 @@
 dist/
 .swiftpm/
 *.xcodeproj
-Assets/AppIcon.iconset/
-Assets/AppIcon.icns
+Assets/AppIcon*.iconset/
+Assets/AppIcon*.icns
 server/node_modules/
 server/.bun/
 website/node_modules/

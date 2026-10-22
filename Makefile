@@ -68,6 +68,13 @@ icon:
 	iconutil -c icns Assets/AppIcon.iconset -o Assets/AppIcon.icns
 	rm -rf Assets/AppIcon.iconset
 
+# Regenerate the alternate icon where the terminal fills the whole canvas.
+icon-fill:
+	rm -rf Assets/AppIconFill.iconset
+	swift Scripts/make-icon.swift --fill Assets/AppIconFill.iconset
+	iconutil -c icns Assets/AppIconFill.iconset -o Assets/AppIconFill.icns
+	rm -rf Assets/AppIconFill.iconset
+
 # Run the SQLite sync hub that both apps talk to (foreground).
 hub:
 	cd server && bun install && bun run start

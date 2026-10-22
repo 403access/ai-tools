@@ -4,10 +4,12 @@
 // Called by Scripts/build-app.sh; safe to run directly too.
 //
 //   swift Scripts/make-icon.swift Assets/AppIcon.iconset
+//   swift Scripts/make-icon.swift --fill Assets/AppIconFill.iconset
 //   swift Scripts/make-icon.swift --full-bleed .build/ios-icon.iconset
 //
 // The mark mirrors the menu bar's SF Symbol "terminal": a dark squircle with a
 // terminal window, an accent-green prompt chevron and a glowing cursor block.
+// --fill drops the backdrop padding and lets the terminal window fill the icon.
 // --full-bleed fills the canvas edge to edge (for iOS, which applies its own
 // rounded mask) instead of drawing a transparent macOS-style squircle.
 //
@@ -15,8 +17,11 @@ import AppKit
 
 let arguments = CommandLine.arguments
 let fullBleed = arguments.contains("--full-bleed")
+let fillStyle = arguments.contains("--fill")
 guard let outputPath = arguments.dropFirst().first(where: { !$0.hasPrefix("--") }) else {
-    FileHandle.standardError.write(Data("usage: make-icon.swift [--full-bleed] <output.iconset>\n".utf8))
+    FileHandle.standardError.write(
+        Data("usage: make-icon.swift [--fill] [--full-bleed] <output.iconset>\n".utf8)
+    )
     exit(1)
 }
 
@@ -287,10 +292,135 @@ func drawTerminal(in context: CGContext, size: CGFloat) {
     )
 }
 
+/// The alternate mark: the terminal window itself is the icon, with only the
+/// standard macOS icon inset instead of a floating window over a backdrop.
+func drawFilledTerminal(in context: CGContext, size: CGFloat) {
+    let full = size >= 128
+    let micro = size < 48
+    let rect = fullBleed
+        ? CGRect(x: 0, y: 0, width: size, height: size)
+        : CGRect(x: size * 0.045, y: size * 0.045, width: size * 0.91, height: size * 0.91)
+    let shape = fullBleed ? CGPath(rect: rect, transform: nil) : squircle(in: rect, exponent: 5)
+    let titleBarHeight = micro ? 0 : size * (full ? 0.145 : 0.135)
+
+    context.saveGState()
+    context.addPath(shape)
+    context.clip()
+
+    // Screen.
+    let screen = linearGradient(
+        [color((0.150, 0.195, 0.188)), color((0.052, 0.072, 0.072)), color((0.020, 0.030, 0.032))],
+        [0, 0.45, 1]
+    )
+    context.drawLinearGradient(
+        screen,
+        start: CGPoint(x: rect.midX, y: rect.maxY),
+        end: CGPoint(x: rect.midX, y: rect.minY),
+        options: []
+    )
+
+    // Accent glow behind the prompt.
+    let bloom = linearGradient(
+        [color(accent, 0.26), color(accent, 0.08), color(accent, 0)],
+        [0, 0.5, 1]
+    )
+    let bodyMaxY = rect.maxY - titleBarHeight
+    let bodyCenterY = (rect.minY + bodyMaxY) / 2
+    context.drawRadialGradient(
+        bloom,
+        startCenter: CGPoint(x: rect.midX, y: bodyCenterY),
+        startRadius: 0,
+        endCenter: CGPoint(x: rect.midX, y: bodyCenterY),
+        endRadius: size * 0.55,
+        options: [.drawsAfterEndLocation]
+    )
+
+    // Top sheen across the glass.
+    let sheen = linearGradient([color((1, 1, 1), 0.085), color((1, 1, 1), 0)], [0, 1])
+    context.drawLinearGradient(
+        sheen,
+        start: CGPoint(x: rect.minX, y: rect.maxY),
+        end: CGPoint(x: rect.minX, y: rect.maxY - size * 0.30),
+        options: []
+    )
+
+    if !micro {
+        let bar = CGRect(x: rect.minX, y: rect.maxY - titleBarHeight, width: rect.width, height: titleBarHeight)
+        let barFill = linearGradient(
+            [color((1, 1, 1), 0.085), color((1, 1, 1), 0.035)],
+            [0, 1]
+        )
+        context.saveGState()
+        context.clip(to: bar)
+        context.drawLinearGradient(
+            barFill,
+            start: CGPoint(x: bar.midX, y: bar.maxY),
+            end: CGPoint(x: bar.midX, y: bar.minY),
+            options: []
+        )
+        context.restoreGState()
+
+        context.setStrokeColor(color((1, 1, 1), 0.08))
+        context.setLineWidth(max(size * 0.0025, 1))
+        context.move(to: CGPoint(x: rect.minX, y: bar.minY))
+        context.addLine(to: CGPoint(x: rect.maxX, y: bar.minY))
+        context.strokePath()
+
+        if full {
+            let dotRadius = size * 0.018
+            let dotGap = size * 0.058
+            let dotY = bar.midY
+            for (index, dot) in [danger, warn, accent].enumerated() {
+                let center = CGPoint(x: rect.minX + size * 0.070 + CGFloat(index) * dotGap, y: dotY)
+                context.setFillColor(color(dot, 0.94))
+                context.fillEllipse(in: CGRect(
+                    x: center.x - dotRadius,
+                    y: center.y - dotRadius,
+                    width: dotRadius * 2,
+                    height: dotRadius * 2
+                ))
+            }
+        }
+    }
+
+    context.restoreGState()
+
+    // Rim: hairline highlight plus a soft accent edge.
+    if !fullBleed {
+        context.saveGState()
+        context.addPath(shape)
+        context.setLineWidth(size * 0.003)
+        context.setStrokeColor(color((1, 1, 1), 0.16))
+        context.strokePath()
+        context.restoreGState()
+    }
+    context.saveGState()
+    context.addPath(shape)
+    context.setLineWidth(max(size * (micro ? 0.0 : 0.0045), 1))
+    context.setStrokeColor(color(accent, micro ? 0 : (full ? 0.30 : 0.18)))
+    context.strokePath()
+    context.restoreGState()
+
+    // Prompt fills the screen.
+    drawPrompt(
+        in: context,
+        center: CGPoint(x: rect.midX, y: bodyCenterY),
+        width: size * (micro ? 0.190 : 0.185),
+        height: size * (micro ? 0.210 : 0.205),
+        lineWidth: max(size * (micro ? 0.060 : 0.055), 1.5),
+        cursorWidth: size * (micro ? 0.165 : 0.165),
+        glow: full
+    )
+}
+
 func drawIcon(in context: CGContext, size: CGFloat) {
     context.clear(CGRect(x: 0, y: 0, width: size, height: size))
-    drawBackground(in: context, size: size)
-    drawTerminal(in: context, size: size)
+    if fillStyle {
+        drawFilledTerminal(in: context, size: size)
+    } else {
+        drawBackground(in: context, size: size)
+        drawTerminal(in: context, size: size)
+    }
 }
 
 func png(pixels: Int) -> Data? {
