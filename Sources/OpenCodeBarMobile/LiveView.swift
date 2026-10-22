@@ -10,6 +10,9 @@ struct LiveView: View {
     @State private var timeFilter: SessionTimeFilter = .all
     @State private var groupedByTime = false
     @State private var recentLimit = LiveView.recentPageSize
+    @State private var scrollToTopTrigger = 0
+
+    private let topAnchor = "live-top"
 
     var body: some View {
         let connection = store.connection
@@ -31,7 +34,15 @@ struct LiveView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    MobileBrandTitle()
+                    Button {
+                        scrollToTopTrigger += 1
+                    } label: {
+                        MobileBrandTitle()
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Scroll to top")
+                    .accessibilityHint("Scrolls the session list to the top")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 10) {
@@ -88,32 +99,41 @@ struct LiveView: View {
     #endif
 
     private var content: some View {
-        ScrollView {
-            // Keep this an eager VStack: the list is paged (20 rows), and the
-            // running rows contain live TimelineViews. A LazyVStack re-lays out
-            // on every streaming update, which can fight the scroll view's
-            // restored offset in the simulator.
-            VStack(alignment: .leading, spacing: 16) {
-                if case .offline(let reason) = store.connection {
-                    NoticeRow(icon: "wifi.exclamationmark", message: reason, tint: Theme.warn)
+        ScrollViewReader { proxy in
+            ScrollView {
+                // Keep this an eager VStack: the list is paged (20 rows), and the
+                // running rows contain live TimelineViews. A LazyVStack re-lays out
+                // on every streaming update, which can fight the scroll view's
+                // restored offset in the simulator.
+                VStack(alignment: .leading, spacing: 16) {
+                    Color.clear.frame(height: 1).id(topAnchor)
+
+                    if case .offline(let reason) = store.connection {
+                        NoticeRow(icon: "wifi.exclamationmark", message: reason, tint: Theme.warn)
+                    }
+
+                    runningSection
+                    recentSection
+
+                    if let updated = store.lastUpdated {
+                        Text("Updated \(Fmt.relative(from: updated))")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 2)
+                    }
                 }
-
-                runningSection
-                recentSection
-
-                if let updated = store.lastUpdated {
-                    Text("Updated \(Fmt.relative(from: updated))")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .padding(.top, 2)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 10)
+            }
+            .onChange(of: activeProjectID) { _, _ in recentLimit = Self.recentPageSize }
+            .onChange(of: timeFilter) { _, _ in recentLimit = Self.recentPageSize }
+            .onChange(of: scrollToTopTrigger) { _, _ in
+                withAnimation(.easeOut(duration: 0.2)) {
+                    proxy.scrollTo(topAnchor, anchor: .top)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 10)
         }
-        .onChange(of: activeProjectID) { _, _ in recentLimit = Self.recentPageSize }
-        .onChange(of: timeFilter) { _, _ in recentLimit = Self.recentPageSize }
     }
 
     private var runningSection: some View {

@@ -118,6 +118,21 @@ struct SessionDetailView: View {
         .navigationTitle(session.displayTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Button {
+                    scrollRequest += 1
+                } label: {
+                    Text(session.displayTitle)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .padding(.horizontal, 6)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Scroll to top")
+                .accessibilityHint("Scrolls the conversation to the top")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 if running {
                     HStack(spacing: 5) {

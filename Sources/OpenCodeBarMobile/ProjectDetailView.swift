@@ -5,6 +5,8 @@ struct ProjectDetailView: View {
     @EnvironmentObject private var store: MobileStore
     let project: Project
 
+    @State private var scrollToTopTrigger = 0
+
     private var detail: MobileStore.ProjectDetail? { store.projectDetails[project.id] }
     private var running: [Session] { store.runningSessions(in: project) }
 
@@ -112,11 +114,27 @@ struct ProjectDetailView: View {
                 .padding(.vertical, 12)
             }
             .onAppear { scrollToTop(proxy) }
+            .onChange(of: scrollToTopTrigger) { _, _ in scrollToTop(proxy) }
         }
         .mobileScreenBackground()
         .navigationTitle(project.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Button {
+                    scrollToTopTrigger += 1
+                } label: {
+                    Text(project.displayName)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .padding(.horizontal, 6)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Scroll to top")
+                .accessibilityHint("Scrolls the project page to the top")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 ProjectRunningBadge(count: runningCount)
             }
