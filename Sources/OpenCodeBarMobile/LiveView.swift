@@ -44,19 +44,18 @@ struct LiveView: View {
                     .accessibilityLabel("Scroll to top")
                     .accessibilityHint("Scrolls the session list to the top")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 10) {
-                        Button {
-                            showingNewSession = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 13, weight: .bold))
-                        }
-                        .disabled(!settings.isConfigured)
-                        .accessibilityLabel("New session")
-
-                        ConnectionPill(connection: connection, activeCount: activeCount)
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showingNewSession = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .bold))
                     }
+                    .disabled(!settings.isConfigured)
+                    .accessibilityLabel("New session")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    ConnectionPill(connection: connection, activeCount: activeCount)
                 }
             }
             .refreshable { await store.refreshAll() }
