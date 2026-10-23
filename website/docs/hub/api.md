@@ -118,6 +118,8 @@ curl -X PATCH http://127.0.0.1:8787/api/settings \
 | `GET` | `/api/session/{id}/children` | Child sessions |
 | `GET` | `/api/session/{id}/changes` | File patches |
 | `GET` | `/api/session/{id}/stats` | Derived session stats |
+| `GET` | `/api/session/{id}/pending` | Prompts admitted but not delivered |
+| `DELETE` | `/api/session/{id}/pending/{inputID}` | Withdraw one queued prompt |
 | `POST` | `/api/session/{id}/prompt` | Send a prompt |
 
 `GET /api/session` query parameters:
@@ -160,6 +162,14 @@ curl -X POST http://127.0.0.1:8787/api/session/$SESSION_ID/prompt \
 
 `delivery` is optional: `queue` waits for the current turn, `steer` asks the
 service to steer the running turn. When omitted, the hub decides.
+
+`GET /api/session/{id}/pending` returns the inputs the service has admitted but
+not delivered yet, oldest first. Each item has `id`, `type`, `time.created`,
+`delivery`, and a `payload` (user prompts carry `payload.text`). The queue lives
+in the OpenCode service, so it is empty when the service is offline. Use
+`DELETE /api/session/{id}/pending/{inputID}` to remove an item that has not
+started; the hub answers `204`, and removes are a no-op once the turn has read
+the prompt.
 
 ### Projects
 

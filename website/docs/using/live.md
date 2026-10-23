@@ -66,7 +66,8 @@ session.
 :::note
 The apps can start sessions and send prompts, but they do not stop, interrupt,
 or delete them. Prompts sent to a running session are queued behind the current
-turn.
+turn; the queue is listed above the composer, where a prompt can be withdrawn
+before the turn starts it.
 :::
 
 ## Menu bar count

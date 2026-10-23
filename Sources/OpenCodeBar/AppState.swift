@@ -62,6 +62,13 @@ final class AppState: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct PendingState: Equatable {
+        var items: [SessionPending] = []
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     struct ProjectFilesState: Equatable {
         var files: ProjectFiles?
         var isLoading = false
@@ -114,6 +121,8 @@ final class AppState: ObservableObject {
     @Published var projectDetails: [String: ProjectDetail] = [:]
     /// File patches written by each session, loaded when the Changes tab opens.
     @Published var sessionChanges: [String: ChangesState] = [:]
+    /// Prompts admitted but not yet delivered, shown above the composer.
+    @Published var sessionPending: [String: PendingState] = [:]
     /// Project-wide changes, aggregated across its newest sessions.
     @Published var projectChanges: [String: ChangesState] = [:]
     /// Files inside each project folder, with git working-tree status.
@@ -866,6 +875,48 @@ final class AppState: ObservableObject {
         activeIDs.insert(id)
         rebuildDerived()
         await refreshLive()
+        await loadPending(id, force: true)
+    }
+
+    /// Fetches the prompts a session has accepted but not delivered yet.
+    func loadPending(_ sessionID: String, force: Bool = false) async {
+        guard let api else { return }
+        if sessionPending[sessionID]?.isLoading == true { return }
+        if !force, let loaded = sessionPending[sessionID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 5 {
+            return
+        }
+        defer { trimCache(&sessionPending, loadedAt: { $0.loadedAt }, pinning: sessionID) }
+
+        var state = sessionPending[sessionID] ?? PendingState()
+        state.isLoading = true
+        state.error = nil
+        sessionPending[sessionID] = state
+
+        do {
+            let items = try await api.sessionPending(id: sessionID)
+            sessionPending[sessionID] = PendingState(items: items, loadedAt: Date())
+        } catch {
+            var failed = sessionPending[sessionID] ?? PendingState()
+            failed.isLoading = false
+            failed.loadedAt = Date()
+            if Task.isCancelled {
+                sessionPending[sessionID] = failed
+                return
+            }
+            failed.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            sessionPending[sessionID] = failed
+        }
+    }
+
+    /// Withdraws one queued prompt before the running turn consumes it.
+    func cancelPending(_ sessionID: String, itemID: String) async throws {
+        guard let api else { throw APIError.transport("Not connected to OpenCode") }
+        try await api.cancelPending(id: sessionID, pendingID: itemID)
+        if var state = sessionPending[sessionID] {
+            state.items.removeAll { $0.id == itemID }
+            sessionPending[sessionID] = state
+        }
     }
 
     /// Fetches the file patches written by a session. The hub hydrates message

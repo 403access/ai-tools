@@ -14,6 +14,7 @@ import type {
   HubHealth,
   MessagesResponse,
   Session,
+  SessionPendingItem,
   SessionStats,
   Stats,
   UsageResponse,
@@ -540,6 +541,28 @@ export class Hub {
     this.db.markActive(id, true);
     this.broadcast({ type: "hub.sessions", data: { at: Date.now() } });
     return result;
+  }
+
+  /**
+   * Inputs the service has admitted but not delivered yet. There is no cached
+   * copy: the queue only exists while the service is reachable.
+   */
+  async pendingInputs(id: string): Promise<SessionPendingItem[]> {
+    const client = this.client ?? (await this.ensureClient());
+    if (!client) return [];
+    try {
+      return await client.pending(id);
+    } catch (error) {
+      this.noteError(error);
+      return [];
+    }
+  }
+
+  /** Cancels one queued input that has not started yet. */
+  async cancelPendingInput(id: string, pendingID: string): Promise<void> {
+    const client = this.client ?? (await this.ensureClient());
+    if (!client) throw new OpenCodeError("OpenCode is offline", 503);
+    await client.cancelPending(id, pendingID);
   }
 
   async children(parentID: string): Promise<Session[]> {

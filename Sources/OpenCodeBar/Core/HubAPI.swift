@@ -53,7 +53,7 @@ struct HubUsageResponse: Codable, Sendable {
 }
 
 /// How a message should be admitted while a session is already running.
-enum PromptDelivery: String, Encodable, Sendable {
+enum PromptDelivery: String, Codable, Sendable {
     /// Wait for the current run to finish, then start a new turn.
     case queue
     /// Deliver into the current turn.
@@ -230,6 +230,21 @@ struct HubAPI: Sendable {
             method: "POST",
             body: try JSONEncoder().encode(body)
         )
+    }
+
+    /// Prompts admitted to the session but not delivered to the model yet,
+    /// ordered oldest first.
+    func sessionPending(id: String) async throws -> [SessionPending] {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: SessionPendingResponse = try await get("/api/session/\(encoded)/pending")
+        return response.data.filter(\.isUserPrompt)
+    }
+
+    /// Removes one queued prompt that the running turn has not consumed.
+    func cancelPending(id: String, pendingID: String) async throws {
+        let session = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let item = pendingID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? pendingID
+        _ = try await send("/api/session/\(session)/pending/\(item)", method: "DELETE")
     }
 
     func sessionMessages(

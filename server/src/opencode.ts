@@ -9,6 +9,7 @@ import type {
   Project,
   ServerInfo,
   Session,
+  SessionPendingItem,
   SessionsResponse,
   StatsResponse,
 } from "./types.ts";
@@ -261,6 +262,22 @@ export class OpenCodeClient {
       text,
       delivery,
     });
+  }
+
+  /** Prompt inputs admitted to the session but not yet delivered to a turn. */
+  async pending(id: string): Promise<SessionPendingItem[]> {
+    const response = await this.get<{ data: SessionPendingItem[] }>(
+      `/api/session/${encodeURIComponent(id)}/inbox`,
+    );
+    return response.data ?? [];
+  }
+
+  /** Removes a pending input before the running turn consumes it. */
+  async cancelPending(id: string, pendingID: string): Promise<void> {
+    await this.request<void>(
+      `/api/session/${encodeURIComponent(id)}/inbox/${encodeURIComponent(pendingID)}`,
+      { method: "DELETE" },
+    );
   }
 
   async serverInfo(): Promise<ServerInfo> {

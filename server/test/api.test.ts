@@ -155,6 +155,26 @@ describe("hub API writes", () => {
 
     db.close();
   });
+
+  test("serves an empty pending queue and rejects cancelling while offline", async () => {
+    const { handler, db } = setup();
+
+    const pending = await handler(request("/api/session/ses_1/pending"));
+    expect(pending.status).toBe(200);
+    expect(await body<{ data: unknown[] }>(pending)).toEqual({ data: [] });
+
+    const wrongMethod = await handler(
+      request("/api/session/ses_1/pending", { method: "POST" }),
+    );
+    expect(wrongMethod.status).toBe(405);
+
+    const cancel = await handler(
+      request("/api/session/ses_1/pending/msg_1", { method: "DELETE" }),
+    );
+    expect(cancel.status).toBe(503);
+
+    db.close();
+  });
 });
 
 describe("hub API devices", () => {

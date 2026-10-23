@@ -51,6 +51,8 @@ iOS app:
 - **Reply from the conversation.** The composer at the bottom of the Chat tab
   sends a prompt into that session. A running session queues the message until
   the current turn finishes, and the conversation refreshes as it arrives.
+  Queued prompts stay visible above the composer, with an **×** to withdraw one
+  before the turn claims it.
 - **Speak your prompt.** The microphone in the conversation composer and the
   new-session sheet turns speech into text as you talk. It keeps whatever you
   already typed, and the transcript stays editable before you send. Speech

@@ -36,6 +36,8 @@ raw input JSON.
 The composer at the bottom sends the next prompt into this session.
 
 - A running session queues the message until the current turn finishes.
+- Queued prompts appear above the composer, oldest first, with a **×** to
+  withdraw one before the running turn claims it.
 - The conversation refreshes as soon as the message is sent and again when the
   reply arrives.
 - The microphone button dictates into the composer. The transcript stays

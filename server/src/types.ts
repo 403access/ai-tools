@@ -211,6 +211,22 @@ export interface MessagesResponse {
   cursor?: MessageCursor;
 }
 
+/**
+ * One admitted-but-undelivered session input. OpenCode keeps these in its
+ * inbox until the running turn is ready for them.
+ */
+export interface SessionPendingItem {
+  id: string;
+  sessionID: string;
+  type: string;
+  time: { created: number };
+  delivery?: "steer" | "queue";
+  payload?: {
+    text?: string;
+    [key: string]: unknown;
+  };
+}
+
 export interface SessionsResponse {
   data: Session[];
   cursor?: { previous?: string; next?: string };

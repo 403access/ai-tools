@@ -60,7 +60,7 @@ function deviceFromRequest(request: Request): DeviceIdentity | null {
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Authorization, Content-Type, Last-Event-ID",
-  "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -386,6 +386,17 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
           }
 
           return json(await hub.promptSession(id, text, delivery));
+        }
+
+        if (parts.length === 4 && parts[3] === "pending") {
+          if (request.method !== "GET") return error("Method not allowed", 405);
+          return json({ data: await hub.pendingInputs(id) });
+        }
+
+        if (parts.length === 5 && parts[3] === "pending") {
+          if (request.method !== "DELETE") return error("Method not allowed", 405);
+          await hub.cancelPendingInput(id, decodeURIComponent(parts[4]!));
+          return new Response(null, { status: 204, headers: CORS_HEADERS });
         }
 
         if (parts.length === 3) {

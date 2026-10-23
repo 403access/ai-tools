@@ -32,6 +32,8 @@ struct SessionDetailView: View {
     @State private var draft = ""
     @State private var isSending = false
     @State private var sendError: String?
+    @State private var pendingError: String?
+    @State private var cancellingPending: Set<String> = []
     @State private var scrollRequest = 0
     @StateObject private var dictation = SpeechDictation()
     @FocusState private var composerFocused: Bool
@@ -113,7 +115,10 @@ struct SessionDetailView: View {
         .onDisappear { dictation.cancel() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if mode == .conversation {
-                composer
+                VStack(spacing: 0) {
+                    pendingQueue
+                    composer
+                }
             }
         }
         .navigationTitle(session.displayTitle)
@@ -151,6 +156,9 @@ struct SessionDetailView: View {
             if mode == .conversation || mode == .prompts {
                 await loadLatest()
             }
+            if mode == .conversation {
+                await store.loadPending(sessionID)
+            }
             if mode == .changes {
                 await store.loadChanges(sessionID)
             } else if mode == .stats {
@@ -164,6 +172,7 @@ struct SessionDetailView: View {
             switch mode {
             case .conversation, .prompts:
                 if messages.isEmpty { await loadLatest() }
+                if mode == .conversation { await store.loadPending(sessionID) }
             case .changes:
                 await store.loadChanges(sessionID)
             case .stats:
@@ -238,6 +247,95 @@ struct SessionDetailView: View {
             return Fmt.elapsed(since: session.time.createdDate)
         }
         return Fmt.elapsed(since: session.time.createdDate, now: session.time.updatedDate)
+    }
+
+    // MARK: - Pending queue
+
+    @ViewBuilder
+    private var pendingQueue: some View {
+        let pending = store.sessionPending[sessionID]
+        if let items = pending?.items, !items.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 5) {
+                    Image(systemName: "clock.badge")
+                        .font(.caption2.weight(.semibold))
+                    Text("Queued · \(items.count)")
+                        .font(.caption2.weight(.bold))
+                    Spacer()
+                    if pending?.isLoading == true {
+                        ProgressView().controlSize(.mini)
+                    }
+                }
+                .foregroundStyle(Theme.accent)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(items) { item in
+                            pendingRow(item)
+                        }
+                    }
+                }
+                .frame(maxHeight: 132)
+
+                if let pendingError {
+                    Text(pendingError)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.ultraThinMaterial)
+        }
+    }
+
+    private func pendingRow(_ item: SessionPending) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(item.promptText ?? "Queued prompt")
+                .font(.caption)
+                .lineLimit(2)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if item.delivery == .steer {
+                Chip(text: item.deliveryLabel, tint: Theme.reasoning)
+            }
+
+            if cancellingPending.contains(item.id) {
+                ProgressView().controlSize(.mini)
+                    .frame(width: 18, height: 18)
+            } else {
+                Button {
+                    Task { await cancelPending(item) }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove queued prompt")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(MobileTheme.field)
+        )
+    }
+
+    private func cancelPending(_ item: SessionPending) async {
+        guard !cancellingPending.contains(item.id) else { return }
+        cancellingPending.insert(item.id)
+        pendingError = nil
+        defer { cancellingPending.remove(item.id) }
+        do {
+            try await store.cancelPending(sessionID, itemID: item.id)
+        } catch {
+            pendingError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
     }
 
     // MARK: - Composer

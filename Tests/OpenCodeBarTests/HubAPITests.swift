@@ -263,4 +263,39 @@ final class HubAPITests: XCTestCase {
         XCTAssertEqual(part.fileChanges.count, 1)
         XCTAssertEqual(part.fileChanges.first?.file, "README.md")
     }
+
+    func testPendingResponseDecodesUserPromptsAndSkipsInternalItems() throws {
+        let json = """
+        {
+          "data": [
+            {
+              "id": "msg_1",
+              "sessionID": "ses_1",
+              "type": "user",
+              "time": { "created": 1792595500600 },
+              "delivery": "queue",
+              "payload": { "text": "Run the tests" }
+            },
+            {
+              "id": "msg_2",
+              "sessionID": "ses_1",
+              "type": "compaction",
+              "time": { "created": 1792595501000 },
+              "delivery": "steer",
+              "payload": {}
+            }
+          ]
+        }
+        """
+        let response = try decode(SessionPendingResponse.self, json)
+        XCTAssertEqual(response.data.count, 2)
+        XCTAssertEqual(response.data[0].promptText, "Run the tests")
+        XCTAssertEqual(response.data[0].delivery, .queue)
+        XCTAssertEqual(response.data[0].deliveryLabel, "Queued")
+        XCTAssertTrue(response.data[0].isUserPrompt)
+        XCTAssertEqual(response.data[0].time.createdDate, Date(timeIntervalSince1970: 1792595500.6))
+        XCTAssertNil(response.data[1].promptText)
+        XCTAssertFalse(response.data[1].isUserPrompt)
+        XCTAssertEqual(response.data[1].deliveryLabel, "Steer")
+    }
 }

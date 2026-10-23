@@ -354,6 +354,44 @@ struct SessionMessagesResponse: Decodable {
     }
 }
 
+/// One prompt the session has accepted but not delivered to the model yet.
+/// OpenCode calls these inbox items; the apps present them as a pending queue.
+struct SessionPending: Decodable, Identifiable, Equatable, Sendable {
+    var id: String
+    var sessionID: String
+    var type: String
+    var time: Time
+    var delivery: PromptDelivery?
+    /// User inputs carry `{text: …}`; compaction and move items carry other
+    /// shapes, so keep the payload loose and read the text only when present.
+    var payload: JSONValue?
+
+    struct Time: Decodable, Equatable, Sendable {
+        var created: Double
+
+        var createdDate: Date { Date(timeIntervalSince1970: created / 1000) }
+    }
+
+    /// Only user prompts are shown; compaction and move items are internal.
+    var isUserPrompt: Bool { type == "user" }
+
+    var promptText: String? {
+        guard case .object(let fields)? = payload,
+              case .string(let text)? = fields["text"]
+        else { return nil }
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+
+    var deliveryLabel: String {
+        delivery == .steer ? "Steer" : "Queued"
+    }
+}
+
+struct SessionPendingResponse: Decodable {
+    var data: [SessionPending]
+}
+
 struct SessionMessage: Codable, Identifiable, Equatable {
     var id: String
     var type: String
