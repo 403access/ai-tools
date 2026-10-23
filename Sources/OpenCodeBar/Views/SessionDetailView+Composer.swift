@@ -21,7 +21,7 @@ extension SessionDetailView {
                 .foregroundStyle(Theme.accent)
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
+                    LazyVStack(alignment: .leading, spacing: 4) {
                         ForEach(items) { item in
                             pendingRow(item)
                         }

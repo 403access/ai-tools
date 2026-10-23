@@ -74,7 +74,8 @@ and number formatting (~37× per call).
 - The Live tab shows 20 recent sessions initially with a **Show more** control
   (previously a hard 20/30 slice). Projects show 20 initially with the same
   control and reset paging when the search/filter changes.
-- iOS screen containers and the macOS project detail use `LazyVStack`.
+- iOS screen containers and the macOS project detail, Live/Projects rows, device
+  list, and project session rows use `LazyVStack`.
 - Project-file filtering computes its result once per body instead of three
   times (empty check, count and list).
 - Session-detail continuation loads now request 30 messages instead of 100 once

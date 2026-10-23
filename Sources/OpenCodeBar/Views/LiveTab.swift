@@ -14,7 +14,7 @@ struct LiveTab: View {
         let isLoading = state.isInitialLoading
 
         return VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
+            LazyVStack(alignment: .leading, spacing: 8) {
                 SectionHeader("Running") {
                     HStack(spacing: 7) {
                         Text("\(running.count)")
@@ -76,7 +76,7 @@ struct LiveTab: View {
             }
             .animateRecentInsertion(ids: running.map(\.id))
 
-            VStack(alignment: .leading, spacing: 8) {
+            LazyVStack(alignment: .leading, spacing: 8) {
                 SectionHeader("Recent") {
                     HStack(spacing: 5) {
                         projectFilterMenu

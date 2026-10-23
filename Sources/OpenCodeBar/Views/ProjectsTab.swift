@@ -27,7 +27,7 @@ struct ProjectsTab: View {
         } else {
             let projects = state.orderedProjects
             let visible = Array(projects.prefix(limit))
-            VStack(alignment: .leading, spacing: 8) {
+            LazyVStack(alignment: .leading, spacing: 8) {
                 ForEach(visible) { project in
                     Button {
                         state.open(project)

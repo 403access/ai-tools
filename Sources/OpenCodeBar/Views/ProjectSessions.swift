@@ -9,12 +9,12 @@ struct ProjectSessions: View {
     private var ordered: [Session] { SessionOrdering.mostRecentFirst(sessions) }
 
     var body: some View {
-        VStack(spacing: 0) {
+        LazyVStack(spacing: 0) {
             ForEach(ordered) { session in
                 Button {
                     state.open(session)
                 } label: {
-                    ProjectSessionRow(session: session, running: false)
+                    ProjectSessionRow(session: session, running: state.isRunning(session))
                 }
                 .buttonStyle(.plain)
                 .contentShape(Rectangle())

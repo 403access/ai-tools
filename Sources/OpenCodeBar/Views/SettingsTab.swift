@@ -213,7 +213,7 @@ struct SettingsTab: View {
                     subtitle: "This Mac registers as soon as it connects. iPhone and iPad apps appear after their first request."
                 )
             } else {
-                VStack(spacing: 8) {
+                LazyVStack(spacing: 8) {
                     ForEach(orderedDevices) { device in
                         Button {
                             state.open(device)

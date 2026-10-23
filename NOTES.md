@@ -75,8 +75,9 @@ microbenchmark (`make bench`).
   formatter call per item, and are bucketed to ~120 bars for `1Y`/`All`.
 - `Fmt.grouped` reuses one `NumberFormatter`.
 - Shared skeletons (`Views/PerformanceViews.swift`) replace spinner-only loading
-  states; conversations and long lists are lazy, recent/project lists page in
-  20-row chunks, and reaching the end of a conversation pages automatically.
+  states; conversations and long lists (including the Mac Live, Projects,
+  settings-device, and project-session feeds) are lazy, recent/project lists page
+  in 20-row chunks, and reaching the end of a conversation pages automatically.
 - Event-driven refreshes are throttled, independent requests run concurrently,
   duplicate first-load requests were removed, and iOS pauses polling in the
   background. On-demand caches are bounded to 16 entries.
