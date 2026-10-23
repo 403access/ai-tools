@@ -2,19 +2,41 @@ import SwiftUI
 
 /// Browses every file in a project folder. Git working-tree changes are marked
 /// inline, and the All / Changed switch narrows the list without a second
-/// request.
+/// request. The layout button swaps the flat list for a collapsible tree.
 struct ProjectFilesView: View {
     let files: ProjectFiles
     var onRefresh: (() -> Void)?
 
     @State private var filter: Filter = .all
     @State private var query = ""
+    @State private var layout: Layout = .list
+    @State private var expanded: Set<String> = []
 
     private enum Filter: String, CaseIterable, Identifiable {
         case all = "All"
         case changed = "Changed"
 
         var id: String { rawValue }
+    }
+
+    private enum Layout {
+        case list
+        case tree
+
+        var toggleIcon: String {
+            self == .list ? "list.bullet.indent" : "list.bullet"
+        }
+
+        var toggleHelp: String {
+            self == .list ? "Show tree" : "Show list"
+        }
+    }
+
+    private struct TreeRow: Identifiable {
+        let node: ProjectFileNode
+        let depth: Int
+
+        var id: String { node.id }
     }
 
     /// Computed once per body below; the previous computed property was read
@@ -55,7 +77,7 @@ struct ProjectFilesView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 4)
-            } else {
+            } else if layout == .list {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(visible.enumerated()), id: \.element.id) { index, file in
                         fileRow(file)
@@ -64,6 +86,8 @@ struct ProjectFilesView: View {
                         }
                     }
                 }
+            } else {
+                treeRowsContent(for: visible)
             }
 
             if files.truncated {
@@ -92,6 +116,30 @@ struct ProjectFilesView: View {
                 .lineLimit(1)
 
             Spacer(minLength: 0)
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    if layout == .list {
+                        // Start with the first level open so the tree reads as a
+                        // hierarchy instead of a wall of closed folders.
+                        if expanded.isEmpty {
+                            expanded = Set(files.files.compactMap { $0.ancestorDirectories.first })
+                        }
+                        layout = .tree
+                    } else {
+                        layout = .list
+                    }
+                }
+            } label: {
+                Image(systemName: layout.toggleIcon)
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(layout.toggleHelp)
+            .accessibilityLabel(layout.toggleHelp)
 
             if let onRefresh {
                 Button(action: onRefresh) {
@@ -143,6 +191,134 @@ struct ProjectFilesView: View {
             return files.vcs == nil ? "Change status needs a git repository." : "No changed files."
         }
         return "No files found."
+    }
+
+    // MARK: - Tree
+
+    private func treeRowsContent(for visible: [ProjectFile]) -> some View {
+        let expanded = effectiveExpanded(for: visible)
+        let rows = flattened(ProjectFileTree.nodes(from: visible), expanded: expanded)
+        return LazyVStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                if row.node.isDirectory {
+                    directoryRow(row.node, depth: row.depth, isExpanded: expanded.contains(row.node.path))
+                } else if let file = row.node.file {
+                    treeFileRow(file, depth: row.depth)
+                }
+                if index != rows.count - 1 {
+                    Divider().opacity(0.25)
+                }
+            }
+        }
+    }
+
+    /// Search hits stay visible even when their folders were collapsed before
+    /// the query was typed, so a match is never hidden inside a closed folder.
+    private func effectiveExpanded(for visible: [ProjectFile]) -> Set<String> {
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return expanded
+        }
+        var paths = expanded
+        for file in visible {
+            paths.formUnion(file.ancestorDirectories)
+        }
+        return paths
+    }
+
+    private func flattened(
+        _ nodes: [ProjectFileNode],
+        expanded: Set<String>,
+        depth: Int = 0
+    ) -> [TreeRow] {
+        var rows: [TreeRow] = []
+        for node in nodes {
+            rows.append(TreeRow(node: node, depth: depth))
+            if node.isDirectory, expanded.contains(node.path) {
+                rows.append(contentsOf: flattened(node.children, expanded: expanded, depth: depth + 1))
+            }
+        }
+        return rows
+    }
+
+    private func toggleExpansion(_ path: String) {
+        if expanded.contains(path) {
+            expanded.remove(path)
+        } else {
+            expanded.insert(path)
+        }
+    }
+
+    private func directoryRow(
+        _ node: ProjectFileNode,
+        depth: Int,
+        isExpanded: Bool
+    ) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                toggleExpansion(node.path)
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 9)
+                Image(systemName: isExpanded ? "folder.fill" : "folder")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(Theme.accent.opacity(0.85))
+                    .frame(width: 12)
+                Text(node.name)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 4)
+                if node.changedCount > 0 {
+                    Text("\(node.changedCount) changed")
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundStyle(Theme.warn)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1.5)
+                        .background(Capsule().fill(Theme.warn.opacity(0.12)))
+                }
+            }
+            .padding(.leading, CGFloat(depth) * 12)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(node.path)
+        .accessibilityLabel(node.name)
+        .accessibilityHint(isExpanded ? "Collapse folder" : "Expand folder")
+    }
+
+    private func treeFileRow(_ file: ProjectFile, depth: Int) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: file.statusIcon)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(tint(for: file))
+                .frame(width: 12)
+
+            Text(file.name)
+                .font(.system(size: 9.5, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+
+            Spacer(minLength: 4)
+
+            if file.isChanged {
+                Text(file.statusLabel)
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(tint(for: file))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(Capsule().fill(tint(for: file).opacity(0.12)))
+            }
+        }
+        .padding(.leading, CGFloat(depth) * 12 + 14)
+        .padding(.vertical, 3)
+        .contentShape(Rectangle())
+        .help(file.path)
     }
 
     private func fileRow(_ file: ProjectFile) -> some View {

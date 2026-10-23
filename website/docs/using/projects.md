@@ -24,8 +24,10 @@ Select a project to see:
 - **Analytics** — steps, prompts, sessions, cost, tokens, streak, and model mix.
 - **Files** — every file in the project folder, including untracked files, with
   git working-tree status for added, modified, and deleted files. Switch
-  between **All** and **Changed**, or filter by path. Folders that are not git
-  work trees still list their files, without status.
+  between **All** and **Changed**, or filter by path. The layout button swaps
+  the flat list for a collapsible folder tree; collapsed folders show how many
+  changed files they contain. Folders that are not git work trees still list
+  their files, without status.
 - **Changes** — patches written by the project's newest sessions, grouped by
   session and file.
 - **Tool reliability** — total calls plus per-tool succeeded, failed, and

@@ -78,7 +78,8 @@ iOS app:
   analytics (steps, cost, tokens, streak, model mix) and recent sessions with
   their cost. A **Files** section lists every file in the project folder,
   including untracked files, and marks git working-tree changes as added,
-  modified, or deleted; filter it to changed files or search by path. A
+  modified, or deleted; filter it to changed files or search by path. The
+  layout button swaps the flat list for a collapsible folder tree. A
   **Changes** section aggregates the patches written by the project's newest
   sessions, grouped by session and file. Quick actions open the project in
   Finder or Terminal and copy its path.
