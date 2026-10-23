@@ -72,8 +72,9 @@ prompt scale up to fill the available space.
 </div>
 
 v3 is used by the macOS app, the iOS app and both websites. On the web it is
-served as PNG renders generated from the same script: `logo.png` (navbar and
-favicon) plus `icon-192.png` / `icon-512.png` (Apple touch and share icons).
+served as PNG renders generated from the same script: `logo.png` (navbars) and
+`favicon.png`, plus `icon-192.png` / `icon-512.png` for Apple touch and share
+icons.
 
 ## Small sizes
 
