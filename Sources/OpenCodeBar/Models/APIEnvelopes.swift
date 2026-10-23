@@ -52,8 +52,19 @@ struct ConnectedDevice: Decodable, Identifiable {
     var connected: Bool
 
     var lastSeenDate: Date { Date(timeIntervalSince1970: lastSeen / 1000) }
+    var firstSeenDate: Date { Date(timeIntervalSince1970: firstSeen / 1000) }
 
     var isThisDevice: Bool { id == DeviceIdentity.id }
+
+    /// SF Symbol that represents the platform the device reported.
+    var platformIconName: String {
+        switch platform.lowercased() {
+        case "macos": return "desktopcomputer"
+        case "ipados": return "ipad"
+        case "ios": return "iphone"
+        default: return "questionmark.circle"
+        }
+    }
 }
 
 struct DevicesResponse: Decodable {

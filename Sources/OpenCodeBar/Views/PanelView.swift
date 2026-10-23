@@ -13,7 +13,12 @@ struct PanelView: View {
             HeaderView()
             Divider().opacity(0.5)
 
-            if let session = state.selectedSession {
+            if let device = state.selectedDevice {
+                DeviceDetailView(device: device)
+                    .id(device.id)
+                    .frame(maxHeight: .infinity)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else if let session = state.selectedSession {
                 SessionDetailView(session: session, initialMode: state.detailMode)
                     .id(session.id)
                     .frame(maxHeight: .infinity)
@@ -54,6 +59,7 @@ struct PanelView: View {
         .frame(height: Self.contentHeight)
         .animation(.easeInOut(duration: 0.18), value: state.selectedSession?.id)
         .animation(.easeInOut(duration: 0.18), value: state.selectedProject?.id)
+        .animation(.easeInOut(duration: 0.18), value: state.selectedDevice?.id)
     }
 }
 

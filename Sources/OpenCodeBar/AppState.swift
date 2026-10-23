@@ -167,6 +167,8 @@ final class AppState: ObservableObject {
     /// list. A session opened from the project detail page leaves this set, so
     /// closing the session returns to the project.
     @Published var selectedProject: Project?
+    /// Device whose detail page is open from Settings → Devices.
+    @Published var selectedDevice: ConnectedDevice?
     /// Section the detail view opens on. Overridable from the command line for
     /// previews/screenshots (`--detail-mode prompts`).
     var detailMode: DetailMode = .conversation

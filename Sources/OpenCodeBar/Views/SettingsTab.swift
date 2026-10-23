@@ -215,7 +215,14 @@ struct SettingsTab: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(orderedDevices) { device in
-                        DeviceRow(device: device)
+                        Button {
+                            state.open(device)
+                        } label: {
+                            DeviceRow(device: device)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Show details for \(device.name)")
+                        .accessibilityHint("Opens the device's connection details and identity")
                     }
                 }
             }

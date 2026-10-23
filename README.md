@@ -110,7 +110,8 @@ iOS app:
 
 **Settings**
 - Every app connected to the hub — macOS, iOS, and iPadOS — with its device
-  name, platform, app version, and whether it is live right now.
+  name, platform, app version, and whether it is live right now. Click a device
+  for its stable ID, first and last seen timestamps, and live connection state.
 - Server information: hub version, address, uptime, cached session/message
   counts, OpenCode state, last sync, and the SQLite path.
 - Server controls: sync now, restart the hub, reveal its data/config files, and
@@ -443,6 +444,8 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     ProjectSessions.swift             recent-session rows
     SettingsTab.swift       connected devices and server controls
     SettingsTab+Support.swift         derived labels and actions
+    SettingsDeviceRow.swift           device row in the connected list
+    SettingsDeviceDetail.swift        status, timestamps and identity for one device
     SessionStatsView.swift  per-session reliability and failures
     SubagentViews.swift     tap-through child-session tree
   Preview/PreviewRunner.swift

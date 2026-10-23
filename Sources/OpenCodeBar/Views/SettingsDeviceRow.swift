@@ -1,10 +1,12 @@
 import SwiftUI
 
+/// One row in Settings → Devices. The row is presentational; the Settings tab
+/// wraps it in a button that opens the device's detail page.
 struct DeviceRow: View {
     let device: ConnectedDevice
 
     var body: some View {
-        HStack(alignment: .top, spacing: 9) {
+        HStack(alignment: .center, spacing: 9) {
             Image(systemName: icon)
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(device.connected ? Theme.accent : Color.secondary)
@@ -39,16 +41,19 @@ struct DeviceRow: View {
                         .foregroundStyle(device.connected ? Theme.accent : .secondary)
                 }
             }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.tertiary)
         }
         .card(padding: 10)
+        .contentShape(Rectangle())
     }
 
     private var icon: String {
-        switch device.platform.lowercased() {
-        case "macos": return "desktopcomputer"
-        case "ipados": return "ipad"
-        case "ios": return "iphone"
-        default: return device.isThisDevice ? "desktopcomputer" : "questionmark.circle"
+        if device.platformIconName == "questionmark.circle", device.isThisDevice {
+            return "desktopcomputer"
         }
+        return device.platformIconName
     }
 }

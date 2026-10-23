@@ -7,6 +7,7 @@ extension AppState {
     /// recent sessions on demand.
     func open(_ project: Project) {
         sessionStack.removeAll()
+        selectedDevice = nil
         selectedProject = project
         Task { await loadProject(project.id) }
     }

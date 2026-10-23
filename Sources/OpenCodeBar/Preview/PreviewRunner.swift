@@ -79,6 +79,16 @@ enum PreviewRunner {
             }
         }
 
+        // `--device-detail` opens the first connected device from Settings.
+        if CommandLine.arguments.contains("--device-detail") {
+            Task { @MainActor in
+                await state.refreshSettings(force: true)
+                if let device = state.devices.first(where: \.connected) ?? state.devices.first {
+                    state.open(device)
+                }
+            }
+        }
+
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 640),
             styleMask: [.titled, .closable, .fullSizeContentView],
@@ -147,6 +157,24 @@ enum PreviewRunner {
         // happens after the run loop above has already settled.
         let wantsSettings = value(after: "--tab", in: CommandLine.arguments)?.lowercased() == "settings"
 
+        // `--device-detail` opens a device page, which also needs the Settings
+        // payload before the first device exists.
+        let wantsDeviceDetail = CommandLine.arguments.contains("--device-detail")
+        if wantsDeviceDetail {
+            var finished = false
+            Task { @MainActor in
+                await state.refreshSettings(force: true)
+                finished = true
+            }
+            let deadline = Date().addingTimeInterval(3)
+            while !finished && Date() < deadline {
+                RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+            }
+            if let device = state.devices.first(where: \.connected) ?? state.devices.first {
+                state.open(device)
+            }
+        }
+
         let hosting = NSHostingView(rootView: ScreenshotRoot(state: state))
         hosting.appearance = NSAppearance(named: .darkAqua)
 
@@ -168,6 +196,7 @@ enum PreviewRunner {
         if CommandLine.arguments.contains("--detail")
             || CommandLine.arguments.contains("--session")
             || wantsProjectDetail
+            || wantsDeviceDetail
             || wantsSettings {
             let detailDeadline = Date().addingTimeInterval(3)
             while Date() < detailDeadline {

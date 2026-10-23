@@ -14,6 +14,7 @@ extension AppState {
         } else {
             sessionStack.removeAll()
         }
+        selectedDevice = nil
         selectedSession = session
         Task { await loadSubagents(session.id) }
     }
