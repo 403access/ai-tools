@@ -1,4 +1,4 @@
-.PHONY: build test app run restart preview shots site docs docs-build docs-serve clean icon hub hub-dev hub-test hub-tunnel mobile-project mobile-build mobile-run mobile-device mobile-icon bench
+.PHONY: build test app run restart preview shots site docs docs-build docs-serve clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel mobile-project mobile-build mobile-run mobile-device mobile-icon bench
 
 # Compile the Swift package (debug).
 build:
@@ -61,19 +61,31 @@ docs-build:
 docs-serve: docs-build
 	cd website && npm run serve
 
-# Regenerate the app icon.
+# Regenerate the app icon (the terminal fills the canvas).
 icon:
 	rm -f Assets/AppIcon.icns
 	swift Scripts/make-icon.swift Assets/AppIcon.iconset
 	iconutil -c icns Assets/AppIcon.iconset -o Assets/AppIcon.icns
 	rm -rf Assets/AppIcon.iconset
 
-# Regenerate the alternate icon where the terminal fills the whole canvas.
-icon-fill:
-	rm -rf Assets/AppIconFill.iconset
-	swift Scripts/make-icon.swift --fill Assets/AppIconFill.iconset
-	iconutil -c icns Assets/AppIconFill.iconset -o Assets/AppIconFill.icns
-	rm -rf Assets/AppIconFill.iconset
+# Regenerate the previous floating-terminal icon for comparison.
+icon-classic:
+	rm -rf Assets/AppIconClassic.iconset
+	swift Scripts/make-icon.swift --floating Assets/AppIconClassic.iconset
+	iconutil -c icns Assets/AppIconClassic.iconset -o Assets/AppIconClassic.icns
+	rm -rf Assets/AppIconClassic.iconset
+
+# Regenerate the website logo, favicon and touch icons from the app icon.
+web-icons:
+	rm -rf .build/web-icon.iconset
+	swift Scripts/make-icon.swift .build/web-icon.iconset
+	cp .build/web-icon.iconset/icon_128x128@2x.png docs/assets/logo.png
+	cp .build/web-icon.iconset/icon_128x128@2x.png website/static/img/logo.png
+	cp .build/web-icon.iconset/icon_32x32@2x.png website/static/img/favicon.png
+	sips -z 192 192 .build/web-icon.iconset/icon_512x512@2x.png --out docs/assets/icon-192.png >/dev/null
+	cp .build/web-icon.iconset/icon_512x512.png docs/assets/icon-512.png
+	cp .build/web-icon.iconset/icon_512x512.png website/static/img/icon-history/website-icon-v3.png
+	rm -rf .build/web-icon.iconset
 
 # Run the SQLite sync hub that both apps talk to (foreground).
 hub:

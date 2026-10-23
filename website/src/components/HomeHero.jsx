@@ -8,7 +8,7 @@ export default function HomeHero() {
       <div className="docsHeroGlow" aria-hidden="true" />
       <img
         className="docsHeroLogo"
-        src={useBaseUrl('/img/logo.svg')}
+        src={useBaseUrl('/img/logo.png')}
         alt=""
         width="72"
         height="72"

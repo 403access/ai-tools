@@ -4,23 +4,25 @@
 // Called by Scripts/build-app.sh; safe to run directly too.
 //
 //   swift Scripts/make-icon.swift Assets/AppIcon.iconset
-//   swift Scripts/make-icon.swift --fill Assets/AppIconFill.iconset
+//   swift Scripts/make-icon.swift --floating Assets/AppIconClassic.iconset
 //   swift Scripts/make-icon.swift --full-bleed .build/ios-icon.iconset
 //
 // The mark mirrors the menu bar's SF Symbol "terminal": a dark squircle with a
 // terminal window, an accent-green prompt chevron and a glowing cursor block.
-// --fill drops the backdrop padding and lets the terminal window fill the icon.
-// --full-bleed fills the canvas edge to edge (for iOS, which applies its own
-// rounded mask) instead of drawing a transparent macOS-style squircle.
+// By default the terminal window fills the icon; --floating restores the older
+// window-over-backdrop treatment. --full-bleed fills the canvas edge to edge
+// (for iOS, which applies its own rounded mask) instead of drawing a
+// transparent macOS-style squircle.
 //
 import AppKit
 
 let arguments = CommandLine.arguments
 let fullBleed = arguments.contains("--full-bleed")
-let fillStyle = arguments.contains("--fill")
+let classicStyle = arguments.contains("--floating")
+let fillStyle = !classicStyle
 guard let outputPath = arguments.dropFirst().first(where: { !$0.hasPrefix("--") }) else {
     FileHandle.standardError.write(
-        Data("usage: make-icon.swift [--fill] [--full-bleed] <output.iconset>\n".utf8)
+        Data("usage: make-icon.swift [--floating] [--full-bleed] <output.iconset>\n".utf8)
     )
     exit(1)
 }

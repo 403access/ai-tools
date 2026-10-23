@@ -4,7 +4,7 @@
 const config = {
   title: 'OpenCodeBar',
   tagline: 'Watch, prompt, and start OpenCode sessions from your Mac and iPhone.',
-  favicon: 'img/favicon.svg',
+  favicon: 'img/favicon.png',
 
   url: 'https://403access.github.io',
   baseUrl: '/ai-tools/docs/',
@@ -85,7 +85,7 @@ const config = {
         hideOnScroll: false,
         logo: {
           alt: 'OpenCodeBar',
-          src: 'img/logo.svg',
+          src: 'img/logo.png',
         },
         items: [
           {
