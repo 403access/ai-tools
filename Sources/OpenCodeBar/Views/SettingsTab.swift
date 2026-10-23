@@ -7,7 +7,7 @@ import SwiftUI
 struct SettingsTab: View {
     @EnvironmentObject var state: AppState
 
-    @State private var copiedPairingLink = false
+    @State var copiedPairingLink = false
     @State private var showRestartConfirmation = false
 
     var body: some View {
@@ -37,7 +37,7 @@ struct SettingsTab: View {
 
     // MARK: - Server
 
-    private var serverSection: some View {
+    var serverSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Server") {
                 HStack(spacing: 6) {
@@ -123,7 +123,7 @@ struct SettingsTab: View {
 
     // MARK: - Updates
 
-    private var updatesSection: some View {
+    var updatesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Updates") {
                 if state.isUpdatingSettings {
@@ -171,7 +171,7 @@ struct SettingsTab: View {
         }
     }
 
-    private var throttleBinding: Binding<Int> {
+    var throttleBinding: Binding<Int> {
         Binding(
             get: { state.serverSettings?.eventThrottleMs ?? 0 },
             set: { value in
@@ -180,7 +180,7 @@ struct SettingsTab: View {
         )
     }
 
-    private var throttleOptions: [Int] {
+    var throttleOptions: [Int] {
         var values = [0, 100, 250, 500, 1_000, 2_000]
         if let current = state.serverSettings?.eventThrottleMs, !values.contains(current) {
             values.append(current)
@@ -189,7 +189,7 @@ struct SettingsTab: View {
         return values
     }
 
-    private func throttleLabel(_ milliseconds: Int) -> String {
+    func throttleLabel(_ milliseconds: Int) -> String {
         if milliseconds == 0 { return "Off" }
         if milliseconds % 1_000 == 0 { return "\(milliseconds / 1_000) s" }
         return "\(milliseconds) ms"
@@ -197,7 +197,7 @@ struct SettingsTab: View {
 
     // MARK: - Devices
 
-    private var devicesSection: some View {
+    var devicesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Devices") {
                 Text(deviceCountLabel)
@@ -224,7 +224,7 @@ struct SettingsTab: View {
 
     // MARK: - Pairing
 
-    private var pairingSection: some View {
+    var pairingSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Pairing")
 
@@ -287,7 +287,7 @@ struct SettingsTab: View {
 
     // MARK: - Connection
 
-    private var connectionSection: some View {
+    var connectionSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Connection")
 
@@ -302,155 +302,4 @@ struct SettingsTab: View {
         }
     }
 
-    // MARK: - Pieces
-
-    private var serverHealth: HubHealthResponse.Hub? {
-        state.hubHealth?.hub ?? state.hubInfo?.hub
-    }
-
-    private var serverOnline: Bool {
-        state.hubHealth?.ok == true || state.connection.isConnected
-    }
-
-    private var opencodeLabel: String {
-        let opencode = state.hubHealth?.opencode
-        guard opencode?.connected == true else {
-            if let error = opencode?.lastError, !error.isEmpty { return "offline · \(error)" }
-            return "offline"
-        }
-        return opencode?.version.map { "connected · v\($0)" } ?? "connected"
-    }
-
-    private var cachedLabel: String? {
-        guard let hub = serverHealth else { return nil }
-        return "\(Fmt.grouped(hub.sessions ?? 0)) sessions · \(Fmt.grouped(hub.messages ?? 0)) messages"
-    }
-
-    private var discoveryLabel: String {
-        if ProcessInfo.processInfo.environment["OPENCODEBAR_HUB_URL"] != nil
-            || ProcessInfo.processInfo.environment["OPENCODEBAR_HUB_TOKEN"] != nil {
-            return "Environment override"
-        }
-        return "Local hub config"
-    }
-
-    private var orderedDevices: [ConnectedDevice] {
-        state.devices.sorted { first, second in
-            if first.connected != second.connected { return first.connected }
-            return first.lastSeen > second.lastSeen
-        }
-    }
-
-    private var deviceCountLabel: String {
-        let connected = state.devices.filter(\.connected).count
-        if connected == 0 { return "\(state.devices.count) known" }
-        return "\(connected) connected"
-    }
-
-    private func serverRow(_ label: String, _ value: String, monospaced: Bool = false, lineLimit: Int = 1) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(label)
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 8)
-            Text(value)
-                .font(.system(size: 10, weight: .medium, design: monospaced ? .monospaced : .default))
-                .lineLimit(lineLimit)
-                .multilineTextAlignment(.trailing)
-                .truncationMode(.middle)
-                .textSelection(.enabled)
-        }
-    }
-
-    private func duration(seconds: Int) -> String {
-        if seconds < 60 { return "\(seconds)s" }
-        if seconds < 3_600 { return "\(seconds / 60)m" }
-        let hours = seconds / 3_600
-        let minutes = (seconds % 3_600) / 60
-        if hours < 24 { return "\(hours)h \(minutes)m" }
-        return "\(hours / 24)d \(hours % 24)h"
-    }
-
-    // MARK: - Actions
-
-    private func copyPairingLink() {
-        guard let link = state.pairingLink else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(link, forType: .string)
-        copiedPairingLink = true
-        Task {
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            copiedPairingLink = false
-        }
-    }
-
-    private func revealServerFiles() {
-        let fileManager = FileManager.default
-        let dataDir = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent(".local/share/opencodebar", isDirectory: true)
-        let configFile = ServiceDiscovery.configDir().appendingPathComponent("opencodebar-hub.json")
-
-        let target: URL
-        if let db = serverHealth?.db, fileManager.fileExists(atPath: db) {
-            target = URL(fileURLWithPath: db)
-        } else if fileManager.fileExists(atPath: configFile.path) {
-            target = configFile
-        } else {
-            target = dataDir
-        }
-        NSWorkspace.shared.activateFileViewerSelecting([target])
-    }
-}
-
-private struct DeviceRow: View {
-    let device: ConnectedDevice
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 9) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(device.connected ? Theme.accent : Color.secondary)
-                .frame(width: 20)
-
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 5) {
-                    Text(device.name)
-                        .font(.system(size: 11, weight: .semibold))
-                        .lineLimit(1)
-                    if device.isThisDevice {
-                        Chip(text: "this Mac", tint: Theme.accent)
-                    }
-                    Spacer(minLength: 4)
-                    if device.connected {
-                        PulsingDot(size: 4)
-                    }
-                }
-
-                HStack(spacing: 5) {
-                    Text(device.platform)
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    if !device.appVersion.isEmpty {
-                        Text("v\(device.appVersion)")
-                            .font(.system(size: 9, design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                    }
-                    Spacer(minLength: 4)
-                    Text(device.connected ? "Connected" : Fmt.relative(from: device.lastSeenDate))
-                        .font(.system(size: 9))
-                        .foregroundStyle(device.connected ? Theme.accent : .secondary)
-                }
-            }
-        }
-        .card(padding: 10)
-    }
-
-    private var icon: String {
-        switch device.platform.lowercased() {
-        case "macos": return "desktopcomputer"
-        case "ipados": return "ipad"
-        case "ios": return "iphone"
-        default: return device.isThisDevice ? "desktopcomputer" : "questionmark.circle"
-        }
-    }
 }

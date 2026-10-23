@@ -1,22 +1,26 @@
-import { timingSafeEqual } from "node:crypto";
 import {
   clampEventThrottle,
   HUB_VERSION,
   lanAddresses,
-  MAX_EVENT_THROTTLE_MS,
-  MIN_EVENT_THROTTLE_MS,
   type HubConfig,
 } from "./config.ts";
 import type { HubDB } from "./db.ts";
 import { listProjectFiles, ProjectFilesError } from "./files.ts";
 import type { Hub } from "./hub.ts";
 import { OpenCodeError } from "./opencode.ts";
-import type {
-  ActiveSessionsResponse,
-  HubEvent,
-  HubSettings,
-  ServerInfo,
-} from "./types.ts";
+import type { ServerInfo } from "./types.ts";
+import { eventStream } from "./api/event-stream.ts";
+import {
+  CORS_HEADERS,
+  activeResponse,
+  deviceFromRequest,
+  error,
+  intParam,
+  isAuthorized,
+  json,
+  readJSONBody,
+  settingsPayload,
+} from "./api/support.ts";
 
 export interface ApiDeps {
   db: HubDB;
@@ -26,171 +30,6 @@ export interface ApiDeps {
   restart?: () => void;
   /** Persists settings changed over the API, so they survive a restart. */
   persistSettings?: (config: HubConfig) => void;
-}
-
-interface DeviceIdentity {
-  id: string;
-  name: string;
-  platform: string;
-  appVersion: string;
-}
-
-const DEVICE_HEADER = {
-  id: "x-opencodebar-device-id",
-  name: "x-opencodebar-device-name",
-  platform: "x-opencodebar-platform",
-  appVersion: "x-opencodebar-app-version",
-} as const;
-
-function deviceFromRequest(request: Request): DeviceIdentity | null {
-  const id = request.headers.get(DEVICE_HEADER.id)?.trim();
-  if (!id) return null;
-  const clean = (value: string | null, fallback: string): string => {
-    const trimmed = value?.trim();
-    return trimmed ? trimmed.slice(0, 120) : fallback;
-  };
-  return {
-    id: id.slice(0, 120),
-    name: clean(request.headers.get(DEVICE_HEADER.name), "Unknown device"),
-    platform: clean(request.headers.get(DEVICE_HEADER.platform), "unknown"),
-    appVersion: clean(request.headers.get(DEVICE_HEADER.appVersion), ""),
-  };
-}
-
-const CORS_HEADERS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, Last-Event-ID",
-  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-  "Access-Control-Max-Age": "86400",
-};
-
-function json(data: unknown, status = 200, extra: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      ...CORS_HEADERS,
-      ...extra,
-    },
-  });
-}
-
-function error(message: string, status = 400): Response {
-  return json({ error: { message } }, status);
-}
-
-interface JSONBody {
-  [key: string]: unknown;
-}
-
-/** Reads a JSON object body, returning null when the payload is malformed. */
-async function readJSONBody(request: Request): Promise<JSONBody | null> {
-  try {
-    const value: unknown = await request.json();
-    return value && typeof value === "object" && !Array.isArray(value)
-      ? (value as JSONBody)
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeEqual(a: string, b: string): boolean {
-  const left = Buffer.from(a, "utf8");
-  const right = Buffer.from(b, "utf8");
-  if (left.length !== right.length) return false;
-  return timingSafeEqual(left, right);
-}
-
-function isAuthorized(request: Request, token: string): boolean {
-  const header = request.headers.get("authorization") ?? "";
-  const bearer = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
-  const query = new URL(request.url).searchParams.get("token") ?? "";
-  return safeEqual(bearer || query, token);
-}
-
-function intParam(value: string | null, fallback: number, min: number, max: number): number {
-  if (!value) return fallback;
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(Math.max(parsed, min), max);
-}
-
-function settingsPayload(config: HubConfig): HubSettings {
-  return {
-    eventThrottleMs: config.eventThrottleMs,
-    eventThrottleMinMs: MIN_EVENT_THROTTLE_MS,
-    eventThrottleMaxMs: MAX_EVENT_THROTTLE_MS,
-  };
-}
-
-function activeResponse(db: HubDB): ActiveSessionsResponse {
-  const active = db.getSessions({ active: true, limit: 5_000 });
-  const data: Record<string, { type: string }> = {};
-  for (const session of active) data[session.id] = { type: "running" };
-  return { data };
-}
-
-function eventStream(hub: Hub, request: Request, deviceID?: string): Response {
-  const encoder = new TextEncoder();
-  let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
-  let remove: (() => void) | null = null;
-  let heartbeat: ReturnType<typeof setInterval> | null = null;
-  let closed = false;
-
-  const cleanup = () => {
-    if (closed) return;
-    closed = true;
-    if (heartbeat) clearInterval(heartbeat);
-    heartbeat = null;
-    remove?.();
-    remove = null;
-    try {
-      controller?.close();
-    } catch {
-      // Already closed by the runtime.
-    }
-  };
-
-  const send = (event: HubEvent) => {
-    if (closed || !controller) return;
-    try {
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-    } catch {
-      cleanup();
-    }
-  };
-
-  const stream = new ReadableStream<Uint8Array>({
-    start(streamController) {
-      controller = streamController;
-      controller.enqueue(encoder.encode("retry: 2000\n\n"));
-      remove = hub.addClient(send, deviceID);
-      heartbeat = setInterval(() => {
-        if (closed || !controller) return;
-        try {
-          controller.enqueue(encoder.encode(": ping\n\n"));
-        } catch {
-          cleanup();
-        }
-      }, 15_000);
-      request.signal.addEventListener("abort", cleanup);
-    },
-    cancel() {
-      cleanup();
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-      ...CORS_HEADERS,
-    },
-  });
 }
 
 export function createHandler(deps: ApiDeps): (request: Request) => Promise<Response> {

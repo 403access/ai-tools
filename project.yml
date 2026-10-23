@@ -21,6 +21,9 @@ targets:
       - path: Sources/OpenCodeBarMobile
       - path: Sources/OpenCodeBar/Models
       - path: Sources/OpenCodeBar/Core/HubAPI.swift
+      - path: Sources/OpenCodeBar/Core/HubAPI+Endpoints.swift
+      - path: Sources/OpenCodeBar/Core/HubAPI+Transport.swift
+      - path: Sources/OpenCodeBar/Core/HubModels.swift
       - path: Sources/OpenCodeBar/Core/HubEventStream.swift
       - path: Sources/OpenCodeBar/Core/DeviceIdentity.swift
       - path: Sources/OpenCodeBar/Support/Formatters.swift

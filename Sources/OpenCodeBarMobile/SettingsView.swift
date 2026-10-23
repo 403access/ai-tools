@@ -1,22 +1,22 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @EnvironmentObject private var settings: HubSettingsStore
-    @EnvironmentObject private var store: MobileStore
-    @EnvironmentObject private var appearance: AppearanceStore
+    @EnvironmentObject var settings: HubSettingsStore
+    @EnvironmentObject var store: MobileStore
+    @EnvironmentObject var appearance: AppearanceStore
 
-    @State private var url = ""
-    @State private var token = ""
-    @State private var pairingLink = ""
-    @State private var showScanner = false
-    @State private var showToken = false
-    @State private var loaded = false
-    @State private var testing = false
-    @State private var testMessage: String?
-    @State private var testSucceeded = false
-    @State private var savedMessage: String?
+    @State var url = ""
+    @State var token = ""
+    @State var pairingLink = ""
+    @State var showScanner = false
+    @State var showToken = false
+    @State var loaded = false
+    @State var testing = false
+    @State var testMessage: String?
+    @State var testSucceeded = false
+    @State var savedMessage: String?
 
-    private var candidate: HubLocation? {
+    var candidate: HubLocation? {
         HubSettings(url: url, token: token).location
     }
 
@@ -53,161 +53,9 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Appearance
-
-    private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("Appearance")
-
-            VStack(alignment: .leading, spacing: 8) {
-                Picker("Appearance", selection: $appearance.appearance) {
-                    ForEach(AppAppearance.allCases) { option in
-                        Text(option.title).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                Text("Dark mirrors the Mac menu bar panel.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .card(padding: 12)
-        }
-    }
-
-    // MARK: - Status
-
-    private var statusSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("Status")
-
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    ConnectionPill(connection: store.connection, activeCount: store.activeCount)
-                    Spacer()
-                    if store.isRefreshing {
-                        ProgressView().controlSize(.small)
-                    }
-                }
-
-                if let health = store.hubHealth {
-                    statusRow("Hub", health.hub?.version.map { "v\($0)" } ?? "connected")
-                    statusRow(
-                        "OpenCode",
-                        health.opencode?.connected == true
-                            ? (health.opencode?.version.map { "v\($0)" } ?? "connected")
-                            : "offline"
-                    )
-                    if let sessions = health.hub?.sessions {
-                        statusRow("Cached", "\(Fmt.grouped(sessions)) sessions · \(Fmt.grouped(health.hub?.messages ?? 0)) messages")
-                    }
-                    if let uptime = health.hub?.uptime {
-                        statusRow("Uptime", duration(seconds: uptime))
-                    }
-                    if let lastSync = health.opencode?.lastSync {
-                        statusRow("Last sync", Fmt.relative(from: Date(timeIntervalSince1970: lastSync / 1000)))
-                    }
-                    if let error = health.opencode?.lastError, !error.isEmpty {
-                        Text(error)
-                            .font(.caption2)
-                            .foregroundStyle(Theme.warn)
-                    }
-                } else if case .offline(let reason) = store.connection {
-                    Text(reason)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .card(padding: 12)
-
-            if !settings.isConfigured {
-                sectionNote("No hub configured yet. Start the hub on your Mac and add its URL and token below.")
-            }
-        }
-    }
-
-    // MARK: - Hub connection
-
-    private var connectionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("Hub connection")
-
-            VStack(alignment: .leading, spacing: 10) {
-                TextField("http://192.168.1.10:8787", text: $url)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-                    .font(.callout.monospaced())
-                    .mobileField()
-
-                HStack(spacing: 8) {
-                    Group {
-                        if showToken {
-                            TextField("Hub token", text: $token)
-                        } else {
-                            SecureField("Hub token", text: $token)
-                        }
-                    }
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .font(.callout.monospaced())
-
-                    Button {
-                        showToken.toggle()
-                    } label: {
-                        Image(systemName: showToken ? "eye.slash" : "eye")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(showToken ? "Hide token" : "Show token")
-                }
-                .mobileField()
-
-                Button {
-                    saveAndConnect()
-                } label: {
-                    Label(store.connection.isConnected ? "Save & Reconnect" : "Save & Connect", systemImage: "link")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(candidate == nil)
-
-                Button {
-                    Task { await validate() }
-                } label: {
-                    HStack(spacing: 8) {
-                        if testing { ProgressView().controlSize(.small) }
-                        Text(testing ? "Testing…" : "Test connection")
-                            .font(.subheadline.weight(.medium))
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(candidate == nil || testing)
-
-                if let testMessage {
-                    Label(testMessage, systemImage: testSucceeded ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(testSucceeded ? Theme.accent : Theme.warn)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if let savedMessage {
-                    Label(savedMessage, systemImage: "checkmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(Theme.accent)
-                }
-            }
-            .card(padding: 12)
-
-            sectionNote("Use the Mac's LAN address — for example http://192.168.1.10:8787 — while the phone is on the same network. On cellular, run `make hub-tunnel` on the Mac and enter the printed HTTPS URL. The hub prints the URL, token, and a pairing link when it starts.")
-        }
-    }
-
     // MARK: - Pairing
 
-    private var pairingSection: some View {
+    var pairingSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Pairing")
 
@@ -249,7 +97,7 @@ struct SettingsView: View {
 
     // MARK: - Help
 
-    private var howToSection: some View {
+    var howToSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("How to connect")
 
@@ -264,7 +112,7 @@ struct SettingsView: View {
 
     // MARK: - Remove
 
-    private var removeSection: some View {
+    var removeSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button(role: .destructive) {
                 settings.clear()
@@ -288,7 +136,7 @@ struct SettingsView: View {
 
     // MARK: - Pieces
 
-    private func statusRow(_ label: String, _ value: String) -> some View {
+    func statusRow(_ label: String, _ value: String) -> some View {
         HStack {
             Text(label)
                 .font(.subheadline)
@@ -300,7 +148,7 @@ struct SettingsView: View {
         }
     }
 
-    private func helpRow(_ text: String, icon: String) -> some View {
+    func helpRow(_ text: String, icon: String) -> some View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: icon)
                 .font(.caption.weight(.semibold))
@@ -315,7 +163,7 @@ struct SettingsView: View {
         }
     }
 
-    private func sectionNote(_ text: String) -> some View {
+    func sectionNote(_ text: String) -> some View {
         Text(text)
             .font(.caption2)
             .foregroundStyle(.tertiary)
@@ -323,7 +171,7 @@ struct SettingsView: View {
             .padding(.horizontal, 2)
     }
 
-    private func duration(seconds: Int) -> String {
+    func duration(seconds: Int) -> String {
         if seconds < 60 { return "\(seconds)s" }
         if seconds < 3_600 { return "\(seconds / 60)m" }
         return "\(seconds / 3_600)h \((seconds % 3_600) / 60)m"
@@ -331,7 +179,7 @@ struct SettingsView: View {
 
     // MARK: - Actions
 
-    private func saveAndConnect() {
+    func saveAndConnect() {
         guard candidate != nil else { return }
         settings.save(url: url, token: token)
         store.reconnect()
@@ -340,7 +188,7 @@ struct SettingsView: View {
         Task { await validate() }
     }
 
-    private func applyPairingLink(_ link: String? = nil) {
+    func applyPairingLink(_ link: String? = nil) {
         let value = link ?? pairingLink
         guard settings.applyPairingLink(value) else {
             testSucceeded = false
@@ -355,7 +203,7 @@ struct SettingsView: View {
         Task { await validate() }
     }
 
-    private func validate() async {
+    func validate() async {
         guard let candidate else {
             testSucceeded = false
             testMessage = "Enter a valid http(s) URL and a token."
@@ -384,7 +232,7 @@ struct SettingsView: View {
 }
 
 /// Recessed field background used by the settings cards.
-private extension View {
+extension View {
     func mobileField() -> some View {
         padding(.horizontal, 10)
             .padding(.vertical, 9)

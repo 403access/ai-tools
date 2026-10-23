@@ -401,6 +401,9 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
   AppState.swift            observable state, polling, derived data
   Core/
     HubAPI.swift            async client for the hub (shared with iOS)
+    HubAPI+Endpoints.swift  endpoint methods
+    HubAPI+Transport.swift  requests, decoding and diagnostics
+    HubModels.swift         hub transport/health models
     HubEventStream.swift    SSE subscription with reconnect (shared)
     HubDiscovery.swift      reads the hub URL + token (macOS)
     ServiceDiscovery.swift  OpenCode config paths
@@ -408,31 +411,64 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     UsageCache.swift        last-known usage on disk
   Support/
     QRCode.swift            pairing QR rendering
-  Models/Models.swift       Codable models for the API (shared)
-  Models/OpenCodeEvent.swift  decoded event payloads (shared)
-  Models/ProjectOrdering.swift  project merge + ordering from running counts (shared)
-  Models/SessionActivity.swift  live "what is it doing" state (shared)
-  Models/SubagentOrdering.swift  running-first ordering for child sessions
-  Models/SessionOrdering.swift  most-recent-first ordering for feeds
-  Models/SessionFilter.swift  project/date filters for recent feeds
-  Models/GoUsage.swift      Go plan windows (shared)
+  Models/                   Codable models, split by domain (shared)
+    TokenUsage.swift        token/model primitives
+    Session.swift           sessions and projects
+    Stats.swift             aggregate and per-session statistics
+    Messages.swift          messages, parts and pending prompts
+    Changes.swift           file patches and grouping
+    ProjectFiles.swift      project file browser payloads
+    APIEnvelopes.swift      request/response envelopes
+    OpenCodeEvent.swift     decoded event payloads (shared)
+    ProjectOrdering.swift   project merge + ordering from running counts (shared)
+    SessionActivity.swift   live "what is it doing" state (shared)
+    SessionActivity+Events.swift  event folding
+    SessionActivity+Derive.swift  rebuild from cached messages
+    SubagentOrdering.swift  running-first ordering for child sessions
+    SessionOrdering.swift   most-recent-first ordering for feeds
+    SessionFilter.swift     project/date filters for recent feeds
+    GoUsage.swift           Go plan windows (shared)
   Views/                    SwiftUI panel, tabs, heatmap, components
     ChangeViews.swift       patch cards and change summaries
     NewSessionSheet.swift   start a session with an optional first prompt
     PerformanceViews.swift  skeleton placeholders and shimmer (shared)
-    SessionStatsView.swift  per-session reliability and failures
+    SessionDetailView.swift session header and tabs
+    SessionDetailView+Composer.swift  pending queue and composer
+    SessionDetailView+Content.swift   conversation/stats/changes/prompts
+    SessionDetailView+Loading.swift   message paging
+    SessionMessageViews.swift         message, part and prompt cards
+    ProjectDetailView.swift           project header and sections
+    ProjectDetailAnalytics.swift      scoped analytics tiles
+    ProjectSessions.swift             recent-session rows
     SettingsTab.swift       connected devices and server controls
+    SettingsTab+Support.swift         derived labels and actions
+    SessionStatsView.swift  per-session reliability and failures
     SubagentViews.swift     tap-through child-session tree
   Preview/PreviewRunner.swift
 
 Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   OpenCodeBarMobileApp.swift  app entry + tab bar
   MobileStore.swift           observable state for the hub
+  MobileStore+Sync.swift      snapshot/delta refresh
+  MobileStore+Events.swift    event folding and activity seeding
+  MobileStore+Messages.swift  messages and prompt queue
+  MobileStore+Loaders.swift   project/changes/stats/subagent loaders
+  MobileStore+Derived.swift   derived feeds
   MobileDatabase.swift        local SQLite cache + incremental sync
+  MobileDatabase+Sessions.swift  sessions/projects persistence
+  MobileDatabase+Messages.swift  message cache
+  MobileDatabase+Metadata.swift  stats/usage/identity
+  MobileDatabase+Schema.swift    schema migration
   HubSettings.swift           URL + token storage and pairing links
   PairingScanner.swift        camera QR scanner for pairing
   LiveView.swift              running/recent sessions
+  LiveView+Filters.swift      project/date filters
   SessionDetailView.swift     conversation, stats, changes, prompts, subagents
+  SessionDetailView+Header.swift    live summary
+  SessionDetailView+Composer.swift  pending queue and composer
+  SessionDetailView+Content.swift   tab content
+  SessionDetailView+Pieces.swift    shared loading/error views
+  SessionDetailView+Loading.swift   message paging
   NewSessionSheet.swift       start a session from the phone
   MobileMessageViews.swift    message cards
   MobileChangeViews.swift     patch cards and change summaries
@@ -442,16 +478,22 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   UsageView.swift             plan limits, trends, stats
   MobileCharts.swift          Swift Charts trend cards
   SettingsView.swift          appearance, pairing, and status
+  SettingsView+Connection.swift  status and hub connection controls
   MobileComponents.swift      shared mobile views
   MobileTheme.swift           dark design tokens and shared backgrounds
 
 server/                       Bun + TypeScript + SQLite hub
   src/index.ts                entry point and startup output
   src/config.ts               env/config resolution, pairing link
-  src/opencode.ts             OpenCode discovery, REST, SSE, Go usage
-  src/db.ts                   SQLite schema and queries
-  src/hub.ts                  polling, event fan-out, cached reads
-  src/api.ts                  HTTP routes and SSE clients
+  src/types.ts                wire types shared with the apps
+  src/opencode.ts             OpenCode integration (barrel)
+  src/opencode/               discovery, REST client, errors, Go usage
+  src/db.ts                   SQLite facade
+  src/db/                     schema, row mapping, stores, queries
+  src/hub.ts                  polling/event hub facade
+  src/hub/                    event bus, sync, reads, usage cache
+  src/api.ts                  HTTP routes
+  src/api/                    request helpers and SSE clients
   test/                       Bun tests for the database and API
 
 website/                      Docusaurus documentation site

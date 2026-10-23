@@ -13,13 +13,12 @@ OUT="$ROOT/.build/perf-benchmark"
 
 mkdir -p "$ROOT/.build"
 swiftc -O -o "$OUT" \
-  "$ROOT/Sources/OpenCodeBar/Models/Models.swift" \
-  "$ROOT/Sources/OpenCodeBar/Models/UsageSeries.swift" \
-  "$ROOT/Sources/OpenCodeBar/Models/SessionOrdering.swift" \
-  "$ROOT/Sources/OpenCodeBar/Models/ProjectOrdering.swift" \
-  "$ROOT/Sources/OpenCodeBar/Models/GoUsage.swift" \
+  "$ROOT"/Sources/OpenCodeBar/Models/*.swift \
   "$ROOT/Sources/OpenCodeBar/Support/Formatters.swift" \
   "$ROOT/Sources/OpenCodeBar/Core/HubAPI.swift" \
+  "$ROOT/Sources/OpenCodeBar/Core/HubAPI+Endpoints.swift" \
+  "$ROOT/Sources/OpenCodeBar/Core/HubAPI+Transport.swift" \
+  "$ROOT/Sources/OpenCodeBar/Core/HubModels.swift" \
   "$ROOT/Sources/OpenCodeBar/Core/DeviceIdentity.swift" \
   "$ROOT/Scripts/PerfBenchmark.swift"
 
