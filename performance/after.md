@@ -209,3 +209,41 @@ These were intentionally left out of this pass:
   `Tests/OpenCodeBarTests/ProjectOrderingTests.swift`.
 - Documentation: `performance/README.md`, `performance/before.md`,
   `performance/after.md`.
+
+## iOS tab-switch pass (2026-10-23)
+
+A follow-up focused on switching between the four root tabs and the session
+detail modes. The expensive work was not the tab transition itself: it was
+building every list and card that happened to become visible, plus repeated
+publications from background polling.
+
+- **Change lists are virtualized.** `SessionChangesView` and
+  `ProjectChangesView` used eager `VStack`s. A session with 150 patches (34
+  files) built every `FileChangeCard` and its patch lines on the first Changes
+  tab visit. Both now use `LazyVStack` and are `Equatable`, so a poll that does
+  not touch the patches does not rebuild them.
+- **Project detail is lazy end to end.** Its outer `VStack` became a
+  `LazyVStack`, so below-the-fold sections (changes, files, sessions) are not
+  built until scrolled into view.
+- **File browser pages.** Up to 200 rows are shown initially with a *Show more*
+  control, instead of handing a 20k-row array to `ForEach` at once.
+- **Live and subagent feeds are lazy.** The recent/running sections, groups and
+  subagent rows use `LazyVStack`, so *Show more* and long running lists only
+  build visible rows.
+- **Expensive cards are `Equatable`.** Usage trend, top projects, heatmap,
+  token/tool/model breakdowns and change lists skip body evaluation when their
+  inputs are unchanged. The usage series is no longer rebuilt just because
+  `lastUpdated` moved.
+- **Tab indicator animation is isolated.** The tab bar used to wrap the tab
+  selection change in `withAnimation`, which also animated the whole destination
+  tab (charts, gradients, live rows). Only the selection pill animates now; the
+  content switches immediately.
+- **Store publications were reduced.** The duplicate `history` array is gone
+  (charts read `sessions`), `lastUpdated` only republishes once a minute,
+  connection/error/stat updates are conditional, `rebuildDerived()` is skipped
+  for no-op deltas, empty revision writes no longer touch SQLite every poll, and
+  event-driven syncs settle at 1.5s instead of 750ms. Session lookup during
+  event handling is now an O(1) dictionary lookup instead of repeated scans.
+
+Validation: `swift build`, `swift test` (43 tests), `make mobile-build`, and
+simulator screenshots of Live, Projects, Usage, Settings, Chat and Changes.

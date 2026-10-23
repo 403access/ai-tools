@@ -9,6 +9,9 @@ struct MobileProjectFilesView: View {
 
     @State private var filter: Filter = .all
     @State private var query = ""
+    @State private var visibleLimit = MobileProjectFilesView.pageSize
+
+    private static let pageSize = 200
 
     private enum Filter: String, CaseIterable, Identifiable {
         case all = "All"
@@ -34,6 +37,7 @@ struct MobileProjectFilesView: View {
 
     var body: some View {
         let visible = visibleFiles()
+        let shown = Array(visible.prefix(visibleLimit))
         return VStack(alignment: .leading, spacing: 9) {
             controls
             searchField
@@ -56,12 +60,30 @@ struct MobileProjectFilesView: View {
                 .padding(.vertical, 4)
             } else {
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(visible.enumerated()), id: \.element.id) { index, file in
+                    ForEach(Array(shown.enumerated()), id: \.element.id) { index, file in
                         fileRow(file)
-                        if index != visible.count - 1 {
+                        if index != shown.count - 1 {
                             Divider().opacity(0.25)
                         }
                     }
+                }
+
+                if visible.count > shown.count {
+                    Button {
+                        visibleLimit += Self.pageSize
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "chevron.down")
+                                .font(.caption.weight(.bold))
+                            Text("Show \(min(visible.count - shown.count, Self.pageSize)) more")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 7)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.accent)
+                    .accessibilityLabel("Show more files")
                 }
             }
 
@@ -71,6 +93,9 @@ struct MobileProjectFilesView: View {
                     .foregroundStyle(Theme.warn)
             }
         }
+        .onChange(of: query) { _, _ in visibleLimit = Self.pageSize }
+        .onChange(of: filter) { _, _ in visibleLimit = Self.pageSize }
+        .onChange(of: files.files.count) { _, _ in visibleLimit = Self.pageSize }
         .card(padding: 11)
     }
 

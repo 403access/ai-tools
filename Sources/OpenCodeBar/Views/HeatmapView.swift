@@ -1,9 +1,14 @@
 import SwiftUI
 
 /// GitHub-style contribution heatmap of daily agent steps.
-struct HeatmapView: View {
+struct HeatmapView: View, Equatable {
     let activity: [Stats.Activity]
     var weeks: Int = 24
+    @Environment(\.colorScheme) private var colorScheme
+
+    static func == (lhs: HeatmapView, rhs: HeatmapView) -> Bool {
+        lhs.activity == rhs.activity && lhs.weeks == rhs.weeks && lhs.colorScheme == rhs.colorScheme
+    }
 
     private let cell: CGFloat = 10
     private let gap: CGFloat = 3

@@ -51,7 +51,6 @@ extension MobileStore {
         guard let api else { throw APIError.transport("Not connected to the hub") }
         let session = try await api.createSession(title: title, directory: directory)
         sessions.insert(session, at: 0)
-        history.insert(session, at: 0)
         database?.upsertSessions([session])
         rebuildDerived()
         await refreshLive()

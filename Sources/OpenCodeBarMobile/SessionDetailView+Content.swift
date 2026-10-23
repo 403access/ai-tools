@@ -45,6 +45,7 @@ extension SessionDetailView {
             errorState(error, title: "Couldn't load changes")
         } else if let changes = state?.changes, !changes.isEmpty {
             SessionChangesView(changes: changes)
+                .equatable()
         } else {
             EmptyState(
                 icon: "plus.forwardslash.minus",
@@ -154,19 +155,21 @@ extension SessionDetailView {
                     }
                 }
 
-                ForEach(list.sessions) { child in
-                    NavigationLink(value: child) {
-                        SubagentSessionRow(
-                            session: child,
-                            running: store.isRunning(child),
-                            activity: store.activity(for: child.id),
-                            descendants: store.activeSubagentCount(for: child.id)
-                        )
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(list.sessions) { child in
+                        NavigationLink(value: child) {
+                            SubagentSessionRow(
+                                session: child,
+                                running: store.isRunning(child),
+                                activity: store.activity(for: child.id),
+                                descendants: store.activeSubagentCount(for: child.id)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .transition(.recentInsertion)
                     }
-                    .buttonStyle(.plain)
-                    .transition(.recentInsertion)
+                    .animateRecentInsertion(ids: list.sessions.map(\.id))
                 }
-                .animateRecentInsertion(ids: list.sessions.map(\.id))
 
                 if let error = list.error {
                     NoticeRow(icon: "exclamationmark.triangle.fill", message: error, tint: Theme.warn)

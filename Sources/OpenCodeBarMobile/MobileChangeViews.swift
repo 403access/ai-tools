@@ -169,7 +169,7 @@ struct FileChangeCard: View {
 }
 
 /// Groups edits by file, showing the newest edit first.
-struct SessionChangesView: View {
+struct SessionChangesView: View, Equatable {
     let changes: [FileChange]
     var showsSummary = true
     var expandFirst = true
@@ -185,26 +185,31 @@ struct SessionChangesView: View {
                 ChangeSummaryBar(changes: changes)
             }
 
-            ForEach(groups) { group in
-                VStack(alignment: .leading, spacing: 6) {
-                    if group.edits > 1 {
-                        HStack(spacing: 5) {
-                            Text(group.path)
-                                .font(.caption.weight(.semibold))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Chip(text: "\(group.edits) edits")
-                            Spacer(minLength: 0)
+            // A busy session can write thousands of patches. Build file cards
+            // lazily so opening the Changes tab only pays for what is on screen;
+            // an eager stack made that switch block the main thread for seconds.
+            LazyVStack(alignment: .leading, spacing: 9) {
+                ForEach(groups) { group in
+                    VStack(alignment: .leading, spacing: 6) {
+                        if group.edits > 1 {
+                            HStack(spacing: 5) {
+                                Text(group.path)
+                                    .font(.caption.weight(.semibold))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Chip(text: "\(group.edits) edits")
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.top, 2)
                         }
-                        .padding(.top, 2)
-                    }
 
-                    ForEach(Array(group.changes.enumerated()), id: \.element.id) { index, change in
-                        FileChangeCard(
-                            change: change,
-                            defaultExpanded: expandFirst && groupCount <= 3 && index == 0,
-                            collapsedLines: collapsedLines
-                        )
+                        ForEach(Array(group.changes.enumerated()), id: \.element.id) { index, change in
+                            FileChangeCard(
+                                change: change,
+                                defaultExpanded: expandFirst && groupCount <= 3 && index == 0,
+                                collapsedLines: collapsedLines
+                            )
+                        }
                     }
                 }
             }
@@ -213,7 +218,7 @@ struct SessionChangesView: View {
 }
 
 /// Project-wide changes grouped by the session that wrote them.
-struct ProjectChangesView: View {
+struct ProjectChangesView: View, Equatable {
     let changes: [FileChange]
 
     private struct SessionGroup: Identifiable {
@@ -256,30 +261,33 @@ struct ProjectChangesView: View {
         return VStack(alignment: .leading, spacing: 10) {
             ChangeSummaryBar(changes: changes)
 
-            ForEach(groups) { group in
-                VStack(alignment: .leading, spacing: 7) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "bubble.left.fill")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(Theme.running)
-                        Text(group.title)
-                            .font(.caption.weight(.semibold))
-                            .lineLimit(2)
-                        Spacer(minLength: 4)
-                        Text("\(Set(group.changes.map(\.displayPath)).count)")
-                            .font(.caption2.weight(.bold))
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
+            LazyVStack(alignment: .leading, spacing: 10) {
+                ForEach(groups) { group in
+                    VStack(alignment: .leading, spacing: 7) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "bubble.left.fill")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Theme.running)
+                            Text(group.title)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(2)
+                            Spacer(minLength: 4)
+                            Text("\(Set(group.changes.map(\.displayPath)).count)")
+                                .font(.caption2.weight(.bold))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
 
-                    SessionChangesView(
-                        changes: group.changes,
-                        showsSummary: false,
-                        expandFirst: false,
-                        collapsedLines: 0
-                    )
+                        SessionChangesView(
+                            changes: group.changes,
+                            showsSummary: false,
+                            expandFirst: false,
+                            collapsedLines: 0
+                        )
+                        .equatable()
+                    }
+                    .card(padding: 11)
                 }
-                .card(padding: 11)
             }
         }
     }

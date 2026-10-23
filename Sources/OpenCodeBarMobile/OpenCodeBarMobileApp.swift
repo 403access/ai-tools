@@ -123,13 +123,19 @@ struct MobileTabBar: View {
     @Binding var selection: RootView.Tab
     @Environment(\.colorScheme) private var colorScheme
     @Namespace private var selectionNamespace
+    /// The selection indicator animates on its own. Applying `withAnimation`
+    /// to the tab selection itself also animated the whole destination tab
+    /// (charts, materials, live rows) during every switch, which made tab
+    /// changes feel slow on device.
+    @State private var highlighted: RootView.Tab = .live
 
     var body: some View {
         HStack(spacing: 3) {
             ForEach(RootView.Tab.allCases) { tab in
                 Button {
+                    selection = tab
                     withAnimation(.easeInOut(duration: 0.18)) {
-                        selection = tab
+                        highlighted = tab
                     }
                 } label: {
                     VStack(spacing: 3) {
@@ -140,9 +146,9 @@ struct MobileTabBar: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 7)
-                    .foregroundStyle(selection == tab ? Color.primary : Color.secondary)
+                    .foregroundStyle(highlighted == tab ? Color.primary : Color.secondary)
                     .background {
-                        if selection == tab {
+                        if highlighted == tab {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .fill(colorScheme == .dark ? Color.primary.opacity(0.11) : .white)
                                 .shadow(
@@ -158,6 +164,16 @@ struct MobileTabBar: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(tab.title)
                 .accessibilityAddTraits(selection == tab ? .isSelected : [])
+            }
+        }
+        .onAppear { highlighted = selection }
+        .onChange(of: selection) { _, newValue in
+            // Programmatic changes (pairing link, first-run settings) still
+            // move the indicator, but the tab content switches immediately.
+            if highlighted != newValue {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    highlighted = newValue
+                }
             }
         }
         .padding(5)

@@ -38,10 +38,11 @@ extension MobileStore {
                 rebuildDerived()
             default:
                 if event.updatesActivity {
+                    let session = sessionsByID[id]
                     var activity = liveActivity[id] ?? SessionActivity(
-                        stepStartedAt: sessions.first(where: { $0.id == id })?.time.createdDate ?? Date()
+                        stepStartedAt: session?.time.createdDate ?? Date()
                     )
-                    activity.apply(event, directory: sessions.first(where: { $0.id == id })?.directory)
+                    activity.apply(event, directory: session?.directory)
                     liveActivity[id] = activity
                 }
                 if event.type == "session.usage.updated" {
@@ -62,7 +63,11 @@ extension MobileStore {
     func scheduleLiveRefresh() {
         guard debounceTask == nil else { return }
         debounceTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 750_000_000)
+            // Event bursts (a running session streams constantly) should not
+            // drag the sync loop down to a sub-second cadence on the phone.
+            // Activity rows update directly from the event, so the list can
+            // catch up at a calmer pace.
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
             guard !Task.isCancelled else {
                 self?.debounceTask = nil
                 return
@@ -92,10 +97,12 @@ extension MobileStore {
 
     func pruneActivity() {
         let cutoff = Date().addingTimeInterval(-10)
-        liveActivity = liveActivity.filter { id, activity in
+        let pruned = liveActivity.filter { id, activity in
             activeIDs.contains(id) || activity.updatedAt > cutoff
         }
-        seedAttempts = seedAttempts.filter { activeIDs.contains($0.key) }
+        if pruned != liveActivity { liveActivity = pruned }
+        let attempts = seedAttempts.filter { activeIDs.contains($0.key) }
+        if attempts.count != seedAttempts.count { seedAttempts = attempts }
     }
 
     func seedActivities() {
@@ -111,7 +118,7 @@ extension MobileStore {
         for id in candidates {
             seeding.insert(id)
             seedAttempts[id] = now
-            let directory = sessions.first(where: { $0.id == id })?.directory
+            let directory = sessionsByID[id]?.directory
             Task { [weak self] in
                 let response = try? await api.sessionMessages(id: id, limit: 20)
                 guard let self else { return }

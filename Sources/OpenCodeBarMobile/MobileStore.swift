@@ -96,7 +96,6 @@ final class MobileStore: ObservableObject {
     @Published var projects: [String: Project] = [:]
     @Published var stats: Stats?
     @Published var statsStale = false
-    @Published var history: [Session] = []
     @Published var usage: HubUsageResponse?
     @Published var usageFetchedAt: Date?
     @Published var hubHealth: HubHealthResponse?
@@ -119,6 +118,9 @@ final class MobileStore: ObservableObject {
     var runningByProject: [String: [Session]] = [:]
     var subagentCounts: [String: Int] = [:]
     var projectNames: [String: String] = [:]
+    /// Index used by event handling so a busy stream does not scan the whole
+    /// session list twice per event.
+    var sessionsByID: [String: Session] = [:]
 
     let settingsStore: HubSettingsStore
     let database: MobileDatabase?
@@ -236,7 +238,6 @@ final class MobileStore: ObservableObject {
         activeIDs = []
         projects = [:]
         stats = nil
-        history = []
         usage = nil
         usageFetchedAt = nil
         hubHealth = nil
@@ -259,6 +260,7 @@ final class MobileStore: ObservableObject {
         runningByProject = [:]
         subagentCounts = [:]
         projectNames = [:]
+        sessionsByID = [:]
         connection = .connecting
         start()
     }
@@ -296,7 +298,6 @@ final class MobileStore: ObservableObject {
         if !snapshot.sessions.isEmpty {
             let ordered = SessionOrdering.mostRecentFirst(snapshot.sessions)
             sessions = ordered
-            history = ordered
         }
         projects = Dictionary(
             snapshot.projects.map { ($0.id, $0) },

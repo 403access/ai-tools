@@ -27,13 +27,12 @@ struct UsageView: View {
             }
             .refreshable {
                 await store.refreshStats(force: true)
-                await store.refreshHistory(force: true)
                 await store.refreshUsage()
             }
             .task {
-                await store.refreshStats()
-                await store.refreshHistory()
-                await store.refreshUsage()
+                async let stats: Void = store.refreshStats()
+                async let usage: Void = store.refreshUsage()
+                _ = await (stats, usage)
             }
         }
     }
@@ -54,28 +53,34 @@ struct UsageView: View {
                     planLimits
 
                     SectionHeader("Trend")
-                    UsageTrendCard(stats: stats, sessions: store.history)
+                    UsageTrendCard(stats: stats, sessions: store.sessions)
+                        .equatable()
 
                     statGrid(stats)
 
-                    if !store.history.isEmpty {
-                        TopProjectsCard(sessions: store.history, projects: store.projects)
+                    if !store.sessions.isEmpty {
+                        TopProjectsCard(sessions: store.sessions, projects: store.projects)
+                            .equatable()
                     }
 
                     SectionHeader("Activity")
                     HeatmapView(activity: stats.activity, weeks: 18)
+                        .equatable()
 
                     SectionHeader("Token mix")
                     TokenBreakdown(tokens: stats.tokens)
+                        .equatable()
 
                     if !stats.models.isEmpty {
                         SectionHeader("Models")
                         ModelBreakdownCard(models: stats.models)
+                            .equatable()
                     }
 
                     if let totals = stats.tools.totals {
                         SectionHeader("Tool calls")
                         ToolSummaryCard(totals: totals, mode: stats.tools.mode)
+                            .equatable()
 
                         if let usage = stats.tools.usage, !usage.isEmpty {
                             SectionHeader("Tools") {
@@ -85,6 +90,7 @@ struct UsageView: View {
                                     .foregroundStyle(.secondary)
                             }
                             ToolUsageBreakdown(usage: usage)
+                                .equatable()
                         }
                     }
                 }
@@ -237,7 +243,7 @@ struct PlanLimitsCard: View {
     }
 }
 
-struct ToolSummaryCard: View {
+struct ToolSummaryCard: View, Equatable {
     let totals: Stats.ToolTotals
     let mode: String
 

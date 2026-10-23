@@ -26,13 +26,21 @@ extension MobileStore {
             let response = try await api.sync(since: cachedRevision > 0 ? cachedRevision : nil)
             apply(response)
             await fillMissingActiveSessions(response.active, api: api)
-            connection = .connected(version: displayVersion)
-            hubError = nil
-            lastUpdated = Date()
+            let status = Connection.connected(version: displayVersion)
+            if connection != status { connection = status }
+            if hubError != nil { hubError = nil }
+            // The footer only shows minute-level relative times. Republishing a
+            // new Date on every 5s/750ms refresh invalidated every observing
+            // tab for no visible change, so update it at most once a minute.
+            let now = Date()
+            if lastUpdated.map({ now.timeIntervalSince($0) >= 60 }) ?? true {
+                lastUpdated = now
+            }
         } catch {
             let text = message(for: error)
-            hubError = text
-            connection = .offline(text)
+            if hubError != text { hubError = text }
+            let offline = Connection.offline(text)
+            if connection != offline { connection = offline }
         }
 
         seedActivities()
@@ -62,11 +70,13 @@ extension MobileStore {
 
             let ordered = SessionOrdering.mostRecentFirst(Array(byID.values))
             if ordered != sessions { sessions = ordered }
-            if history != ordered { history = ordered }
             syncSubagentLists(with: response.sessions)
         }
 
-        if response.full || !response.projects.isEmpty || !response.deletedProjects.isEmpty {
+        let projectsChanged = response.full
+            || !response.projects.isEmpty
+            || !response.deletedProjects.isEmpty
+        if projectsChanged {
             var byID: [String: Project]
             if response.full {
                 byID = Dictionary(
@@ -96,12 +106,16 @@ extension MobileStore {
             database?.upsertProjects(response.projects)
             database?.deleteProjects(response.deletedProjects)
         }
-        cachedRevision = response.revision
-        database?.setRevision(response.revision)
+        if cachedRevision != response.revision {
+            cachedRevision = response.revision
+            database?.setRevision(response.revision)
+        }
         if activeChanged { database?.setActive(response.active) }
 
         pruneActivity()
-        rebuildDerived()
+        if sessionsChanged || projectsChanged || activeChanged {
+            rebuildDerived()
+        }
     }
 
     /// A running session older than the full snapshot window could still be
@@ -130,7 +144,6 @@ extension MobileStore {
         for session in fetched { byID[session.id] = session }
         let ordered = SessionOrdering.mostRecentFirst(Array(byID.values))
         if ordered != sessions { sessions = ordered }
-        if history != ordered { history = ordered }
         database?.upsertSessions(fetched)
         rebuildDerived()
     }
@@ -140,19 +153,15 @@ extension MobileStore {
         if !force, let fetched = statsFetchedAt, Date().timeIntervalSince(fetched) < 30 { return }
         do {
             let fresh = try await api.stats()
-            stats = fresh
+            if stats != fresh {
+                stats = fresh
+                database?.putStats(fresh)
+            }
             statsFetchedAt = Date()
-            statsStale = false
-            database?.putStats(fresh)
+            if statsStale { statsStale = false }
         } catch {
-            if stats != nil { statsStale = true }
+            if stats != nil, !statsStale { statsStale = true }
         }
-    }
-
-    /// The local cache already holds every session the hub knows about, so the
-    /// usage charts no longer need a separate 1,000-row history request.
-    func refreshHistory(force: Bool = false) async {
-        if history != sessions { history = sessions }
     }
 
     func refreshUsage(force: Bool = false) async {

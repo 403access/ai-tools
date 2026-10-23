@@ -49,11 +49,18 @@ enum UsageMetric: String, CaseIterable, Identifiable {
 }
 
 /// Interactive daily trend used by the Usage and project detail screens.
-struct UsageTrendCard: View {
+struct UsageTrendCard: View, Equatable {
     let stats: Stats?
     let sessions: [Session]
     @State private var metric: UsageMetric = .steps
     @State private var range: UsageRange = .month
+    @Environment(\.colorScheme) private var colorScheme
+
+    static func == (lhs: UsageTrendCard, rhs: UsageTrendCard) -> Bool {
+        lhs.stats == rhs.stats
+            && lhs.sessions == rhs.sessions
+            && lhs.colorScheme == rhs.colorScheme
+    }
 
     var body: some View {
         let points = UsageSeries.bucketed(
@@ -157,10 +164,17 @@ struct UsageTrendCard: View {
 }
 
 /// Top projects by spend inside a range, used on the Usage tab.
-struct TopProjectsCard: View {
+struct TopProjectsCard: View, Equatable {
     let sessions: [Session]
     let projects: [String: Project]
     @State private var range: UsageRange = .month
+    @Environment(\.colorScheme) private var colorScheme
+
+    static func == (lhs: TopProjectsCard, rhs: TopProjectsCard) -> Bool {
+        lhs.sessions == rhs.sessions
+            && lhs.projects == rhs.projects
+            && lhs.colorScheme == rhs.colorScheme
+    }
 
     private var entries: [ProjectUsage] {
         UsageSeries.projects(sessions: sessions, projects: projects, range: range, limit: 6)

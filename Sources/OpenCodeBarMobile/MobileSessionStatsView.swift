@@ -51,6 +51,7 @@ struct MobileSessionStatsView: View {
                     }
                 }
                 ToolSummaryCard(totals: totals, mode: stats.tools.mode)
+                    .equatable()
             }
 
             if let usage = stats.tools.usage, !usage.isEmpty {
@@ -61,6 +62,7 @@ struct MobileSessionStatsView: View {
                         .foregroundStyle(.secondary)
                 }
                 ToolUsageBreakdown(usage: usage)
+                    .equatable()
             }
 
             if !stats.failures.isEmpty {
@@ -75,6 +77,7 @@ struct MobileSessionStatsView: View {
 
             SectionHeader("Token mix")
             TokenBreakdown(tokens: stats.tokens)
+                .equatable()
 
             if !stats.complete {
                 NoticeRow(

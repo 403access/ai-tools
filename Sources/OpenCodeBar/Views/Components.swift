@@ -157,7 +157,7 @@ struct LoadingState: View {
     }
 }
 
-struct TokenBreakdown: View {
+struct TokenBreakdown: View, Equatable {
     let tokens: TokenUsage
 
     private var parts: [(label: String, value: Double, color: Color)] {
@@ -210,7 +210,7 @@ struct TokenBreakdown: View {
 
 /// Per-tool call counts, failures and median duration. Shared by the session,
 /// project and usage screens on both platforms.
-struct ToolUsageBreakdown: View {
+struct ToolUsageBreakdown: View, Equatable {
     let usage: [Stats.ToolUsage]
 
     private var ordered: [Stats.ToolUsage] {

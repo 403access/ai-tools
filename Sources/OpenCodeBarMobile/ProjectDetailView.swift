@@ -30,10 +30,10 @@ struct ProjectDetailView: View {
 
         return ScrollViewReader { proxy in
             ScrollView {
-                // Eager stack: this page contains a live running section
-                // (TimelineView), and lazy layout can fight the scroll offset
-                // while those rows update. Sections inside still page their data.
-                VStack(alignment: .leading, spacing: 14) {
+                // Lazy so a project with hundreds of sessions, changes and
+                // files only builds the sections that are on screen. The rows
+                // themselves keep live `TimelineView`s, which update in place.
+                LazyVStack(alignment: .leading, spacing: 14) {
                     // Anchor at the top so the summary header is what a reset
                     // scrolls to, and so a push never starts below it.
                     Color.clear.frame(height: 1).id(topAnchor)
@@ -49,6 +49,7 @@ struct ProjectDetailView: View {
     
                             SectionHeader("Trend")
                             UsageTrendCard(stats: stats, sessions: detail.sessions)
+                                .equatable()
     
                             if let totals = stats.tools.totals {
                                 SectionHeader("Tool calls") {
@@ -63,6 +64,7 @@ struct ProjectDetailView: View {
                                     }
                                 }
                                 ToolSummaryCard(totals: totals, mode: stats.tools.mode)
+                                    .equatable()
     
                                 if let usage = stats.tools.usage, !usage.isEmpty {
                                     SectionHeader("Tools") {
@@ -72,12 +74,14 @@ struct ProjectDetailView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                     ToolUsageBreakdown(usage: usage)
+                                        .equatable()
                                 }
                             }
     
                             if !stats.models.isEmpty {
                                 SectionHeader("Models")
                                 ModelBreakdownCard(models: stats.models)
+                                    .equatable()
                             }
                         } else if detail.isLoading {
                             ProjectDetailSkeleton()
@@ -176,6 +180,7 @@ struct ProjectDetailView: View {
                     .foregroundStyle(.secondary)
             }
             ProjectChangesView(changes: changes)
+                .equatable()
         }
     }
 
@@ -336,7 +341,7 @@ private struct ProjectRunningBadge: View {
 }
 
 /// Compact per-model breakdown shared by the project and usage tabs.
-struct ModelBreakdownCard: View {
+struct ModelBreakdownCard: View, Equatable {
     let models: [Stats.ModelUsage]
 
     private var total: Double {

@@ -101,11 +101,10 @@ struct LiveView: View {
     private var content: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                // Keep this an eager VStack: the list is paged (20 rows), and the
-                // running rows contain live TimelineViews. A LazyVStack re-lays out
-                // on every streaming update, which can fight the scroll view's
-                // restored offset in the simulator.
-                VStack(alignment: .leading, spacing: 16) {
+                // Lazy so "Show more" and a long running list only build the
+                // rows on screen. Running rows use TimelineView per row, so a
+                // tick does not invalidate the whole feed.
+                LazyVStack(alignment: .leading, spacing: 16) {
                     Color.clear.frame(height: 1).id(topAnchor)
 
                     if case .offline(let reason) = store.connection {
@@ -140,7 +139,7 @@ struct LiveView: View {
         let sessions = store.runningSessions
         let ids = sessions.map(\.id)
 
-        return VStack(alignment: .leading, spacing: 8) {
+        return LazyVStack(alignment: .leading, spacing: 8) {
             SectionHeader("Running") {
                 Text("\(store.runningSessions.count)")
                     .font(.caption.weight(.bold))
@@ -183,7 +182,7 @@ struct LiveView: View {
         let ids = sessions.map(\.id)
         let remaining = filteredRecent.count - sessions.count
 
-        return VStack(alignment: .leading, spacing: 8) {
+        return LazyVStack(alignment: .leading, spacing: 8) {
             SectionHeader("Recent") {
                 HStack(spacing: 6) {
                     projectFilterMenu
@@ -208,7 +207,7 @@ struct LiveView: View {
                 }
             } else if groupedByTime {
                 ForEach(SessionGrouping.groupByTime(sessions)) { section in
-                    VStack(alignment: .leading, spacing: 8) {
+                    LazyVStack(alignment: .leading, spacing: 8) {
                         groupHeader(section.group.title)
                         ForEach(section.sessions) { session in
                             recentLink(session)
