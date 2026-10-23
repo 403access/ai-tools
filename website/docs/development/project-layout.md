@@ -19,6 +19,8 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     HubDiscovery.swift            hub URL + token discovery (macOS)
     ServiceDiscovery.swift        OpenCode config paths
     DeviceIdentity.swift          stable client id + platform headers
+    HubConfig.swift               URL/token settings model (shared)
+    WidgetShared.swift            shared keychain + snapshot cache (shared)
     UsageCache.swift              last-known usage on disk
   Models/                         Codable models, events, activity, ordering
     TokenUsage.swift              token/model primitives
@@ -29,6 +31,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     ProjectFiles.swift            project file browser payloads
     APIEnvelopes.swift            request/response envelopes
     SessionFilter.swift           project/date filters for recent feeds
+    WidgetSnapshot.swift          compact widget payload (shared)
   Support/
     SpeechInput.swift             speech-to-text dictation (shared)
     QRCode.swift                  pairing QR rendering
@@ -67,6 +70,8 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   MobileDatabase+Metadata.swift   stats/usage/identity
   MobileDatabase+Schema.swift     schema migration
   HubSettings.swift               URL/token storage and pairing links
+  MobileRouter.swift              widget/deep-link routing
+  WidgetPublisher.swift           writes the shared widget snapshot
   PairingScanner.swift            camera QR scanner for pairing
   LiveView.swift                  running/recent sessions
   LiveView+Filters.swift          project/date filters
@@ -85,6 +90,13 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   MobileChangeViews.swift         patch cards
   MobileSessionStatsView.swift    session reliability
   MobileTheme.swift               design tokens
+
+Sources/OpenCodeBarWidgets/       iOS Home Screen extension
+  OpenCodeBarWidgets.swift        WidgetBundle with Live and Usage
+  LiveWidget.swift                running sessions, small/medium/large
+  UsageWidget.swift               stats, trend and plan limits
+  WidgetDataLoader.swift          hub fetch + cached snapshot fallback
+  WidgetTheme.swift               widget palette and compact components
 
 server/                           Bun + TypeScript + SQLite hub
   src/index.ts                    entry point and port fallback
@@ -128,3 +140,4 @@ Tests/OpenCodeBarTests/           Swift tests
 - `website/node_modules/`, `website/build/`, `website/.docusaurus/`
 - `OpenCodeBarMobile.xcodeproj` (regenerate with `make mobile-project`)
 - `Mobile/Info.plist` (regenerate with XcodeGen)
+- `Mobile/Widgets-Info.plist` (regenerate with XcodeGen)

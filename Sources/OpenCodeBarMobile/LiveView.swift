@@ -3,6 +3,7 @@ import SwiftUI
 struct LiveView: View {
     @EnvironmentObject var settings: HubSettingsStore
     @EnvironmentObject var store: MobileStore
+    @EnvironmentObject var router: MobileRouter
     @State private var path = NavigationPath()
     @State private var showingNewSession = false
     @State private var sessionToOpen: Session?
@@ -11,6 +12,7 @@ struct LiveView: View {
     @State var groupedByTime = false
     @State private var recentLimit = LiveView.recentPageSize
     @State private var scrollToTopTrigger = 0
+    @State private var deepLinkAttempt = ""
 
     private let topAnchor = "live-top"
 
@@ -65,6 +67,12 @@ struct LiveView: View {
             .task(id: store.lastUpdated) {
                 openRequestedSession()
             }
+            .onChange(of: router.requestedSessionID) { _, _ in
+                openRequestedSession()
+            }
+            .onAppear {
+                openRequestedSession()
+            }
             .sheet(isPresented: $showingNewSession, onDismiss: openCreatedSession) {
                 MobileNewSessionSheet { session in
                     sessionToOpen = session
@@ -80,22 +88,42 @@ struct LiveView: View {
         path.append(session)
     }
 
-    #if DEBUG
-    /// Opens a session on launch for screenshot tooling:
-    /// `SIMCTL_CHILD_OPENCODEBAR_OPEN_SESSION=running` or a session id.
+    /// Handles links from widgets (`opencodebar://session/<id>`) as well as the
+    /// debug launch hook used for screenshots. If the session is not in the
+    /// cached window, fetch it before pushing the detail screen.
     private func openRequestedSession() {
-        guard path.isEmpty,
-              let requested = ProcessInfo.processInfo.environment["OPENCODEBAR_OPEN_SESSION"]
+        guard path.isEmpty else { return }
+
+        #if DEBUG
+        if let requested = ProcessInfo.processInfo.environment["OPENCODEBAR_OPEN_SESSION"] {
+            if requested == "running" {
+                if let first = store.runningSessions.first { path.append(first) }
+            } else if let match = store.session(id: requested) {
+                path.append(match)
+            }
+            return
+        }
+        #endif
+
+        guard let requested = router.requestedSessionID,
+              requested != deepLinkAttempt
         else { return }
-        if requested == "running" {
-            if let first = store.runningSessions.first { path.append(first) }
-        } else if let match = store.session(id: requested) {
+
+        deepLinkAttempt = requested
+        if let match = store.session(id: requested) {
+            router.requestedSessionID = nil
+            deepLinkAttempt = ""
             path.append(match)
+            return
+        }
+
+        Task {
+            guard let fetched = await store.fetchSession(id: requested) else { return }
+            router.requestedSessionID = nil
+            deepLinkAttempt = ""
+            if path.isEmpty { path.append(fetched) }
         }
     }
-    #else
-    private func openRequestedSession() {}
-    #endif
 
     private var content: some View {
         ScrollViewReader { proxy in

@@ -2,6 +2,23 @@ import Combine
 import Foundation
 
 extension MobileStore {
+    /// Resolves a session id opened from a widget (or another deep link) even
+    /// when the row is older than the local snapshot window.
+    func fetchSession(id: String) async -> Session? {
+        if let existing = session(id: id) { return existing }
+        guard let api, let fetched = try? await api.session(id: id) else { return nil }
+
+        var byID = Dictionary(
+            sessions.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        byID[fetched.id] = fetched
+        sessions = SessionOrdering.mostRecentFirst(Array(byID.values))
+        database?.upsertSessions([fetched])
+        rebuildDerived()
+        return fetched
+    }
+
     func loadProject(_ id: String, force: Bool = false) async {
         guard let api else { return }
         if !force, projectDetails[id]?.isLoading == true { return }

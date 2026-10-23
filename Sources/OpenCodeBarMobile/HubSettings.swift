@@ -1,55 +1,21 @@
 import Foundation
 
-/// Hub connection settings for the iOS app. Stored in UserDefaults so the
-/// pairing survives launches; the token is a long-lived shared secret generated
-/// by the hub.
-struct HubSettings: Codable, Equatable {
-    var url: String = ""
-    var token: String = ""
-
-    var trimmedURL: String {
-        url.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var trimmedToken: String {
-        token.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var location: HubLocation? {
-        guard let parsed = URL(string: trimmedURL),
-              let scheme = parsed.scheme?.lowercased(),
-              scheme == "http" || scheme == "https",
-              parsed.host?.isEmpty == false,
-              !trimmedToken.isEmpty
-        else { return nil }
-        return HubLocation(url: parsed, token: trimmedToken)
-    }
-
-    var isConfigured: Bool { location != nil }
-
-    var displayURL: String {
-        guard let parsed = URL(string: trimmedURL), let host = parsed.host else {
-            return trimmedURL.isEmpty ? "Not configured" : trimmedURL
-        }
-        let port = parsed.port.map { ":\($0)" } ?? ""
-        return "\(host)\(port)"
-    }
-}
-
 @MainActor
 final class HubSettingsStore: ObservableObject {
     @Published var url: String
     @Published var token: String
 
-    private static let storageKey = "opencodebar.hub.settings"
-    private let defaults: UserDefaults
+    init() {
+        WidgetShared.rememberDeviceID(DeviceIdentity.id)
 
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        if let data = defaults.data(forKey: Self.storageKey),
-           let saved = try? JSONDecoder().decode(HubSettings.self, from: data) {
+        if let saved = WidgetShared.loadHubSettings() {
             self.url = saved.url
             self.token = saved.token
+        } else if let legacy = Self.legacySettings() {
+            // Preserve pairings made before the shared keychain existed.
+            self.url = legacy.url
+            self.token = legacy.token
+            WidgetShared.saveHubSettings(legacy)
         } else {
             self.url = ""
             self.token = ""
@@ -75,7 +41,7 @@ final class HubSettingsStore: ObservableObject {
     func clear() {
         url = ""
         token = ""
-        defaults.removeObject(forKey: Self.storageKey)
+        WidgetShared.clearHubSettings()
     }
 
     /// Accepts the link the hub prints at startup:
@@ -102,7 +68,13 @@ final class HubSettingsStore: ObservableObject {
 
     private func persist() {
         let value = HubSettings(url: url, token: token)
-        guard let data = try? JSONEncoder().encode(value) else { return }
-        defaults.set(data, forKey: Self.storageKey)
+        WidgetShared.saveHubSettings(value)
+    }
+
+    private static func legacySettings() -> HubSettings? {
+        guard let data = UserDefaults.standard.data(forKey: WidgetShared.hubSettingsKey) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(HubSettings.self, from: data)
     }
 }

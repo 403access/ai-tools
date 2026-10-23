@@ -168,6 +168,7 @@ final class MobileStore: ObservableObject {
         }
         database?.setHubURL(hubURL)
         hydrateFromCache()
+        publishWidgetSnapshot(force: true)
 
         startEvents(location: location)
         Task { await bootstrap() }
@@ -231,6 +232,7 @@ final class MobileStore: ObservableObject {
 
     /// Applies saved settings and starts over. Used after the setup screen saves.
     func reconnect() {
+        WidgetPublisher.shared.clear()
         stop()
         database?.clear()
         cachedRevision = 0
@@ -268,6 +270,7 @@ final class MobileStore: ObservableObject {
     /// Stops polling and clears the connection after the user removes the hub
     /// configuration.
     func disconnect() {
+        WidgetPublisher.shared.clear()
         stop()
         database?.clear()
         cachedRevision = 0

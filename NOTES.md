@@ -52,9 +52,9 @@ Follow-ups worth considering:
   it seeds from the newest messages, which is fine for now but means the first
   render can lag a few seconds. Storing snapshots in SQLite and serving
   `/api/activity` would remove that.
-- **iOS extras.** Home Screen widget for active sessions, Live Activity for a
-  running session, and background refresh would make the phone more useful
-  without opening the app.
+- **iOS extras.** Home Screen widgets for active sessions and usage now ship in
+  the widget extension. A Live Activity for a running session and background
+  refresh would make the phone more useful without opening the app.
 - **Website and docs.** `docs/index.html` covers both apps, screenshots, the
   shared hub, and the install flow. The Docusaurus site in `website/` holds the
   full guides, API reference, configuration, and troubleshooting, published at

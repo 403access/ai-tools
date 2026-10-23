@@ -83,7 +83,10 @@ repository.
 
 ## Are there Home Screen widgets or Live Activities?
 
-Not yet. They are follow-up ideas in `NOTES.md`.
+There are two Home Screen widgets: **Live Sessions** and **Usage**, each in
+small, medium, and large. Add them from the Home Screen's widget gallery after
+pairing the app. Live Activities are not implemented yet. See
+[Run the iPhone/iPad app](../getting-started/ios-app.md#home-screen-widgets).
 
 ## Why do credits not appear in Usage?
 

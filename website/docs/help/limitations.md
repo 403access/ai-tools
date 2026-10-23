@@ -71,10 +71,14 @@ each run and stops working when the process exits.
 
 ## Not implemented yet
 
-- Home Screen widgets and Live Activities.
+- Live Activities.
 - Interrupt/stop controls.
 - A steer-versus-queue toggle in every client.
 - Opening a session in the TUI or a terminal.
 - A first-class project new-session action on iOS.
+
+Home Screen widgets refresh on the schedule iOS gives them (usually every five
+to fifteen minutes, less often in Low Power Mode); they are not a real-time
+replacement for the open app.
 
 See `NOTES.md` in the repository for the current follow-up list.

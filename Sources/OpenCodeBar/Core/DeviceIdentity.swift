@@ -23,6 +23,15 @@ enum DeviceIdentity {
         }
         #endif
 
+        #if canImport(UIKit)
+        // Widget extensions have their own keychain, so they pick up the id the
+        // app mirrored into the shared access group instead of registering a
+        // second device with the hub.
+        if let shared = WidgetShared.storedDeviceID {
+            return shared
+        }
+        #endif
+
         if let stored = keychainIdentifier() {
             return stored
         }

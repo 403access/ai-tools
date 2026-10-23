@@ -44,6 +44,7 @@ extension MobileStore {
         }
 
         seedActivities()
+        publishWidgetSnapshot()
     }
 
     /// Merges a delta into the in-memory store and the local database.
@@ -159,6 +160,7 @@ extension MobileStore {
             }
             statsFetchedAt = Date()
             if statsStale { statsStale = false }
+            publishWidgetSnapshot()
         } catch {
             if stats != nil, !statsStale { statsStale = true }
         }
@@ -175,6 +177,7 @@ extension MobileStore {
             usage = response
             usageFetchedAt = response.fetchedDate ?? Date()
             database?.putUsage(response)
+            publishWidgetSnapshot()
         } catch {
             // Keep the last response; the view shows its existing state.
         }

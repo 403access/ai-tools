@@ -122,9 +122,38 @@ that actually moved are transferred. Pairing a different hub clears the cache.
 
 Deleting the app removes the cache. There is no cache control in Settings yet.
 
+## Home Screen widgets
+
+The Xcode project also builds **OpenCodeBarWidgets**, containing two widgets:
+
+- **Live Sessions** — running-session count, what each session is doing right
+  now, elapsed time, project, cost, and tokens. Medium shows two running rows;
+  large adds more running sessions and recent sessions.
+- **Usage** — today's steps, cost, tokens, streak, prompts, tool calls, a
+  14-day activity chart, and the Go plan-limit bars with reset countdowns.
+
+Both support small, medium, and large sizes. Long-press the Home Screen, tap
+**Edit → Add Widget**, search for **OpenCodeBar**, and pick a size. Tapping a
+widget opens the matching tab.
+
+The extension talks to the same hub directly and caches its last successful
+fetch, so widgets still render usable state while the app is closed or the Mac
+is unreachable. The app and extension share pairing details through a keychain
+access group, which the team's provisioning profile already authorizes. Widget
+refresh is scheduled by iOS, typically every five to fifteen minutes, and the
+app nudges WidgetKit when its data changes in the foreground.
+
+:::note
+`make mobile-run` builds the simulator app without code signing, so the shared
+keychain group is not applied there and the widget shows **Pair your hub**. Use
+a signed simulator run from Xcode (with a development team) or
+`make mobile-device` to test widgets with live data.
+:::
+
 ## App permissions
 
-- **Local Network** — required to reach the hub on your Mac.
+- **Local Network** — required to reach the hub on your Mac, including from the
+  Home Screen widgets.
 - **Camera** — only when you scan a pairing QR code.
 - **Microphone** — only when you tap the dictation button.
 - **Speech Recognition** — to turn speech into an editable prompt.

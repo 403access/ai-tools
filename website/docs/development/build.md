@@ -41,10 +41,15 @@ and ad-hoc signs the bundle.
 
 ```bash
 make mobile-project   # xcodegen generate
-make mobile-build     # simulator build
+make mobile-build     # simulator build (app + widget extension)
 make mobile-run       # build, install, launch, and pair
 make mobile-device    # build, sign, install, launch on a device
 ```
+
+The generated project has two targets: `OpenCodeBarMobile` and the
+`OpenCodeBarWidgets` extension. The app and extension share the hub connection
+through a keychain access group, so widgets work as soon as the app is paired;
+no extra capability setup is needed beyond normal automatic signing.
 
 See [Run the iPhone/iPad app](../getting-started/ios-app.md).
 

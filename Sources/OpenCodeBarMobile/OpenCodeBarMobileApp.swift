@@ -5,6 +5,7 @@ struct OpenCodeBarMobileApp: App {
     @StateObject private var settings: HubSettingsStore
     @StateObject private var store: MobileStore
     @StateObject private var appearance: AppearanceStore
+    @StateObject private var router = MobileRouter()
 
     init() {
         let settings = HubSettingsStore()
@@ -19,6 +20,7 @@ struct OpenCodeBarMobileApp: App {
                 .environmentObject(settings)
                 .environmentObject(store)
                 .environmentObject(appearance)
+                .environmentObject(router)
                 .tint(Theme.accent)
                 .preferredColorScheme(appearance.appearance.colorScheme)
         }
@@ -59,6 +61,7 @@ struct RootView: View {
 
     @EnvironmentObject private var settings: HubSettingsStore
     @EnvironmentObject private var store: MobileStore
+    @EnvironmentObject private var router: MobileRouter
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Tab = .live
 
@@ -100,9 +103,14 @@ struct RootView: View {
             if !settings.isConfigured { selection = .settings }
         }
         .onOpenURL { url in
-            guard settings.applyPairingLink(url.absoluteString) else { return }
-            store.reconnect()
-            selection = .live
+            if settings.applyPairingLink(url.absoluteString) {
+                store.reconnect()
+                selection = .live
+                return
+            }
+            if router.handle(url) {
+                if let tab = router.requestedTab { selection = tab }
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -110,6 +118,7 @@ struct RootView: View {
                 store.resume()
             case .background:
                 store.pause()
+                store.publishWidgetSnapshot(force: true)
             default:
                 break
             }
