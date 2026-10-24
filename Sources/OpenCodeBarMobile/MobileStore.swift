@@ -103,6 +103,11 @@ final class MobileStore: ObservableObject {
     @Published var usage: HubUsageResponse?
     @Published var usageFetchedAt: Date?
     @Published var hubHealth: HubHealthResponse?
+    /// Snapshot of the Mac running the hub, shown on the System tab.
+    @Published var systemInfo: SystemInfo?
+    @Published var systemInfoFetchedAt: Date?
+    @Published var systemInfoError: String?
+    @Published var isRefreshingSystemInfo = false
     @Published var liveActivity: [String: SessionActivity] = [:]
     @Published var projectDetails: [String: ProjectDetail] = [:]
     @Published var sessionChanges: [String: ChangesState] = [:]

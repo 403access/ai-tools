@@ -24,6 +24,7 @@ final class AppState: ObservableObject {
         case live = "Live"
         case usage = "Usage"
         case projects = "Projects"
+        case system = "System"
         case settings = "Settings"
 
         var id: String { rawValue }
@@ -32,6 +33,7 @@ final class AppState: ObservableObject {
             case .live: return "dot.radiowaves.left.and.right"
             case .usage: return "chart.bar.xaxis"
             case .projects: return "folder"
+            case .system: return "cpu"
             case .settings: return "gearshape"
             }
         }
@@ -163,6 +165,11 @@ final class AppState: ObservableObject {
     /// Server information shown on the Settings tab.
     @Published var hubInfo: ServerInfo?
     @Published var hubHealth: HubHealthResponse?
+    /// Full snapshot of the machine running the hub, shown on the System tab.
+    @Published var systemInfo: SystemInfo?
+    @Published var systemInfoFetchedAt: Date?
+    @Published var systemInfoError: String?
+    @Published var isRefreshingSystemInfo = false
     /// Tunable hub behaviour, such as the event-stream throttle.
     @Published var serverSettings: ServerSettings?
     @Published var settingsError: String?
@@ -194,6 +201,9 @@ final class AppState: ObservableObject {
     @Published var selectedProject: Project?
     /// Device whose detail page is open from Settings → Devices.
     @Published var selectedDevice: ConnectedDevice?
+    /// Folder the host file browser is open at. Non-nil takes over the panel,
+    /// so Back returns to the System tab.
+    @Published var fileBrowserPath: String?
     /// Section the detail view opens on. Overridable from the command line for
     /// previews/screenshots (`--detail-mode prompts`).
     var detailMode: DetailMode = .conversation

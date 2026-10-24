@@ -84,6 +84,35 @@ extension AppState {
         seedActivities()
     }
 
+    /// Loads the System tab's snapshot. The hub caches expensive sections, so
+    /// the tab can poll this every few seconds without hammering the machine.
+    func refreshSystemInfo(force: Bool = false) async {
+        if api == nil { await bootstrap() }
+        guard let api else { return }
+        guard !isRefreshingSystemInfo else { return }
+        if !force, let fetched = systemInfoFetchedAt,
+           Date().timeIntervalSince(fetched) < 4 {
+            return
+        }
+
+        isRefreshingSystemInfo = true
+        defer { isRefreshingSystemInfo = false }
+
+        do {
+            let snapshot = try await api.systemInfo(force: force)
+            systemInfo = snapshot
+            systemInfoFetchedAt = Date()
+            systemInfoError = nil
+        } catch {
+            if let apiError = error as? APIError, case .request(404, _) = apiError {
+                systemInfoError = "This hub does not serve system information yet. Restart it with the latest code."
+            } else {
+                // Keep the last snapshot; the next poll usually recovers.
+                systemInfoError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+        }
+    }
+
     /// Loads the Settings tab: connected client apps plus hub/server details.
     func refreshSettings(force: Bool = false) async {
         guard let api else {

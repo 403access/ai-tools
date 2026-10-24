@@ -149,6 +149,29 @@ extension MobileStore {
         rebuildDerived()
     }
 
+    /// Fetches the hub machine's system snapshot. Called while the System tab is
+    /// visible; the hub caches the expensive parts, so a 5s cadence is cheap.
+    func refreshSystemInfo(force: Bool = false) async {
+        guard let api else { return }
+        guard !isRefreshingSystemInfo else { return }
+        if !force, let fetched = systemInfoFetchedAt, Date().timeIntervalSince(fetched) < 4 {
+            return
+        }
+        isRefreshingSystemInfo = true
+        defer { isRefreshingSystemInfo = false }
+        do {
+            systemInfo = try await api.systemInfo(force: force)
+            systemInfoFetchedAt = Date()
+            systemInfoError = nil
+        } catch {
+            if let apiError = error as? APIError, case .request(404, _) = apiError {
+                systemInfoError = "This hub does not serve system information yet. Restart it with the latest code."
+            } else {
+                systemInfoError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+        }
+    }
+
     func refreshStats(force: Bool = false) async {
         guard let api else { return }
         if !force, let fetched = statsFetchedAt, Date().timeIntervalSince(fetched) < 30 { return }

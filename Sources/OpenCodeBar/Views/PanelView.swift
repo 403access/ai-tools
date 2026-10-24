@@ -13,7 +13,12 @@ struct PanelView: View {
             HeaderView()
             Divider().opacity(0.5)
 
-            if let device = state.selectedDevice {
+            if let path = state.fileBrowserPath {
+                SystemFileBrowser(initialPath: path)
+                    .id(path)
+                    .frame(maxHeight: .infinity)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else if let device = state.selectedDevice {
                 DeviceDetailView(device: device)
                     .id(device.id)
                     .frame(maxHeight: .infinity)
@@ -42,6 +47,8 @@ struct PanelView: View {
                             UsageTab()
                         case .projects:
                             ProjectsTab()
+                        case .system:
+                            SystemTab()
                         case .settings:
                             SettingsTab()
                         }
@@ -60,6 +67,7 @@ struct PanelView: View {
         .animation(.easeInOut(duration: 0.18), value: state.selectedSession?.id)
         .animation(.easeInOut(duration: 0.18), value: state.selectedProject?.id)
         .animation(.easeInOut(duration: 0.18), value: state.selectedDevice?.id)
+        .animation(.easeInOut(duration: 0.18), value: state.fileBrowserPath)
     }
 }
 

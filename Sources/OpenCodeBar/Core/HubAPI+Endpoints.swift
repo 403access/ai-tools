@@ -11,6 +11,16 @@ extension HubAPI {
         try await get("/api/health")
     }
 
+    /// Full snapshot of the machine running the hub: OS, CPU, memory, disks,
+    /// network, battery, installed apps, Homebrew, toolchains, processes and
+    /// more. The hub caches the expensive sections, so this is safe to poll.
+    func systemInfo(force: Bool = false) async throws -> SystemInfo {
+        let response: SystemInfoEnvelope = try await get(
+            force ? "/api/system?refresh=1" : "/api/system"
+        )
+        return response.data
+    }
+
     /// Mac and iOS apps known to the hub, including which ones are live now.
     func devices() async throws -> [ConnectedDevice] {
         let response: DevicesResponse = try await get("/api/devices")
@@ -39,6 +49,34 @@ extension HubAPI {
     /// rebinds its port.
     func restartServer() async throws {
         _ = try await send("/api/server/restart", method: "POST")
+    }
+
+    // MARK: - Host files
+
+    /// Lists one folder on the machine running the hub.
+    func hostFiles(path: String) async throws -> HostDirectory {
+        let response: HostDirectoryEnvelope = try await get(Self.pathQuery("/api/files", path: path))
+        return response.data
+    }
+
+    /// Text or image metadata for one host file.
+    func hostFileContent(path: String) async throws -> HostFileContent {
+        let response: HostFileContentEnvelope = try await get(
+            Self.pathQuery("/api/files/content", path: path)
+        )
+        return response.data
+    }
+
+    /// Raw bytes of one host file, used for image previews.
+    func hostFileData(path: String) async throws -> Data {
+        try await send(Self.pathQuery("/api/files/raw", path: path))
+    }
+
+    private static func pathQuery(_ endpoint: String, path: String) -> String {
+        var components = URLComponents()
+        components.path = endpoint
+        components.queryItems = [URLQueryItem(name: "path", value: path)]
+        return components.string ?? endpoint
     }
 
     func activeSessionIDs() async throws -> [String] {

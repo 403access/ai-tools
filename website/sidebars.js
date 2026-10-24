@@ -25,6 +25,7 @@ const sidebars = {
         'using/session',
         'using/projects',
         'using/usage',
+        'using/system',
         'using/settings',
         'using/voice',
       ],

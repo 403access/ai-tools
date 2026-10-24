@@ -45,6 +45,10 @@ window you are in.
     <p>Go plan limits, streaks, activity heatmap, token mix, models, and tool success rates.</p>
   </div>
   <div className="featureCard">
+    <h3>System</h3>
+    <p>CPU, memory, disks, battery, network, processes, installed apps, Homebrew, developer tools, and a read-only host file browser.</p>
+  </div>
+  <div className="featureCard">
     <h3>Settings</h3>
     <p>Connected devices, hub health, sync, restart, data files, and one-click pairing.</p>
   </div>

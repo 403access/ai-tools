@@ -32,6 +32,7 @@ struct RootView: View {
         case live
         case projects
         case usage
+        case system
         case settings
 
         var id: String { rawValue }
@@ -41,6 +42,7 @@ struct RootView: View {
             case .live: return "Live"
             case .projects: return "Projects"
             case .usage: return "Usage"
+            case .system: return "System"
             case .settings: return "Settings"
             }
         }
@@ -50,6 +52,7 @@ struct RootView: View {
             case .live: return "dot.radiowaves.left.and.right"
             case .projects: return "folder.fill"
             case .usage: return "chart.bar.fill"
+            case .system: return "cpu.fill"
             case .settings: return "gearshape.fill"
             }
         }
@@ -79,6 +82,10 @@ struct RootView: View {
                 UsageView()
                     .toolbar(.hidden, for: .tabBar)
                     .tag(Tab.usage)
+
+                SystemView()
+                    .toolbar(.hidden, for: .tabBar)
+                    .tag(Tab.system)
 
                 NavigationStack { SettingsView() }
                     .toolbar(.hidden, for: .tabBar)

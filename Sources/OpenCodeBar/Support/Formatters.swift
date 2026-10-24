@@ -23,6 +23,31 @@ enum Fmt {
         groupedFormatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
+    /// Byte counts use binary units (KiB/MiB/GiB) because that is what every
+    /// OS system monitor reports for memory, disks and swap.
+    private static let byteFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .binary
+        formatter.allowedUnits = [.useKB, .useMB, .useGB, .useTB]
+        formatter.zeroPadsFractionDigits = false
+        return formatter
+    }()
+
+    static func bytes(_ value: Int64?) -> String {
+        guard let value else { return "—" }
+        return byteFormatter.string(fromByteCount: value)
+    }
+
+    /// Short uptime label for system cards: "6d 5h", "3h 24m", "12m".
+    static func uptime(_ seconds: Int) -> String {
+        if seconds < 60 { return "\(seconds)s" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes)m" }
+        let hours = minutes / 60
+        if hours < 24 { return "\(hours)h \(minutes % 60)m" }
+        return "\(hours / 24)d \(hours % 24)h"
+    }
+
     /// NumberFormatter allocation is expensive and `grouped` is called for every
     /// stat tile, tool row and chart label, so keep one instance around.
     private static let groupedFormatter: NumberFormatter = {

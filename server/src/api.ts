@@ -6,10 +6,17 @@ import {
 } from "./config.ts";
 import type { HubDB } from "./db.ts";
 import { listProjectFiles, ProjectFilesError } from "./files.ts";
+import {
+  FileBrowserError,
+  listDirectory,
+  readFileContent,
+  readRawFile,
+} from "./browser.ts";
 import type { Hub } from "./hub.ts";
 import { OpenCodeError } from "./opencode.ts";
 import { resolveProjectIcon } from "./projectIcon.ts";
-import type { ServerInfo } from "./types.ts";
+import type { ServerInfo, SystemInfo } from "./types.ts";
+import { SystemInfoService } from "./system.ts";
 import { eventStream } from "./api/event-stream.ts";
 import {
   CORS_HEADERS,
@@ -31,10 +38,19 @@ export interface ApiDeps {
   restart?: () => void;
   /** Persists settings changed over the API, so they survive a restart. */
   persistSettings?: (config: HubConfig) => void;
+  /** Injectable system collector, used by tests to avoid touching the host. */
+  system?: { snapshot(force?: boolean): Promise<SystemInfo> };
 }
 
 export function createHandler(deps: ApiDeps): (request: Request) => Promise<Response> {
   const { db, hub, config, restart, persistSettings } = deps;
+  const system = deps.system ?? new SystemInfoService({
+    hub: () => ({
+      startedAt: hub.startedAt,
+      port: config.port,
+      dbPath: config.dbPath,
+    }),
+  });
 
   return async (request: Request): Promise<Response> => {
     if (request.method === "OPTIONS") {
@@ -95,6 +111,49 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
           hub: health,
           opencode: health.opencode,
         });
+      }
+
+      if (pathname === "/api/system" && request.method === "GET") {
+        // The collector caches its expensive sections; `refresh=1` is for the
+        // system tab's manual refresh and bypasses both caches.
+        return json({ data: await system.snapshot(url.searchParams.get("refresh") === "1") });
+      }
+
+      if (pathname === "/api/files" && request.method === "GET") {
+        try {
+          return json({ data: await listDirectory(url.searchParams.get("path")) });
+        } catch (caught) {
+          if (caught instanceof FileBrowserError) return error(caught.message, caught.status);
+          throw caught;
+        }
+      }
+
+      if (pathname === "/api/files/content" && request.method === "GET") {
+        try {
+          return json({ data: await readFileContent(url.searchParams.get("path")) });
+        } catch (caught) {
+          if (caught instanceof FileBrowserError) return error(caught.message, caught.status);
+          throw caught;
+        }
+      }
+
+      if (pathname === "/api/files/raw" && request.method === "GET") {
+        try {
+          const file = await readRawFile(url.searchParams.get("path"));
+          return new Response(file.bytes, {
+            headers: {
+              "Content-Type": file.mime,
+              "Content-Length": String(file.size),
+              "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+              "Cache-Control": "no-store",
+              "X-Content-Type-Options": "nosniff",
+              ...CORS_HEADERS,
+            },
+          });
+        } catch (caught) {
+          if (caught instanceof FileBrowserError) return error(caught.message, caught.status);
+          throw caught;
+        }
       }
 
       if (pathname === "/api/info") {

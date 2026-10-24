@@ -23,7 +23,8 @@ icon.
 
 - A terminal glyph in the menu bar, with the number of active sessions while
   work is running.
-- A compact panel with **Live**, **Usage**, **Projects**, and **Settings**.
+- A compact panel with **Live**, **Usage**, **Projects**, **System**, and
+  **Settings**.
 - Session detail pages, project detail pages, and a full conversation view.
 - A footer with the active count and the last refresh time.
 

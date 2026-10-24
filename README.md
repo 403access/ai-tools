@@ -10,7 +10,7 @@ cached history — so the phone can see the Mac's sessions, projects, and usage.
 On macOS the menu bar item displays a terminal glyph and, when sessions are
 running, the number of active sessions. Clicking it opens a panel with **live**
 activity, a full **session** view, per-project **analytics**, and a **usage**
-overview. The iOS app has the same four areas, adapted for touch, with the same
+overview. The iOS app has the same five areas, adapted for touch, with the same
 dark panel design and a floating tab dock. Its Appearance setting can follow the
 system or stay dark/light. Both apps can also start a new session and send a
 prompt into an open conversation. On iOS, **Live** and **Usage** Home Screen
@@ -131,6 +131,33 @@ iOS app:
 - Per-model breakdown with steps and cost.
 - Tool call success/failure summary.
 
+**System**
+- A full inventory of the machine running the hub: macOS / Linux / Windows
+  identification, distribution or macOS release, kernel, architecture, model,
+  chip, boot time, timezone, locale, user, and shell.
+- Live CPU usage overall and per core, load averages, physical/logical cores,
+  clock speed, thermal pressure, and temperatures where the platform exposes
+  them. Memory totals, active/wired/compressed pages, available memory, and swap.
+- Every mounted volume with filesystem, capacity, and free space. Network
+  interfaces with IPv4/IPv6 addresses and MACs, default gateway, DNS servers, and
+  listening TCP ports with their owning process.
+- Battery percentage, state, health, cycle count, condition, and temperature;
+  SIP, FileVault, firewall, Gatekeeper, SELinux/AppArmor, and Defender status.
+- Top processes by CPU or memory, with PID, user, and resident size.
+- Installed applications discovered from the OS (with versions, bundle ids,
+  sources, and paths) and a searchable filter.
+- Homebrew version, prefix, formula/cask counts, outdated markers, and the full
+  package list with versions.
+- Developer runtimes and tools (Node, Bun, Python, Go, Rust, Java, Swift, Docker,
+  Git, and more), Docker containers, GPUs and displays, plus the hub process's
+  own PID, uptime, memory, port, and database size.
+- **Host file browser**: browse any folder on the server read-only, with
+  breadcrumbs, quick links to Home, Root, Applications, Volumes, and project
+  folders, hidden-file toggle, search, and text/image previews. Hub and OpenCode
+  credential files are excluded from previews.
+- Polls every five seconds; expensive inventory scans are cached by the hub so
+  the panel stays responsive.
+
 **Settings**
 - Every app connected to the hub — macOS, iOS, and iPadOS — with its device
   name, platform, app version, and whether it is live right now. Click a device
@@ -142,9 +169,12 @@ iOS app:
   another phone.
 
 **iPhone & iPad**
-- The same Live, Projects, Usage, and Settings areas as the Mac panel, with the
-  same compact panel design, live-activity folding, and a floating tab dock
-  built for touch.
+- The same Live, Projects, Usage, System, and Settings areas as the Mac panel,
+  with the same compact panel design, live-activity folding, and a floating tab
+  dock built for touch. System mirrors the Mac's full machine inventory, so the
+  phone can monitor CPU, memory, disks, processes, Homebrew, and installed apps
+  without the Mac app being open — and browse the Mac's files with the same
+  read-only browser.
 - Search projects, pull to refresh any screen, and open a session from a deep
   link. Settings shows hub and OpenCode health, cached session/message counts,
   uptime, and last sync.
@@ -204,7 +234,8 @@ The hub:
    `/api/project/{id}/files`, `/api/project/{id}/icon`,
    `/api/experimental/session/stats` — plus
    `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`), `/api/usage`,
-   `/api/health`, `/api/devices`, `/api/settings` (`GET`/`PATCH`),
+   `/api/health`, `/api/system`, `/api/files`, `/api/files/content`,
+   `/api/files/raw`, `/api/devices`, `/api/settings` (`GET`/`PATCH`),
    `/api/sync` (`GET` delta feed, `POST` force sync), `/api/server/restart`
    (`POST`), and `/api/event`. Clients
    authenticate with a Bearer token and identify their platform with
@@ -456,6 +487,8 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     WidgetSnapshot.swift    compact widget payload shared by app and extension
     SessionFilter.swift     project/date filters for recent feeds
     GoUsage.swift           Go plan windows (shared)
+    SystemInfo.swift        machine inventory from the system endpoint (shared)
+    HostFiles.swift         host directory listings and previews (shared)
   Views/                    SwiftUI panel, tabs, heatmap, components
     ChangeViews.swift       patch cards and change summaries
     NewSessionSheet.swift   start a session with an optional first prompt
@@ -469,6 +502,8 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     ProjectDetailAnalytics.swift      scoped at-a-glance stats
     ProjectSessions.swift             recent-session rows
     SettingsTab.swift       connected devices and server controls
+    SystemTab.swift         machine, resources, apps, Homebrew and tools
+    SystemFileBrowser.swift host folder navigation and text/image preview
     SettingsTab+Support.swift         derived labels and actions
     SettingsDeviceRow.swift           device row in the connected list
     SettingsDeviceDetail.swift        status, timestamps and identity for one device
@@ -508,6 +543,8 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   ProjectsView.swift          project list + search
   ProjectDetailView.swift     scoped analytics and project changes
   UsageView.swift             plan limits, trends, stats
+  SystemView.swift            machine inventory for the hub host
+  MobileFileBrowser.swift     host folders and file previews
   MobileCharts.swift          Swift Charts trend cards
   SettingsView.swift          appearance, pairing, and status
   SettingsView+Connection.swift  status and hub connection controls
@@ -532,6 +569,7 @@ server/                       Bun + TypeScript + SQLite hub
   src/hub.ts                  polling/event hub facade
   src/hub/                    event bus, sync, reads, usage cache
   src/files.ts                project file browser
+  src/browser.ts              read-only host file browser and previews
   src/projectIcon.ts          project app icon discovery and rendering
   src/api.ts                  HTTP routes
   src/api/                    request helpers and SSE clients

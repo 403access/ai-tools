@@ -79,6 +79,11 @@ enum PreviewRunner {
             }
         }
 
+        // `--files <path>` opens the host file browser at that folder.
+        if let path = value(after: "--files", in: CommandLine.arguments) {
+            state.openFileBrowser(at: path)
+        }
+
         // `--device-detail` opens the first connected device from Settings.
         if CommandLine.arguments.contains("--device-detail") {
             Task { @MainActor in
@@ -119,7 +124,10 @@ enum PreviewRunner {
         state.start()
 
         // Pump the run loop so the async fetches and event stream can populate.
-        let deadline = Date().addingTimeInterval(7)
+        // Slow tabs (the first System fetch scans apps and Homebrew) can ask for
+        // a longer settle window with `--wait <seconds>`.
+        let wait = Double(value(after: "--wait", in: CommandLine.arguments) ?? "7") ?? 7
+        let deadline = Date().addingTimeInterval(max(1, wait))
         while Date() < deadline {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
         }
@@ -153,9 +161,29 @@ enum PreviewRunner {
             state.open(project)
         }
 
+        // `--files <path>` opens the host file browser for screenshots.
+        let wantsFiles = value(after: "--files", in: CommandLine.arguments) != nil
+        if let path = value(after: "--files", in: CommandLine.arguments) {
+            state.openFileBrowser(at: path)
+        }
+
         // Settings fetches its server/device data when the view appears, which
         // happens after the run loop above has already settled.
         let wantsSettings = value(after: "--tab", in: CommandLine.arguments)?.lowercased() == "settings"
+
+        // The offscreen harness never runs SwiftUI's `.task`, so preload the
+        // System tab explicitly. Its first fetch scans apps and Homebrew.
+        if value(after: "--tab", in: CommandLine.arguments)?.lowercased() == "system" {
+            var finished = false
+            Task { @MainActor in
+                await state.refreshSystemInfo(force: true)
+                finished = true
+            }
+            let deadline = Date().addingTimeInterval(25)
+            while !finished && Date() < deadline {
+                RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+            }
+        }
 
         // `--device-detail` opens a device page, which also needs the Settings
         // payload before the first device exists.
@@ -197,7 +225,8 @@ enum PreviewRunner {
             || CommandLine.arguments.contains("--session")
             || wantsProjectDetail
             || wantsDeviceDetail
-            || wantsSettings {
+            || wantsSettings
+            || wantsFiles {
             let detailDeadline = Date().addingTimeInterval(3)
             while Date() < detailDeadline {
                 RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))

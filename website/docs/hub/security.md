@@ -24,6 +24,13 @@ Settings tab contain the hub token. Anyone with either can read and control your
 OpenCode sessions while they are on the network. Share them only with your own
 devices.
 
+The token also grants access to `GET /api/system`, which reports host details
+(OS, hardware, usernames, network addresses, installed apps and packages), and to
+the read-only host file browser (`/api/files`, `/api/files/content`,
+`/api/files/raw`). Treat the token as access to that inventory and to any file
+your macOS user can read. The hub blocks previewing its own config and OpenCode
+credential files, but other files remain readable to a paired client.
+
 ## Do not expose the hub directly to the internet
 
 The hub speaks plain HTTP, not HTTPS. For access away from home, use a private

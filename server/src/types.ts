@@ -319,6 +319,318 @@ export interface HubSettingsResponse {
   data: HubSettings;
 }
 
+// MARK: - System monitoring
+
+/**
+ * A full snapshot of the machine running the hub. Everything is optional
+ * because collectors are platform-specific and can time out: a missing field
+ * means "not available on this system", not "zero". Byte counts are bytes and
+ * durations are seconds unless the field name says otherwise.
+ */
+export interface SystemInfo {
+  generatedAt: number;
+  platform: string;
+  platformName: string;
+  host: SystemHost;
+  hub: SystemHub;
+  cpu: SystemCPU;
+  memory: SystemMemory;
+  disks: SystemDisk[];
+  network: SystemNetwork;
+  processes: SystemProcesses;
+  battery: SystemBattery | null;
+  thermal: SystemThermal | null;
+  security: SystemSecurity | null;
+  apps: SystemApp[];
+  homebrew: SystemHomebrew | null;
+  runtimes: SystemRuntime[];
+  displays: SystemDisplayGroup[];
+  listeningPorts: SystemPort[];
+  docker: SystemDocker | null;
+  notes: string[];
+}
+
+export interface SystemHost {
+  name: string;
+  hostname: string;
+  platform: string;
+  platformName: string;
+  osName?: string;
+  osVersion?: string;
+  osBuild?: string;
+  kernel: string;
+  arch: string;
+  machine?: string;
+  model?: string;
+  chip?: string;
+  username?: string;
+  home?: string;
+  shell?: string;
+  timezone?: string;
+  locale?: string;
+  uptime: number;
+  bootedAt?: number;
+  isVirtualMachine?: boolean;
+  virtualization?: string;
+}
+
+export interface SystemHub {
+  version: string;
+  pid: number;
+  runtime: string;
+  runtimeVersion: string;
+  startedAt: number;
+  uptime: number;
+  port?: number;
+  dbPath?: string;
+  dbSizeBytes?: number;
+  cwd?: string;
+  execPath?: string;
+  memoryBytes?: number;
+  rssBytes?: number;
+  heapUsedBytes?: number;
+}
+
+export interface SystemCPU {
+  model?: string;
+  vendor?: string;
+  architecture: string;
+  physicalCores?: number;
+  logicalCores: number;
+  speedMHz?: number;
+  usagePercent?: number;
+  perCoreUsage?: number[];
+  loadAverage?: number[];
+  temperatureC?: number;
+}
+
+export interface SystemMemory {
+  totalBytes: number;
+  freeBytes: number;
+  usedBytes: number;
+  availableBytes?: number;
+  activeBytes?: number;
+  inactiveBytes?: number;
+  wiredBytes?: number;
+  compressedBytes?: number;
+  cachedBytes?: number;
+  swapTotalBytes?: number;
+  swapUsedBytes?: number;
+  swapFreeBytes?: number;
+}
+
+export interface SystemDisk {
+  mount: string;
+  filesystem: string;
+  type?: string;
+  totalBytes: number;
+  usedBytes: number;
+  freeBytes: number;
+  readOnly?: boolean;
+  removable?: boolean;
+}
+
+export interface SystemNetworkAddress {
+  address: string;
+  family: string;
+  internal: boolean;
+  mac?: string;
+  netmask?: string;
+  cidr?: string;
+}
+
+export interface SystemNetworkInterface {
+  name: string;
+  addresses: SystemNetworkAddress[];
+}
+
+export interface SystemNetwork {
+  hostname: string;
+  interfaces: SystemNetworkInterface[];
+  defaultGateway?: string;
+  defaultInterface?: string;
+  dnsServers: string[];
+}
+
+export interface SystemProcess {
+  pid: number;
+  name: string;
+  command?: string;
+  user?: string;
+  cpuPercent?: number;
+  memoryPercent?: number;
+  memoryBytes?: number;
+}
+
+export interface SystemProcesses {
+  total: number;
+  topCPU: SystemProcess[];
+  topMemory: SystemProcess[];
+}
+
+export interface SystemBattery {
+  present: boolean;
+  percent?: number;
+  charging?: boolean;
+  state?: string;
+  minutesRemaining?: number;
+  cycleCount?: number;
+  condition?: string;
+  healthPercent?: number;
+  temperatureC?: number;
+}
+
+export interface SystemThermal {
+  cpuSpeedLimitPercent?: number;
+  cpuSchedulerLimitPercent?: number;
+  pressure?: string;
+  temperatureC?: number;
+  sensors?: Array<{ name: string; temperatureC: number }>;
+}
+
+export interface SystemSecurity {
+  systemIntegrityProtection?: boolean | string;
+  fileVault?: boolean | string;
+  firewall?: boolean | string;
+  gatekeeper?: boolean | string;
+  secureBoot?: boolean | string;
+  selinux?: string;
+  appArmor?: string;
+  defender?: string;
+}
+
+export interface SystemApp {
+  name: string;
+  path: string;
+  version?: string;
+  bundleID?: string;
+  source?: string;
+  architecture?: string;
+  lastModified?: string;
+}
+
+export interface SystemBrewPackage {
+  name: string;
+  version: string;
+  kind: "formula" | "cask";
+  outdated: boolean;
+}
+
+export interface SystemHomebrew {
+  available: boolean;
+  version?: string;
+  prefix?: string;
+  formulaCount: number;
+  caskCount: number;
+  outdatedCount: number;
+  packages: SystemBrewPackage[];
+}
+
+export interface SystemRuntime {
+  name: string;
+  version?: string;
+  path?: string;
+  kind: "runtime" | "tool";
+}
+
+export interface SystemDisplay {
+  name: string;
+  resolution?: string;
+  pixels?: string;
+  type?: string;
+  main?: boolean;
+  online?: boolean;
+  mirror?: boolean;
+}
+
+export interface SystemDisplayGroup {
+  name: string;
+  vendor?: string;
+  model?: string;
+  cores?: number;
+  displays: SystemDisplay[];
+}
+
+export interface SystemPort {
+  port: number;
+  protocol: "tcp" | "udp";
+  address?: string;
+  process?: string;
+  pid?: number;
+}
+
+export interface SystemContainer {
+  id: string;
+  name: string;
+  image: string;
+  state: string;
+  status: string;
+  ports?: string;
+  created?: string;
+}
+
+export interface SystemDocker {
+  available: boolean;
+  version?: string;
+  running: number;
+  containers: SystemContainer[];
+}
+
+export interface SystemInfoResponse {
+  data: SystemInfo;
+}
+
+// MARK: - Host file browser
+
+export interface HostFileRoot {
+  name: string;
+  path: string;
+  kind?: string;
+}
+
+export interface HostFileEntry {
+  name: string;
+  path: string;
+  kind: "directory" | "file" | "symlink" | "other";
+  isDirectory: boolean;
+  size?: number;
+  /** Milliseconds since the epoch. */
+  modified?: number;
+  permissions?: string;
+  hidden: boolean;
+  linkTarget?: string;
+  error?: string;
+}
+
+export interface HostDirectory {
+  path: string;
+  name: string;
+  parent: string | null;
+  roots: HostFileRoot[];
+  entries: HostFileEntry[];
+  total: number;
+  truncated: boolean;
+}
+
+export interface HostFileContent {
+  path: string;
+  name: string;
+  size: number;
+  modified: number;
+  kind: "text" | "image" | "binary";
+  mime: string;
+  content?: string;
+  truncated: boolean;
+  maxBytes: number;
+}
+
+export interface HostRawFile {
+  bytes: Uint8Array;
+  mime: string;
+  name: string;
+  size: number;
+}
+
 export interface HubHealth {
   version: string;
   uptime: number;

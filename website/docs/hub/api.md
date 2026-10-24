@@ -77,6 +77,7 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `GET` | `/api/health` | Hub, OpenCode, device, and cache health |
 | `GET` | `/api/hub/info` | Alias for health |
 | `GET` | `/api/info` | Server info, URLs, capabilities, and hub health |
+| `GET` | `/api/system` | Full snapshot of the machine running the hub |
 | `GET` | `/api/devices` | Connected devices |
 | `GET` | `/api/settings` | Tunable hub settings |
 | `PATCH` | `/api/settings` | Update the event throttle |
@@ -92,6 +93,52 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
   }
 }
 ```
+
+`GET /api/system` collects the host machine's inventory. Dynamic fields (CPU,
+memory, disks, processes, ports, Docker) are refreshed every request; expensive
+ones (installed apps, Homebrew, toolchain versions, displays, security flags) are
+cached for five minutes. `?refresh=1` skips both the two-second snapshot cache
+and the inventory cache, which the System tab uses for its manual refresh. The
+response is wrapped in `{ "data": { … } }` and includes:
+
+| Section | Contents |
+| --- | --- |
+| `host` / `platformName` | macOS, Linux or Windows, version, kernel, architecture, model, chip, boot time, user, shell, timezone, VM detection |
+| `hub` | Hub version, PID, runtime, uptime, port, database path/size, process memory |
+| `cpu` / `memory` | Model, cores, clock, overall and per-core usage, load averages, RAM breakdown, swap |
+| `disks` / `network` | Mounted volumes, filesystem and capacity; interfaces, addresses, gateway, DNS |
+| `battery` / `thermal` / `security` | Battery health and cycles; thermal pressure; SIP, FileVault, firewall, Gatekeeper, SELinux, AppArmor, Defender |
+| `processes` | Total process count and the top rows by CPU and by memory |
+| `apps` | Installed applications with path, version, bundle id, source, architecture |
+| `homebrew` | Version, prefix, formula/cask counts, outdated markers, full package list |
+| `runtimes` | Installed developer runtimes and tools with versions and paths |
+| `listeningPorts` | Listening TCP ports with process names and PIDs |
+| `docker` / `displays` | Container state when the daemon is reachable; GPUs and monitors |
+
+Every collector is optional: fields a platform cannot provide are omitted rather
+than reported as zero.
+
+### Host files
+
+The hub can browse the machine it runs on read-only. Paths must be absolute, or
+start with `~`; symlinks are resolved before a file is opened. Hub and OpenCode
+credential files are blocked from preview.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/files?path=…` | List one folder |
+| `GET` | `/api/files/content?path=…` | Text or image metadata and text content |
+| `GET` | `/api/files/raw?path=…` | Raw file bytes (max 25 MB) |
+
+A listing returns entries sorted directories-first with `name`, `path`, `kind`
+(`directory`, `file`, `symlink`, `other`), `isDirectory`, size, modification
+time, permissions, hidden flag, and symlink target. It also includes `parent`,
+shortcut `roots`, and `total`/`truncated` when a very large folder is capped at
+2,000 entries.
+
+The content endpoint returns `kind` (`text`, `image`, or `binary`), mime type,
+size, modification time, and up to 512 KB of text (`truncated` marks a longer
+file). Images are fetched through the raw endpoint by the clients.
 
 `eventThrottleMs` is the maximum frequency at which updates reach the apps:
 events queued during the window are folded together (streamed text deltas are
