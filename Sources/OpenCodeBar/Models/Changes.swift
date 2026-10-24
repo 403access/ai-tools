@@ -93,3 +93,52 @@ struct FileChangeGroup: Identifiable {
         }
     }
 }
+
+// MARK: - Tree
+
+/// One directory or file in the collapsible change tree. File rows map back to
+/// their `FileChangeGroup`; directories aggregate the changes inside them.
+struct FileChangeTreeRow: Identifiable {
+    var node: ProjectFileNode
+    var depth: Int
+
+    var id: String { node.id }
+}
+
+/// Builds the change tree with the same file model as the project Files tab, so
+/// folders, ordering, and counts line up between the two layouts.
+enum FileChangeTree {
+    static func nodes(from groups: [FileChangeGroup]) -> [ProjectFileNode] {
+        ProjectFileTree.nodes(from: groups.map { group in
+            // Every entry in the Changes view is a write, so a missing status
+            // still counts as changed; otherwise collapsed folders would show
+            // no count even though they contain edits.
+            ProjectFile(path: group.path, status: group.changes.first?.status ?? "modified")
+        })
+    }
+
+    /// Top-level folders to reveal when the tree first opens, so it reads as a
+    /// hierarchy instead of a wall of closed folders.
+    static func topLevelDirectories(from groups: [FileChangeGroup]) -> Set<String> {
+        Set(groups.compactMap { ProjectFile(path: $0.path).ancestorDirectories.first })
+    }
+
+    static func rows(from groups: [FileChangeGroup], expanded: Set<String>) -> [FileChangeTreeRow] {
+        flatten(nodes(from: groups), expanded: expanded)
+    }
+
+    private static func flatten(
+        _ nodes: [ProjectFileNode],
+        expanded: Set<String>,
+        depth: Int = 0
+    ) -> [FileChangeTreeRow] {
+        var rows: [FileChangeTreeRow] = []
+        for node in nodes {
+            rows.append(FileChangeTreeRow(node: node, depth: depth))
+            if node.isDirectory, expanded.contains(node.path) {
+                rows.append(contentsOf: flatten(node.children, expanded: expanded, depth: depth + 1))
+            }
+        }
+        return rows
+    }
+}

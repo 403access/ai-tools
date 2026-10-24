@@ -36,17 +36,21 @@ struct FileChangeCard: View {
     var defaultExpanded: Bool = false
     /// Lines shown before expanding. Zero keeps the card to just its header.
     var collapsedLines: Int = 18
+    /// The tree layout already shows the path in its own row.
+    var showsHeader: Bool = true
 
     @State private var expanded: Bool
 
     init(
         change: FileChange,
         defaultExpanded: Bool = false,
-        collapsedLines: Int = 18
+        collapsedLines: Int = 18,
+        showsHeader: Bool = true
     ) {
         self.change = change
         self.defaultExpanded = defaultExpanded
         self.collapsedLines = collapsedLines
+        self.showsHeader = showsHeader
         _expanded = State(initialValue: defaultExpanded)
     }
 
@@ -61,22 +65,24 @@ struct FileChangeCard: View {
         let lines = self.lines
         let visibleLines = visibleLines(from: lines)
         return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: change.statusIcon)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(tint)
-                Text(change.displayPath)
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
-                Spacer(minLength: 4)
-                Text(verbatim: "+\(change.additions)")
-                    .foregroundStyle(Theme.accent)
-                Text(verbatim: "−\(change.deletions)")
-                    .foregroundStyle(Theme.danger)
+            if showsHeader {
+                HStack(spacing: 6) {
+                    Image(systemName: change.statusIcon)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(tint)
+                    Text(change.displayPath)
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                    Spacer(minLength: 4)
+                    Text(verbatim: "+\(change.additions)")
+                        .foregroundStyle(Theme.accent)
+                    Text(verbatim: "−\(change.deletions)")
+                        .foregroundStyle(Theme.danger)
+                }
+                .font(.caption2.weight(.semibold).monospacedDigit())
             }
-            .font(.caption2.weight(.semibold).monospacedDigit())
 
             if lines.isEmpty {
                 Text("No patch text was recorded for this change.")
@@ -175,44 +181,238 @@ struct SessionChangesView: View, Equatable {
     var expandFirst = true
     var collapsedLines = 18
 
+    @State private var layout: Layout = .diffs
+    @State private var expandedFolders: Set<String> = []
+    @State private var expandedFiles: Set<String> = []
+
+    private enum Layout {
+        case diffs
+        case tree
+
+        var toggleIcon: String {
+            self == .diffs ? "list.bullet.indent" : "list.bullet"
+        }
+
+        var toggleHelp: String {
+            self == .diffs ? "Show file tree" : "Show diffs"
+        }
+    }
+
     private var groups: [FileChangeGroup] { FileChangeGroup.grouped(changes) }
+
+    /// Layout and expansion are view-local; parent equality only depends on the
+    /// data it passes in, so opening a folder never forces a full republish.
+    static func == (lhs: SessionChangesView, rhs: SessionChangesView) -> Bool {
+        lhs.changes == rhs.changes
+            && lhs.showsSummary == rhs.showsSummary
+            && lhs.expandFirst == rhs.expandFirst
+            && lhs.collapsedLines == rhs.collapsedLines
+    }
 
     var body: some View {
         let groups = self.groups
-        let groupCount = groups.count
         return VStack(alignment: .leading, spacing: 9) {
             if showsSummary {
                 ChangeSummaryBar(changes: changes)
+                    .overlay(alignment: .trailing) {
+                        layoutButton(groups)
+                            .padding(.trailing, 9)
+                    }
             }
 
-            // A busy session can write thousands of patches. Build file cards
-            // lazily so opening the Changes tab only pays for what is on screen;
-            // an eager stack made that switch block the main thread for seconds.
-            LazyVStack(alignment: .leading, spacing: 9) {
-                ForEach(groups) { group in
-                    VStack(alignment: .leading, spacing: 6) {
-                        if group.edits > 1 {
-                            HStack(spacing: 5) {
-                                Text(group.path)
-                                    .font(.caption.weight(.semibold))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                Chip(text: "\(group.edits) edits")
-                                Spacer(minLength: 0)
-                            }
-                            .padding(.top, 2)
-                        }
+            if layout == .diffs {
+                diffCards(groups)
+            } else {
+                treeRows(groups)
+            }
+        }
+    }
 
-                        ForEach(Array(group.changes.enumerated()), id: \.element.id) { index, change in
-                            FileChangeCard(
-                                change: change,
-                                defaultExpanded: expandFirst && groupCount <= 3 && index == 0,
-                                collapsedLines: collapsedLines
-                            )
+    private func layoutButton(_ groups: [FileChangeGroup]) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                if layout == .diffs {
+                    // Start with the first level open so the tree reads as a
+                    // hierarchy instead of a wall of closed folders.
+                    if expandedFolders.isEmpty {
+                        expandedFolders = FileChangeTree.topLevelDirectories(from: groups)
+                    }
+                    layout = .tree
+                } else {
+                    layout = .diffs
+                }
+            }
+        } label: {
+            Image(systemName: layout.toggleIcon)
+                .font(.caption.weight(.semibold))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .accessibilityLabel(layout.toggleHelp)
+    }
+
+    /// A busy session can write thousands of patches. Build file cards lazily so
+    /// opening the Changes tab only pays for what is on screen; an eager stack
+    /// made that switch block the main thread for seconds.
+    private func diffCards(_ groups: [FileChangeGroup]) -> some View {
+        let groupCount = groups.count
+        return LazyVStack(alignment: .leading, spacing: 9) {
+            ForEach(groups) { group in
+                VStack(alignment: .leading, spacing: 6) {
+                    if group.edits > 1 {
+                        HStack(spacing: 5) {
+                            Text(group.path)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Chip(text: "\(group.edits) edits")
+                            Spacer(minLength: 0)
                         }
+                        .padding(.top, 2)
+                    }
+
+                    ForEach(Array(group.changes.enumerated()), id: \.element.id) { index, change in
+                        FileChangeCard(
+                            change: change,
+                            defaultExpanded: expandFirst && groupCount <= 3 && index == 0,
+                            collapsedLines: collapsedLines
+                        )
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Tree
+
+    private func treeRows(_ groups: [FileChangeGroup]) -> some View {
+        let groupsByPath = Dictionary(uniqueKeysWithValues: groups.map { ($0.path, $0) })
+        let rows = FileChangeTree.rows(from: groups, expanded: expandedFolders)
+        return LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                if row.node.isDirectory {
+                    directoryRow(row.node, depth: row.depth)
+                } else if let group = groupsByPath[row.node.path] {
+                    treeFileRow(group, depth: row.depth)
+                    if expandedFiles.contains(group.path) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            ForEach(group.changes) { change in
+                                FileChangeCard(
+                                    change: change,
+                                    defaultExpanded: true,
+                                    collapsedLines: 14,
+                                    showsHeader: false
+                                )
+                            }
+                        }
+                        .padding(.leading, CGFloat(row.depth + 1) * 14 + 16)
+                        .padding(.vertical, 5)
+                    }
+                }
+                if index != rows.count - 1 {
+                    Divider().opacity(0.25)
+                }
+            }
+        }
+    }
+
+    private func directoryRow(_ node: ProjectFileNode, depth: Int) -> some View {
+        let isExpanded = expandedFolders.contains(node.path)
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                if isExpanded {
+                    expandedFolders.remove(node.path)
+                } else {
+                    expandedFolders.insert(node.path)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 10)
+                Image(systemName: isExpanded ? "folder.fill" : "folder")
+                    .font(.caption)
+                    .foregroundStyle(Theme.accent.opacity(0.85))
+                    .frame(width: 16)
+                Text(node.name)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 4)
+                if node.changedCount > 0 {
+                    Text("\(node.changedCount) changed")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Theme.warn)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.warn.opacity(0.12)))
+                }
+            }
+            .padding(.leading, CGFloat(depth) * 14)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(node.name)
+        .accessibilityHint(isExpanded ? "Collapse folder" : "Expand folder")
+    }
+
+    private func treeFileRow(_ group: FileChangeGroup, depth: Int) -> some View {
+        let isExpanded = expandedFiles.contains(group.path)
+        let status = group.changes.first?.status
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                if isExpanded {
+                    expandedFiles.remove(group.path)
+                } else {
+                    expandedFiles.insert(group.path)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 10)
+                Image(systemName: group.changes.first?.statusIcon ?? "doc.text")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(tint(for: status))
+                    .frame(width: 16)
+                Text(ProjectFile(path: group.path).name)
+                    .font(.system(size: 11.5, design: .monospaced))
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                Spacer(minLength: 4)
+                if group.edits > 1 {
+                    Text(verbatim: "\(group.edits)×")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                Text(verbatim: "+\(group.additions)")
+                    .foregroundStyle(Theme.accent)
+                Text(verbatim: "−\(group.deletions)")
+                    .foregroundStyle(Theme.danger)
+            }
+            .font(.caption2.weight(.semibold).monospacedDigit())
+            .padding(.leading, CGFloat(depth) * 14 + 16)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(group.path)
+        .accessibilityHint(isExpanded ? "Hide diff" : "Show diff")
+    }
+
+    private func tint(for status: String?) -> Color {
+        switch status {
+        case "added": return Theme.accent
+        case "deleted": return Theme.danger
+        default: return Theme.running
         }
     }
 }

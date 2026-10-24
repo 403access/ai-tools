@@ -67,8 +67,9 @@ iOS app:
   the token mix for that session.
 - **Changes** tab: every file the session wrote, with the actual patch, added
   and removed line counts, and a colour-coded diff. Repeated edits to one file
-  are grouped, and long patches collapse to a preview. Tool cards in the
-  conversation show the same diff instead of raw edit JSON.
+  are grouped, and long patches collapse to a preview. The layout button swaps
+  the diff cards for a collapsible file tree; tap a file to see its patch. Tool
+  cards in the conversation show the same diff instead of raw edit JSON.
 - Subagent tree: a session's direct child sessions appear in a **Subagents** tab
   with their own live activity, outcome, cost, and time. Tap one to drill in;
   Back returns to the parent, and each level loads its own children.

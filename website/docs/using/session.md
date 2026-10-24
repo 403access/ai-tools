@@ -67,7 +67,9 @@ history. If totals cover only the loaded window, the tab says so.
 
 The Changes tab groups every patch written by the session by file. Each card
 shows the added and removed line counts, a colour-coded diff, and a collapsible
-preview for long patches. Repeated edits to one file are grouped.
+preview for long patches. Repeated edits to one file are grouped. The layout
+button swaps the diff cards for a collapsible file tree with per-file line
+counts; tap a file in the tree to show its patch.
 
 The hub reads the `metadata.files` patches that OpenCode attaches to edit/write
 tool calls and stores them while caching messages, so they remain available
