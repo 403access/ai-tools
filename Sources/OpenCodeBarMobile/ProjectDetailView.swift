@@ -144,6 +144,7 @@ struct ProjectDetailView: View {
             }
         }
         .task(id: project.id) {
+            store.loadProjectIcons(for: [project])
             async let detail = store.loadProject(project.id)
             async let changes = store.loadProjectChanges(project.id)
             async let files = store.loadProjectFiles(project.id)
@@ -212,32 +213,40 @@ struct ProjectDetailView: View {
     }
 
     private var summary: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(project.displayName)
-                .font(.title3.weight(.semibold))
-                .lineLimit(2)
+        HStack(alignment: .top, spacing: 11) {
+            ProjectIconTile(
+                image: store.projectIcons[project.id],
+                running: !running.isEmpty,
+                size: 42
+            )
 
-            CopyableRow(label: "Path", value: project.canonical)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(project.displayName)
+                    .font(.title3.weight(.semibold))
+                    .lineLimit(2)
 
-            HStack(spacing: 5) {
-                if let vcs = project.vcs, !vcs.isEmpty {
-                    Chip(text: vcs, tint: Theme.reasoning)
+                CopyableRow(label: "Path", value: project.canonical)
+
+                HStack(spacing: 5) {
+                    if let vcs = project.vcs, !vcs.isEmpty {
+                        Chip(text: vcs, tint: Theme.reasoning)
+                    }
+                    if !project.sandboxes.isEmpty {
+                        Chip(
+                            text: project.sandboxes.count == 1 ? "1 sandbox" : "\(project.sandboxes.count) sandboxes",
+                            systemImage: "shippingbox.fill",
+                            tint: .secondary
+                        )
+                    }
+                    if let changes = store.projectChanges[project.id]?.changes, !changes.isEmpty {
+                        Chip(
+                            text: "\(Set(changes.map(\.displayPath)).count) files",
+                            systemImage: "plus.forwardslash.minus",
+                            tint: Theme.accent
+                        )
+                    }
+                    Chip(text: "Active \(Fmt.relative(from: project.lastActiveDate))")
                 }
-                if !project.sandboxes.isEmpty {
-                    Chip(
-                        text: project.sandboxes.count == 1 ? "1 sandbox" : "\(project.sandboxes.count) sandboxes",
-                        systemImage: "shippingbox.fill",
-                        tint: .secondary
-                    )
-                }
-                if let changes = store.projectChanges[project.id]?.changes, !changes.isEmpty {
-                    Chip(
-                        text: "\(Set(changes.map(\.displayPath)).count) files",
-                        systemImage: "plus.forwardslash.minus",
-                        tint: Theme.accent
-                    )
-                }
-                Chip(text: "Active \(Fmt.relative(from: project.lastActiveDate))")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

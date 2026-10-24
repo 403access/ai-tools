@@ -24,7 +24,7 @@ struct PanelView: View {
                     .frame(maxHeight: .infinity)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             } else if let project = state.selectedProject {
-                ProjectDetailView(project: project)
+                ProjectDetailView(project: project, initialMode: state.projectMode)
                     .frame(maxHeight: .infinity)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             } else {

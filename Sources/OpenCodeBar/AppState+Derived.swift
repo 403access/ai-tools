@@ -71,6 +71,8 @@ extension AppState {
             names[project.id] = project.displayName
         }
         projectNames = names
+
+        loadProjectIcons(for: projects.values)
     }
 
     /// Keeps the derived feeds in step when a single session's cost or tokens

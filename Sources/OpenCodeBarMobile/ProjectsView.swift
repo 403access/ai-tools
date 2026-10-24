@@ -110,6 +110,7 @@ struct ProjectsView: View {
                     NavigationLink(value: project) {
                         ProjectRow(
                             project: project,
+                            icon: store.projectIcons[project.id],
                             running: store.runningSessions(in: project).count,
                             lastActive: project.lastActiveDate
                         )
@@ -157,19 +158,13 @@ struct ProjectsView: View {
 
 struct ProjectRow: View {
     let project: Project
+    let icon: UIImage?
     let running: Int
     let lastActive: Date
 
     var body: some View {
         HStack(spacing: 11) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill((running > 0 ? Theme.running : Theme.accent).opacity(0.14))
-                Image(systemName: running > 0 ? "bolt.fill" : "folder.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(running > 0 ? Theme.running : Theme.accent)
-            }
-            .frame(width: 34, height: 34)
+            ProjectIconTile(image: icon, running: running > 0, size: 34)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {

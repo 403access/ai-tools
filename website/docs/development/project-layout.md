@@ -45,8 +45,8 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     SessionDetailView+Content.swift   tab content
     SessionDetailView+Loading.swift   message paging
     SessionMessageViews.swift         message and prompt cards
-    ProjectDetailView.swift       scoped project page
-    ProjectDetailAnalytics.swift  scoped analytics tiles
+    ProjectDetailView.swift       project page: header, tabs, sections
+    ProjectDetailAnalytics.swift  scoped at-a-glance stats
     ProjectSessions.swift         recent-session rows
     SettingsTab.swift             devices, server controls, pairing
     SettingsTab+Support.swift     derived labels and actions
@@ -108,6 +108,8 @@ server/                           Bun + TypeScript + SQLite hub
   src/db/                         schema, row mapping, stores, queries
   src/hub.ts                      polling/event hub facade
   src/hub/                        event bus, sync, reads, usage cache
+  src/files.ts                    project file browser
+  src/projectIcon.ts              project app icon discovery
   src/api.ts                      HTTP routes
   src/api/                        request helpers and SSE clients
   test/                           Bun tests

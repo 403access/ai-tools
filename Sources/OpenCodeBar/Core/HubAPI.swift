@@ -22,4 +22,18 @@ struct HubAPI: Sendable {
         config.httpAdditionalHeaders = ["Accept": "application/json"]
         return URLSession(configuration: config)
     }()
+
+    /// Project icons are immutable for long stretches and benefit from the
+    /// normal HTTP cache, unlike the JSON endpoints which are always re-read.
+    static let iconSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 12
+        config.timeoutIntervalForResource = 30
+        config.requestCachePolicy = .useProtocolCachePolicy
+        config.urlCache = URLCache(
+            memoryCapacity: 8 * 1024 * 1024,
+            diskCapacity: 64 * 1024 * 1024
+        )
+        return URLSession(configuration: config)
+    }()
 }

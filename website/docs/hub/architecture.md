@@ -117,6 +117,17 @@ Other folders fall back to a recursive walk that skips common build and cache
 directories. The response is capped at 20,000 paths and reports `truncated`
 when it is shortened.
 
+## Project icons
+
+`/api/project/{id}/icon` finds the icon a project already ships with, so the
+project list and detail page show real app artwork instead of a folder glyph.
+It prefers Xcode `AppIcon` asset catalogs and `.icns` bundles, then Apple touch
+icons, favicons, icons, and logos, ignoring screenshots and build output. Large
+images, SVG, ICO, and icon bundles are rendered to a bounded PNG with macOS
+`sips` when it is available, and the result is cached for five minutes. The
+route returns an `ETag` with a one-hour cache lifetime, or `404` when the folder
+has no usable artwork; clients then fall back to the folder glyph.
+
 ## Session stats
 
 Project and global stats come from OpenCode's stats API with `tools=detail`,

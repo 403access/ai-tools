@@ -76,45 +76,53 @@ private struct ProjectRow: View {
     private var running: [Session] { state.runningSessions(in: project) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(project.displayName)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+        HStack(alignment: .center, spacing: 9) {
+            ProjectIconView(
+                image: state.projectIcons[project.id],
+                running: !running.isEmpty,
+                size: 30
+            )
 
-                Spacer(minLength: 4)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(project.displayName)
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
 
-                if !running.isEmpty {
-                    HStack(spacing: 4) {
-                        PulsingDot(size: 5)
-                        Text("\(running.count)")
-                            .font(.system(size: 10, weight: .bold))
-                            .monospacedDigit()
-                            .foregroundStyle(Theme.running)
+                    Spacer(minLength: 4)
+
+                    if !running.isEmpty {
+                        HStack(spacing: 4) {
+                            PulsingDot(size: 5)
+                            Text("\(running.count)")
+                                .font(.system(size: 10, weight: .bold))
+                                .monospacedDigit()
+                                .foregroundStyle(Theme.running)
+                        }
                     }
+
+                    Text(Fmt.relative(from: project.lastActiveDate))
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
                 }
 
-                Text(Fmt.relative(from: project.lastActiveDate))
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-            }
-
-            HStack(spacing: 5) {
-                Text(shortPath)
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                if let vcs = project.vcs, !vcs.isEmpty {
-                    Chip(text: vcs, tint: Theme.reasoning)
-                }
-                if !project.sandboxes.isEmpty {
-                    Chip(text: "\(project.sandboxes.count) sandbox", systemImage: "shippingbox.fill")
+                HStack(spacing: 5) {
+                    Text(shortPath)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if let vcs = project.vcs, !vcs.isEmpty {
+                        Chip(text: vcs, tint: Theme.reasoning)
+                    }
+                    if !project.sandboxes.isEmpty {
+                        Chip(text: "\(project.sandboxes.count) sandbox", systemImage: "shippingbox.fill")
+                    }
                 }
             }
         }

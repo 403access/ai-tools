@@ -60,9 +60,25 @@ extension HubAPI {
         return data
     }
 
+    /// Fetches best-effort image data (project icons) through the normal HTTP
+    /// cache. Missing icons and transport failures both return nil so callers
+    /// can fall back to a glyph without surfacing an error.
+    func iconData(_ path: String) async -> Data? {
+        guard var request = try? request(path) else { return nil }
+        request.cachePolicy = .useProtocolCachePolicy
+        do {
+            let (data, response) = try await Self.iconSession.data(for: request)
+            guard let http = response as? HTTPURLResponse,
+                  (200..<300).contains(http.statusCode)
+            else { return nil }
+            return data
+        } catch {
+            return nil
+        }
+    }
+
     /// Extracts the hub's `{"error":{"message":"…"}}` payload for display.
-    static func serverMessage(from data: Data) -> String {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+    static func serverMessage(from data: Data) -> String {        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let error = object["error"] as? [String: Any],
               let message = error["message"] as? String,
               !message.isEmpty

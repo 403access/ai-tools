@@ -88,20 +88,27 @@ iOS app:
 
 **Projects**
 - Every project OpenCode has run in, with running work first and the most
-  recently active next. Select one to open its detail page: what is running
-  right now — with elapsed time, tappable into the session view — plus scoped
-  analytics (steps, cost, tokens, streak, model mix) and recent sessions with
-  their cost. A **Files** section lists every file in the project folder,
+  recently active next. Each row shows the icon the project already ships with:
+  an Xcode **AppIcon** asset, an `.icns` bundle, an Apple touch icon, favicon,
+  or logo. Folders with no artwork keep a folder glyph.
+- Select one to open its detail page: the project name, path, and quick actions
+  stay pinned while tabs keep each kind of content on its own screen.
+- **Overview** shows what is running right now — with elapsed time, tappable into
+  the session view — plus at-a-glance steps, cost, tool calls, failures, tokens,
+  and streak, followed by the six most recent sessions.
+- **Stats** has the scoped trend and model mix, plus tool reliability for the
+  project: total calls and per-tool succeeded, failed, and unfinished counts with
+  median durations. The trend is an interactive daily chart for steps, cost, or
+  tokens over the last 30 / 90 / 365 days or all time, using only that project's
+  data.
+- **Changes** aggregates the patches written by the project's newest sessions,
+  grouped by session and file. **Files** lists every file in the project folder,
   including untracked files, and marks git working-tree changes as added,
-  modified, or deleted; filter it to changed files or search by path. The
-  layout button swaps the flat list for a collapsible folder tree. A
-  **Changes** section aggregates the patches written by the project's newest
-  sessions, grouped by session and file. Quick actions open the project in
-  Finder or Terminal and copy its path.
-- Tool reliability for the project: total calls plus per-tool succeeded, failed,
-  and unfinished counts with median durations.
-- Scoped trends: an interactive daily chart for steps, cost, or tokens over the
-  last 30 / 90 / 365 days or all time, using only that project's data.
+  modified, or deleted; filter it to changed files or search by path. The layout
+  button swaps the flat list for a collapsible folder tree.
+- **Sessions** lists every session in the project with its cost and time,
+  revealed in pages of 50. Quick actions open the project in Finder or Terminal
+  and copy its path.
 - Duplicate records for the same directory are merged, and analytics are
   fetched per project from the stats API rather than derived from the session
   list.
@@ -193,7 +200,8 @@ The hub:
 3. Serves a stable API that mirrors OpenCode's shapes — `/api/session`,
    `/api/session/{id}`, `/api/session/{id}/message`, `/api/session/{id}/changes`,
    `/api/session/{id}/stats`, `/api/project`, `/api/project/{id}/changes`,
-   `/api/project/{id}/files`, `/api/experimental/session/stats` — plus
+   `/api/project/{id}/files`, `/api/project/{id}/icon`,
+   `/api/experimental/session/stats` — plus
    `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`), `/api/usage`,
    `/api/health`, `/api/devices`, `/api/settings` (`GET`/`PATCH`),
    `/api/sync` (`GET` delta feed, `POST` force sync), `/api/server/restart`
@@ -456,8 +464,8 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     SessionDetailView+Content.swift   conversation/stats/changes/prompts
     SessionDetailView+Loading.swift   message paging
     SessionMessageViews.swift         message, part and prompt cards
-    ProjectDetailView.swift           project header and sections
-    ProjectDetailAnalytics.swift      scoped analytics tiles
+    ProjectDetailView.swift           project header, tabs, and sections
+    ProjectDetailAnalytics.swift      scoped at-a-glance stats
     ProjectSessions.swift             recent-session rows
     SettingsTab.swift       connected devices and server controls
     SettingsTab+Support.swift         derived labels and actions
@@ -522,6 +530,8 @@ server/                       Bun + TypeScript + SQLite hub
   src/db/                     schema, row mapping, stores, queries
   src/hub.ts                  polling/event hub facade
   src/hub/                    event bus, sync, reads, usage cache
+  src/files.ts                project file browser
+  src/projectIcon.ts          project app icon discovery and rendering
   src/api.ts                  HTTP routes
   src/api/                    request helpers and SSE clients
   test/                       Bun tests for the database and API

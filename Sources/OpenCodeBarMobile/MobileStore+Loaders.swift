@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import UIKit
 
 extension MobileStore {
     /// Resolves a session id opened from a widget (or another deep link) even
@@ -235,6 +236,29 @@ extension MobileStore {
             if changed {
                 list.sessions = SubagentOrdering.sorted(list.sessions, activeIDs: activeIDs)
                 subagentLists[parentID] = list
+            }
+        }
+    }
+
+    /// Fetches icons for projects that do not have one yet. Best effort: a
+    /// project without usable artwork keeps the folder glyph, and a failed
+    /// attempt waits five minutes before trying again.
+    func loadProjectIcons(for projectList: some Sequence<Project>) {
+        guard let api else { return }
+        let now = Date()
+
+        for project in projectList where projectIcons[project.id] == nil {
+            if let attempted = projectIconAttempts[project.id],
+               now.timeIntervalSince(attempted) < 300 {
+                continue
+            }
+            projectIconAttempts[project.id] = now
+
+            Task { @MainActor [weak self] in
+                guard let data = await api.projectIcon(id: project.id),
+                      let image = UIImage(data: data)
+                else { return }
+                self?.projectIcons[project.id] = image
             }
         }
     }

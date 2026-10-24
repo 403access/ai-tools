@@ -179,6 +179,7 @@ the prompt.
 | `GET` | `/api/project/{id}` | One project |
 | `GET` | `/api/project/{id}/changes` | Aggregated project changes |
 | `GET` | `/api/project/{id}/files` | Project files with git status |
+| `GET` | `/api/project/{id}/icon` | The project's own app icon |
 
 `/api/project/{id}/changes` accepts `sessions` (default 10, max 100) for how
 many newer sessions to hydrate.

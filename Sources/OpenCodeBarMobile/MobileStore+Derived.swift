@@ -76,6 +76,8 @@ extension MobileStore {
             names[project.id] = project.displayName
         }
         projectNames = names
+
+        loadProjectIcons(for: orderedProjects)
     }
 
     /// Keeps the derived feeds in step when a single session's cost or tokens

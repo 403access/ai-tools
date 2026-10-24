@@ -139,6 +139,35 @@ struct StatGridSkeleton: View {
     }
 }
 
+/// Placeholder for the compact two-row glance card on a project's Overview.
+struct ProjectStatsSkeleton: View {
+    var body: some View {
+        VStack(spacing: 9) {
+            HStack(alignment: .top, spacing: 8) {
+                metric
+                metric
+                metric
+            }
+            Divider().opacity(0.35)
+            HStack(alignment: .top, spacing: 8) {
+                metric
+                metric
+                metric
+            }
+        }
+        .card(padding: 10)
+    }
+
+    private var metric: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            SkeletonBlock(width: 52, height: 8)
+            SkeletonBlock(width: 62, height: 14, cornerRadius: 4)
+            SkeletonBlock(width: 58, height: 8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 /// Placeholder for a chart card: title row plus a plotting area.
 struct ChartCardSkeleton: View {
     var height: CGFloat = 104
@@ -235,24 +264,13 @@ struct ChangesSkeleton: View {
     }
 }
 
-/// Placeholder for a project page: summary card, analytics grid, chart and a
-/// few session rows.
+/// Placeholder for a project's Overview tab: the at-a-glance grid and a few
+/// session rows. The summary header is fixed by the detail page, so it is not
+/// part of the skeleton.
 struct ProjectDetailSkeleton: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
-                SkeletonBlock(width: 170, height: 15)
-                SkeletonBlock(width: 240, height: 9)
-                HStack(spacing: 6) {
-                    SkeletonBlock(width: 44, height: 12, cornerRadius: 6)
-                    SkeletonBlock(width: 64, height: 12, cornerRadius: 6)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .card(padding: 10)
-
-            StatGridSkeleton()
-            ChartCardSkeleton()
+        VStack(alignment: .leading, spacing: 12) {
+            ProjectStatsSkeleton()
             SessionListSkeleton(count: 3)
         }
     }

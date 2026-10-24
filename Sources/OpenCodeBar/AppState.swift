@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 /// Single source of truth for the panel. Polls the service on a slow cadence,
@@ -103,6 +104,27 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Sections available in the project detail view.
+    enum ProjectDetailMode: String, CaseIterable, Identifiable {
+        case overview = "Overview"
+        case stats = "Stats"
+        case changes = "Changes"
+        case files = "Files"
+        case sessions = "Sessions"
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .overview: return "rectangle.grid.2x2"
+            case .stats: return "chart.bar.xaxis"
+            case .changes: return "plus.forwardslash.minus"
+            case .files: return "doc.text"
+            case .sessions: return "bubble.left.and.bubble.right"
+            }
+        }
+    }
+
     @Published var connection: Connection = .connecting
     @Published var tab: Tab = .live
     @Published var sessions: [Session] = []
@@ -111,6 +133,9 @@ final class AppState: ObservableObject {
     @Published var history: [Session] = []
     @Published var activeIDs: Set<String> = []
     @Published var projects: [String: Project] = [:]
+    /// The project's own app icon, discovered by the hub. Missing entries fall
+    /// back to a folder glyph in the views.
+    @Published var projectIcons: [String: NSImage] = [:]
     @Published var stats: Stats?
     @Published var statsStale = false
     @Published var goUsage: GoUsageState = .unavailable
@@ -172,6 +197,9 @@ final class AppState: ObservableObject {
     /// Section the detail view opens on. Overridable from the command line for
     /// previews/screenshots (`--detail-mode prompts`).
     var detailMode: DetailMode = .conversation
+    /// Section the project detail view opens on. Kept while a session opened
+    /// from the project is on screen, so Back returns to the same tab.
+    var projectMode: ProjectDetailMode = .overview
 
     /// Connection details for the Settings tab. The token stays in memory and is
     /// only used to build the pairing link on request.
@@ -237,6 +265,9 @@ final class AppState: ObservableObject {
     /// Last seed attempt per session, so a failed or empty fetch is not retried
     /// on every five-second poll.
     var seedAttempts: [String: Date] = [:]
+    /// Last icon fetch per project. Icons are static enough that a missing
+    /// result is not retried on every refresh.
+    var projectIconAttempts: [String: Date] = [:]
     /// Whether the event stream has connected at least once. The first
     /// connection is not a reconnect, so there is no missed history to recover.
     var eventStreamConnected = false

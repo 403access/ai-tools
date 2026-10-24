@@ -8,6 +8,7 @@ import type { HubDB } from "./db.ts";
 import { listProjectFiles, ProjectFilesError } from "./files.ts";
 import type { Hub } from "./hub.ts";
 import { OpenCodeError } from "./opencode.ts";
+import { resolveProjectIcon } from "./projectIcon.ts";
 import type { ServerInfo } from "./types.ts";
 import { eventStream } from "./api/event-stream.ts";
 import {
@@ -137,6 +138,37 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
           if (caught instanceof ProjectFilesError) return error(caught.message, caught.status);
           throw caught;
         }
+      }
+
+      if (parts[0] === "api" && parts[1] === "project" && parts[3] === "icon" && parts.length === 4) {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+        const id = decodeURIComponent(parts[2]!);
+        const project = db.getProject(id);
+        if (!project) return error("Project not found", 404);
+
+        const icon = await resolveProjectIcon(project.canonical);
+        if (!icon) return error("No icon for this project", 404);
+
+        const etag = `"${icon.etag}"`;
+        if (request.headers.get("if-none-match") === etag) {
+          return new Response(null, {
+            status: 304,
+            headers: {
+              ETag: etag,
+              "Cache-Control": "public, max-age=3600",
+              ...CORS_HEADERS,
+            },
+          });
+        }
+
+        return new Response(icon.bytes, {
+          headers: {
+            "Content-Type": icon.contentType,
+            "Cache-Control": "public, max-age=3600",
+            ETag: etag,
+            ...CORS_HEADERS,
+          },
+        });
       }
 
       if (pathname === "/api/session" && request.method === "GET") {

@@ -176,6 +176,13 @@ extension HubAPI {
         return response.data
     }
 
+    /// The project's own app icon, discovered by the hub from the files in the
+    /// project folder. nil when the folder has no usable artwork.
+    func projectIcon(id: String) async -> Data? {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        return await iconData("/api/project/\(encoded)/icon")
+    }
+
     func projects() async throws -> [Project] {
         try await get("/api/project")
     }

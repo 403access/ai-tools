@@ -183,3 +183,42 @@ extension UIPasteboard {
         UIPasteboard.general.string = text
     }
 }
+
+/// Rounded tile for a project's own app icon. Falls back to a folder glyph
+/// when the hub cannot find artwork in the project folder.
+struct ProjectIconTile: View {
+    let image: UIImage?
+    var running = false
+    var size: CGFloat = 34
+
+    private var tint: Color { running ? Theme.running : Theme.accent }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
+                .fill(tint.opacity(image == nil ? 0.14 : 0.06))
+
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .padding(size * 0.07)
+            } else {
+                Image(systemName: running ? "bolt.fill" : "folder.fill")
+                    .font(.system(size: size * 0.42, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+        }
+        .frame(width: size, height: size)
+        .overlay(alignment: .bottomTrailing) {
+            if running, image != nil {
+                Circle()
+                    .fill(Theme.running)
+                    .frame(width: size * 0.24, height: size * 0.24)
+                    .padding(size * 0.03)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}

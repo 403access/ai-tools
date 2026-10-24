@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import UIKit
 
 /// Observable state for the iOS app. Talks only to the hub: it polls the cached
 /// REST endpoints, subscribes to the forwarded event stream, and folds events
@@ -94,6 +95,9 @@ final class MobileStore: ObservableObject {
     @Published var sessions: [Session] = []
     @Published var activeIDs: Set<String> = []
     @Published var projects: [String: Project] = [:]
+    /// The project's own app icon, fetched from the hub. Missing entries fall
+    /// back to a folder glyph in the views.
+    @Published var projectIcons: [String: UIImage] = [:]
     @Published var stats: Stats?
     @Published var statsStale = false
     @Published var usage: HubUsageResponse?
@@ -135,6 +139,9 @@ final class MobileStore: ObservableObject {
     var statsFetchedAt: Date?
     var seeding: Set<String> = []
     var seedAttempts: [String: Date] = [:]
+    /// Last icon fetch per project, so a missing icon is not retried on every
+    /// incremental sync.
+    var projectIconAttempts: [String: Date] = [:]
     var eventStreamConnected = false
     var isRefreshingUsage = false
     var isRefreshingHealth = false

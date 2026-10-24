@@ -1,16 +1,35 @@
 import AppKit
 import SwiftUI
 
-/// Full-panel detail for one project: scoped analytics, running work, and
-/// recent sessions. Opened by selecting a project on the Projects tab, the same
-/// way a session row opens the session detail view. A session opened from here
-/// leaves the project selected, so backing out of the session returns here.
+/// Full-panel detail for one project: at-a-glance health, scoped analytics,
+/// running work, changes, files, and sessions. Opened by selecting a project on
+/// the Projects tab, the same way a session row opens the session detail view.
+/// A session opened from here leaves the project selected, so backing out of
+/// the session returns here.
+///
+/// The page used to stack every section into one long scroll. It now shares the
+/// session detail's segmented layout: the summary and quick actions stay fixed,
+/// and each tab owns one kind of content so nothing competes for the first
+/// screen.
 struct ProjectDetailView: View {
     @EnvironmentObject private var state: AppState
     let project: Project
 
+    typealias Mode = AppState.ProjectDetailMode
+
+    @State private var mode: Mode
     @State private var copiedPath = false
     @State private var showingNewSession = false
+    @State private var sessionLimit = Self.sessionPageSize
+
+    private static let sessionPageSize = 50
+    private static let overviewSessionCount = 6
+    private let topAnchor = "project-detail-top"
+
+    init(project: Project, initialMode: Mode = .overview) {
+        self.project = project
+        _mode = State(initialValue: initialMode)
+    }
 
     private var detail: AppState.ProjectDetail? { state.projectDetails[project.id] }
     private var running: [Session] { state.runningSessions(in: project) }
@@ -20,81 +39,52 @@ struct ProjectDetailView: View {
             navigationBar
             summary
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    runningSection
-
-                    if let detail {
-                        if let error = detail.error, detail.stats == nil {
-                            NoticeRow(
-                                icon: "exclamationmark.triangle.fill",
-                                message: error,
-                                tint: Theme.warn
-                            )
-                        } else if let stats = detail.stats {
-                            SectionHeader("Trend")
-                            UsageTrendCard(stats: stats, sessions: detail.sessions)
-
-                            SectionHeader("Analytics")
-                            ProjectStats(stats: stats)
-
-                            if let totals = stats.tools.totals {
-                                SectionHeader("Tool calls") {
-                                    if let rate = totals.successRate {
-                                        Text("\(Int((rate * 100).rounded()))% success")
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .monospacedDigit()
-                                            .foregroundStyle(
-                                                rate >= 0.98 ? Theme.accent
-                                                    : rate >= 0.90 ? Theme.warn : Theme.danger
-                                            )
-                                    }
-                                }
-                                ToolSummary(totals: totals)
-
-                                if let usage = stats.tools.usage, !usage.isEmpty {
-                                    SectionHeader("Tools") {
-                                        Text("\(usage.count)")
-                                            .font(.system(size: 10, weight: .bold))
-                                            .monospacedDigit()
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    ToolUsageBreakdown(usage: usage)
-                                }
-                            }
-
-                            ModelBreakdown(models: stats.models)
-                        } else if detail.isLoading {
-                            ProjectDetailSkeleton()
-                                .shimmering()
-                        }
-
-                        filesSection
-
-                        changesSection
-
-                        if !detail.sessions.isEmpty {
-                            SectionHeader("Recent sessions")
-                            ProjectSessions(sessions: Array(detail.sessions.prefix(20)))
-                        }
-                    } else {
-                        ProjectDetailSkeleton()
-                            .shimmering()
-                    }
+            Picker("", selection: $mode) {
+                ForEach(Mode.allCases) { mode in
+                    Label(mode.rawValue, systemImage: mode.icon)
+                        .labelStyle(.titleAndIcon)
+                        .tag(mode)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 4)
             }
-            .frame(maxHeight: .infinity)
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.small)
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        Color.clear.frame(height: 1).id(topAnchor)
+
+                        switch mode {
+                        case .overview: overview
+                        case .stats: statsTab
+                        case .changes: changesTab
+                        case .files: filesTab
+                        case .sessions: sessionsTab
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 4)
+                }
+                .frame(maxHeight: .infinity)
+                .onChange(of: mode) { _, newMode in
+                    state.projectMode = newMode
+                    proxy.scrollTo(topAnchor, anchor: .top)
+                }
+            }
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, 8)
         .task(id: project.id) {
+            state.loadProjectIcons(for: [project])
             async let detail: Void = state.loadProject(project.id)
             async let changes: Void = state.loadProjectChanges(project.id)
             async let files: Void = state.loadProjectFiles(project.id)
             _ = await (detail, changes, files)
+        }
+        .onChange(of: project.id) { _, _ in
+            sessionLimit = Self.sessionPageSize
         }
         .onExitCommand {
             state.closeProject()
@@ -139,18 +129,35 @@ struct ProjectDetailView: View {
         }
     }
 
+    /// Stays visible while the tabs scroll, so the path and quick actions are
+    /// always one click away. Session and step totals live in Overview instead
+    /// of repeating them here.
     private var summary: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(project.displayName)
-                .font(.system(size: 13, weight: .semibold))
-                .lineLimit(2)
+            HStack(alignment: .top, spacing: 8) {
+                ProjectIconView(
+                    image: state.projectIcons[project.id],
+                    running: !running.isEmpty,
+                    size: 34
+                )
 
-            Text(shortPath)
-                .font(.system(size: 9, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(project.displayName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(2)
+
+                    Text(shortPath)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+
+                Spacer(minLength: 4)
+
+                actions
+            }
 
             HStack(spacing: 5) {
                 if let vcs = project.vcs, !vcs.isEmpty {
@@ -163,27 +170,26 @@ struct ProjectDetailView: View {
                     )
                 }
                 if let changes = state.projectChanges[project.id]?.changes, !changes.isEmpty {
-                    Chip(
-                        text: "\(Set(changes.map(\.displayPath)).count) files",
-                        systemImage: "plus.forwardslash.minus",
-                        tint: Theme.accent
-                    )
+                    Button {
+                        mode = .changes
+                    } label: {
+                        Chip(
+                            text: "\(Set(changes.map(\.displayPath)).count) changed",
+                            systemImage: "plus.forwardslash.minus",
+                            tint: Theme.accent
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Show changes")
                 }
 
-                Spacer(minLength: 4)
+                Chip(
+                    text: "Active \(Fmt.relative(from: project.lastActiveDate))",
+                    systemImage: "clock"
+                )
 
-                actions
+                Spacer(minLength: 0)
             }
-
-            HStack(spacing: 10) {
-                if let stats = detail?.stats {
-                    Label("\(Fmt.grouped(stats.sessions)) sessions", systemImage: "bubble.left.and.bubble.right")
-                    Label("\(Fmt.grouped(stats.steps)) steps", systemImage: "bolt.fill")
-                }
-                Label(Fmt.relative(from: project.lastActiveDate), systemImage: "clock")
-            }
-            .font(.system(size: 9))
-            .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 10)
@@ -198,7 +204,7 @@ struct ProjectDetailView: View {
     }
 
     /// Quick actions for the project directory. Kept in the summary card so
-    /// they stay visible while the analytics below scroll.
+    /// they stay visible while the tabs below scroll.
     private var actions: some View {
         HStack(spacing: 2) {
             actionButton(
@@ -295,11 +301,208 @@ struct ProjectDetailView: View {
         (project.canonical as NSString).abbreviatingWithTildeInPath
     }
 
+    // MARK: - Overview
+
+    @ViewBuilder
+    private var overview: some View {
+        if !running.isEmpty {
+            runningSection
+        }
+
+        if let detail {
+            if detail.isLoading && detail.stats == nil && detail.sessions.isEmpty {
+                ProjectDetailSkeleton()
+                    .shimmering()
+            } else {
+                if let error = detail.error, detail.stats == nil {
+                    NoticeRow(
+                        icon: "exclamationmark.triangle.fill",
+                        message: error,
+                        tint: Theme.warn
+                    )
+                } else if let stats = detail.stats {
+                    SectionHeader("At a glance")
+                    ProjectStats(stats: stats)
+                }
+
+                recentSessionsPreview(detail.sessions)
+            }
+        } else {
+            ProjectDetailSkeleton()
+                .shimmering()
+        }
+    }
+
+    private func recentSessionsPreview(_ sessions: [Session]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Recent sessions") {
+                if sessions.count > Self.overviewSessionCount {
+                    Button {
+                        mode = .sessions
+                    } label: {
+                        Text("All \(sessions.count)")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Show every session in this project")
+                } else {
+                    Text("\(sessions.count)")
+                        .font(.system(size: 10, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if sessions.isEmpty {
+                EmptyState(
+                    icon: "bubble.left",
+                    title: "No sessions yet",
+                    subtitle: "Sessions started in this folder will show up here."
+                )
+            } else {
+                ProjectSessions(sessions: Array(sessions.prefix(Self.overviewSessionCount)))
+            }
+        }
+    }
+
+    // MARK: - Stats
+
+    @ViewBuilder
+    private var statsTab: some View {
+        if let stats = detail?.stats {
+            SectionHeader("Trend")
+            UsageTrendCard(stats: stats, sessions: detail?.sessions ?? [])
+
+            if let totals = stats.tools.totals {
+                SectionHeader("Tool calls") {
+                    if let rate = totals.successRate {
+                        Text("\(Int((rate * 100).rounded()))% success")
+                            .font(.system(size: 10, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(
+                                rate >= 0.98 ? Theme.accent
+                                    : rate >= 0.90 ? Theme.warn : Theme.danger
+                            )
+                    }
+                }
+                ToolSummary(totals: totals)
+
+                if let usage = stats.tools.usage, !usage.isEmpty {
+                    SectionHeader("Tools") {
+                        Text("\(usage.count)")
+                            .font(.system(size: 10, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    ToolUsageBreakdown(usage: usage)
+                }
+            }
+
+            if !stats.models.isEmpty {
+                SectionHeader("Models") {
+                    Text("\(stats.models.count)")
+                        .font(.system(size: 10, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                ModelBreakdown(models: stats.models)
+            }
+        } else if let error = detail?.error {
+            NoticeRow(
+                icon: "exclamationmark.triangle.fill",
+                message: error,
+                tint: Theme.warn
+            )
+        } else {
+            statsSkeleton
+        }
+    }
+
+    private var statsSkeleton: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ChartCardSkeleton()
+            ChartCardSkeleton(height: 44)
+            ChartCardSkeleton(height: 60)
+        }
+        .shimmering()
+    }
+
+    // MARK: - Sessions
+
+    @ViewBuilder
+    private var sessionsTab: some View {
+        if let detail {
+            let sessions = detail.sessions
+
+            SectionHeader("Sessions") {
+                Text("\(sessions.count)")
+                    .font(.system(size: 10, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+
+            if let error = detail.error, sessions.isEmpty {
+                NoticeRow(
+                    icon: "exclamationmark.triangle.fill",
+                    message: error,
+                    tint: Theme.warn
+                )
+            } else if detail.isLoading && sessions.isEmpty {
+                SessionListSkeleton(count: 5)
+                    .shimmering()
+            } else if sessions.isEmpty {
+                EmptyState(
+                    icon: "bubble.left",
+                    title: "No sessions yet",
+                    subtitle: "Sessions started in this folder will show up here."
+                )
+            } else {
+                let visible = Array(sessions.prefix(sessionLimit))
+                ProjectSessions(sessions: visible)
+
+                if sessions.count > sessionLimit {
+                    showMoreSessionsButton(remaining: sessions.count - sessionLimit)
+                }
+            }
+        } else {
+            SessionListSkeleton(count: 5)
+                .shimmering()
+        }
+    }
+
+    private func showMoreSessionsButton(remaining: Int) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.16)) {
+                sessionLimit += Self.sessionPageSize
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                Text("Show \(min(remaining, Self.sessionPageSize)) more")
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.accent)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
+        .help("Show more sessions")
+    }
+
     // MARK: - Changes
 
     @ViewBuilder
-    private var changesSection: some View {
+    private var changesTab: some View {
         let changesState = state.projectChanges[project.id]
+
         if let changesState, changesState.isLoading && changesState.changes.isEmpty {
             SectionHeader("Changes")
             ChangesSkeleton()
@@ -319,14 +522,26 @@ struct ProjectDetailView: View {
                     .foregroundStyle(.secondary)
             }
             ProjectChangesView(changes: changes)
+        } else if changesState == nil {
+            SectionHeader("Changes")
+            ChangesSkeleton()
+                .shimmering()
+        } else {
+            SectionHeader("Changes")
+            EmptyState(
+                icon: "checkmark.circle",
+                title: "No changes",
+                subtitle: "This project's working tree is clean."
+            )
         }
     }
 
     // MARK: - Files
 
     @ViewBuilder
-    private var filesSection: some View {
+    private var filesTab: some View {
         let filesState = state.projectFiles[project.id]
+
         if let filesState, filesState.isLoading && filesState.files == nil {
             SectionHeader("Files")
             LoadingState(message: "Reading project folder…")
@@ -347,6 +562,9 @@ struct ProjectDetailView: View {
             ProjectFilesView(files: files) {
                 Task { await state.loadProjectFiles(project.id, force: true) }
             }
+        } else {
+            SectionHeader("Files")
+            LoadingState(message: "Reading project folder…")
         }
     }
 
@@ -359,40 +577,27 @@ struct ProjectDetailView: View {
             Text("\(sessions.count)")
                 .font(.system(size: 10, weight: .bold))
                 .monospacedDigit()
-                .foregroundStyle(sessions.isEmpty ? .secondary : Theme.running)
+                .foregroundStyle(Theme.running)
         }
 
-        if sessions.isEmpty {
-            HStack(spacing: 6) {
-                Image(systemName: "moon.zzz.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                Text("Nothing running in this project.")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .card(padding: 10)
-        } else {
-            VStack(spacing: 0) {
-                ForEach(sessions) { session in
-                    Button {
-                        state.open(session)
-                    } label: {
-                        ProjectSessionRow(session: session, running: true)
-                    }
-                    .buttonStyle(.plain)
-                    .contentShape(Rectangle())
-                    .help("Show conversation and prompts")
-                    .transition(.recentInsertion)
+        VStack(spacing: 0) {
+            ForEach(sessions) { session in
+                Button {
+                    state.open(session)
+                } label: {
+                    ProjectSessionRow(session: session, running: true)
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .help("Show conversation and prompts")
+                .transition(.recentInsertion)
 
-                    if session.id != sessions.last?.id {
-                        Divider().opacity(0.35)
-                    }
+                if session.id != sessions.last?.id {
+                    Divider().opacity(0.35)
                 }
             }
-            .card(padding: 10)
-            .animateRecentInsertion(ids: sessions.map(\.id))
         }
+        .card(padding: 10)
+        .animateRecentInsertion(ids: sessions.map(\.id))
     }
 }
