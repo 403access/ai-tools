@@ -195,7 +195,10 @@ struct MobileSystemCategoryView: View {
                 .accessibilityLabel("Refresh \(category.title.lowercased())")
             }
         }
-        .task { await refresh() }
+        .task {
+            guard store.connection.isConnected || store.systemInfo == nil else { return }
+            await refresh()
+        }
         .sheet(item: $selectedTerminal) { terminal in
             if let api = store.api {
                 MobileTerminalDetailView(terminal: terminal, api: api)
@@ -861,9 +864,9 @@ struct MobileSystemCategoryView: View {
                             } label: {
                                 HStack(spacing: 9) {
                                     AppIconView(
-                                        api: store.api,
+                                        api: store.canLoadSystemIcons ? store.api : nil,
                                         path: app.path,
-                                        hasIcon: app.hasIcon == true,
+                                        hasIcon: store.canLoadSystemIcons && app.hasIcon == true,
                                         size: 18
                                     )
                                     VStack(alignment: .leading, spacing: 1) {

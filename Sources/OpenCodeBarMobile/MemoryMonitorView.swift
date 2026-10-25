@@ -15,6 +15,14 @@ struct MobileMemoryMonitorView: View {
 
     private var info: SystemInfo? { store.systemInfo }
 
+    /// App icons are best-effort artwork fetched from the hub. While the hub is
+    /// offline, skip those requests entirely: the memory page can render dozens
+    /// of group rows, and a failed icon fetch per row otherwise ties up the
+    /// network stack and makes the page feel sluggish.
+    private var canLoadIcons: Bool {
+        store.canLoadSystemIcons
+    }
+
     private enum ProcessSort: String, CaseIterable, Identifiable {
         case memory = "Memory"
         case cpu = "CPU"
@@ -73,7 +81,12 @@ struct MobileMemoryMonitorView: View {
             }
         }
         .refreshable { await store.refreshSystemInfo(force: true) }
-        .task { await store.refreshSystemInfo() }
+        .task {
+            // Cached memory data is enough to render while offline; avoid
+            // starting a request that can sit in a 12-second timeout.
+            guard store.connection.isConnected || store.systemInfo == nil else { return }
+            await store.refreshSystemInfo()
+        }
     }
 
     // MARK: - Summary
@@ -397,7 +410,7 @@ struct MobileMemoryMonitorView: View {
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 6)
                 } else if groupApps {
-                    VStack(spacing: 0) {
+                    LazyVStack(spacing: 0) {
                         ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                             NavigationLink {
                                 MobileMemoryProcessGroupDetailView(group: group)
@@ -411,7 +424,7 @@ struct MobileMemoryMonitorView: View {
                         }
                     }
                 } else {
-                    VStack(spacing: 0) {
+                    LazyVStack(spacing: 0) {
                         ForEach(Array(rows.enumerated()), id: \.element.id) { index, process in
                             NavigationLink {
                                 MobileMemoryProcessDetailView(process: process)
@@ -498,9 +511,9 @@ struct MobileMemoryMonitorView: View {
         HStack(alignment: .center, spacing: 10) {
             if let app = group.app {
                 AppIconView(
-                    api: store.api,
+                    api: canLoadIcons ? store.api : nil,
                     path: app.path,
-                    hasIcon: app.hasIcon == true,
+                    hasIcon: canLoadIcons && app.hasIcon == true,
                     size: 28
                 )
             } else {

@@ -22,6 +22,8 @@ struct SystemView: View {
         nil
         #endif
     }()
+    /// Debug/screenshot hook: `OPENCODEBAR_MEMORY=1` opens the memory monitor.
+    @State private var debugMemory = ProcessInfo.processInfo.environment["OPENCODEBAR_MEMORY"] == "1"
 
     var body: some View {
         Group {
@@ -62,6 +64,9 @@ struct SystemView: View {
         .navigationDestination(item: $debugCategory) { category in
             MobileSystemCategoryView(category: category)
         }
+        .navigationDestination(isPresented: $debugMemory) {
+            MobileMemoryMonitorView()
+        }
         .task { await poll() }
     }
 
@@ -70,8 +75,17 @@ struct SystemView: View {
             if !store.isPaused {
                 await refreshAll()
             }
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            // While the hub is unreachable, cached data is already on screen.
+            // Back off instead of launching another doomed request every five
+            // seconds, which competes with icon and live-refresh traffic.
+            let interval: UInt64 = isOffline ? 10_000_000_000 : 5_000_000_000
+            try? await Task.sleep(nanoseconds: interval)
         }
+    }
+
+    private var isOffline: Bool {
+        if case .offline = store.connection { return true }
+        return store.systemInfoError != nil
     }
 
     private func refreshAll(force: Bool = false) async {

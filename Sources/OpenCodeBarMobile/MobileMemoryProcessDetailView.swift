@@ -80,9 +80,9 @@ struct MobileMemoryProcessDetailView: View {
         HStack(spacing: 12) {
             if let app {
                 AppIconView(
-                    api: store.api,
+                    api: store.canLoadSystemIcons ? store.api : nil,
                     path: app.path,
-                    hasIcon: app.hasIcon == true,
+                    hasIcon: store.canLoadSystemIcons && app.hasIcon == true,
                     size: 44
                 )
             } else {
@@ -348,9 +348,9 @@ struct MobileMemoryProcessGroupDetailView: View {
         HStack(spacing: 12) {
             if let app {
                 AppIconView(
-                    api: store.api,
+                    api: store.canLoadSystemIcons ? store.api : nil,
                     path: app.path,
-                    hasIcon: app.hasIcon == true,
+                    hasIcon: store.canLoadSystemIcons && app.hasIcon == true,
                     size: 44
                 )
             } else {

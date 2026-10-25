@@ -28,6 +28,18 @@ final class MobileStore: ObservableObject {
         }
     }
 
+    /// App icons are best-effort artwork fetched from the hub. When the hub is
+    /// offline and the UI is showing a cached snapshot, callers should skip
+    /// those requests rather than queue a timeout per row. A stale snapshot is
+    /// treated the same way so a just-disconnected hub does not trigger an
+    /// icon burst before the connection state catches up.
+    var canLoadSystemIcons: Bool {
+        guard connection.isConnected, systemInfoError == nil,
+              let fetched = systemInfoFetchedAt
+        else { return false }
+        return Date().timeIntervalSince(fetched) < 20
+    }
+
     struct ProjectDetail: Equatable {
         var stats: Stats?
         var sessions: [Session] = []
