@@ -20,6 +20,7 @@ hub for cached data and for phone access.
 | Mac build | Xcode or the Swift toolchain (`swift` on your `PATH`) |
 | iOS build | Xcode with an iOS simulator, plus [XcodeGen](https://github.com/yonaskolb/XcodeGen) |
 | Physical iPhone/iPad | An Apple Development signing identity, a development team, and Developer Mode enabled on the device |
+| Virtual machines | Apple silicon Mac, macOS 14+, Nix, and an `aarch64-linux` builder |
 | Documentation site | Node.js 20+ |
 
 ## Check the essentials
@@ -62,5 +63,19 @@ LAN (or through a tunnel).
   needs an Apple Development team.
 - **Remote access.** Install `cloudflared` (`brew install cloudflared`) for
   `make hub-tunnel`, or use Tailscale. Neither is needed on the same Wi-Fi.
+- **Virtual machines.** Run NixOS guests on an Apple silicon Mac. This needs
+  [Nix](https://nixos.org/download) and a Linux builder in addition to the
+  helper that `make hub` builds:
+
+  ```bash
+  nix --version
+  nix config show builders | grep aarch64-linux
+  make vz-helper
+  ```
+
+  On macOS the easiest builder is `nix run nixpkgs#darwin.linux-builder` (it
+  asks once for the Nix daemon settings). See
+  [Virtual machines](../using/virtual-machines.md) for the full setup and the
+  limitations.
 
 Next: [install the hub](install-hub.md).

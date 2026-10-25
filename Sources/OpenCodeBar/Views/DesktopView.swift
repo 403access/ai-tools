@@ -141,6 +141,8 @@ struct DesktopView: View {
             ProjectsTab()
         case .system:
             SystemTab()
+        case .vms:
+            VirtualMachinesTab()
         case .settings:
             SettingsTab()
         }

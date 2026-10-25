@@ -88,6 +88,15 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `GET` | `/api/host-terminals/{tty}` | Terminal.app text mirror |
 | `POST` | `/api/host-terminals/{tty}/command` | Run a line in Terminal.app |
 | `POST` | `/api/host-terminals/{tty}/focus` | Focus a Terminal.app tab |
+| `GET` | `/api/vms` | Virtual-machine definitions and status |
+| `GET` | `/api/vms/capabilities` | Host support, helper/Nix/builder readiness |
+| `POST` | `/api/vms` | Create a NixOS VM definition and start its build |
+| `GET` | `/api/vms/{id}` | One VM with metrics |
+| `PATCH` | `/api/vms/{id}` | Rename, resize, or replace the package list |
+| `DELETE` | `/api/vms/{id}` | Stop the helper and remove the VM |
+| `POST` | `/api/vms/{id}/{action}` | Start, stop, restart, pause, resume, rebuild, or apply |
+| `GET` | `/api/vms/{id}/log` | Build, serial, or apply log tail |
+| `GET` | `/api/vms/{id}/console/socket` | WebSocket for the serial console |
 | `GET` | `/api/remote` | Capture helper status, displays, and permissions |
 | `POST` | `/api/remote/configure` | Change fps, quality, max width, or display |
 | `POST` | `/api/remote/permissions` | Request Screen Recording / Accessibility |
@@ -240,6 +249,106 @@ and forwards frames without modification:
 
 When the shell exits, OpenCode closes the socket; the PTY remains in the list
 until it is removed.
+
+### Virtual machines
+
+The hub owns declarative NixOS guests and drives a detached
+`OpenCodeBarVZ` helper for each running guest. Definitions live under
+`~/.local/share/opencodebar/vms/` (override with `OPENCODEBAR_VM_DIR`); the
+helper listens on loopback only and the hub proxies its serial console.
+
+`GET /api/vms/capabilities` reports what the host can do:
+
+```json
+{
+  "data": {
+    "supported": true,
+    "platform": "darwin",
+    "arch": "arm64",
+    "helperPath": "/…/.build/debug/OpenCodeBarVZ",
+    "helperAvailable": true,
+    "helperEntitled": true,
+    "nixPath": "/nix/var/nix/profiles/default/bin/nix",
+    "nixAvailable": true,
+    "nixVersion": "nix (Nix) 2.28.3",
+    "linuxBuilder": true,
+    "linuxBuilderDetail": null,
+    "storageDir": "/Users/you/.local/share/opencodebar/vms",
+    "defaultChannel": "nixos-26.05",
+    "defaultCPU": 4,
+    "defaultMemoryMB": 4096,
+    "maxCPU": 7,
+    "maxMemoryMB": 12288,
+    "notes": []
+  }
+}
+```
+
+Create one with a name and optional resources, channel, packages, and autostart:
+
+```json
+{
+  "name": "NixOS dev",
+  "cpuCount": 4,
+  "memoryMB": 4096,
+  "diskGB": 20,
+  "channel": "nixos-26.05",
+  "packages": ["nodejs", "ripgrep"],
+  "autostart": true
+}
+```
+
+The response is `201` with a `building` VM. The build runs asynchronously; poll
+the VM or its build log. A VM object includes `status`, `progress`,
+`lastError`, resources, packages, pending packages, SSH information, the
+discovered network address, paths, and the last metrics snapshot:
+
+```json
+{
+  "id": "vm_abcdef123456",
+  "name": "NixOS dev",
+  "distro": "nixos",
+  "channel": "nixos-26.05",
+  "status": "running",
+  "cpuCount": 4,
+  "memoryMB": 4096,
+  "diskGB": 20,
+  "packages": ["nodejs"],
+  "pendingPackages": [],
+  "network": { "mac": "52:54:00:…", "ip": "192.168.64.7", "reachable": true },
+  "ssh": { "user": "opencodebar", "keyPath": "/…/ssh/id_ed25519", "publicKey": "ssh-ed25519 …" },
+  "metrics": { "collectedAt": 1792900000000, "host": { … }, "guest": { … } }
+}
+```
+
+`PATCH` accepts `name`, `cpuCount` (stopped only), `memoryMB` (stopped only), and
+`packages`. Replacing packages while the guest is running queues an apply. The
+action routes are `POST` with an optional `force` body or `?force=1`:
+
+| Action | Notes |
+| --- | --- |
+| `start` | Boots the helper and waits for Virtualization.framework |
+| `stop` | Graceful request, forced after 30 seconds |
+| `restart` | Stop then start |
+| `pause` / `resume` | Pause or resume the VM |
+| `rebuild` | Replaces the disk; `force` is required when a disk exists |
+| `apply` | Runs `nixos-rebuild switch`; the guest must be running |
+
+`GET /api/vms/{id}/log?type=build|serial|apply&tail=240` returns the tail of one
+log:
+
+```json
+{ "data": { "type": "build", "path": "/…/build.log", "lines": ["…"], "bytes": 12345, "truncated": true } }
+```
+
+Connect to `/api/vms/{id}/console/socket` with the Bearer token to attach to the
+guest's serial console. The helper sends the last 64 KiB of boot output first,
+then streams raw bytes; text frames from the client are written to the guest's
+serial port. There is no resize or cursor protocol. The route returns `409` when
+the VM is not running and `501` when the hub build has no VM socket relay.
+
+Errors use the normal envelope; validation failures return `400`/`409`,
+a missing VM `404`, and helper failures `502`.
 
 ### Remote desktop
 

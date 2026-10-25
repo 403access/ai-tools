@@ -17,4 +17,13 @@ export interface RemoteSocketData {
   closed?: boolean;
 }
 
-export type HubSocketData = TerminalSocketData | RemoteSocketData;
+export interface VMSerialSocketData {
+  kind: "vm-serial";
+  vmID: string;
+  host: string;
+  port: number;
+  upstream?: import("node:net").Socket;
+  closed?: boolean;
+}
+
+export type HubSocketData = TerminalSocketData | RemoteSocketData | VMSerialSocketData;

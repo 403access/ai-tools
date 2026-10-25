@@ -20,8 +20,8 @@ one shared, cached history.
 
 <p className="lead">
 Watch running sessions, read and reply in any conversation, start new work,
-inspect the files a session changed, and track usage — without leaving the
-window you are in.
+inspect the files a session changed, track usage, and run declarative NixOS
+virtual machines on the hub host — without leaving the window you are in.
 </p>
 
 <div className="featureGrid">
@@ -48,6 +48,10 @@ window you are in.
   <div className="featureCard">
     <h3>System</h3>
     <p>CPU, memory, disks, battery, network, now-playing media, processes, installed apps, Homebrew, developer tools, a read-only host file browser, interactive OpenCode terminals, and a mirror of tabs already open in Terminal.app.</p>
+  </div>
+  <div className="featureCard">
+    <h3>Virtual machines</h3>
+    <p>Build and run declarative NixOS guests with Virtualization.framework. Start, stop, pause, monitor CPU/memory/disk, open the serial console, and install packages with nixos-rebuild.</p>
   </div>
   <div className="featureCard">
     <h3>Remote desktop</h3>

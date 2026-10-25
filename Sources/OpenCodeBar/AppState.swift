@@ -25,6 +25,7 @@ final class AppState: ObservableObject {
         case usage = "Usage"
         case projects = "Projects"
         case system = "System"
+        case vms = "VMs"
         case settings = "Settings"
 
         var id: String { rawValue }
@@ -34,6 +35,7 @@ final class AppState: ObservableObject {
             case .usage: return "chart.bar.xaxis"
             case .projects: return "folder"
             case .system: return "cpu"
+            case .vms: return "server.rack"
             case .settings: return "gearshape"
             }
         }
@@ -313,9 +315,12 @@ final class AppState: ObservableObject {
         // Allows the preview harness to open a specific tab:
         //   OpenCodeBar --preview --tab usage
         if let index = CommandLine.arguments.firstIndex(of: "--tab"),
-           index + 1 < CommandLine.arguments.count,
-           let requested = Tab(rawValue: CommandLine.arguments[index + 1].capitalized) {
-            tab = requested
+           index + 1 < CommandLine.arguments.count {
+            let raw = CommandLine.arguments[index + 1]
+            let label = raw.lowercased() == "vms" ? "VMs" : raw.capitalized
+            if let requested = Tab(rawValue: label) {
+                tab = requested
+            }
         }
         if let index = CommandLine.arguments.firstIndex(of: "--detail-mode"),
            index + 1 < CommandLine.arguments.count,

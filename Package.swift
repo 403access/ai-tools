@@ -8,7 +8,8 @@ let package = Package(
     ],
     products: [
         .executable(name: "OpenCodeBar", targets: ["OpenCodeBar"]),
-        .executable(name: "OpenCodeBarRemoteHost", targets: ["OpenCodeBarRemoteHost"])
+        .executable(name: "OpenCodeBarRemoteHost", targets: ["OpenCodeBarRemoteHost"]),
+        .executable(name: "OpenCodeBarVZ", targets: ["OpenCodeBarVZ"])
     ],
     dependencies: [
         // Full terminal emulation for the OpenCode PTYs shown in System. This
@@ -33,6 +34,14 @@ let package = Package(
         .executableTarget(
             name: "OpenCodeBarRemoteHost",
             path: "Sources/OpenCodeBarRemoteHost"
+        ),
+        // Virtualization.framework helper for the VMs tab. The hub spawns one
+        // instance per running guest and controls it over loopback TCP.
+        .executableTarget(
+            name: "OpenCodeBarVZ",
+            path: "Sources/OpenCodeBarVZ",
+            // Used by `make vz-helper` when signing; not a SwiftPM resource.
+            exclude: ["OpenCodeBarVZ.entitlements"]
         ),
         .testTarget(
             name: "OpenCodeBarTests",

@@ -8,6 +8,21 @@ final class HubSettingsStore: ObservableObject {
     init() {
         WidgetShared.rememberDeviceID(DeviceIdentity.id)
 
+        #if DEBUG
+        // Screenshot and UI-test tooling can pair without the system URL
+        // confirmation: `SIMCTL_CHILD_OPENCODEBAR_HUB_URL=…` + `…_TOKEN=…`.
+        if let url = ProcessInfo.processInfo.environment["OPENCODEBAR_HUB_URL"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           let token = ProcessInfo.processInfo.environment["OPENCODEBAR_HUB_TOKEN"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !url.isEmpty, !token.isEmpty {
+            self.url = url
+            self.token = token
+            WidgetShared.saveHubSettings(HubSettings(url: url, token: token))
+            return
+        }
+        #endif
+
         if let saved = WidgetShared.loadHubSettings() {
             self.url = saved.url
             self.token = saved.token

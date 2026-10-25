@@ -33,6 +33,7 @@ struct RootView: View {
         case projects
         case usage
         case host
+        case vms
         case settings
 
         var id: String { rawValue }
@@ -43,6 +44,7 @@ struct RootView: View {
             case .projects: return "Projects"
             case .usage: return "Usage"
             case .host: return "Host"
+            case .vms: return "VMs"
             case .settings: return "Settings"
             }
         }
@@ -53,6 +55,7 @@ struct RootView: View {
             case .projects: return "folder.fill"
             case .usage: return "chart.bar.fill"
             case .host: return "desktopcomputer"
+            case .vms: return "server.rack"
             case .settings: return "gearshape.fill"
             }
         }
@@ -66,30 +69,43 @@ struct RootView: View {
     @EnvironmentObject private var store: MobileStore
     @EnvironmentObject private var router: MobileRouter
     @Environment(\.scenePhase) private var scenePhase
+    /// The custom dock's selection. It includes VMs, which sits outside the
+    /// five-item `TabView` so UIKit does not wrap the sixth item in “More”.
     @State private var selection: Tab = .live
+    /// The five tabs owned by the system `TabView`.
+    @State private var tabSelection: Tab = .live
 
     var body: some View {
         VStack(spacing: 0) {
-            TabView(selection: $selection) {
-                LiveView()
-                    .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.live)
+            ZStack {
+                TabView(selection: $tabSelection) {
+                    LiveView()
+                        .toolbar(.hidden, for: .tabBar)
+                        .tag(Tab.live)
 
-                ProjectsView()
-                    .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.projects)
+                    ProjectsView()
+                        .toolbar(.hidden, for: .tabBar)
+                        .tag(Tab.projects)
 
-                UsageView()
-                    .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.usage)
+                    UsageView()
+                        .toolbar(.hidden, for: .tabBar)
+                        .tag(Tab.usage)
 
-                HostView()
-                    .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.host)
+                    HostView()
+                        .toolbar(.hidden, for: .tabBar)
+                        .tag(Tab.host)
 
-                NavigationStack { SettingsView() }
-                    .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.settings)
+                    NavigationStack { SettingsView() }
+                        .toolbar(.hidden, for: .tabBar)
+                        .tag(Tab.settings)
+                }
+                .opacity(selection == .vms ? 0 : 1)
+                .allowsHitTesting(selection != .vms)
+
+                if selection == .vms {
+                    VirtualMachinesView()
+                        .transition(.opacity)
+                }
             }
 
             MobileTabBar(selection: $selection)
@@ -98,6 +114,11 @@ struct RootView: View {
                 .padding(.bottom, 4)
         }
         .background { MobileTheme.background.ignoresSafeArea() }
+        .onChange(of: selection) { _, newValue in
+            // Keep the hidden TabView on the last non-VM tab so returning to
+            // it preserves its navigation stack and scroll position.
+            if newValue != .vms { tabSelection = newValue }
+        }
         .task { store.start() }
         .task {
             #if DEBUG

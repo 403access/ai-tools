@@ -196,6 +196,62 @@ Follow-ups:
   also upserts the session. If that ever proves insufficient, add a periodic
   full reconcile on the client.
 
+## Virtual machines (2026-10-25)
+
+The **VMs** tab runs declarative NixOS guests on the hub host with Apple's
+Virtualization.framework.
+
+- `Sources/OpenCodeBarVZ/` is a second SwiftPM helper. It owns one VM, writes
+  `runtime.json` with its pid and loopback control/serial ports, and speaks
+  JSON-lines on the control port. The hub spawns one detached helper per guest
+  and re-adopts it after a restart.
+- `server/src/vms/` stores definitions under `~/.local/share/opencodebar/vms/`,
+  generates `configuration.nix` + a flake, runs `nix build` for
+  `system.build.images.raw-efi`, copies the image, and manages packages over
+  SSH. `server/src/api/vm-socket.ts` proxies the serial console.
+- The helper must be signed with `com.apple.security.virtualization`; plain
+  SwiftPM binaries are not. `make vz-helper` (and `make hub`) ad-hoc signs it.
+  Without the entitlement VZ reports “Invalid virtual machine configuration”.
+- Guest networking uses VZ NAT (`192.168.64.x`), with no port forwarding. The
+  hub discovers the DHCP address from `arp -an`, then the serial log, and uses
+  SSH on port 22. The guest configuration uses `hvc0` (virtio console) and
+  `ttyAMA0` consoles.
+- The image build needs Nix and an `aarch64-linux` builder on the host. On an
+  Apple silicon Mac that is normally `darwin.linux-builder`. The image builder
+  runs a Linux VM inside the builder (`make-disk-image`), which can be slow
+  without nested virtualization.
+
+Follow-ups:
+
+- **Prebuilt image fallback.** A downloaded NixOS `raw-efi` image would let
+  users run a VM without Nix or a Linux builder, at the cost of a more
+  imperative first-boot configuration. The current feature is declarative-only.
+- **Snapshots and clones.** Virtualization.framework has save/restore state and
+  `DiskImageKit` overlays on newer macOS versions. A clone command would make
+  experimentation much safer than the current destructive rebuild.
+- **Graphical console.** Add a VZ graphics device and a framebuffer/VNC path;
+  today only the serial console and SSH are available.
+- **Guest metrics without SSH.** A small vsock agent (or a Virtio serial
+  channel) would remove the SSH dependency for CPU/memory/disk and let a guest
+  that has no network still report health.
+- **Package picker.** The package field takes raw nixpkgs attribute names. A
+  search endpoint over `nix search`/`nixpkgs` options would prevent typos, and
+  a JSON package manifest would allow arbitrary extra modules.
+- **Apply progress.** `nixos-rebuild` output streams to the Config log, but the
+  UI has no phase breakdown. Parsing the build output into steps would make
+  long applies easier to follow.
+- **Disk resize and channel changes.** Both currently require a rebuild.
+  Resizing is possible on APFS by growing the image; changing the channel could
+  update the flake lock and rebuild in place.
+- **Other distros.** The provider layer is NixOS-specific. Ubuntu cloud images
+  with cloud-init and a package layer could reuse the helper and lifecycle.
+- **Helper distribution.** The helper is ad-hoc signed and found in `.build/`
+  or `dist/`. A distributed build should embed it in the signed app bundle (or
+  a signed helper bundle) and sign it with the same identity.
+- **Serial console auth.** The helper's control and serial ports bind to
+  loopback, and the hub token gates the WebSocket. A local process can still
+  connect directly; a per-helper secret would close that gap.
+
 ## Next steps
 
 - **Go plan limits: credits and extra usage.** The Usage tab now shows the
@@ -336,3 +392,29 @@ Follow-ups:
   `~/.config/opencode/opencodebar-hub-tunnel.json` (mode 0600) and is removed
   when `Scripts/hub-tunnel.sh` exits. `cloudflared` is at
   `/opt/homebrew/bin/cloudflared`.
+- **Nix is not installed on this machine and `sudo` requires a password.**
+  The Nix installer and `darwin.linux-builder` both need root, so the VM image
+  path could not be exercised end-to-end here. The hub, helper, API, tests, and
+  both apps were verified; the build path was exercised with an injected Nix
+  and a fake image. Install Nix and run `nix run nixpkgs#darwin.linux-builder`
+  (one sudo prompt) before creating a real guest.
+- **Virtualization.framework requires the `com.apple.security.virtualization`
+  entitlement even for a non-sandboxed CLI.** An unsigned `swift build`
+  produces a helper that fails configuration with “Invalid virtual machine
+  configuration. The process doesn’t have the … entitlement.” `make vz-helper`
+  (and `make hub`) ad-hoc signs it; `codesign -d --entitlements -` confirms it.
+  A runtime probe with a dummy raw disk reached VZ `running` after signing and
+  stopped cleanly when the firmware found no bootloader.
+- **VZ NAT and the console.** The guest gets a `192.168.64.x` DHCP address with
+  no host port forwarding, so the hub discovers it from `arp -an` and the serial
+  log. The VZ virtio console is `hvc0`; the generated NixOS config sets both
+  `console=hvc0` and `console=ttyAMA0` and imports `profiles/qemu-guest.nix`
+  for the virtio initrd modules.
+- **The six-tab iOS dock is a custom bar.** UIKit wraps a sixth `TabView` item
+  in “More”, so VMs is rendered outside the five-item `TabView` while the custom
+  dock still presents it as a top-level tab. The Mac tab bar also needed a
+  smaller font and `lineLimit(1)` to fit six labels in the 400 pt panel.
+- **Screenshot pairing.** Debug iOS builds accept
+  `OPENCODEBAR_HUB_URL`/`OPENCODEBAR_HUB_TOKEN` from the environment so
+  simulator screenshots can pair without the system URL confirmation. The
+  `OPENCODEBAR_OPEN_VM` flag opens a VM after the first fetch.

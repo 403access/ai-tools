@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Virtualization.framework refuses to start a machine without this,
+         even for a command-line helper that is not sandboxed. -->
+    <key>com.apple.security.virtualization</key>
+    <true/>
+</dict>
+</plist>

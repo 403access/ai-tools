@@ -497,4 +497,136 @@ extension HubAPI {
     func sync() async throws {
         _ = try await send("/api/sync", method: "POST")
     }
+
+    // MARK: - Virtual machines
+
+    func virtualMachines() async throws -> [VirtualMachine] {
+        let response: VirtualMachinesEnvelope = try await get("/api/vms")
+        return response.data
+    }
+
+    func virtualMachineCapabilities() async throws -> VMCapabilities {
+        let response: VMCapabilitiesEnvelope = try await get("/api/vms/capabilities")
+        return response.data
+    }
+
+    func virtualMachine(id: String, refresh: Bool = true) async throws -> VirtualMachine {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: VirtualMachineEnvelope = try await get(
+            "/api/vms/\(encoded)\(refresh ? "?refresh=1" : "")"
+        )
+        return response.data
+    }
+
+    func createVirtualMachine(
+        name: String,
+        cpuCount: Int?,
+        memoryMB: Int?,
+        diskGB: Int?,
+        channel: String?,
+        packages: [String],
+        autostart: Bool = true
+    ) async throws -> VirtualMachine {
+        let request = VMCreateRequest(
+            name: name,
+            cpuCount: cpuCount,
+            memoryMB: memoryMB,
+            diskGB: diskGB,
+            channel: channel,
+            packages: packages,
+            autostart: autostart
+        )
+        let data = try JSONEncoder().encode(request)
+        let response = try await send("/api/vms", method: "POST", body: data)
+        do {
+            return try Self.decoder.decode(VirtualMachineEnvelope.self, from: response).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    func controlVirtualMachine(
+        id: String,
+        action: String,
+        force: Bool = false
+    ) async throws -> VirtualMachine {
+        struct Body: Encodable { var force: Bool }
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let data = try JSONEncoder().encode(Body(force: force))
+        let response = try await send(
+            "/api/vms/\(encoded)/\(action)",
+            method: "POST",
+            body: data
+        )
+        do {
+            return try Self.decoder.decode(VirtualMachineEnvelope.self, from: response).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    func updateVirtualMachine(
+        id: String,
+        name: String? = nil,
+        cpuCount: Int? = nil,
+        memoryMB: Int? = nil,
+        packages: [String]? = nil
+    ) async throws -> VirtualMachine {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let request = VMUpdateRequest(
+            name: name,
+            cpuCount: cpuCount,
+            memoryMB: memoryMB,
+            packages: packages
+        )
+        let data = try JSONEncoder().encode(request)
+        let response = try await send("/api/vms/\(encoded)", method: "PATCH", body: data)
+        do {
+            return try Self.decoder.decode(VirtualMachineEnvelope.self, from: response).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    func deleteVirtualMachine(id: String, force: Bool = false) async throws {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        _ = try await send(
+            "/api/vms/\(encoded)\(force ? "?force=1" : "")",
+            method: "DELETE"
+        )
+    }
+
+    func virtualMachineLog(
+        id: String,
+        type: VMLogType,
+        tail: Int = 240
+    ) async throws -> VMLog {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: VMLogEnvelope = try await get(
+            "/api/vms/\(encoded)/log?type=\(type.rawValue)&tail=\(tail)"
+        )
+        return response.data
+    }
+
+    /// WebSocket for the guest's serial console. The hub proxies the helper's
+    /// loopback socket, so the client only needs the hub token.
+    func virtualMachineConsoleRequest(id: String) throws -> URLRequest {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        guard var components = URLComponents(
+            url: try url(for: "/api/vms/\(encoded)/console/socket").absoluteURL,
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw APIError.badURL
+        }
+        components.scheme = components.scheme == "https" ? "wss" : "ws"
+        guard let socketURL = components.url else { throw APIError.badURL }
+
+        var request = URLRequest(url: socketURL)
+        request.timeoutInterval = 30
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        for (header, value) in DeviceIdentity.headers {
+            request.setValue(value, forHTTPHeaderField: header)
+        }
+        return request
+    }
 }

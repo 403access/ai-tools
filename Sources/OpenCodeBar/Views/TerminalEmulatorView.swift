@@ -7,11 +7,21 @@ import AppKit
 import UIKit
 #endif
 
-/// SwiftTerm host that feeds a remote PTY connection. The terminal view owns
-/// rendering, selection and keyboard handling; this wrapper only bridges its
-/// input, resize and clipboard events to `TerminalConnection`.
-struct TerminalEmulatorView: View {
-    @ObservedObject var connection: TerminalConnection
+/// What a SwiftTerm host needs from a remote session. Both OpenCode PTYs and
+/// VM serial consoles implement it, so the emulator is shared.
+@MainActor
+protocol TerminalSession: AnyObject {
+    func attach(_ view: SwiftTerm.TerminalView)
+    func detach(_ view: SwiftTerm.TerminalView)
+    func send(_ data: ArraySlice<UInt8>)
+    func resize(cols: Int, rows: Int)
+}
+
+/// SwiftTerm host that feeds a remote terminal connection. The terminal view
+/// owns rendering, selection and keyboard handling; this wrapper only bridges
+/// its input, resize and clipboard events to the connection.
+struct TerminalEmulatorView<Session: ObservableObject & TerminalSession>: View {
+    @ObservedObject var connection: Session
 
     var body: some View {
         #if os(macOS)
@@ -23,10 +33,10 @@ struct TerminalEmulatorView: View {
 }
 
 #if os(macOS)
-private struct MacTerminalRepresentable: NSViewRepresentable {
-    let connection: TerminalConnection
+private struct MacTerminalRepresentable<Session: ObservableObject & TerminalSession>: NSViewRepresentable {
+    let connection: Session
 
-    func makeCoordinator() -> TerminalCoordinator {
+    func makeCoordinator() -> TerminalCoordinator<Session> {
         TerminalCoordinator(connection: connection)
     }
 
@@ -45,15 +55,15 @@ private struct MacTerminalRepresentable: NSViewRepresentable {
         context.coordinator.connection = connection
     }
 
-    static func dismantleNSView(_ nsView: SwiftTerm.TerminalView, coordinator: TerminalCoordinator) {
+    static func dismantleNSView(_ nsView: SwiftTerm.TerminalView, coordinator: TerminalCoordinator<Session>) {
         coordinator.connection.detach(nsView)
     }
 }
 #else
-private struct MobileTerminalRepresentable: UIViewRepresentable {
-    let connection: TerminalConnection
+private struct MobileTerminalRepresentable<Session: ObservableObject & TerminalSession>: UIViewRepresentable {
+    let connection: Session
 
-    func makeCoordinator() -> TerminalCoordinator {
+    func makeCoordinator() -> TerminalCoordinator<Session> {
         TerminalCoordinator(connection: connection)
     }
 
@@ -72,7 +82,7 @@ private struct MobileTerminalRepresentable: UIViewRepresentable {
         context.coordinator.connection = connection
     }
 
-    static func dismantleUIView(_ uiView: SwiftTerm.TerminalView, coordinator: TerminalCoordinator) {
+    static func dismantleUIView(_ uiView: SwiftTerm.TerminalView, coordinator: TerminalCoordinator<Session>) {
         coordinator.connection.detach(uiView)
     }
 }
@@ -92,10 +102,10 @@ private func configure(_ view: SwiftTerm.TerminalView) {
 
 /// Terminal delegate shared by both platforms. SwiftTerm can call these from
 /// its own input paths, so every hand-off bounces back to the main actor.
-private final class TerminalCoordinator: NSObject, TerminalViewDelegate {
-    var connection: TerminalConnection
+private final class TerminalCoordinator<Session: ObservableObject & TerminalSession>: NSObject, TerminalViewDelegate {
+    var connection: Session
 
-    init(connection: TerminalConnection) {
+    init(connection: Session) {
         self.connection = connection
     }
 

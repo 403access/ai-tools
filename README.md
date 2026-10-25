@@ -14,15 +14,16 @@ app — a resizable window with a persistent sidebar — or **right-click** (or
 control-click) for the compact panel with **live** activity, a full **session**
 view, per-project **analytics**, and a **usage** overview. The desktop window
 can also be turned on from **Settings → App → Desktop window** and is
-remembered across launches. The iOS app has the same five areas — Live,
-Projects, Usage, Host, and Settings — adapted for touch, with the same dark
-panel design and a floating tab dock. **Host** switches between the System
-inventory and Remote desktop, so the phone can also watch and control the Mac's
-screen. Its Appearance setting can follow the system or stay dark/light. Both
-apps can also start a new session, send a prompt into an open conversation, and
-open terminals on the Mac to type into them. On iOS, **Live** and
-**Usage** Home Screen widgets bring the same status to the Home Screen in
-small, medium, and large sizes.
+remembered across launches. The iOS app has the same areas — Live, Projects,
+Usage, Host, VMs, and Settings — adapted for touch, with the same dark panel
+design and a floating tab dock. **Host** switches between the System inventory
+and Remote desktop, so the phone can also watch and control the Mac's screen.
+Its Appearance setting can follow the system or stay dark/light. Both apps can
+also start a new session, send a prompt into an open conversation, open
+terminals on the Mac to type into them, and build, run, and monitor declarative
+NixOS virtual machines on the hub host. On iOS, **Live** and **Usage** Home
+Screen widgets bring the same status to the Home Screen in small, medium, and
+large sizes.
 
 macOS panel:
 
@@ -212,6 +213,38 @@ iOS app:
   app links straight to the request). Without Accessibility the stream is
   view-only. `make hub` builds the helper; `make remote-host` rebuilds it alone.
 
+**Virtual machines**
+- A top-level **VMs** tab on both apps. The hub builds declarative NixOS
+  guests, boots them with Apple's Virtualization.framework, and keeps the
+  definition, raw EFI disk, SSH key, serial log, and metrics on the host.
+- **Create from a form**: name, vCPU count, memory, disk size, NixOS channel,
+  extra nixpkgs attributes, and autostart. The first build runs
+  `nix build .#packages.aarch64-linux.default` against a generated flake and
+  copies the `raw-efi` image out of the Nix store. Progress and the full build
+  log are streamed to the VM page.
+- **Lifecycle**: start, stop (graceful, with a forced fallback), restart, pause,
+  resume, and delete. Rebuilding replaces the disk after a confirmation.
+  Guests keep running when the hub restarts; the next request re-adopts them
+  from the helper's runtime record.
+- **Monitoring**: helper CPU and RSS, logical and allocated image size, guest
+  CPU and load, memory and disk usage, uptime, hostname, kernel, and the current
+  NixOS generation. The list shows build and boot progress, the discovered DHCP
+  address, pending package changes, and errors.
+- **Serial console**: a live, typeable virtio console (`hvc0`) over the hub's
+  authenticated WebSocket. Opening it replays the tail of the boot log, so a
+  guest that has not reached SSH is still visible and recoverable.
+- **Install software declaratively**: edit the package list in the app. While
+  the guest is running, the hub copies the generated `configuration.nix` and
+  runs `nixos-rebuild switch` over SSH; while it is stopped, the change is
+  queued for the next boot. Base tools are curl, git, htop, and vim.
+- **Per-VM SSH**: each guest gets a generated ed25519 key, a passwordless-sudo
+  `opencodebar` user, SSH key authentication only, and a host-only NAT address
+  discovered from the ARP table. The detail page copies the SSH command.
+- Setup is explicit rather than silent: the VMs tab reports whether the helper
+  is signed with the Virtualization entitlement, whether Nix is installed, and
+  whether Nix has an `aarch64-linux` builder, with the exact commands to fix
+  each case.
+
 **Settings**
 - Every app connected to the hub — macOS, iOS, and iPadOS — with its device
   name, platform, app version, and whether it is live right now. Click a device
@@ -227,13 +260,15 @@ iOS app:
   hub and applied again after a restart.
 
 **iPhone & iPad**
-- The same Live, Projects, Usage, Host, and Settings areas as the Mac panel,
-  with the same compact panel design, live-activity folding, and a floating tab
-  dock built for touch. **Host** has a System/Remote switch: System mirrors the
-  Mac's full machine inventory, so the phone can monitor CPU, memory, disks,
-  processes, Homebrew, and installed apps without the Mac app being open — and
-  browse the Mac's files with the same read-only browser. Remote streams and
-  controls the Mac's display with touch and keyboard input.
+- The same Live, Projects, Usage, Host, VMs, and Settings areas as the Mac
+  panel, with the same compact panel design, live-activity folding, and a
+  floating tab dock built for touch. **Host** has a System/Remote switch:
+  System mirrors the Mac's full machine inventory, so the phone can monitor CPU,
+  memory, disks, processes, Homebrew, and installed apps without the Mac app
+  being open — and browse the Mac's files with the same read-only browser.
+  Remote streams and controls the Mac's display with touch and keyboard input.
+  **VMs** creates and drives NixOS guests, with the serial console and package
+  editor adapted for touch.
 - Search projects, pull to refresh any screen, and open a session from a deep
   link. Settings shows hub and OpenCode health, cached session/message counts,
   uptime, last sync, and a **Keep Mac awake** switch for the host Mac.
@@ -256,7 +291,8 @@ iOS app:
   busy sessions do not flood the connection.
 
 Both apps can start sessions and send prompts; neither stops or deletes
-sessions. Both can also list and drive terminals on the hub host.
+sessions. Both can also list and drive terminals on the hub host, and create,
+run, monitor, update, and delete NixOS virtual machines.
 
 ## How it works
 
@@ -298,11 +334,15 @@ The hub:
    `/api/terminals/{id}/socket` (WebSocket), `/api/host-terminals`,
    `/api/host-terminals/{id}`, `/api/host-terminals/{id}/command`,
    `/api/host-terminals/{id}/focus`, `/api/files`, `/api/files/content`,
-   `/api/files/raw`, `/api/devices`,
-   `/api/settings` (`GET`/`PATCH`), `/api/sync` (`GET` delta feed, `POST` force
-   sync), `/api/server/restart` (`POST`), and `/api/event`. Clients
-   authenticate with a Bearer token and identify their platform with
-   `X-OpenCodeBar-*` headers so the settings screen can list connected devices.
+   `/api/files/raw`, `/api/vms`, `/api/vms/capabilities`,
+   `/api/vms/{id}` (`GET`/`PATCH`/`DELETE`),
+   `/api/vms/{id}/{start|stop|restart|pause|resume|rebuild|apply}` (`POST`),
+   `/api/vms/{id}/log`, `/api/vms/{id}/console/socket` (WebSocket),
+   `/api/devices`, `/api/settings` (`GET`/`PATCH`),
+   `/api/sync` (`GET` delta feed, `POST` force sync),
+   `/api/server/restart` (`POST`), and `/api/event`. Clients authenticate with a
+   Bearer token and identify their platform with `X-OpenCodeBar-*` headers so
+   the settings screen can list connected devices.
 4. Forwards OpenCode events to every connected client, so both apps update live.
    Rapid updates are coalesced into a configurable window (`eventThrottleMs`,
    250 ms by default) before delivery. The stream also carries `hub.*` notices
@@ -317,6 +357,17 @@ Endpoints the hub reads from OpenCode: `/api/info`, `/api/session`,
 terminal WebSocket is proxied to `/api/pty/{id}/connect`; the hub opens that
 upstream socket with OpenCode's Basic credentials so clients only need the hub
 token.
+
+The VM backend is a small Swift helper, `OpenCodeBarVZ`, signed with
+`com.apple.security.virtualization`. The hub spawns one detached helper per
+running guest and talks to it over loopback TCP: a JSON-lines control port and a
+raw serial port. The helper writes `runtime.json` with its pid and both ports,
+so a restarted hub can re-adopt a guest. It configures a raw EFI disk,
+Virtualization.framework NAT networking, and a virtio console; the hub finds the
+guest's DHCP address from `arp -an` or the serial log, then uses SSH for metrics
+and `nixos-rebuild`. The generated flake exposes both
+`nixosConfigurations.<host>` and the `system.build.images.raw-efi` package, so
+the host build and the in-guest rebuild share one `configuration.nix`.
 
 The event stream does more than trigger refreshes. `session.step.*`,
 `session.reasoning.*`, `session.text.*`, `session.tool.*`, `session.usage.*`,
@@ -401,6 +452,14 @@ without replacing the credential OpenCode uses for inference.
 - Node.js 20+ to build the Docusaurus documentation site.
 - The terminal views use [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)
   (MIT). SwiftPM and Xcode fetch it automatically on the first build.
+- **Virtual machines** need an Apple silicon Mac running macOS 14 or later.
+  Building the NixOS image also needs [Nix](https://nixos.org/download) with an
+  `aarch64-linux` builder. On macOS the easiest builder is
+  `nix run nixpkgs#darwin.linux-builder` (or nix-darwin's
+  `nix.linux-builder.enable`), which starts a cached NixOS builder VM and asks
+  for the Nix daemon settings once. The VMs tab checks both prerequisites and
+  shows the missing command. `make hub` builds and ad-hoc signs the helper with
+  `com.apple.security.virtualization`; `make vz-helper` rebuilds it alone.
 
 ## Build and run
 
@@ -448,6 +507,7 @@ make hub-dev       # hub with auto-reload
 make hub-test      # hub unit tests (Bun)
 make hub-tunnel    # expose the hub through a Cloudflare quick tunnel
 make remote-host   # build the ScreenCaptureKit remote-desktop helper
+make vz-helper     # build and sign the Virtualization.framework VM helper
 make mobile-build  # build the iOS app and widget extension for the simulator
 make mobile-run    # build, install, launch, and pair the iOS app in a simulator
 make mobile-device # the same on a connected iPhone/iPad
@@ -558,6 +618,8 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     WidgetShared.swift      shared keychain + widget snapshot cache
     UsageCache.swift        last-known usage on disk
     TerminalConnection.swift  terminal WebSocket, input and resize bridging (shared)
+    VMConsoleConnection.swift serial-console WebSocket client (shared)
+    VirtualMachinesStore.swift shared VM list, polling, actions, and logs
     HostTerminalMirror.swift  Terminal.app text mirror and command input (shared)
   Support/
     QRCode.swift            pairing QR rendering
@@ -583,6 +645,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     Terminals.swift         OpenCode PTY sessions and requests (shared)
     HostTerminals.swift     Terminal.app tab models (shared)
     HostFiles.swift         host directory listings and previews (shared)
+    VirtualMachine.swift    VM definitions, metrics, capabilities (shared)
   Views/                    SwiftUI panel, tabs, heatmap, components
     DesktopView.swift       full-window layout with a persistent sidebar
     ChangeViews.swift       patch cards and change summaries
@@ -600,6 +663,10 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     SystemTab.swift         machine, resources, apps, Homebrew and tools
     TerminalViews.swift     terminal list, new-terminal sheet and terminal window
     TerminalEmulatorView.swift  SwiftTerm host for Mac and iOS
+    VirtualMachinesTab.swift      VM list, lifecycle actions, setup card
+    VirtualMachineDetailView.swift  VM overview, console, packages, logs
+    NewVirtualMachineSheet.swift   create a NixOS guest
+    VMComponents.swift      serial console pane and VM setup notice (shared)
     SystemFileBrowser.swift host folder navigation and text/image preview
     SettingsTab+Support.swift         derived labels and actions
     SettingsDeviceRow.swift           device row in the connected list
@@ -612,6 +679,14 @@ Sources/OpenCodeBarRemoteHost/  ScreenCaptureKit helper for remote desktop
   main.swift                stdio entry point, AppKit run loop
   RemoteHost.swift          capture, permissions, pointer/key board input
   Wire.swift                framed status/frame/log transport
+
+Sources/OpenCodeBarVZ/        Virtualization.framework helper for NixOS guests
+  main.swift                CLI entry, listeners, runtime record, signals
+  VMRunner.swift            EFI boot, raw disk, NAT, CPU/memory, lifecycle
+  SerialConsole.swift       virtio console <-> loopback socket + log
+  ControlServer.swift       JSON-lines control protocol
+  Support.swift             config/runtime models, loopback TCP, fd I/O
+  OpenCodeBarVZ.entitlements  com.apple.security.virtualization
 
 Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   OpenCodeBarMobileApp.swift  app entry + tab bar
@@ -653,6 +728,9 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   MobileTerminalViews.swift   terminal list, new-terminal sheet and terminal sheet
   MobileStore+Terminals.swift terminal polling, creation and removal
   MobileStore+HostTerminals.swift Terminal.app tab polling
+  VirtualMachinesView.swift   VM list, create sheet, lifecycle actions
+  VirtualMachineMobileDetailView.swift  VM overview, console, packages, logs
+  NewVirtualMachineSheet.swift  create a NixOS guest from the phone
   MobileFileBrowser.swift     host folders and file previews
   MobileCharts.swift          Swift Charts trend cards
   SettingsView.swift          appearance, pairing, and status
@@ -678,6 +756,8 @@ server/                       Bun + TypeScript + SQLite hub
   src/api/terminal-socket.ts  WebSocket proxy for live terminal input/output
   src/remote.ts               capture helper lifecycle and status
   src/api/remote-socket.ts    WebSocket fan-out for frames and input
+  src/vms/                    VM store, NixOS definitions, builds, helper client
+  src/api/vm-socket.ts        WebSocket proxy for VM serial consoles
   src/db.ts                   SQLite facade
   src/db/                     schema, row mapping, stores, queries
   src/hub.ts                  polling/event hub facade
@@ -748,14 +828,24 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
   cache) if a shot would otherwise capture the loading state.
 - `OPENCODEBAR_DEBUG_SUBAGENTS=1` logs hub/subagent requests to stdout.
 - The menu bar glyph uses SF Symbols (`terminal` / `terminal.fill`).
-- iOS screenshot tooling (Debug builds): `OPENCODEBAR_TAB=live|projects|usage|settings`
-  selects the starting tab, and `OPENCODEBAR_OPEN_SESSION=running` (or a session
-  id) opens a session on launch. With `simctl`:
+- iOS screenshot tooling (Debug builds): `OPENCODEBAR_TAB=live|projects|usage|vms|settings`
+  selects the starting tab, `OPENCODEBAR_OPEN_SESSION=running` (or a session id)
+  opens a session on launch, and `OPENCODEBAR_OPEN_VM=<id-or-name>` opens a VM.
+  Debug builds can also pair from the environment with
+  `OPENCODEBAR_HUB_URL` / `OPENCODEBAR_HUB_TOKEN`, which avoids the system URL
+  confirmation. With `simctl`:
   `SIMCTL_CHILD_OPENCODEBAR_TAB=usage xcrun simctl launch booted dev.opencodebar.mobile`.
 - Hub environment: `OPENCODEBAR_HUB_PORT` (default 8787),
   `OPENCODEBAR_HUB_HOST`, `OPENCODEBAR_HUB_DB`, `OPENCODEBAR_HUB_TOKEN`,
   `OPENCODEBAR_HUB_URL` (clients), `OPENCODEBAR_PREVENT_SLEEP` (`1` holds an
   idle-sleep assertion while the hub runs), `OPENCODEBAR_LOG_LEVEL`.
+- VM environment: `OPENCODEBAR_VM_DIR` (default
+  `~/.local/share/opencodebar/vms`), `OPENCODEBAR_VZ_HELPER`,
+  `OPENCODEBAR_NIX`, and `OPENCODEBAR_NIXOS_CHANNEL` (default `nixos-26.05`).
+- The VZ helper must be signed with `com.apple.security.virtualization`; a bare
+  `swift build` does not add it. Use `make vz-helper` (or `make hub`, which
+  builds and signs it) after changing the helper. Without the entitlement
+  Virtualization.framework rejects the configuration.
 - `OPENCODE_GO_USAGE_URL` points the hub's Go limits client at a different URL,
   which is how the Plan limits UI is exercised without a live Go key.
 - `OPENCODE_API_KEY` overrides the Go API key read from `auth.json`, and
@@ -778,6 +868,27 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
   The mirror shows the visible screen as plain text, refreshed every second, so
   colors and full-screen redraws are not reproduced; commands are sent as
   complete lines.
+- Virtual machines require an Apple silicon Mac and macOS 14+. They do not run
+  on an Intel Mac or on a Linux/Windows hub host.
+- Building a NixOS image needs Nix plus an `aarch64-linux` builder. The first
+  build downloads and assembles a full system, so it can take a long time; the
+  hub streams the log and reports failures instead of blocking the app.
+- Rebuilding replaces the guest disk; there are no snapshots, clones, suspend
+  images, or disk resizing. There is also no graphical console, GPU
+  acceleration, USB passthrough, or VNC: the serial console and SSH are the
+  management surfaces.
+- Installing packages while the guest is running runs `nixos-rebuild switch`
+  inside the guest and therefore needs the guest to reach the Nix binary cache.
+  A stopped guest queues the change for the next boot. The NixOS channel is
+  fixed when the VM is created.
+- The hub token controls the VM lifecycle and serial console, like it controls
+  terminals and remote desktop. Helpers listen on loopback only, but anyone with
+  the hub token can start, stop, or delete guests.
+- The helper is ad-hoc signed for local use. A distributed build should sign it
+  with the app's Developer ID and include the helper in the bundle.
+- VMs keep running when the hub exits or restarts; the next request re-adopts
+  them. Stop them from the VMs tab when you are done, or they keep using host
+  CPU and memory until the Mac reboots.
 - The hub relies on the local OpenCode service; when the service is stopped it
   keeps serving cached data and shows an offline state, reconnecting when
   OpenCode returns.
