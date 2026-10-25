@@ -287,13 +287,14 @@ iOS app:
 - The same Live, Projects, Usage, Host, VMs, and Settings areas as the Mac
   panel, with the same compact panel design, live-activity folding, and a
   floating tab dock built for touch. **Host** has a System/Remote switch:
-  System opens on a compact dashboard with live vitals, Now Playing, and an
-  **Explore** grid. Performance, Terminals, Storage, Network, Software, Files,
-  Health, and Machine each open a short, focused page, so the phone can monitor
-  CPU, memory, disks, processes, Homebrew, and installed apps without scrolling
-  through one long inventory — and browse the Mac's files with the same
-  read-only browser. Remote streams and controls the Mac's display with touch
-  and keyboard input.
+  System opens on a compact dashboard with live vitals, Now Playing, and a
+  **More** grid. The vitals double as navigation — CPU opens Performance,
+  storage opens Storage, battery or health opens Health, and system/uptime open
+  Machine — while the grid adds Network, Software, Terminals, and Files. The
+  phone can monitor CPU, memory, disks, processes, Homebrew, and installed apps
+  without scrolling through one long inventory — and browse the Mac's files
+  with the same read-only browser. Remote streams and controls the Mac's display
+  with touch and keyboard input.
   **VMs** creates and drives NixOS guests, with the serial console and package
   editor adapted for touch.
 - Search projects, pull to refresh any screen, and open a session from a deep

@@ -91,7 +91,7 @@ struct SystemView: View {
                     }
 
                     overview(info)
-                    exploreSection(info)
+                    moreSection(info)
                     mediaSection(info)
                     notesSection(info)
                 }
@@ -118,7 +118,12 @@ struct SystemView: View {
     // MARK: - Overview
 
     private func overview(_ info: SystemInfo) -> some View {
-        let rootDisk = info.disks.first(where: { $0.mount == "/" }) ?? info.disks.first
+        // macOS exposes the writable data volume separately from the sealed
+        // system volume. Prefer it so the storage tile reflects real usage
+        // instead of reporting the tiny read-only system volume.
+        let usageDisk = info.disks.first(where: { $0.mount == "/System/Volumes/Data" })
+            ?? info.disks.first(where: { $0.mount == "/" })
+            ?? info.disks.first
         let load = info.cpu.loadAverage?.first
         let cpuValue = info.cpu.usagePercent.map { "\(Int($0.rounded()))%" }
             ?? load.map { String(format: "%.2f", $0) }
@@ -131,7 +136,7 @@ struct SystemView: View {
                     icon: "desktopcomputer",
                     tint: Theme.accent,
                     label: "System",
-                    value: info.platformName,
+                    value: info.host.model ?? info.host.name,
                     caption: [info.host.osName, info.host.osVersion].compactMap { $0 }.joined(separator: " "),
                     showsDisclosure: true
                 )
@@ -160,7 +165,9 @@ struct SystemView: View {
                     tint: Theme.input,
                     label: "CPU",
                     value: cpuValue,
-                    caption: "\(info.cpu.logicalCores) cores",
+                    caption: load.map {
+                        "\(info.cpu.logicalCores) cores · load \(String(format: "%.2f", $0))"
+                    } ?? "\(info.cpu.logicalCores) cores",
                     showsDisclosure: true
                 )
             }
@@ -187,9 +194,11 @@ struct SystemView: View {
                 MobileSystemTile(
                     icon: "internaldrive",
                     tint: Theme.cacheRead,
-                    label: "Disk free",
-                    value: Fmt.bytes(rootDisk?.freeBytes),
-                    caption: rootDisk?.mount ?? "No disk reported",
+                    label: "Storage",
+                    value: usageDisk.map { "\(Int(($0.usedFraction * 100).rounded()))%" } ?? "—",
+                    caption: usageDisk.map {
+                        "\(Fmt.bytes($0.usedBytes)) of \(Fmt.bytes($0.totalBytes))"
+                    } ?? "No disk reported",
                     showsDisclosure: true
                 )
             }
@@ -204,35 +213,70 @@ struct SystemView: View {
                         tint: MobileSystemFormat.batteryColor(battery),
                         label: "Battery",
                         value: battery.percent.map { "\($0)%" } ?? "—",
-                        caption: battery.state ?? (battery.charging == true ? "Charging" : "On battery"),
+                        caption: batteryCaption(battery),
                         showsDisclosure: true
                     )
                 }
                 .buttonStyle(.plain)
             } else {
-                NavigationLink {
-                    MobileSystemCategoryView(category: .performance)
-                } label: {
-                    MobileSystemTile(
-                        icon: "list.bullet.rectangle",
-                        tint: Theme.output,
-                        label: "Processes",
-                        value: Fmt.grouped(info.processes.total),
-                        caption: "\(info.listeningPorts.count) listening ports",
-                        showsDisclosure: true
-                    )
-                }
-                .buttonStyle(.plain)
+                healthTile(info)
             }
         }
     }
 
-    // MARK: - Explore
+    private func batteryCaption(_ battery: SystemBattery) -> String {
+        var parts: [String] = []
+        if let state = battery.state {
+            parts.append(state)
+        } else if battery.charging == true {
+            parts.append("Charging")
+        }
 
-    private func exploreSection(_ info: SystemInfo) -> some View {
+        if battery.charging != true,
+           let minutes = battery.minutesRemaining, minutes > 0 {
+            parts.append(Fmt.uptime(minutes * 60))
+        } else if let health = battery.healthPercent {
+            parts.append("\(Int(health.rounded()))% health")
+        }
+
+        return parts.isEmpty ? "Open health details" : parts.joined(separator: " · ")
+    }
+
+    private func healthTile(_ info: SystemInfo) -> some View {
+        let summary = healthSummary(info)
+        return NavigationLink {
+            MobileSystemCategoryView(category: .health)
+        } label: {
+            MobileSystemTile(
+                icon: "heart.text.square",
+                tint: MobileSystemFormat.thermalPressureColor(info.thermal?.pressure),
+                label: "Health",
+                value: summary.value,
+                caption: summary.caption,
+                showsDisclosure: true
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func healthSummary(_ info: SystemInfo) -> (value: String, caption: String) {
+        let pressure = info.thermal?.pressure?.capitalized ?? "Normal"
+        var checks: [String] = []
+        if let sip = info.security?.systemIntegrityProtection?.isEnabled {
+            checks.append("SIP \(sip ? "on" : "off")")
+        }
+        if let firewall = info.security?.firewall?.isEnabled {
+            checks.append("Firewall \(firewall ? "on" : "off")")
+        }
+        return (pressure, checks.isEmpty ? "Thermal and security" : checks.joined(separator: " · "))
+    }
+
+    // MARK: - More
+
+    private func moreSection(_ info: SystemInfo) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("Explore") {
-                Text("\(MobileSystemCategory.allCases.count) sections")
+            SectionHeader("More") {
+                Text("\(MobileSystemCategory.moreCases.count) sections")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
@@ -242,7 +286,7 @@ struct SystemView: View {
                 columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
                 spacing: 10
             ) {
-                ForEach(MobileSystemCategory.allCases) { category in
+                ForEach(MobileSystemCategory.moreCases) { category in
                     NavigationLink {
                         MobileSystemCategoryView(category: category)
                     } label: {

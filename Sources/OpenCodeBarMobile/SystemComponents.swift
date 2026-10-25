@@ -51,7 +51,7 @@ struct MobileSystemTile: View {
     }
 }
 
-/// A destination card in the System dashboard's "Explore" grid.
+/// A destination card in the System dashboard's "More" grid.
 struct MobileSystemNavTile: View {
     let icon: String
     let tint: Color

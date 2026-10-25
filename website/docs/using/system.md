@@ -19,12 +19,12 @@ refresh button in the header (or pull to refresh on iOS) for an immediate
 dynamic refresh.
 
 On iPhone and iPad the Host → System screen opens on a compact dashboard: the
-six live tiles, a **Now Playing** card, and an **Explore** grid. The grid opens
-short category pages — Performance, Terminals, Storage, Network, Software, Files,
-Health, and Machine — so the long inventory is split into focused screens
-instead of one endless scroll. The vitals are links too: CPU opens Performance,
-disk opens Storage, battery opens Health, and system/uptime open Machine. The
-Mac panel keeps its single-scroll layout.
+six live tiles and a **Now Playing** card. The tiles double as navigation — CPU
+opens Performance, memory opens the memory monitor, storage opens Storage,
+battery (or Health on a Mac without a battery) opens Health, and system/uptime
+open Machine. A **More** grid adds Network, Software, Terminals, and Files, so
+the long inventory is split into focused screens instead of one endless scroll.
+The Mac panel keeps its single-scroll layout.
 
 ## Overview and machine
 

@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// The Host → System inventory is split into short, focused pages. The
-/// dashboard only shows live vitals; each category below owns the long lists
-/// that used to make one endless scroll.
+/// dashboard's live tiles open Performance, Storage, Health and Machine; the
+/// "More" grid opens the categories that do not have a matching vital.
 enum MobileSystemCategory: String, CaseIterable, Identifiable {
     case performance
     case terminals
@@ -54,7 +54,21 @@ enum MobileSystemCategory: String, CaseIterable, Identifiable {
         }
     }
 
-    /// One line of live context for the dashboard tile. Kept short enough to
+    /// Categories that are not already represented by a dashboard vital tile.
+    /// Performance, Storage, Health and Machine are reached by tapping the
+    /// corresponding live tile, so they do not need a second navigation card.
+    var showsInMore: Bool {
+        switch self {
+        case .performance, .storage, .health, .machine: return false
+        case .network, .software, .terminals, .files: return true
+        }
+    }
+
+    static var moreCases: [MobileSystemCategory] {
+        allCases.filter { $0.showsInMore }
+    }
+
+    /// One line of live context for a "More" grid tile. Kept short enough to
     /// fit two lines on a narrow phone in a two-column grid.
     @MainActor
     func caption(info: SystemInfo, store: MobileStore) -> String {
