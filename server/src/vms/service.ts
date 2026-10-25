@@ -475,13 +475,42 @@ export class VirtualMachineService implements VirtualMachineStore {
       // `do shell script … with administrator privileges` runs the installer
       // as root; give it the real user identity so the profile, channels, and
       // trusted-user setup target the person running the hub.
+      //
+      // The installer's `vifs` step needs /etc/fstab to exist and a TTY. A
+      // previous attempt can also leave a "Nix Store" APFS volume behind, so
+      // reuse it and pre-seed the fstab line instead of creating a second one.
       const script = `#!/bin/sh
 set -eu
 export HOME=${shellQuote(home)}
 export USER=${shellQuote(user)}
 export LOGNAME=${shellQuote(user)}
+export TERM=xterm-256color
 umask 0022
-exec /bin/sh -c ${shellQuote(job.command)} >> ${shellQuote(logPath)} 2>&1
+
+if [ ! -e /etc/fstab ]; then
+  /usr/bin/touch /etc/fstab
+  /bin/chmod 644 /etc/fstab
+fi
+
+VOL_SPECIAL=$(/usr/sbin/diskutil list 2>/dev/null | /usr/bin/awk '/Nix Store/ {print $NF; exit}')
+if [ -n "$VOL_SPECIAL" ]; then
+  export NIX_VOLUME_USE_SPECIAL="$VOL_SPECIAL"
+  VOL_UUID=$(/usr/sbin/diskutil info "$VOL_SPECIAL" 2>/dev/null | /usr/bin/awk -F': ' '/Volume UUID/ {print $2; exit}')
+  if [ -n "$VOL_UUID" ]; then
+    export NIX_VOLUME_USE_UUID="$VOL_UUID"
+    if ! /usr/bin/grep -q "UUID=$VOL_UUID /nix apfs rw" /etc/fstab 2>/dev/null; then
+      printf 'UUID=%s /nix apfs rw,noauto,nobrowse,nosuid,noatime,owners\\n' "$VOL_UUID" >> /etc/fstab
+    fi
+  fi
+fi
+
+STATUS=0
+/usr/bin/script -q /dev/null /bin/sh -c ${shellQuote(job.command)} >> ${shellQuote(logPath)} 2>&1 || STATUS=$?
+if [ ! -x /nix/var/nix/profiles/default/bin/nix ]; then
+  echo "Nix was not found after the installer finished." >&2
+  exit 1
+fi
+exit $STATUS
 `;
       writeFileSync(scriptPath, script, { mode: 0o700 });
       chmodSync(scriptPath, 0o700);
