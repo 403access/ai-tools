@@ -78,6 +78,10 @@ struct ServerSettings: Decodable, Equatable {
     var eventThrottleMs: Int
     var eventThrottleMinMs: Int?
     var eventThrottleMaxMs: Int?
+    /// Whether the hub currently blocks idle sleep on the host Mac.
+    var preventSleep: Bool?
+    /// False when the hub runs on a platform that cannot block sleep.
+    var preventSleepSupported: Bool?
 }
 
 struct ServerSettingsResponse: Decodable {

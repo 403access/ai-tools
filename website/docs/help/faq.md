@@ -27,6 +27,14 @@ OpenCode. That is normally a Mac, because OpenCode is running there.
 Yes. Pair each device. The Mac's **Settings → Devices** list shows every client
 with its platform and app version.
 
+## Why does the phone lose its connection when I leave the Mac?
+
+macOS sleeps an idle Mac, which stops the hub from answering. Turn on
+**Settings → Power → Keep Mac awake** in the Mac app (or start the hub with
+`OPENCODEBAR_PREVENT_SLEEP=1`). The hub then holds an idle-sleep assertion while
+it runs. The display can still turn off, but closing the lid still sleeps the
+Mac.
+
 ## Can I run more than one hub?
 
 You can, but each hub owns one SQLite database and one OpenCode service. Point

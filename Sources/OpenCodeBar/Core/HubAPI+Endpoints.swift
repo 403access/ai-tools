@@ -33,10 +33,20 @@ extension HubAPI {
         return response.data
     }
 
-    /// Changes the coalescing window for updates sent to the apps. The hub
-    /// applies it immediately and persists it for the next launch.
-    func updateSettings(eventThrottleMs: Int) async throws -> ServerSettings {
-        let body = try JSONEncoder().encode(["eventThrottleMs": eventThrottleMs])
+    /// Changes coalescing and sleep settings sent to the apps. The hub applies
+    /// them immediately and persists them for the next launch. Omitted values
+    /// are left unchanged.
+    func updateSettings(
+        eventThrottleMs: Int? = nil,
+        preventSleep: Bool? = nil
+    ) async throws -> ServerSettings {
+        struct Body: Encodable {
+            var eventThrottleMs: Int?
+            var preventSleep: Bool?
+        }
+        let body = try JSONEncoder().encode(
+            Body(eventThrottleMs: eventThrottleMs, preventSleep: preventSleep)
+        )
         let data = try await send("/api/settings", method: "PATCH", body: body)
         do {
             return try Self.decoder.decode(ServerSettingsResponse.self, from: data).data

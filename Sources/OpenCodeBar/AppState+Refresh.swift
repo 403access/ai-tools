@@ -202,6 +202,30 @@ extension AppState {
         }
     }
 
+    /// Keeps the hub host awake (or lets it sleep normally). Blocking idle
+    /// sleep preserves the phone's connection when the Mac would otherwise
+    /// suspend the hub.
+    func updatePreventSleep(_ enabled: Bool) async {
+        guard let api else {
+            await bootstrap()
+            return
+        }
+        guard !isUpdatingSettings else { return }
+        isUpdatingSettings = true
+        defer { isUpdatingSettings = false }
+
+        do {
+            let settings = try await api.updateSettings(preventSleep: enabled)
+            self.serverSettings = settings
+            self.settingsError = nil
+            self.settingsNotice = settings.preventSleep == true
+                ? "The Mac will stay awake while the hub runs"
+                : "The Mac can sleep normally"
+        } catch {
+            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
     /// Asks the hub to pull fresh OpenCode data, then refreshes the panel.
     func syncNow() async {
         guard let api else {

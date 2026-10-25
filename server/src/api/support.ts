@@ -96,11 +96,13 @@ export function intParam(value: string | null, fallback: number, min: number, ma
   return Math.min(Math.max(parsed, min), max);
 }
 
-export function settingsPayload(config: HubConfig): HubSettings {
+export function settingsPayload(config: HubConfig, preventSleepSupported: boolean): HubSettings {
   return {
     eventThrottleMs: config.eventThrottleMs,
     eventThrottleMinMs: MIN_EVENT_THROTTLE_MS,
     eventThrottleMaxMs: MAX_EVENT_THROTTLE_MS,
+    preventSleep: config.preventSleep,
+    preventSleepSupported,
   };
 }
 

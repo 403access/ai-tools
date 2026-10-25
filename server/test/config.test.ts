@@ -42,6 +42,29 @@ describe("hub config", () => {
     });
   });
 
+  test("defaults sleep prevention off and persists it", () => {
+    withTempDirs((env) => {
+      expect(loadConfig(env).preventSleep).toBe(false);
+
+      const config = loadConfig(env);
+      config.preventSleep = true;
+      writeHubConfig(config);
+
+      expect(loadConfig(env).preventSleep).toBe(true);
+    });
+  });
+
+  test("lets the environment override the saved sleep preference", () => {
+    withTempDirs((env) => {
+      const config = loadConfig(env);
+      config.preventSleep = true;
+      writeHubConfig(config);
+
+      const overridden = loadConfig({ ...env, OPENCODEBAR_PREVENT_SLEEP: "off" });
+      expect(overridden.preventSleep).toBe(false);
+    });
+  });
+
   test("clamps out-of-range values", () => {
     withTempDirs((env) => {
       expect(loadConfig({ ...env, OPENCODEBAR_EVENT_THROTTLE_MS: "-50" }).eventThrottleMs).toBe(0);

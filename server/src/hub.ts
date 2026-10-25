@@ -36,6 +36,7 @@ import {
   cancelPendingInput,
 } from "./hub/reads.ts";
 import { sleep, syncFast as runFastSync, syncMessagesForChanges as runMessageSync, syncNow as runSyncNow, syncSlow as runSlowSync } from "./hub/sync.ts";
+import { CaffeinateSleepGuard, type SleepGuard } from "./hub/sleep.ts";
 import { UsageService } from "./hub/usage.ts";
 
 export type { EventSink } from "./hub/event-bus.ts";
@@ -46,6 +47,8 @@ export interface HubOptions {
   usageFetcher?: UsageFetcher;
   /** Injectable for tests; defaults to the real local-service discovery. */
   discover?: Discovery;
+  /** Injectable for tests; defaults to `caffeinate` on macOS. */
+  sleepGuard?: SleepGuard;
 }
 
 /** Background polling loops that keep the SQLite cache close to OpenCode. */
@@ -57,6 +60,7 @@ export class Hub {
   private readonly bus: EventBus;
   private readonly usage: UsageService;
   private readonly discover: Discovery;
+  private readonly sleepGuard: SleepGuard;
 
   started = false;
   stopped = false;
@@ -83,6 +87,8 @@ export class Hub {
     this.config = config;
     this.db = db;
     this.discover = options.discover ?? (() => discoverOpenCode());
+    this.sleepGuard =
+      options.sleepGuard ?? new CaffeinateSleepGuard((level, message) => this.log(level, message));
     this.bus = new EventBus(config, (level, message) => this.log(level, message), () => this.state.connected);
     this.usage = new UsageService(
       db,
@@ -98,6 +104,9 @@ export class Hub {
   start(): void {
     if (this.started) return;
     this.started = true;
+    // Apply the saved sleep preference before polling so a restart does not
+    // leave a short window where the Mac can idle-sleep.
+    this.sleepGuard.setEnabled(this.config.preventSleep);
     void this.fastLoop();
     void this.slowLoop();
     void this.usageLoop();
@@ -109,6 +118,7 @@ export class Hub {
     this.eventAbort = null;
     if (this.debounce) clearTimeout(this.debounce);
     this.debounce = null;
+    this.sleepGuard.stop();
     this.bus.stop();
   }
 
@@ -385,6 +395,17 @@ export class Hub {
 
   setEventThrottle(value: number): number {
     return this.bus.setEventThrottle(value);
+  }
+
+  /** Applies a new sleep preference immediately. */
+  setPreventSleep(enabled: boolean): boolean {
+    this.config.preventSleep = enabled;
+    this.sleepGuard.setEnabled(enabled);
+    return enabled;
+  }
+
+  get preventSleepSupported(): boolean {
+    return this.sleepGuard.supported;
   }
 
   broadcast(event: HubEvent): void {

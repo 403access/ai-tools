@@ -34,6 +34,11 @@ export interface HubConfig {
    * them to the apps. `0` forwards every event immediately.
    */
   eventThrottleMs: number;
+  /**
+   * Keeps macOS from idle-sleeping while the hub runs, so remote clients keep
+   * their connection. Ignored on platforms without `caffeinate`.
+   */
+  preventSleep: boolean;
   logLevel: "debug" | "info" | "warn";
 }
 
@@ -74,6 +79,25 @@ function num(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
   return undefined;
+}
+
+function bool(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return undefined;
+  switch (value.trim().toLowerCase()) {
+    case "1":
+    case "true":
+    case "yes":
+    case "on":
+      return true;
+    case "0":
+    case "false":
+    case "no":
+    case "off":
+      return false;
+    default:
+      return undefined;
+  }
 }
 
 /**
@@ -147,6 +171,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): HubConfig {
         num(saved?.eventThrottleMs) ??
         DEFAULT_EVENT_THROTTLE_MS,
     ),
+    preventSleep:
+      bool(env.OPENCODEBAR_PREVENT_SLEEP) ??
+      bool(saved?.preventSleep) ??
+      false,
     logLevel: (str(env.OPENCODEBAR_LOG_LEVEL) as HubConfig["logLevel"]) ?? "info",
   };
 }
@@ -163,6 +191,7 @@ export function writeHubConfig(config: HubConfig, port = config.port): void {
     port,
     version: HUB_VERSION,
     eventThrottleMs: config.eventThrottleMs,
+    preventSleep: config.preventSleep,
     updatedAt: new Date().toISOString(),
   };
   writeFileSync(config.configPath, JSON.stringify(payload, null, 2) + "\n", {

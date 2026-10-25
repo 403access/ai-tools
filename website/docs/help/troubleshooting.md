@@ -70,6 +70,9 @@ Environment overrides take precedence over the generated file. Unset
   data, but iOS apps cannot reach `192.0.0.2`, so use the tunnel there too.
 - Allow **Local Network** access for OpenCodeBar on both devices.
 - Allow incoming connections for Bun/the hub port in the macOS firewall.
+- A sleeping Mac cannot answer. Open **Settings → Power** on the Mac and turn on
+  **Keep Mac awake** (or start the hub with `OPENCODEBAR_PREVENT_SLEEP=1`).
+  Closing the lid still puts the Mac to sleep.
 - Test from another device: `curl http://<mac-lan-ip>:8787/api/ping`.
 
 If you bound the hub to `127.0.0.1`, the phone cannot reach it. Use

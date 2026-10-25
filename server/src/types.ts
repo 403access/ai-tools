@@ -355,6 +355,10 @@ export interface HubSettings {
   eventThrottleMs: number;
   eventThrottleMinMs: number;
   eventThrottleMaxMs: number;
+  /** True while the hub keeps the host Mac from idle-sleeping. */
+  preventSleep: boolean;
+  /** False on platforms where the hub cannot block sleep. */
+  preventSleepSupported: boolean;
 }
 
 export interface HubSettingsResponse {

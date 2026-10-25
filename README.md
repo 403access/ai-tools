@@ -201,6 +201,10 @@ iOS app:
 - Server controls: sync now, restart the hub, reveal its data/config files, and
   refresh. Pairing shows a scannable QR code plus the copyable link for adding
   another phone.
+- **Power**: choose whether the Mac may sleep while the hub runs. Keeping it
+  awake holds an idle-sleep assertion so phones and tablets keep their
+  connection; the display can still turn off. The preference is stored by the
+  hub and applied again after a restart.
 
 **iPhone & iPad**
 - The same Live, Projects, Usage, System, and Settings areas as the Mac panel,
@@ -693,7 +697,8 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
   `SIMCTL_CHILD_OPENCODEBAR_TAB=usage xcrun simctl launch booted dev.opencodebar.mobile`.
 - Hub environment: `OPENCODEBAR_HUB_PORT` (default 8787),
   `OPENCODEBAR_HUB_HOST`, `OPENCODEBAR_HUB_DB`, `OPENCODEBAR_HUB_TOKEN`,
-  `OPENCODEBAR_HUB_URL` (clients), `OPENCODEBAR_LOG_LEVEL`.
+  `OPENCODEBAR_HUB_URL` (clients), `OPENCODEBAR_PREVENT_SLEEP` (`1` holds an
+  idle-sleep assertion while the hub runs), `OPENCODEBAR_LOG_LEVEL`.
 - `OPENCODE_GO_USAGE_URL` points the hub's Go limits client at a different URL,
   which is how the Plan limits UI is exercised without a live Go key.
 - `OPENCODE_API_KEY` overrides the Go API key read from `auth.json`, and
@@ -714,6 +719,9 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
 - The hub relies on the local OpenCode service; when the service is stopped it
   keeps serving cached data and shows an offline state, reconnecting when
   OpenCode returns.
+- If the Mac sleeps, the hub cannot answer until it wakes. Turn on **Settings →
+  Power → Keep Mac awake** (or set `OPENCODEBAR_PREVENT_SLEEP=1`) to hold an
+  idle-sleep assertion while the hub runs.
 - Go plan limits come from an undocumented console endpoint. Credits, the
   auto-recharge setting, and extra usage are console-only and are not shown.
 - The hub binds `0.0.0.0` by default so the phone can reach it; a Bearer token

@@ -6,9 +6,31 @@ import { createHandler, type ApiDeps } from "../../src/api.ts";
 import type { HubConfig } from "../../src/config.ts";
 import { HubDB } from "../../src/db.ts";
 import { Hub } from "../../src/hub.ts";
+import type { SleepGuard } from "../../src/hub/sleep.ts";
 import type { HubEvent, Session } from "../../src/types.ts";
 
 export const TOKEN = "test-token";
+
+export interface TestSleepGuard extends SleepGuard {
+  calls: boolean[];
+  enabled: boolean;
+}
+
+/** Records sleep changes instead of starting `caffeinate` during tests. */
+export function testSleepGuard(): TestSleepGuard {
+  return {
+    supported: true,
+    calls: [],
+    enabled: false,
+    setEnabled(enabled: boolean) {
+      this.enabled = enabled;
+      this.calls.push(enabled);
+    },
+    stop() {
+      this.enabled = false;
+    },
+  };
+}
 
 export function config(overrides: Partial<HubConfig> = {}): HubConfig {
   return {
@@ -23,6 +45,7 @@ export function config(overrides: Partial<HubConfig> = {}): HubConfig {
     usagePollMs: 60_000,
     // Tests assert deliveries directly, so keep the default un-throttled.
     eventThrottleMs: 0,
+    preventSleep: false,
     logLevel: "warn",
     ...overrides,
   };
@@ -47,12 +70,14 @@ export function setup(
 ) {
   const db = new HubDB(":memory:");
   const cfg = config(overrides);
+  const sleepGuard = testSleepGuard();
   const hub = new Hub(cfg, db, {
     discover: async () => null,
     usageFetcher: async () => ({ rolling: { percent: 12 } }),
+    sleepGuard,
   });
   const handler = createHandler({ db, hub, config: cfg, ...deps });
-  return { db, hub, handler };
+  return { db, hub, handler, sleepGuard };
 }
 
 export function request(path: string, init: RequestInit = {}, token: string | null = TOKEN): Request {

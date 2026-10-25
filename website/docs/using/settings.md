@@ -10,6 +10,18 @@ connected to it.
 
 ## macOS
 
+### Power
+
+**Keep Mac awake** controls whether the hub blocks idle sleep while it runs.
+When it is on, the hub holds a macOS idle-sleep assertion (`caffeinate -i`), so
+the phone and tablet keep their connection while the Mac is otherwise idle.
+The display can still turn off, and closing the lid still sleeps the Mac.
+
+The setting is stored in the hub's `opencodebar-hub.json`, applied immediately,
+and restored the next time the hub starts. It is unavailable when the hub runs
+on a non-macOS host. If the hub itself is not running, nothing can keep the
+Mac awake.
+
 ### Server
 
 The Server card shows:

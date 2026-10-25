@@ -106,22 +106,38 @@ export function createHandler(
 
       if (pathname === "/api/settings") {
         if (request.method === "GET") {
-          return json({ data: settingsPayload(config) });
+          return json({ data: settingsPayload(config, hub.preventSleepSupported) });
         }
         if (request.method === "PATCH") {
           const body = await readJSONBody(request);
           if (!body) return error("Expected a JSON body", 400);
 
-          const value = body.eventThrottleMs;
-          if (typeof value !== "number" || !Number.isFinite(value)) {
-            return error("eventThrottleMs must be a number", 400);
+          const hasThrottle = body.eventThrottleMs !== undefined;
+          const hasSleep = body.preventSleep !== undefined;
+          if (!hasThrottle && !hasSleep) {
+            return error("Provide eventThrottleMs or preventSleep", 400);
           }
 
-          // The hub clamps out-of-range values, so older clients that send a
-          // too-small interval still get a usable setting instead of an error.
-          hub.setEventThrottle(clampEventThrottle(value));
+          if (hasThrottle) {
+            const value = body.eventThrottleMs;
+            if (typeof value !== "number" || !Number.isFinite(value)) {
+              return error("eventThrottleMs must be a number", 400);
+            }
+            // The hub clamps out-of-range values, so older clients that send a
+            // too-small interval still get a usable setting instead of an error.
+            hub.setEventThrottle(clampEventThrottle(value));
+          }
+
+          if (hasSleep) {
+            const value = body.preventSleep;
+            if (typeof value !== "boolean") {
+              return error("preventSleep must be a boolean", 400);
+            }
+            hub.setPreventSleep(value);
+          }
+
           persistSettings?.(config);
-          return json({ data: settingsPayload(config) });
+          return json({ data: settingsPayload(config, hub.preventSleepSupported) });
         }
         return error("Method not allowed", 405);
       }

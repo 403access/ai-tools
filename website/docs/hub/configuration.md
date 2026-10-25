@@ -23,6 +23,7 @@ file. Client overrides work the same way.
 | `OPENCODEBAR_SLOW_POLL_MS` | `60000` | Slow poll interval |
 | `OPENCODEBAR_USAGE_POLL_MS` | `60000` | Go usage poll interval |
 | `OPENCODEBAR_EVENT_THROTTLE_MS` | `250` | Coalescing window for event updates sent to the apps; `0` forwards every event |
+| `OPENCODEBAR_PREVENT_SLEEP` | `false` | Keep a macOS idle-sleep assertion while the hub runs (`1`/`true`/`on`) |
 | `OPENCODEBAR_LOG_LEVEL` | `info` | `debug`, `info`, or `warn` |
 | `OPENCODE_GO_USAGE_URL` | OpenCode console endpoint | Override the usage endpoint |
 | `OPENCODE_GO_USAGE_KEY` | resolved | Usage-only key |
@@ -31,10 +32,11 @@ file. Client overrides work the same way.
 `XDG_CONFIG_HOME` and `XDG_DATA_HOME` are respected when resolving config and
 database paths.
 
-The update throttle is also editable from the Mac app's **Settings → Updates**
-(or `PATCH /api/settings`). The hub applies changes immediately and records the
-value in `opencodebar-hub.json`, so it survives a restart. An environment
-variable still wins over the saved value.
+The update throttle and sleep preference are also editable from the Mac app's
+**Settings → Updates** and **Settings → Power** (or `PATCH /api/settings`). The
+hub applies changes immediately and records the values in
+`opencodebar-hub.json`, so they survive a restart. An environment variable still
+wins over the saved value.
 
 ## Generated files
 
@@ -112,6 +114,12 @@ Batch event updates more aggressively for a busy session or a slow phone link:
 
 ```bash
 OPENCODEBAR_EVENT_THROTTLE_MS=500 make hub
+```
+
+Keep the Mac awake so the phone keeps its connection:
+
+```bash
+OPENCODEBAR_PREVENT_SLEEP=1 make hub
 ```
 
 Debug logging:

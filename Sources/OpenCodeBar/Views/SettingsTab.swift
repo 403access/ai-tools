@@ -19,6 +19,7 @@ struct SettingsTab: View {
             }
 
             appSection
+            powerSection
             serverSection
             updatesSection
             devicesSection
@@ -59,6 +60,49 @@ struct SettingsTab: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            .card()
+        }
+    }
+
+    // MARK: - Power
+
+    /// The hub can hold a power assertion so the Mac does not idle-sleep while
+    /// a phone or tablet is connected. The display still turns off normally.
+    var powerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Power")
+
+            VStack(alignment: .leading, spacing: 8) {
+                if let settings = state.serverSettings,
+                   settings.preventSleepSupported == true {
+                    Toggle(isOn: Binding(
+                        get: { state.serverSettings?.preventSleep ?? false },
+                        set: { value in
+                            Task { await state.updatePreventSleep(value) }
+                        }
+                    )) {
+                        Text("Keep Mac awake")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .disabled(state.isUpdatingSettings)
+
+                    Text(settings.preventSleep == true
+                         ? "Idle sleep is blocked while the hub runs, so the phone and tablet keep their connection. The display can still turn off."
+                         : "The Mac can sleep normally. Phones and tablets lose their connection while it is asleep.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(state.serverSettings == nil
+                         ? "Sleep settings load from the hub. Connect to the hub to manage them."
+                         : "This hub is not running on macOS, so there is no host sleep to manage.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .card()
         }

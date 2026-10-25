@@ -86,16 +86,19 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `GET` | `/api/terminals/{id}/socket` | WebSocket for terminal I/O |
 | `GET` | `/api/devices` | Connected devices |
 | `GET` | `/api/settings` | Tunable hub settings |
-| `PATCH` | `/api/settings` | Update the event throttle |
+| `PATCH` | `/api/settings` | Update the event throttle or sleep preference |
 
-`/api/settings` returns the coalescing window applied to event-stream updates:
+`/api/settings` returns the coalescing window applied to event-stream updates
+and whether the hub host is allowed to idle-sleep:
 
 ```json
 {
   "data": {
     "eventThrottleMs": 250,
     "eventThrottleMinMs": 0,
-    "eventThrottleMaxMs": 5000
+    "eventThrottleMaxMs": 5000,
+    "preventSleep": false,
+    "preventSleepSupported": true
   }
 }
 ```
@@ -263,6 +266,19 @@ curl -X PATCH http://127.0.0.1:8787/api/settings \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"eventThrottleMs":500}'
+```
+
+`preventSleep` holds an idle-sleep assertion on the hub host so a sleeping Mac
+does not drop the phone's connection. It is supported on macOS only; when the
+hub runs elsewhere, `preventSleepSupported` is `false` and the value has no
+effect. The display can still turn off. Both settings can be sent together, and
+omitting one leaves it unchanged:
+
+```bash
+curl -X PATCH http://127.0.0.1:8787/api/settings \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"eventThrottleMs":500,"preventSleep":true}'
 ```
 
 ### Sessions
