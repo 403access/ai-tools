@@ -29,8 +29,9 @@ To launch straight into the desktop window instead, use `make desktop`.
   control-click) for the compact panel with **Live**, **Usage**, **Projects**,
   **System**, and **Settings**.
 - Session detail pages, project detail pages, and a full conversation view.
-- A System tab with the host inventory, media controls, file browsing, and
-  interactive terminals, including terminals started in OpenCode.
+- A System tab with the host inventory, media controls, file browsing,
+  interactive OpenCode terminals, and a text mirror of tabs already open in
+  Terminal.app.
 - A footer with the active count and the last refresh time.
 
 ## Desktop window

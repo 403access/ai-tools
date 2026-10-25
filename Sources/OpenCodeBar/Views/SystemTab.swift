@@ -15,6 +15,7 @@ struct SystemTab: View {
     @State private var volumeDraft: Double = 0
     @State private var adjustingVolume = false
     @State private var selectedTerminal: SystemTerminal?
+    @State private var selectedHostTerminal: HostTerminal?
     @State private var showingNewTerminal = false
     @State private var pendingTerminal: SystemTerminal?
 
@@ -36,6 +37,9 @@ struct SystemTab: View {
             if let info = state.systemInfo {
                 overview(info)
                 mediaSection(info)
+                if info.platformName == "macOS" {
+                    hostTerminalsSection
+                }
                 terminalsSection
                 filesSection(info)
                 hostSection(info)
@@ -69,6 +73,11 @@ struct SystemTab: View {
                 TerminalDetailView(terminal: terminal, api: api)
             }
         }
+        .sheet(item: $selectedHostTerminal) { terminal in
+            if let api = state.api {
+                HostTerminalDetailView(terminal: terminal, api: api)
+            }
+        }
         .sheet(isPresented: $showingNewTerminal, onDismiss: openPendingTerminal) {
             NewTerminalSheet(directory: state.orderedProjects.first?.canonical) { terminal in
                 pendingTerminal = terminal
@@ -80,8 +89,15 @@ struct SystemTab: View {
         while !Task.isCancelled {
             async let system: Void = state.refreshSystemInfo()
             async let terminals: Void = state.refreshTerminals()
-            _ = await (system, terminals)
+            async let hostTerminals: Void = state.refreshHostTerminals()
+            _ = await (system, terminals, hostTerminals)
             try? await Task.sleep(nanoseconds: 5_000_000_000)
+        }
+    }
+
+    private var hostTerminalsSection: some View {
+        HostTerminalsSection { terminal in
+            selectedHostTerminal = terminal
         }
     }
 
@@ -117,7 +133,8 @@ struct SystemTab: View {
                     Task {
                         async let system: Void = state.refreshSystemInfo(force: true)
                         async let terminals: Void = state.refreshTerminals(force: true)
-                        _ = await (system, terminals)
+                        async let hostTerminals: Void = state.refreshHostTerminals(force: true)
+                        _ = await (system, terminals, hostTerminals)
                     }
                 } label: {
                     Image(systemName: "arrow.clockwise")

@@ -23,7 +23,7 @@ struct MobileTerminalsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("Terminals") {
+            SectionHeader("OpenCode Terminals") {
                 HStack(spacing: 9) {
                     if store.isRefreshingTerminals {
                         ProgressView().controlSize(.small).scaleEffect(0.7)
@@ -167,6 +167,271 @@ private struct MobileTerminalRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Stop \(terminal.title)")
         }
+    }
+}
+
+/// Terminal.app tabs already open on the Mac. The hub mirrors their text and
+/// runs commands in them, so they can be used from the phone as well.
+struct MobileHostTerminalsSection: View {
+    @EnvironmentObject private var store: MobileStore
+    var onOpen: (HostTerminal) -> Void
+
+    @State private var showAll = false
+
+    private var visible: [HostTerminal] {
+        showAll ? store.hostTerminals : Array(store.hostTerminals.prefix(6))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Terminal.app") {
+                HStack(spacing: 9) {
+                    if store.isRefreshingHostTerminals {
+                        ProgressView().controlSize(.small).scaleEffect(0.7)
+                    }
+                    if !store.hostTerminals.isEmpty {
+                        Text("\(store.hostTerminals.count)")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Tabs already open in Terminal.app on the Mac. Open one to mirror its screen and run commands in it.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let error = store.hostTerminalsError, store.hostTerminals.isEmpty {
+                    HStack(alignment: .top, spacing: 7) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(Theme.warn)
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else if store.hostTerminals.isEmpty {
+                    HStack(spacing: 9) {
+                        Image(systemName: "macwindow")
+                            .font(.title3.weight(.light))
+                            .foregroundStyle(.tertiary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("No Terminal.app tabs")
+                                .font(.caption.weight(.medium))
+                            Text("Open a Terminal window on the Mac and it appears here.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    ForEach(visible) { terminal in
+                        MobileHostTerminalRow(terminal: terminal) {
+                            onOpen(terminal)
+                        }
+                        if terminal.id != visible.last?.id {
+                            Divider().opacity(0.45)
+                        }
+                    }
+
+                    if store.hostTerminals.count > 6 {
+                        Button(showAll ? "Show fewer" : "Show all \(store.hostTerminals.count) tabs") {
+                            showAll.toggle()
+                        }
+                        .font(.caption.weight(.semibold))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.accent)
+                    }
+                }
+            }
+            .card()
+        }
+    }
+}
+
+private struct MobileHostTerminalRow: View {
+    let terminal: HostTerminal
+    var onOpen: () -> Void
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack(spacing: 9) {
+                Circle()
+                    .fill(terminal.busy ? Theme.accent : Color.secondary.opacity(0.45))
+                    .frame(width: 7, height: 7)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(terminal.displayTitle)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                    Text("\(terminal.processLabel) · \(terminal.tty)")
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+
+                Spacer(minLength: 4)
+
+                Text(terminal.locationLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens the Terminal.app mirror")
+    }
+}
+
+/// Full-screen mirror of one Terminal.app tab.
+struct MobileHostTerminalDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let terminal: HostTerminal
+    @StateObject private var mirror: HostTerminalMirror
+    @State private var command = ""
+
+    init(terminal: HostTerminal, api: HubAPI) {
+        self.terminal = terminal
+        _mirror = StateObject(
+            wrappedValue: HostTerminalMirror(api: api, terminal: terminal)
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                statusStrip
+                Divider()
+                mirrorBody
+                Divider()
+                commandBar
+
+                if let error = mirror.actionError {
+                    Text(error)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.warn)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                }
+            }
+            .background(Color(red: 0.052, green: 0.062, blue: 0.085))
+            .navigationTitle(mirror.detail?.title ?? terminal.displayTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+            .onAppear { mirror.start() }
+            .onDisappear { mirror.stop() }
+        }
+    }
+
+    private var statusStrip: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill((mirror.detail?.busy ?? terminal.busy) ? Theme.accent : Color.secondary)
+                .frame(width: 6, height: 6)
+            Text((mirror.detail?.busy ?? terminal.busy) ? "running" : "idle")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text("\(terminal.processLabel) · \(terminal.tty)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 4)
+            if let updated = mirror.lastUpdated {
+                Text(Fmt.relative(from: updated))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+    }
+
+    @ViewBuilder
+    private var mirrorBody: some View {
+        if let detail = mirror.detail {
+            ScrollView {
+                Text(detail.displayText.isEmpty ? "Waiting for output…" : detail.displayText)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(Color(red: 0.87, green: 0.91, blue: 0.95))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+            }
+            .defaultScrollAnchor(.bottom)
+        } else if case .unavailable(let message) = mirror.state {
+            VStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.title2.weight(.light))
+                    .foregroundStyle(Theme.warn)
+                Text("Terminal.app is unavailable")
+                    .font(.callout.weight(.semibold))
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Try again") {
+                    Task { await mirror.refresh() }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accent)
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ProgressView("Reading Terminal.app…")
+                .controlSize(.small)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var commandBar: some View {
+        HStack(spacing: 8) {
+            TextField("Run a command", text: $command)
+                .font(.system(size: 13, design: .monospaced))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.send)
+                .onSubmit(run)
+
+            if mirror.isSending {
+                ProgressView().controlSize(.small)
+            }
+
+            Button(action: run) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+            .disabled(mirror.isSending)
+            .accessibilityLabel("Run command")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(MobileTheme.bar)
+    }
+
+    private func run() {
+        let line = command
+        command = ""
+        Task { await mirror.send(line) }
     }
 }
 

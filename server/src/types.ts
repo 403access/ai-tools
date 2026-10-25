@@ -329,6 +329,40 @@ export interface TerminalResponse {
   data: Terminal;
 }
 
+/**
+ * A tab open in Terminal.app on the hub host. Unlike OpenCode PTYs these are
+ * owned by the terminal emulator, so the hub can mirror their text and run
+ * commands in them through macOS automation.
+ */
+export interface HostTerminal {
+  /** Stable while the tab stays open, e.g. `ttys001`. */
+  id: string;
+  /** Device path, e.g. `/dev/ttys001`. */
+  tty: string;
+  /** Terminal application that owns the tab. Currently always `Terminal`. */
+  app: string;
+  title: string;
+  busy: boolean;
+  processes: string[];
+  window: number;
+  tab: number;
+}
+
+export interface HostTerminalDetail extends HostTerminal {
+  /** Plain-text mirror of the tab's current screen. */
+  contents: string;
+  /** Full scrollback, only when explicitly requested. */
+  history?: string;
+}
+
+export interface HostTerminalsResponse {
+  data: HostTerminal[];
+}
+
+export interface HostTerminalResponse {
+  data: HostTerminalDetail;
+}
+
 /** A Mac or iOS app that has talked to this hub. */
 export interface ConnectedDevice {
   id: string;

@@ -42,6 +42,46 @@ final class TerminalTests: XCTestCase {
         XCTAssertFalse(envelope.data[1].isRunning)
     }
 
+    func testDecodesHostTerminalAndNormalizesContents() throws {
+        let detail = try JSONDecoder().decode(
+            HostTerminalDetail.self,
+            from: Data(
+                """
+                {
+                  "id": "ttys001",
+                  "tty": "/dev/ttys001",
+                  "app": "Terminal",
+                  "title": "Build",
+                  "busy": true,
+                  "processes": ["login", "-zsh"],
+                  "window": 3,
+                  "tab": 1,
+                  "contents": "echo hi  \\r\\nhi\\r\\n$ "
+                }
+                """.utf8
+            )
+        )
+
+        XCTAssertEqual(detail.displayText, "echo hi\nhi\n$")
+        XCTAssertEqual(detail.processes.last, "-zsh")
+    }
+
+    func testHostTerminalFallbacks() {
+        let terminal = HostTerminal(
+            id: "ttys002",
+            tty: "/dev/ttys002",
+            app: "Terminal",
+            title: "  ",
+            busy: false,
+            processes: ["login", "-zsh"],
+            window: 2,
+            tab: 1
+        )
+        XCTAssertEqual(terminal.displayTitle, "-zsh")
+        XCTAssertEqual(terminal.shortTTY, "ttys002")
+        XCTAssertEqual(terminal.locationLabel, "window 2 · tab 1")
+    }
+
     func testSocketRequestKeepsLocationInTheQuery() throws {
         let api = HubAPI(
             location: HubLocation(url: URL(string: "http://127.0.0.1:8787")!, token: "tok")

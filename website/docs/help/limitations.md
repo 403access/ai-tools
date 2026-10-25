@@ -24,6 +24,13 @@ button to terminate the process. Terminals run as the hub's user with that
 user's full environment and permissions; there is no command allow-list or
 sandbox.
 
+Terminal.app tabs already open on the Mac are a text mirror, not a full
+terminal: the visible screen is read as plain text once a second, colors are
+lost, and commands are sent as complete lines. Individual keystrokes, arrow
+keys, and `Ctrl-C` cannot be injected, and only Terminal.app is supported
+(iTerm2, Warp, and IDE terminals are not). The hub must be granted macOS
+Automation permission for Terminal.app; without it the section shows an error.
+
 ## Hub dependency
 
 The phone always needs a reachable hub for live updates. The iOS app still

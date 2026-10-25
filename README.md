@@ -185,6 +185,11 @@ iOS app:
   into it, or start a new shell in any project and stop terminals you no longer
   need. The hub proxies the PTY socket, so the same terminals work from the
   iPhone/iPad app over the LAN or a tunnel.
+- **Terminal.app tabs**: tabs already open in Terminal.app on the hub host are
+  listed separately. Open one to see a live text mirror of its screen and run
+  commands in the existing tab. This uses macOS Automation, so the hub needs
+  permission to control Terminal.app. It is line-based (type a command and
+  press Return), not a byte-for-byte PTY stream.
 - **Host file browser**: browse any folder on the server read-only, with
   breadcrumbs, quick links to Home, Root, Applications, Volumes, and project
   folders, hidden-file toggle, search, and text/image previews. Hub and OpenCode
@@ -274,8 +279,10 @@ The hub:
    `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`), `/api/usage`,
    `/api/health`, `/api/system`, `/api/terminals` (`GET`/`POST`),
    `/api/terminals/{id}` (`GET`/`PUT`/`DELETE`),
-   `/api/terminals/{id}/socket` (WebSocket), `/api/files`,
-   `/api/files/content`, `/api/files/raw`, `/api/devices`,
+   `/api/terminals/{id}/socket` (WebSocket), `/api/host-terminals`,
+   `/api/host-terminals/{id}`, `/api/host-terminals/{id}/command`,
+   `/api/host-terminals/{id}/focus`, `/api/files`, `/api/files/content`,
+   `/api/files/raw`, `/api/devices`,
    `/api/settings` (`GET`/`PATCH`), `/api/sync` (`GET` delta feed, `POST` force
    sync), `/api/server/restart` (`POST`), and `/api/event`. Clients
    authenticate with a Bearer token and identify their platform with
@@ -505,6 +512,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
   main.swift                entry point (also handles --preview)
   AppState.swift            observable state, polling, derived data
   AppState+Terminals.swift  terminal polling, creation and removal
+  AppState+HostTerminals.swift  Terminal.app tab polling
   Core/
     HubAPI.swift            async client for the hub (shared with iOS)
     HubAPI+Endpoints.swift  endpoint methods
@@ -517,6 +525,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     WidgetShared.swift      shared keychain + widget snapshot cache
     UsageCache.swift        last-known usage on disk
     TerminalConnection.swift  terminal WebSocket, input and resize bridging (shared)
+    HostTerminalMirror.swift  Terminal.app text mirror and command input (shared)
   Support/
     QRCode.swift            pairing QR rendering
   Models/                   Codable models, split by domain (shared)
@@ -539,6 +548,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     GoUsage.swift           Go plan windows (shared)
     SystemInfo.swift        machine inventory from the system endpoint (shared)
     Terminals.swift         OpenCode PTY sessions and requests (shared)
+    HostTerminals.swift     Terminal.app tab models (shared)
     HostFiles.swift         host directory listings and previews (shared)
   Views/                    SwiftUI panel, tabs, heatmap, components
     DesktopView.swift       full-window layout with a persistent sidebar
@@ -600,6 +610,7 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   SystemView.swift            machine inventory for the hub host
   MobileTerminalViews.swift   terminal list, new-terminal sheet and terminal sheet
   MobileStore+Terminals.swift terminal polling, creation and removal
+  MobileStore+HostTerminals.swift Terminal.app tab polling
   MobileFileBrowser.swift     host folders and file previews
   MobileCharts.swift          Swift Charts trend cards
   SettingsView.swift          appearance, pairing, and status
@@ -621,6 +632,7 @@ server/                       Bun + TypeScript + SQLite hub
   src/opencode.ts             OpenCode integration (barrel)
   src/opencode/               discovery, REST client, errors, Go usage
   src/terminals.ts            PTY aggregation and lifecycle across locations
+  src/host-terminals.ts       Terminal.app tabs via macOS automation
   src/api/terminal-socket.ts  WebSocket proxy for live terminal input/output
   src/db.ts                   SQLite facade
   src/db/                     schema, row mapping, stores, queries
@@ -686,9 +698,10 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
   `--project-detail` for the first project's detail page. `--session <id>` opens
   a specific session; combine it with `--detail-mode subagents` to inspect a
   session's child sessions. Add `--terminal` to render the first OpenCode
-  terminal instead of the panel, which is handy for checking the emulator. Stats
-  and Changes hydrate history on the first request, so open those tabs once (or
-  warm the hub cache) if a shot would otherwise capture the loading state.
+  terminal instead of the panel, or `--host-terminal` for the first Terminal.app
+  mirror; both are handy for checking the terminal views. Stats and Changes
+  hydrate history on the first request, so open those tabs once (or warm the hub
+  cache) if a shot would otherwise capture the loading state.
 - `OPENCODEBAR_DEBUG_SUBAGENTS=1` logs hub/subagent requests to stdout.
 - The menu bar glyph uses SF Symbols (`terminal` / `terminal.fill`).
 - iOS screenshot tooling (Debug builds): `OPENCODEBAR_TAB=live|projects|usage|settings`
@@ -716,6 +729,11 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
 - Terminal access runs commands as the same user as the hub and OpenCode. The
   hub token protects it, but anyone with the token can run anything that user
   can. Keep the token private and use a trusted network or a tunnel.
+- Terminal.app tabs are read and controlled through macOS Automation. The hub
+  needs permission in **System Settings → Privacy & Security → Automation**.
+  The mirror shows the visible screen as plain text, refreshed every second, so
+  colors and full-screen redraws are not reproduced; commands are sent as
+  complete lines.
 - The hub relies on the local OpenCode service; when the service is stopped it
   keeps serving cached data and shows an offline state, reconnecting when
   OpenCode returns.

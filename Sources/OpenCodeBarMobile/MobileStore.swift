@@ -118,6 +118,11 @@ final class MobileStore: ObservableObject {
     @Published var terminalsFetchedAt: Date?
     @Published var terminalsError: String?
     @Published var isRefreshingTerminals = false
+    /// Tabs open in Terminal.app on the Mac.
+    @Published var hostTerminals: [HostTerminal] = []
+    @Published var hostTerminalsFetchedAt: Date?
+    @Published var hostTerminalsError: String?
+    @Published var isRefreshingHostTerminals = false
     @Published var isControllingMedia = false
     @Published var mediaControlError: String?
     @Published var liveActivity: [String: SessionActivity] = [:]

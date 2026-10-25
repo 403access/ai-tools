@@ -30,6 +30,7 @@ The Bun tests in `server/test/` cover:
 - cached reads and message pagination,
 - API routing, auth, device headers, and error responses,
 - terminal routing, validation, and multi-location aggregation,
+- Terminal.app tab routing, command validation, and focus,
 - stats and changes aggregation.
 
 Type-check the server:
@@ -64,8 +65,11 @@ GitHub Pages workflow runs the same command.
 7. Open **System → Terminals**, start a terminal, run a command, resize the
    window, close and reopen it, then stop it. Repeat from the iOS System tab;
    confirm that a terminal started from OpenCode's own terminal panel appears.
-8. Pair the iOS app and repeat the session view.
-9. Stop OpenCode and confirm cached history still renders.
+8. Open a Terminal.app window, then open it from **System → Terminal.app**.
+   Confirm the text mirror updates, run a command from the field, and check the
+   tab on the Mac. On first use, approve the Automation prompt.
+9. Pair the iOS app and repeat the session view.
+10. Stop OpenCode and confirm cached history still renders.
 
 ## CI
 

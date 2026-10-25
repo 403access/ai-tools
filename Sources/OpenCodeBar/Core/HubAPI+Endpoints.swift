@@ -180,6 +180,45 @@ extension HubAPI {
         return components.string ?? "/api/terminals/\(encoded)"
     }
 
+    // MARK: - Terminal.app tabs
+
+    /// Tabs open in Terminal.app on the hub host. Empty on other platforms.
+    func hostTerminals(force: Bool = false) async throws -> [HostTerminal] {
+        let response: HostTerminalsEnvelope = try await get(
+            force ? "/api/host-terminals?refresh=1" : "/api/host-terminals"
+        )
+        return response.data
+    }
+
+    /// Plain-text mirror of one tab, optionally with its full scrollback.
+    func hostTerminal(id: String, history: Bool = false) async throws -> HostTerminalDetail {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        var path = "/api/host-terminals/\(encoded)"
+        if history { path += "?history=1" }
+        let response: HostTerminalEnvelope = try await get(path)
+        return response.data
+    }
+
+    /// Runs one line in an existing Terminal.app tab.
+    func sendHostTerminalCommand(id: String, command: String) async throws {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let body = try JSONEncoder().encode(HostTerminalCommandRequest(command: command))
+        _ = try await send(
+            "/api/host-terminals/\(encoded)/command",
+            method: "POST",
+            body: body
+        )
+    }
+
+    /// Brings the tab to the front on the Mac.
+    func focusHostTerminal(id: String) async throws {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        _ = try await send(
+            "/api/host-terminals/\(encoded)/focus",
+            method: "POST"
+        )
+    }
+
     // MARK: - Host files
 
     /// Lists one folder on the machine running the hub.

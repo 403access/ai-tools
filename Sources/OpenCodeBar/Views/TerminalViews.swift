@@ -25,7 +25,7 @@ struct TerminalsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader("Terminals") {
+            SectionHeader("OpenCode Terminals") {
                 HStack(spacing: 8) {
                     if state.isRefreshingTerminals {
                         ProgressView().controlSize(.small).scaleEffect(0.65)
@@ -187,6 +187,304 @@ private struct TerminalRow: View {
             .accessibilityLabel("Stop \(terminal.title)")
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// Terminal.app tabs already open on the hub host. macOS automation exposes
+/// their text and lets the hub run commands in them, so they are a separate
+/// group from OpenCode's own PTYs.
+struct HostTerminalsSection: View {
+    @EnvironmentObject private var state: AppState
+    var onOpen: (HostTerminal) -> Void
+
+    @State private var showAll = false
+
+    private var visible: [HostTerminal] {
+        showAll ? state.hostTerminals : Array(state.hostTerminals.prefix(6))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Terminal.app") {
+                HStack(spacing: 8) {
+                    if state.isRefreshingHostTerminals {
+                        ProgressView().controlSize(.small).scaleEffect(0.65)
+                    }
+                    if !state.hostTerminals.isEmpty {
+                        Text("\(state.hostTerminals.count)")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 9) {
+                Text("Tabs already open in Terminal.app on the hub host. Open one to mirror its screen and run commands in it.")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let error = state.hostTerminalsError, state.hostTerminals.isEmpty {
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(Theme.warn)
+                        Text(error)
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else if state.hostTerminals.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "macwindow")
+                            .font(.system(size: 14, weight: .light))
+                            .foregroundStyle(.tertiary)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("No Terminal.app tabs")
+                                .font(.system(size: 10, weight: .medium))
+                            Text("Open a Terminal window on the Mac and it appears here.")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    ForEach(visible) { terminal in
+                        HostTerminalRow(terminal: terminal) {
+                            onOpen(terminal)
+                        }
+                    }
+
+                    if state.hostTerminals.count > 6 {
+                        Button(showAll ? "Show fewer" : "Show all \(state.hostTerminals.count) tabs") {
+                            showAll.toggle()
+                        }
+                        .font(.system(size: 10, weight: .semibold))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.accent)
+                    }
+                }
+            }
+            .card()
+        }
+    }
+}
+
+private struct HostTerminalRow: View {
+    let terminal: HostTerminal
+    var onOpen: () -> Void
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(terminal.busy ? Theme.accent : Color.secondary.opacity(0.45))
+                    .frame(width: 6, height: 6)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(terminal.displayTitle)
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .lineLimit(1)
+                    Text("\(terminal.processLabel) · \(terminal.tty)")
+                        .font(.system(size: 8.5, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+
+                Spacer(minLength: 4)
+
+                Text(terminal.locationLabel)
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Mirror \(terminal.tty)")
+    }
+}
+
+/// Mirrors one Terminal.app tab. The text is polled once a second; the command
+/// field sends a complete line through the same tab.
+struct HostTerminalDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let terminal: HostTerminal
+    @StateObject private var mirror: HostTerminalMirror
+    @State private var command = ""
+    @FocusState private var commandFocused: Bool
+
+    init(terminal: HostTerminal, api: HubAPI) {
+        self.terminal = terminal
+        _mirror = StateObject(
+            wrappedValue: HostTerminalMirror(api: api, terminal: terminal)
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            mirrorBody
+            Divider()
+            commandBar
+
+            if let error = mirror.actionError {
+                Divider()
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Theme.warn)
+                    Text(error)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+            }
+        }
+        .frame(
+            minWidth: 780,
+            idealWidth: 920,
+            maxWidth: 1_200,
+            minHeight: 540,
+            idealHeight: 680,
+            maxHeight: 1_000
+        )
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            mirror.start()
+            commandFocused = true
+        }
+        .onDisappear { mirror.stop() }
+    }
+
+    private var header: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "macwindow")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(mirror.detail?.title ?? terminal.displayTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                Text("\(terminal.processLabel) · \(terminal.tty) · window \(mirror.detail?.window ?? terminal.window)")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            Chip(
+                text: (mirror.detail?.busy ?? terminal.busy) ? "running" : "idle",
+                systemImage: "circle.fill",
+                tint: (mirror.detail?.busy ?? terminal.busy) ? Theme.accent : .secondary
+            )
+
+            if let updated = mirror.lastUpdated {
+                Text("Updated \(Fmt.relative(from: updated))")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+            }
+
+            Button {
+                Task { await mirror.focus() }
+            } label: {
+                Image(systemName: "macwindow.on.rectangle")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Focus this tab on the Mac")
+
+            Button("Close") { dismiss() }
+                .keyboardShortcut(.cancelAction)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+    }
+
+    private var mirrorBody: some View {
+        Group {
+            if let detail = mirror.detail {
+                ScrollView {
+                    Text(detail.displayText.isEmpty ? "Waiting for output…" : detail.displayText)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Color(red: 0.87, green: 0.91, blue: 0.95))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                }
+                .defaultScrollAnchor(.bottom)
+                .background(Color(red: 0.052, green: 0.062, blue: 0.085))
+            } else if case .unavailable(let message) = mirror.state {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 24, weight: .light))
+                        .foregroundStyle(Theme.warn)
+                    Text("Terminal.app is unavailable")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(message)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 480)
+                    Button("Try again") {
+                        Task { await mirror.refresh() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.accent)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ProgressView("Reading Terminal.app…")
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
+    private var commandBar: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 8) {
+                TextField("Run a command in this tab", text: $command)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                    .focused($commandFocused)
+                    .onSubmit(run)
+
+                if mirror.isSending {
+                    ProgressView().controlSize(.small).scaleEffect(0.65)
+                }
+
+                Button("Run", action: run)
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.accent)
+                    .disabled(mirror.isSending)
+            }
+
+            Text("Commands run in the existing tab, like typing a line and pressing Return. Leave the field empty to press Return.")
+                .font(.system(size: 8.5))
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+    }
+
+    private func run() {
+        let line = command
+        command = ""
+        Task { await mirror.send(line) }
     }
 }
 

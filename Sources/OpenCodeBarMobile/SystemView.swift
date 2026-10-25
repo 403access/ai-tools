@@ -16,6 +16,7 @@ struct SystemView: View {
     @State private var volumeDraft: Double = 0
     @State private var adjustingVolume = false
     @State private var selectedTerminal: SystemTerminal?
+    @State private var selectedHostTerminal: HostTerminal?
     @State private var showingNewTerminal = false
     @State private var pendingTerminal: SystemTerminal?
     /// Debug/screenshot hook: `OPENCODEBAR_FILES=<path>` opens the host file
@@ -73,6 +74,11 @@ struct SystemView: View {
                         .environmentObject(store)
                 }
             }
+            .sheet(item: $selectedHostTerminal) { terminal in
+                if let api = store.api {
+                    MobileHostTerminalDetailView(terminal: terminal, api: api)
+                }
+            }
             .sheet(isPresented: $showingNewTerminal, onDismiss: openPendingTerminal) {
                 MobileNewTerminalSheet(directory: store.orderedProjects.first?.canonical) { terminal in
                     pendingTerminal = terminal
@@ -94,7 +100,8 @@ struct SystemView: View {
     private func refreshAll(force: Bool = false) async {
         async let system: Void = store.refreshSystemInfo(force: force)
         async let terminals: Void = store.refreshTerminals(force: force)
-        _ = await (system, terminals)
+        async let hostTerminals: Void = store.refreshHostTerminals(force: force)
+        _ = await (system, terminals, hostTerminals)
     }
 
     @ViewBuilder
@@ -108,6 +115,9 @@ struct SystemView: View {
 
                     overview(info)
                     mediaSection(info)
+                    if info.platformName == "macOS" {
+                        hostTerminalsSection
+                    }
                     terminalsSection
                     filesSection(info)
                     hostSection(info)
@@ -143,6 +153,12 @@ struct SystemView: View {
                 LoadingState(message: "Reading system information…")
                     .padding(16)
             }
+        }
+    }
+
+    private var hostTerminalsSection: some View {
+        MobileHostTerminalsSection { terminal in
+            selectedHostTerminal = terminal
         }
     }
 

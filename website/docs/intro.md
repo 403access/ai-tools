@@ -47,7 +47,7 @@ window you are in.
   </div>
   <div className="featureCard">
     <h3>System</h3>
-    <p>CPU, memory, disks, battery, network, now-playing media, processes, installed apps, Homebrew, developer tools, a read-only host file browser, and interactive terminals on the host.</p>
+    <p>CPU, memory, disks, battery, network, now-playing media, processes, installed apps, Homebrew, developer tools, a read-only host file browser, interactive OpenCode terminals, and a mirror of tabs already open in Terminal.app.</p>
   </div>
   <div className="featureCard">
     <h3>Settings</h3>

@@ -88,6 +88,29 @@ without exposing OpenCode's loopback service. Only the hub's Bearer token is
 needed. The shell runs as the same macOS user as the hub, which makes the token
 as powerful as that user's login — see [Security](../hub/security.md).
 
+### Terminal.app tabs
+
+macOS terminals do not expose the master side of their PTYs, so an existing
+Terminal.app tab cannot be attached to as a byte stream. OpenCodeBar instead
+lists the tabs that are already open and uses macOS automation for two things:
+
+- reads the tab's visible screen as plain text, refreshed every second;
+- runs a command in that tab, exactly like typing a line and pressing Return.
+
+Open a tab from **Terminal.app** in the System tab to see the mirror. The
+command field at the bottom sends a complete line; leaving it empty presses
+Return. The **Focus** button brings that tab to the front on the Mac.
+
+This is intentionally a mirror rather than a full emulator: there are no
+colors, and individual keystrokes, arrow keys, or `Ctrl-C` are not forwarded.
+It is useful for watching a build, reading a long-running command, or sending a
+new command to a shell you already have open.
+
+The hub must be allowed to control Terminal.app. On first use macOS asks for
+Automation permission; approve it, or enable it later in **System Settings →
+Privacy & Security → Automation**. If the permission is denied, the card shows
+the error and a **Try again** button.
+
 ## Processor and memory
 
 The **Processor** card shows the CPU model, vendor, physical/logical core count,

@@ -39,6 +39,12 @@ and ad-hoc signs the bundle. SwiftPM fetches
 [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm), the terminal emulator
 used by the System tab, on the first build.
 
+The hub reads Terminal.app tabs through macOS automation. The first time the
+Terminal.app section or its command field is used, macOS asks for permission to
+control Terminal.app. Approve it for the process running the hub (usually the
+terminal that ran `make hub`), or enable it later under **System Settings →
+Privacy & Security → Automation**.
+
 ## iOS app
 
 ```bash

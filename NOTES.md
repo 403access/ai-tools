@@ -64,6 +64,12 @@ Follow-ups worth considering:
   leaves the PTY running when the socket closes. There is no controller/observer
   arbitration for two clients typing at once; the last writer wins. Consider
   surfacing the OpenCode connection role if it becomes noisy.
+- **Terminal.app mirror is line-based.** macOS does not expose the PTY master
+  for an existing tab, so the hub reads `contents` and runs commands with
+  `do script`. Raw keystrokes (arrows, Ctrl-C) would need Accessibility
+  permission plus System Events, and would still leave the output as a text
+  mirror. iTerm2 and IDE terminals are not covered; add them only if their
+  scripting APIs can provide a stable tty + contents pair.
 - **Website and docs.** `docs/index.html` covers both apps, screenshots, the
   shared hub, and the install flow. The Docusaurus site in `website/` holds the
   full guides, API reference, configuration, and troubleshooting, published at

@@ -84,6 +84,10 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `PUT` | `/api/terminals/{id}` | Rename or resize a terminal |
 | `DELETE` | `/api/terminals/{id}` | Stop and remove a terminal |
 | `GET` | `/api/terminals/{id}/socket` | WebSocket for terminal I/O |
+| `GET` | `/api/host-terminals` | Tabs open in Terminal.app |
+| `GET` | `/api/host-terminals/{tty}` | Terminal.app text mirror |
+| `POST` | `/api/host-terminals/{tty}/command` | Run a line in Terminal.app |
+| `POST` | `/api/host-terminals/{tty}/focus` | Focus a Terminal.app tab |
 | `GET` | `/api/devices` | Connected devices |
 | `GET` | `/api/settings` | Tunable hub settings |
 | `PATCH` | `/api/settings` | Update the event throttle or sleep preference |
@@ -232,6 +236,60 @@ and forwards frames without modification:
 
 When the shell exits, OpenCode closes the socket; the PTY remains in the list
 until it is removed.
+
+### Terminal.app tabs
+
+These endpoints expose tabs already open in Terminal.app on the hub host. macOS
+does not provide the PTY master for an existing tab, so the hub uses macOS
+automation: it reads the visible text and runs commands in the tab.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/host-terminals` | Tabs open in Terminal.app |
+| `GET` | `/api/host-terminals/{tty}` | One tab plus its text mirror |
+| `POST` | `/api/host-terminals/{tty}/command` | Run a line in the tab |
+| `POST` | `/api/host-terminals/{tty}/focus` | Bring the tab to the front |
+
+The `{tty}` path value is the device name without `/dev/`, for example
+`ttys001`. The list response is:
+
+```json
+{
+  "data": [
+    {
+      "id": "ttys001",
+      "tty": "/dev/ttys001",
+      "app": "Terminal",
+      "title": "Build",
+      "busy": true,
+      "processes": ["login", "-zsh", "npm"],
+      "window": 3,
+      "tab": 1
+    }
+  ]
+}
+```
+
+`GET /api/host-terminals/{tty}` adds `contents`, a plain-text mirror of the
+visible screen, and optionally `history` with `?history=1`. Details are read
+live; the list is cached briefly.
+
+Run a command with:
+
+```json
+{ "command": "npm run build" }
+```
+
+The command goes through Terminal's own `do script` automation, so it behaves
+like typing the line and pressing Return in the existing tab. An empty command
+presses Return. This is line-based, not a raw keystroke channel: `Ctrl-C`,
+arrow keys, and full-screen redraws are not forwarded. The focus endpoint
+activates Terminal.app and selects the matching window/tab.
+
+All four endpoints require the hub Bearer token. The hub needs macOS Automation
+permission to control Terminal.app; without it the hub returns `503` with a
+message explaining which setting to enable. Only Terminal.app is supported;
+iTerm2, Warp, and IDE-integrated terminals use different scripting models.
 
 ### Host files
 

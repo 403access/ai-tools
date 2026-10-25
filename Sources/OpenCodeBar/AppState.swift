@@ -177,6 +177,11 @@ final class AppState: ObservableObject {
     @Published var terminalsError: String?
     @Published var isRefreshingTerminals = false
     @Published var isCreatingTerminal = false
+    /// Tabs currently open in Terminal.app on the hub host.
+    @Published var hostTerminals: [HostTerminal] = []
+    @Published var hostTerminalsFetchedAt: Date?
+    @Published var hostTerminalsError: String?
+    @Published var isRefreshingHostTerminals = false
     @Published var isControllingMedia = false
     @Published var mediaControlError: String?
     /// Tunable hub behaviour, such as the event-stream throttle.

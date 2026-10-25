@@ -24,6 +24,11 @@ import type {
 import { MediaControlError, SystemInfoService } from "./system.ts";
 import { TerminalService, type TerminalStore } from "./terminals.ts";
 import { TerminalSockets, type TerminalSocketData } from "./api/terminal-socket.ts";
+import {
+  HostTerminalError,
+  HostTerminalService,
+  type HostTerminalStore,
+} from "./host-terminals.ts";
 import { eventStream } from "./api/event-stream.ts";
 import {
   CORS_HEADERS,
@@ -54,6 +59,8 @@ export interface ApiDeps {
   terminals?: TerminalStore;
   /** Websocket proxy for terminal streams; the hub wires this into Bun.serve. */
   terminalSockets?: TerminalSockets;
+  /** Injectable Terminal.app integration, used by tests to avoid macOS automation. */
+  hostTerminals?: HostTerminalStore;
 }
 
 export function createHandler(
@@ -71,6 +78,7 @@ export function createHandler(
   const terminalStore = deps.terminals ?? terminalService!;
   const terminalSockets =
     deps.terminalSockets ?? (terminalService ? new TerminalSockets(terminalService) : undefined);
+  const hostTerminals = deps.hostTerminals ?? new HostTerminalService();
 
   return async (
     request: Request,
@@ -284,6 +292,55 @@ export function createHandler(
           url.searchParams.get("location"),
           url.searchParams.get("cursor"),
         )) as Response;
+      }
+
+      // MARK: - Terminal.app tabs
+
+      if (pathname === "/api/host-terminals") {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+        return json({
+          data: await hostTerminals.list(url.searchParams.get("refresh") === "1"),
+        });
+      }
+
+      if (parts[0] === "api" && parts[1] === "host-terminals" && parts.length === 3) {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+        const tty = decodeURIComponent(parts[2]!);
+        return json({
+          data: await hostTerminals.detail(
+            tty,
+            url.searchParams.get("history") === "1",
+          ),
+        });
+      }
+
+      if (
+        parts[0] === "api" &&
+        parts[1] === "host-terminals" &&
+        parts[3] === "command" &&
+        parts.length === 4
+      ) {
+        if (request.method !== "POST") return error("Method not allowed", 405);
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+        if (typeof body.command !== "string") {
+          return error("command must be a string", 400);
+        }
+        const tty = decodeURIComponent(parts[2]!);
+        await hostTerminals.command(tty, body.command);
+        return json({ ok: true });
+      }
+
+      if (
+        parts[0] === "api" &&
+        parts[1] === "host-terminals" &&
+        parts[3] === "focus" &&
+        parts.length === 4
+      ) {
+        if (request.method !== "POST") return error("Method not allowed", 405);
+        const tty = decodeURIComponent(parts[2]!);
+        await hostTerminals.focus(tty);
+        return json({ ok: true });
       }
 
       if (pathname === "/api/files" && request.method === "GET") {
@@ -552,6 +609,9 @@ export function createHandler(
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
       console.error(`[hub] ${request.method} ${pathname} failed: ${message}`);
+      if (caught instanceof HostTerminalError) {
+        return error(caught.message, caught.status);
+      }
       if (caught instanceof OpenCodeError) {
         return error(message, caught.status ?? 502);
       }

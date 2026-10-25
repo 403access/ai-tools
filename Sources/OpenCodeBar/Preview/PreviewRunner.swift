@@ -186,6 +186,20 @@ enum PreviewRunner {
             }
         }
 
+        // `--host-terminal` renders the first Terminal.app tab instead.
+        let wantsHostTerminal = CommandLine.arguments.contains("--host-terminal")
+        if wantsHostTerminal {
+            var finished = false
+            Task { @MainActor in
+                await state.refreshHostTerminals(force: true)
+                finished = true
+            }
+            let deadline = Date().addingTimeInterval(10)
+            while !finished && Date() < deadline {
+                RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+            }
+        }
+
         // The offscreen harness never runs SwiftUI's `.task`, so preload the
         // System tab explicitly. Its first fetch scans apps and Homebrew.
         if value(after: "--tab", in: CommandLine.arguments)?.lowercased() == "system" {
@@ -227,6 +241,13 @@ enum PreviewRunner {
                 TerminalDetailView(terminal: terminal, api: api)
                     .environmentObject(state)
             )
+        } else if wantsHostTerminal,
+                  let terminal = state.hostTerminals.first,
+                  let api = state.api {
+            root = AnyView(
+                HostTerminalDetailView(terminal: terminal, api: api)
+                    .environmentObject(state)
+            )
         } else {
             root = AnyView(ScreenshotRoot(state: state))
         }
@@ -255,7 +276,8 @@ enum PreviewRunner {
             || wantsDeviceDetail
             || wantsSettings
             || wantsFiles
-            || wantsTerminal {
+            || wantsTerminal
+            || wantsHostTerminal {
             let detailDeadline = Date().addingTimeInterval(3)
             while Date() < detailDeadline {
                 RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))

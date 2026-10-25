@@ -39,6 +39,14 @@ the token equivalent to a local login for that user. Keep it as private as a
 password, rotate it by deleting `opencodebar-hub.json` and restarting the hub,
 and do not expose the hub to untrusted networks.
 
+**Terminal.app tabs are visible and writable too.** The host-terminal endpoints
+(`/api/host-terminals`, `…/{tty}`, `…/{tty}/command`) read the visible text of
+every Terminal.app tab and run commands in it. The mirror can contain secrets
+that were printed in that tab, and a command runs with the tab's shell context.
+The hub needs macOS Automation permission for Terminal.app; grant it only to a
+hub you trust. Revoke it under **System Settings → Privacy & Security →
+Automation**.
+
 ## Do not expose the hub directly to the internet
 
 The hub speaks plain HTTP, not HTTPS. For access away from home, use a private
