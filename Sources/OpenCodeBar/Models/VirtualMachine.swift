@@ -219,6 +219,81 @@ struct VMLog: Decodable, Equatable {
     var truncated: Bool
 }
 
+enum VMSetupStep: String, CaseIterable, Identifiable, Equatable {
+    case nix
+    case helper
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .nix: return "Install Nix"
+        case .helper: return "Build VM helper"
+        }
+    }
+
+    var command: String {
+        switch self {
+        case .nix: return "curl -fsSL https://nixos.org/nix/install | sh -s -- --yes"
+        case .helper: return "make vz-helper"
+        }
+    }
+}
+
+enum VMSetupJobStatus: String, Decodable, Equatable {
+    case running
+    case succeeded
+    case failed
+    case cancelled
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = VMSetupJobStatus(rawValue: raw) ?? .unknown
+    }
+
+    var label: String {
+        switch self {
+        case .running: return "Running"
+        case .succeeded: return "Done"
+        case .failed: return "Failed"
+        case .cancelled: return "Cancelled"
+        case .unknown: return "Unknown"
+        }
+    }
+}
+
+struct VMSetupLog: Decodable, Equatable {
+    var path: String
+    var lines: [String]
+    var bytes: Int
+    var truncated: Bool
+}
+
+struct VMSetupJob: Decodable, Equatable {
+    var step: String
+    var status: VMSetupJobStatus
+    var command: String
+    var requiresAdmin: Bool
+    var startedAt: Double
+    var finishedAt: Double?
+    var exitCode: Int?
+    var error: String?
+    var log: VMSetupLog
+
+    var startedDate: Date { Date(timeIntervalSince1970: startedAt / 1000) }
+    var finishedDate: Date? { finishedAt.map { Date(timeIntervalSince1970: $0 / 1000) } }
+    var stepValue: VMSetupStep? { VMSetupStep(rawValue: step) }
+}
+
+struct VMSetupJobEnvelope: Decodable {
+    var data: VMSetupJob?
+}
+
+struct VMSetupStartRequest: Encodable {
+    var step: String
+}
+
 // MARK: - Envelopes and requests
 
 struct VirtualMachinesEnvelope: Decodable {

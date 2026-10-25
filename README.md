@@ -243,7 +243,10 @@ iOS app:
 - Setup is explicit rather than silent: the VMs tab reports whether the helper
   is signed with the Virtualization entitlement, whether Nix is installed, and
   whether Nix has an `aarch64-linux` builder, with the exact commands to fix
-  each case.
+  each case. **Run** installs Nix or rebuilds/signs the helper from the app; the
+  Nix installer shows its administrator-password dialog on the Mac and streams
+  the installer log back to the VMs tab. The Linux builder command stays
+  copyable for Terminal because the builder VM must keep running.
 
 **Settings**
 - Every app connected to the hub — macOS, iOS, and iPadOS — with its device
@@ -338,6 +341,7 @@ The hub:
    `/api/vms/{id}` (`GET`/`PATCH`/`DELETE`),
    `/api/vms/{id}/{start|stop|restart|pause|resume|rebuild|apply}` (`POST`),
    `/api/vms/{id}/log`, `/api/vms/{id}/console/socket` (WebSocket),
+   `/api/vms/setup` (`GET`/`POST`), `/api/vms/setup/cancel` (`POST`),
    `/api/devices`, `/api/settings` (`GET`/`PATCH`),
    `/api/sync` (`GET` delta feed, `POST` force sync),
    `/api/server/restart` (`POST`), and `/api/event`. Clients authenticate with a
@@ -458,7 +462,10 @@ without replacing the credential OpenCode uses for inference.
   `nix run nixpkgs#darwin.linux-builder` (or nix-darwin's
   `nix.linux-builder.enable`), which starts a cached NixOS builder VM and asks
   for the Nix daemon settings once. The VMs tab checks both prerequisites and
-  shows the missing command. `make hub` builds and ad-hoc signs the helper with
+  can run the Nix installer or rebuild the helper with **Run**; the Nix step
+  shows its administrator-password prompt on the Mac and streams the log back to
+  the app. The Linux builder is copyable for Terminal because it must stay
+  running. `make hub` builds and ad-hoc signs the helper with
   `com.apple.security.virtualization`; `make vz-helper` rebuilds it alone.
 
 ## Build and run

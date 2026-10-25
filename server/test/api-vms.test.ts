@@ -6,6 +6,8 @@ import type {
   VMCreateInput,
   VMLog,
   VMLogType,
+  VMSetupJob,
+  VMSetupStep,
   VMUpdateInput,
   VirtualMachine,
   VirtualMachineStore,
@@ -76,6 +78,22 @@ interface Calls {
   controlled: Array<{ id: string; action: VMAction; force: boolean }>;
   removed: Array<{ id: string; force: boolean }>;
   logs: Array<{ id: string; type: VMLogType; tail: number }>;
+  setups: VMSetupStep[];
+  cancelled: number;
+}
+
+function setupJob(step: VMSetupStep): VMSetupJob {
+  return {
+    step,
+    status: "running",
+    command: step === "nix" ? "curl -fsSL https://nixos.org/nix/install | sh -s -- --yes" : "make vz-helper",
+    requiresAdmin: step === "nix",
+    startedAt: 1,
+    finishedAt: null,
+    exitCode: null,
+    error: null,
+    log: { path: "/tmp/setup.log", lines: [], bytes: 0, truncated: false },
+  };
 }
 
 function fakeStore(items: VirtualMachine[], calls: Calls): VirtualMachineStore {
@@ -113,11 +131,30 @@ function fakeStore(items: VirtualMachine[], calls: Calls): VirtualMachineStore {
     async consoleTarget(id) {
       return { vmID: id, host: "127.0.0.1", port: 4321 };
     },
+    async setupStatus() {
+      return null;
+    },
+    async startSetup(step) {
+      calls.setups.push(step);
+      return setupJob(step);
+    },
+    async cancelSetup() {
+      calls.cancelled += 1;
+      return null;
+    },
   };
 }
 
 function emptyCalls(): Calls {
-  return { created: [], updated: [], controlled: [], removed: [], logs: [] };
+  return {
+    created: [],
+    updated: [],
+    controlled: [],
+    removed: [],
+    logs: [],
+    setups: [],
+    cancelled: 0,
+  };
 }
 
 describe("virtual machine API", () => {
@@ -291,6 +328,41 @@ describe("virtual machine API", () => {
       request("/api/vms/vm_abcdef123456/start", { method: "POST" }),
     );
     expect(conflict.status).toBe(409);
+  });
+
+  test("runs and reports fixed host setup steps", async () => {
+    const calls = emptyCalls();
+    const { handler } = setup({}, { vms: fakeStore([], calls) });
+
+    const idle = await handler(request("/api/vms/setup"));
+    expect(idle.status).toBe(200);
+    expect(await body<{ data: VMSetupJob | null }>(idle)).toEqual({ data: null });
+
+    const start = await handler(
+      request("/api/vms/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step: "nix" }),
+      }),
+    );
+    expect(start.status).toBe(202);
+    const job = await body<{ data: VMSetupJob }>(start);
+    expect(job.data.step).toBe("nix");
+    expect(job.data.requiresAdmin).toBe(true);
+    expect(calls.setups).toEqual(["nix"]);
+
+    const invalid = await handler(
+      request("/api/vms/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step: "rm -rf /" }),
+      }),
+    );
+    expect(invalid.status).toBe(400);
+
+    const cancel = await handler(request("/api/vms/setup/cancel", { method: "POST" }));
+    expect(cancel.status).toBe(200);
+    expect(calls.cancelled).toBe(1);
   });
 
   test("requires the hub token", async () => {

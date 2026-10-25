@@ -60,7 +60,7 @@ struct VirtualMachinesTab: View {
             header
 
             if let capabilities = model.capabilities, !capabilities.ready {
-                VMSetupNotice(capabilities: capabilities)
+                VMSetupRunnerCard(capabilities: capabilities, model: model, api: state.api)
             }
 
             if let error = model.error, !model.machines.isEmpty {

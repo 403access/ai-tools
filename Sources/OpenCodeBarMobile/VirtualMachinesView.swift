@@ -22,7 +22,11 @@ struct VirtualMachinesView: View {
                     } else {
                         header
                         if let capabilities = model.capabilities, !capabilities.ready {
-                            VMSetupNotice(capabilities: capabilities)
+                            VMSetupRunnerCard(
+                                capabilities: capabilities,
+                                model: model,
+                                api: store.api
+                            )
                         }
                         if let error = model.error, !model.machines.isEmpty {
                             NoticeRow(

@@ -1,6 +1,7 @@
 import {
   chmodSync,
   existsSync,
+  mkdirSync,
   readFileSync,
   readdirSync,
   realpathSync,
@@ -8,7 +9,8 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { homedir, userInfo } from "node:os";
+import { join, resolve } from "node:path";
 import type { CommandRunner } from "../system/types.ts";
 import { defaultRunner } from "../system/commands.ts";
 import {
@@ -66,6 +68,8 @@ import type {
   VMLog,
   VMLogType,
   VMMetrics,
+  VMSetupJob,
+  VMSetupStep,
   VMStatus,
   VMUpdateInput,
   VirtualMachine,
@@ -76,6 +80,7 @@ const METRICS_TTL_MS = 5_000;
 const RECONCILE_TTL_MS = 1_500;
 const CAPABILITIES_TTL_MS = 30_000;
 const BOOT_TIMEOUT_MS = 150_000;
+const ANSI_ESCAPE = /\u001b\[[0-?]*[ -/]*[@-~]/g;
 
 export interface VMServiceOptions {
   store?: VMStore;
@@ -83,6 +88,8 @@ export interface VMServiceOptions {
   runner?: CommandRunner;
   env?: NodeJS.ProcessEnv;
   now?: () => number;
+  /** Repository root for `make vz-helper`; derived from this module by default. */
+  repoRoot?: string;
 }
 
 interface CachedMetrics {
@@ -103,6 +110,10 @@ export class VirtualMachineService implements VirtualMachineStore {
   private readonly runner: CommandRunner;
   private readonly env: NodeJS.ProcessEnv;
   private readonly now: () => number;
+  private readonly repoRoot: string;
+
+  private setupJob: VMSetupJob | null = null;
+  private setupProcess: ReturnType<typeof Bun.spawn> | null = null;
 
   private readonly builds = new Set<string>();
   private readonly applies = new Set<string>();
@@ -121,6 +132,7 @@ export class VirtualMachineService implements VirtualMachineStore {
     this.runner = options.runner ?? defaultRunner;
     this.env = options.env ?? process.env;
     this.now = options.now ?? Date.now;
+    this.repoRoot = resolve(options.repoRoot ?? join(import.meta.dir, "../../.."));
   }
 
   // MARK: - Reading
@@ -356,6 +368,162 @@ export class VirtualMachineService implements VirtualMachineStore {
       throw new VMValidationError("The serial console is not ready yet", 503);
     }
     return { vmID: id, host: "127.0.0.1", port: runtime.serialPort };
+  }
+
+  // MARK: - Host setup
+
+  async setupStatus(): Promise<VMSetupJob | null> {
+    if (!this.setupJob) return null;
+    return { ...this.setupJob, log: this.readSetupLog(this.setupJob) };
+  }
+
+  async startSetup(step: VMSetupStep): Promise<VMSetupJob> {
+    if (this.setupJob?.status === "running") {
+      throw new VMValidationError("A host setup job is already running", 409);
+    }
+    if (step !== "nix" && step !== "helper") {
+      throw new VMValidationError("Unknown host setup step", 400);
+    }
+
+    const capabilities = await this.capabilities();
+    if (step === "nix" && capabilities.nixAvailable) {
+      throw new VMValidationError("Nix is already installed", 409);
+    }
+    if (step === "helper" && capabilities.helperAvailable && capabilities.helperEntitled) {
+      throw new VMValidationError("The VM helper is already built and signed", 409);
+    }
+
+    const directory = join(this.store.root, "setup");
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    chmodSync(directory, 0o700);
+    const logPath = join(directory, `${step}.log`);
+    // The Nix installer runs as root through `osascript`. Keep the log readable
+    // by the hub user while the directory itself stays owner-only.
+    writeFileSync(logPath, "", { mode: 0o644 });
+    chmodSync(logPath, 0o644);
+
+    const job: VMSetupJob = {
+      step,
+      status: "running",
+      command:
+        step === "nix"
+          ? "curl -fsSL https://nixos.org/nix/install | sh -s -- --yes"
+          : "make vz-helper",
+      requiresAdmin: step === "nix",
+      startedAt: this.now(),
+      finishedAt: null,
+      exitCode: null,
+      error: null,
+      log: { path: logPath, lines: [], bytes: 0, truncated: false },
+    };
+    this.setupJob = job;
+
+    void this.runSetup(job).catch((error) => {
+      job.status = "failed";
+      job.finishedAt = this.now();
+      job.error = messageFor(error);
+      this.setupJob = job;
+    });
+    return (await this.setupStatus())!;
+  }
+
+  async cancelSetup(): Promise<VMSetupJob | null> {
+    const job = this.setupJob;
+    if (!job || job.status !== "running") return this.setupStatus();
+    job.status = "cancelled";
+    job.finishedAt = this.now();
+    job.error = "Cancelled";
+    const proc = this.setupProcess;
+    this.setupProcess = null;
+    if (proc) {
+      try {
+        process.kill(-proc.pid, "SIGTERM");
+      } catch {
+        try {
+          proc.kill();
+        } catch {
+          // Already exited.
+        }
+      }
+    }
+    return this.setupStatus();
+  }
+
+  private readSetupLog(job: VMSetupJob): VMSetupJob["log"] {
+    const tail = readLogTail(job.log.path, 240, 128 * 1024);
+    return {
+      path: job.log.path,
+      lines: tail.lines.map((line) => line.replace(ANSI_ESCAPE, "")),
+      bytes: tail.bytes,
+      truncated: tail.truncated,
+    };
+  }
+
+  private async runSetup(job: VMSetupJob): Promise<void> {
+    const logPath = job.log.path;
+    const writer = createLogWriter(logPath);
+    let command = "/usr/bin/make";
+    let args = ["vz-helper"];
+    let cwd = this.repoRoot;
+    let env: NodeJS.ProcessEnv = { ...this.env };
+
+    if (job.step === "nix") {
+      const directory = join(this.store.root, "setup");
+      const scriptPath = join(directory, "install-nix.sh");
+      const user = userInfo().username;
+      const home = homedir();
+      // `do shell script … with administrator privileges` runs the installer
+      // as root; give it the real user identity so the profile, channels, and
+      // trusted-user setup target the person running the hub.
+      const script = `#!/bin/sh
+set -eu
+export HOME=${shellQuote(home)}
+export USER=${shellQuote(user)}
+export LOGNAME=${shellQuote(user)}
+umask 0022
+exec /bin/sh -c ${shellQuote(job.command)} >> ${shellQuote(logPath)} 2>&1
+`;
+      writeFileSync(scriptPath, script, { mode: 0o700 });
+      chmodSync(scriptPath, 0o700);
+      const escaped = scriptPath.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      const applescript =
+        `do shell script "/bin/sh " & quoted form of "${escaped}" with administrator privileges`;
+      command = "/usr/bin/osascript";
+      args = ["-e", applescript];
+      cwd = directory;
+      env = { ...this.env };
+    }
+
+    const proc = Bun.spawn([command, ...args], {
+      cwd,
+      env,
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+      detached: true,
+    });
+    this.setupProcess = proc;
+    const pumps = [pump(proc.stdout, writer), pump(proc.stderr, writer)];
+    const exitCode = await proc.exited;
+    await Promise.allSettled(pumps);
+    if (this.setupProcess === proc) this.setupProcess = null;
+    if (job.status !== "running") return;
+
+    job.exitCode = exitCode;
+    job.finishedAt = this.now();
+    if (exitCode === 0) {
+      job.status = "succeeded";
+      // Drop the 30s capability cache so the next poll sees the new Nix or
+      // helper state.
+      this.capabilitiesCache = null;
+    } else {
+      job.status = "failed";
+      const tail = lastLogLines(logPath, 6).replace(ANSI_ESCAPE, "");
+      job.error = /User canceled|-128/i.test(tail)
+        ? "Administrator authorization was cancelled."
+        : tail || `Host setup exited with code ${exitCode}`;
+    }
+    this.setupJob = job;
   }
 
   // MARK: - Lifecycle

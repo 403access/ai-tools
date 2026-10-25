@@ -97,6 +97,9 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `POST` | `/api/vms/{id}/{action}` | Start, stop, restart, pause, resume, rebuild, or apply |
 | `GET` | `/api/vms/{id}/log` | Build, serial, or apply log tail |
 | `GET` | `/api/vms/{id}/console/socket` | WebSocket for the serial console |
+| `GET` | `/api/vms/setup` | Current host setup job and streamed log |
+| `POST` | `/api/vms/setup` | Run the fixed Nix or helper setup step |
+| `POST` | `/api/vms/setup/cancel` | Cancel a running setup job |
 | `GET` | `/api/remote` | Capture helper status, displays, and permissions |
 | `POST` | `/api/remote/configure` | Change fps, quality, max width, or display |
 | `POST` | `/api/remote/permissions` | Request Screen Recording / Accessibility |
@@ -349,6 +352,42 @@ the VM is not running and `501` when the hub build has no VM socket relay.
 
 Errors use the normal envelope; validation failures return `400`/`409`,
 a missing VM `404`, and helper failures `502`.
+
+#### Host setup
+
+`GET /api/vms/setup` returns the current or last setup job:
+
+```json
+{
+  "data": {
+    "step": "nix",
+    "status": "running",
+    "command": "curl -fsSL https://nixos.org/nix/install | sh -s -- --yes",
+    "requiresAdmin": true,
+    "startedAt": 1792900000000,
+    "finishedAt": null,
+    "exitCode": null,
+    "error": null,
+    "log": {
+      "path": "/Users/you/.local/share/opencodebar/vms/setup/nix.log",
+      "lines": ["downloading Nix…", "installing…"],
+      "bytes": 1234,
+      "truncated": false
+    }
+  }
+}
+```
+
+Start one with `POST /api/vms/setup` and `{ "step": "nix" }` or
+`{ "step": "helper" }`. Only one job runs at a time; `409` means one is already
+running or the step is already satisfied. `POST /api/vms/setup/cancel` stops a
+running job and marks it `cancelled`.
+
+The Nix step is run through
+`osascript … with administrator privileges`, so macOS shows the password dialog
+on the Mac; the hub never receives the password. The helper step runs
+`make vz-helper` in the repository. The Linux builder is intentionally not a
+job: it is a long-lived VM started from a terminal.
 
 ### Remote desktop
 

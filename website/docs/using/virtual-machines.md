@@ -51,6 +51,24 @@ Virtual machines need an Apple silicon Mac running macOS 14 or later, plus:
 The VMs tab reports each prerequisite, with the command to fix it. Create is
 disabled until all three are ready.
 
+### Run setup from the app
+
+The setup card has a **Run** button for the Nix installer and for rebuilding the
+helper:
+
+- **Install Nix** runs the official installer through a macOS administrator
+  prompt. The dialog appears **on the Mac**, not on the phone; enter the Mac's
+  admin password there. The installer output streams into the VMs tab, and the
+  capability check refreshes when it finishes.
+- **Build VM helper** runs `make vz-helper` locally and streams the Swift build
+  and codesign output.
+- The **Linux builder** command is copyable rather than runnable from the app:
+  `nix run nixpkgs#darwin.linux-builder` starts a long-lived builder VM and
+  needs a terminal on the Mac. Run it once and leave it running.
+
+The hub only exposes these fixed, allow-listed steps; clients cannot send
+arbitrary commands.
+
 ## Creating a guest
 
 Open **VMs → +** and choose:
@@ -167,7 +185,8 @@ administrator of the guest.
 | Symptom | Check |
 | --- | --- |
 | Create is disabled | The setup card lists the missing helper, Nix, or Linux builder |
-| “doesn't have the virtualization entitlement” | Run `make vz-helper`; the helper must be signed |
+| **Run** starts but nothing happens | The Nix installer's password dialog is on the Mac. Unlock the Mac and look for it; if it was cancelled, press **Run** again |
+| “doesn't have the virtualization entitlement” | Use **Build VM helper** in the setup card, or `make vz-helper` |
 | Build fails immediately | Open the **Build** log; confirm the Linux builder is running and the channel exists |
 | VM is running but no address | Open the **Console**; check DHCP and `ip addr` in the guest |
 | SSH refused | Wait for boot, confirm the address, and check the serial console; the firewall allows SSH by default |

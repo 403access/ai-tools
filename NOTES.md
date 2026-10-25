@@ -251,6 +251,15 @@ Follow-ups:
 - **Serial console auth.** The helper's control and serial ports bind to
   loopback, and the hub token gates the WebSocket. A local process can still
   connect directly; a per-helper secret would close that gap.
+- **Setup runner edge cases.** The Nix installer is launched as root through
+  `osascript … with administrator privileges`, with `HOME`/`USER`/`LOGNAME` set
+  to the hub user so profiles and trusted-user settings target that account.
+  The installer output goes to `vms/setup/nix.log`; the hub streams its tail.
+  If the user cancels the dialog, osascript reports `User canceled (-128)` and
+  the card offers Run again. The root-run path should be re-tested whenever the
+  official installer changes. `make vz-helper` is streamed the same way. The
+  Linux builder is still a manual terminal command because it is a long-lived
+  VM and cannot be a one-shot setup job.
 
 ## Next steps
 

@@ -338,6 +338,28 @@ export function createHandler(
         );
       }
 
+      if (pathname === "/api/vms/setup") {
+        if (request.method === "GET") {
+          return withVMErrors(async () => json({ data: await vms.setupStatus() }));
+        }
+        if (request.method === "POST") {
+          const body = await readJSONBody(request);
+          if (!body) return error("Expected a JSON body", 400);
+          const step = body.step;
+          if (step !== "nix" && step !== "helper") {
+            return error("step must be nix or helper", 400);
+          }
+          return withVMErrors(async () =>
+            json({ data: await vms.startSetup(step) }, 202),
+          );
+        }
+        return error("Method not allowed", 405);
+      }
+
+      if (pathname === "/api/vms/setup/cancel" && request.method === "POST") {
+        return withVMErrors(async () => json({ data: await vms.cancelSetup() }));
+      }
+
       if (parts[0] === "api" && parts[1] === "vms" && parts.length >= 3) {
         const id = decodeURIComponent(parts[2]!);
 

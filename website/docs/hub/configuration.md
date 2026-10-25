@@ -46,15 +46,19 @@ wins over the saved value.
 
 ## Virtual machine prerequisites
 
-The VMs tab is read-only until three host pieces are ready. The hub never
-installs system software or changes `/etc/nix` itself:
+The VMs tab is read-only until three host pieces are ready. The setup card can
+run two of them:
+
+- **Install Nix** runs the official installer through a macOS administrator
+  prompt. The password dialog appears on the Mac; the hub never receives the
+  password, and the installer log streams back to the app.
+- **Build VM helper** runs `make vz-helper` and streams the build/signing output.
+
+The hub only accepts those fixed steps; clients cannot send arbitrary commands.
+The Linux builder still needs a terminal because it must keep running:
 
 ```sh
-# 1. Build and ad-hoc sign the helper with com.apple.security.virtualization.
-make vz-helper
-
-# 2. Install Nix (https://nixos.org/download), then start a Linux builder so
-#    Nix can build aarch64-linux images from an Apple silicon Mac.
+# Start a NixOS builder VM so Nix can build aarch64-linux images on macOS.
 nix run nixpkgs#darwin.linux-builder
 ```
 

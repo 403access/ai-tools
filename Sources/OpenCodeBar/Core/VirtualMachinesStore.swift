@@ -15,6 +15,7 @@ final class VirtualMachinesStore: ObservableObject {
     @Published private(set) var error: String?
     @Published private(set) var logs: [String: VMLog] = [:]
     @Published private(set) var actionsInFlight: Set<String> = []
+    @Published private(set) var setup: VMSetupJob?
     @Published var selectedID: String?
 
     private var capabilitiesFetchedAt: Date?
@@ -79,11 +80,62 @@ final class VirtualMachinesStore: ObservableObject {
         }
     }
 
-    /// One poll tick used by both platforms: the list every time, and a deeper
-    /// metrics refresh for the open VM.
+    /// One poll tick used by both platforms: the list every time, a deeper
+    /// metrics refresh for the open VM, and setup progress while host setup is
+    /// incomplete or running.
     func tick(api: HubAPI?) async {
         await refresh(api: api)
         await refreshSelected(api: api)
+        if capabilities?.ready != true || setup?.status == .running {
+            await refreshSetup(api: api)
+        }
+    }
+
+    // MARK: - Host setup
+
+    func refreshSetup(api: HubAPI?) async {
+        guard let api else { return }
+        let previous = setup?.status
+        do {
+            let job = try await api.vmSetupStatus()
+            setup = job
+            if previous == .running, job?.status == .succeeded {
+                // Drop the cached capabilities and fetch them again so the
+                // setup card disappears as soon as Nix/helper is detected.
+                capabilities = nil
+                capabilitiesFetchedAt = nil
+                await refresh(api: api)
+            }
+        } catch {
+            // The setup card shows the job's own error; don't replace a working
+            // VM list with a transient setup-poll failure.
+            if setup == nil { self.error = message(for: error) }
+        }
+    }
+
+    func startSetup(api: HubAPI?, step: VMSetupStep) async {
+        guard let api else {
+            error = "Not connected to the hub"
+            return
+        }
+        let key = "setup:\(step.rawValue)"
+        actionsInFlight.insert(key)
+        defer { actionsInFlight.remove(key) }
+        do {
+            setup = try await api.startVMSetup(step: step)
+            error = nil
+        } catch {
+            self.error = message(for: error)
+        }
+    }
+
+    func cancelSetup(api: HubAPI?) async {
+        guard let api else { return }
+        do {
+            setup = try await api.cancelVMSetup()
+        } catch {
+            self.error = message(for: error)
+        }
     }
 
     // MARK: - Actions

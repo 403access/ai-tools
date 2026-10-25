@@ -190,6 +190,32 @@ export interface VMLog {
   truncated: boolean;
 }
 
+/** Host setup actions the hub can run without accepting arbitrary commands. */
+export type VMSetupStep = "nix" | "helper";
+
+export type VMSetupJobStatus = "running" | "succeeded" | "failed" | "cancelled";
+
+export interface VMSetupLog {
+  path: string;
+  lines: string[];
+  bytes: number;
+  truncated: boolean;
+}
+
+export interface VMSetupJob {
+  step: VMSetupStep;
+  status: VMSetupJobStatus;
+  /** The command shown in the app. The hub always uses this fixed command. */
+  command: string;
+  /** True when macOS shows its administrator password prompt on the Mac. */
+  requiresAdmin: boolean;
+  startedAt: number;
+  finishedAt: number | null;
+  exitCode: number | null;
+  error: string | null;
+  log: VMSetupLog;
+}
+
 export interface VMConsoleTarget {
   vmID: string;
   /** The helper listens on loopback only. */
@@ -211,4 +237,7 @@ export interface VirtualMachineStore {
   remove(id: string, force?: boolean): Promise<void>;
   log(id: string, type: VMLogType, tail?: number): Promise<VMLog>;
   consoleTarget(id: string): Promise<VMConsoleTarget>;
+  setupStatus(): Promise<VMSetupJob | null>;
+  startSetup(step: VMSetupStep): Promise<VMSetupJob>;
+  cancelSetup(): Promise<VMSetupJob | null>;
 }

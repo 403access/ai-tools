@@ -608,6 +608,40 @@ extension HubAPI {
         return response.data
     }
 
+    /// The active host setup job, if any. Used by the VMs setup card to stream
+    /// the Nix installer or helper build.
+    func vmSetupStatus() async throws -> VMSetupJob? {
+        let response: VMSetupJobEnvelope = try await get("/api/vms/setup")
+        return response.data
+    }
+
+    /// Starts one of the hub's fixed setup steps. The Nix step shows the macOS
+    /// administrator prompt on the Mac; the phone only starts and watches it.
+    func startVMSetup(step: VMSetupStep) async throws -> VMSetupJob {
+        let body = try JSONEncoder().encode(VMSetupStartRequest(step: step.rawValue))
+        let data = try await send("/api/vms/setup", method: "POST", body: body)
+        do {
+            let response = try Self.decoder.decode(VMSetupJobEnvelope.self, from: data)
+            guard let job = response.data else {
+                throw APIError.decoding("The hub did not return a setup job")
+            }
+            return job
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    func cancelVMSetup() async throws -> VMSetupJob? {
+        let data = try await send("/api/vms/setup/cancel", method: "POST")
+        do {
+            return try Self.decoder.decode(VMSetupJobEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     /// WebSocket for the guest's serial console. The hub proxies the helper's
     /// loopback socket, so the client only needs the hub token.
     func virtualMachineConsoleRequest(id: String) throws -> URLRequest {
