@@ -8,7 +8,8 @@
     "start": "bun run src/index.ts",
     "dev": "bun --watch run src/index.ts",
     "test": "bun test",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "openapi": "bun run scripts/export-openapi.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",

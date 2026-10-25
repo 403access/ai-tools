@@ -13,7 +13,9 @@ cloud account, telemetry, or a hosted relay.
 - OpenCode itself listens on loopback and uses HTTP Basic auth.
 - The hub listens on `0.0.0.0` by default so a phone on the same LAN can reach
   it.
-- Every hub request except `/api/ping` requires a Bearer token.
+- Every hub request except the liveness probe (`/api/ping`) and the API
+documentation (`/api/docs`, `/api/openapi.json`) requires a Bearer token. The
+documentation exposes route shapes only, never cached data.
 - The token is stored in `~/.config/opencode/opencodebar-hub.json` with mode
   `0600`, and on iOS in the app's local storage.
 

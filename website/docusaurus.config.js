@@ -95,6 +95,11 @@ const config = {
             label: 'Documentation',
           },
           {
+            href: 'https://403access.github.io/ai-tools/docs/api/',
+            label: 'API',
+            position: 'left',
+          },
+          {
             to: 'https://403access.github.io/ai-tools/',
             label: 'Website',
             position: 'left',

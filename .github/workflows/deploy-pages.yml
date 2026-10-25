@@ -8,6 +8,11 @@ on:
     paths:
       - 'docs/**'
       - 'website/**'
+      - 'server/src/openapi/**'
+      - 'server/src/config.ts'
+      - 'server/scripts/**'
+      - 'server/package.json'
+      - 'server/tsconfig.json'
       - '!website/README.md'
       - '!website/.gitignore'
       - '.github/workflows/deploy-pages.yml'
@@ -35,6 +40,11 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: website/package-lock.json
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
 
       - name: Install docs dependencies
         working-directory: website

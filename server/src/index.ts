@@ -124,6 +124,7 @@ for (const entry of lan) {
 }
 console.log(`  Database   ${config.dbPath}`);
 console.log(`  Config     ${config.configPath}`);
+console.log(`  Docs       ${local}/api/docs`);
 console.log(`  Token      ${config.token}`);
 if (lan[0]) {
   console.log(`  Pairing    ${pairingLink(lan[0].url, config.token)}`);

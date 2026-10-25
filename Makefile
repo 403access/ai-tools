@@ -1,4 +1,4 @@
-.PHONY: build test app run desktop restart preview shots site docs docs-build docs-serve clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-icon bench
+.PHONY: build test app run desktop restart preview shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-icon bench
 
 # Compile the Swift package (debug).
 build:
@@ -57,9 +57,14 @@ site:
 docs:
 	cd website && npm install && npm run start
 
-# Build the documentation site for production.
+# Build the documentation site for production. `prebuild` regenerates the
+# Swagger explorer from server/src/openapi/ (requires Bun).
 docs-build:
 	cd website && npm ci && npm run build
+
+# Regenerate the static API explorer used by the docs site and the live hub.
+openapi:
+	cd server && bun run scripts/export-openapi.ts ../website/static/api
 
 # Build and serve the production documentation locally.
 docs-serve: docs-build
@@ -157,5 +162,5 @@ mobile-device: mobile-project
 clean:
 	swift package clean
 	rm -rf dist server/node_modules
-	rm -rf website/node_modules website/build website/.docusaurus
+	rm -rf website/node_modules website/build website/.docusaurus website/static/api
 	rm -rf OpenCodeBarMobile.xcodeproj

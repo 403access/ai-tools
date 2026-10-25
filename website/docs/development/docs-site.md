@@ -14,8 +14,9 @@ marketing page in `docs/`.
 make docs
 ```
 
-This runs `npm install` and `docusaurus start` in `website/`. Docusaurus serves
-the site at:
+This runs `npm install` and `docusaurus start` in `website/`. The `prestart`
+script also regenerates the Swagger API explorer from `server/src/openapi/`, so
+Bun must be available. Docusaurus serves the site at:
 
 ```text
 http://localhost:3000/ai-tools/docs/
@@ -40,6 +41,7 @@ website/
   src/components/        HomeHero and Figure
   src/css/custom.css     OpenCodeBar theme
   static/img/            logo, favicon, screenshots
+  static/api/             generated Swagger UI + openapi.json (not committed)
 ```
 
 ## Add a page
@@ -98,10 +100,13 @@ A broken internal link fails `make docs-build` and the Pages deployment.
 It:
 
 1. installs Node dependencies in `website/` with `npm ci`,
-2. builds Docusaurus with the `/ai-tools/docs/` base URL,
-3. copies the marketing site from `docs/` to the artifact root,
-4. copies the Docusaurus build to `_site/docs/`,
-5. uploads the combined artifact to GitHub Pages.
+2. installs Bun, because the docs build generates the OpenAPI explorer,
+3. builds Docusaurus with the `/ai-tools/docs/` base URL; `prebuild` runs
+   `server/scripts/export-openapi.ts`, which writes `website/static/api/`
+   (`openapi.json` plus the Swagger UI page),
+4. copies the marketing site from `docs/` to the artifact root,
+5. copies the Docusaurus build to `_site/docs/`,
+6. uploads the combined artifact to GitHub Pages.
 
 In the GitHub repository, set:
 
@@ -111,6 +116,8 @@ The published URLs are:
 
 - marketing site: `https://403access.github.io/ai-tools/`
 - documentation: `https://403access.github.io/ai-tools/docs/`
+- API explorer: `https://403access.github.io/ai-tools/docs/api/` (reference
+  only; run the hub for an interactive **Try it out**)
 
 ## Updating the theme
 

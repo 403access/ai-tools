@@ -17,9 +17,34 @@ http://<mac-host>:8787
 The hub writes the actual URL and port to
 `~/.config/opencode/opencodebar-hub.json`.
 
+## Interactive documentation
+
+Every hub serves Swagger UI at **`/api/docs`** and the underlying OpenAPI 3.0
+document at **`/api/openapi.json`**:
+
+```text
+http://127.0.0.1:8787/api/docs
+```
+
+Both routes are public. Click **Authorize** in Swagger UI, enter the token from
+`~/.config/opencode/opencodebar-hub.json`, and every **Try it out** request sends
+it automatically. A link with `?token=…` pre-authorizes the page, so a bookmark
+can open with **Try it out** ready to go. The specification is generated from
+[`server/src/openapi/`](https://github.com/403access/ai-tools/tree/main/server/src/openapi),
+so it ships with the hub and stays in step with the routes.
+
+A published copy of the same explorer is available at
+[`403access.github.io/ai-tools/docs/api`](https://403access.github.io/ai-tools/docs/api/),
+with the generated spec at
+[`openapi.json`](https://403access.github.io/ai-tools/docs/api/openapi.json). It
+is generated from the hub source during the docs build and is reference-only —
+executing requests needs a running hub, so use the `/api/docs` URL printed by
+`make hub` for that.
+
 ## Authentication
 
-Every endpoint except `GET /api/ping` requires the Bearer token:
+Every endpoint except `GET /api/ping`, `GET /api/docs`, and
+`GET /api/openapi.json` requires the Bearer token:
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8787/api/health

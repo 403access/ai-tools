@@ -4,7 +4,10 @@
   "private": true,
   "description": "Docusaurus documentation for OpenCodeBar",
   "scripts": {
+    "openapi": "cd ../server && bun run scripts/export-openapi.ts ../website/static/api",
+    "prestart": "npm run openapi",
     "start": "docusaurus start",
+    "prebuild": "npm run openapi",
     "build": "docusaurus build",
     "serve": "docusaurus serve",
     "clear": "docusaurus clear",

@@ -70,8 +70,9 @@ OPENCODEBAR_HUB_PORT=8788 make hub
 curl http://127.0.0.1:8787/api/ping
 ```
 
-`/api/ping` is the only unauthenticated endpoint. It returns the hub version so
-a client can verify a URL before sending its token.
+`/api/ping` is the only unauthenticated API endpoint besides the API
+documentation (`/api/docs` and `/api/openapi.json`). It returns the hub version
+so a client can verify a URL before sending its token.
 
 For an authenticated health check:
 

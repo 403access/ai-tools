@@ -368,6 +368,13 @@ The hub:
    (`hub.connected`, `hub.sessions`, `hub.stats`, `hub.usage`) that tell clients
    when cached data changed.
 
+Interactive API documentation is served by the hub at `/api/docs` (Swagger UI),
+with the raw OpenAPI 3.0 document at `/api/openapi.json`. Both routes are public;
+click **Authorize** and paste the hub token to run authenticated **Try it out**
+requests. The same reference is published at
+<https://403access.github.io/ai-tools/docs/api/> and documented in
+[`website/docs/hub/api.md`](website/docs/hub/api.md).
+
 Endpoints the hub reads from OpenCode: `/api/info`, `/api/session`,
 `/api/session/active`, `/api/session/{id}`, `/api/session/{id}/message`,
 `/api/project`, `/api/experimental/session/stats`, `/api/pty`, and

@@ -43,6 +43,7 @@ import {
   type HostTerminalStore,
 } from "./host-terminals.ts";
 import { eventStream } from "./api/event-stream.ts";
+import { docsResponse, openApiResponse } from "./api/docs.ts";
 import {
   emptyRemoteStatus,
   type RemoteConfigureInput,
@@ -137,6 +138,14 @@ export function createHandler(
       // pasted URL points at a hub before sending the token.
       if (pathname === "/api/ping") {
         return json({ ok: true, hub: true, version: HUB_VERSION });
+      }
+
+      // API documentation stays public: the reference is also published on the
+      // docs site, and Swagger UI's Authorize button supplies the token for
+      // every "Try it out" request. No cached data is exposed here.
+      if (pathname === "/api/docs" || pathname === "/api/openapi.json") {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+        return pathname === "/api/docs" ? docsResponse() : openApiResponse();
       }
 
       if (!isAuthorized(request, config.token)) {
