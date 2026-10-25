@@ -3,9 +3,13 @@ name: Deploy website and docs
 on:
   push:
     branches: [main]
+    # Only rebuild when an input to the published site changes. Files such as
+    # website/README.md and website/.gitignore do not affect the build output.
     paths:
       - 'docs/**'
       - 'website/**'
+      - '!website/README.md'
+      - '!website/.gitignore'
       - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
