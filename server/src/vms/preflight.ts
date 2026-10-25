@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { arch, cpus, totalmem } from "node:os";
 import { defaultRunner, findExecutable } from "../system/commands.ts";
 import type { CommandRunner } from "../system/types.ts";
@@ -70,11 +70,15 @@ async function linuxBuilderDetail(runner: CommandRunner, nixPath: string): Promi
   let unreadableFile: string | null = null;
   if (value.startsWith("@")) {
     const file = value.slice(1).trim();
-    try {
-      builderText = readFileSync(file, "utf8");
-    } catch {
+    if (existsSync(file)) {
+      try {
+        builderText = readFileSync(file, "utf8");
+      } catch {
+        builderText = "";
+        unreadableFile = file;
+      }
+    } else {
       builderText = "";
-      unreadableFile = file;
     }
   }
   const available =
