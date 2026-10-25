@@ -35,7 +35,9 @@ make run
 ```
 
 The app bundle is assembled in `dist/`. The first build also generates the icon
-and ad-hoc signs the bundle.
+and ad-hoc signs the bundle. SwiftPM fetches
+[SwiftTerm](https://github.com/migueldeicaza/SwiftTerm), the terminal emulator
+used by the System tab, on the first build.
 
 ## iOS app
 
@@ -46,7 +48,8 @@ make mobile-run       # build, install, launch, and pair
 make mobile-device    # build, sign, install, launch on a device
 ```
 
-The generated project has two targets: `OpenCodeBarMobile` and the
+Xcode resolves SwiftTerm from the package reference in `project.yml` on the
+first build. The generated project has two targets: `OpenCodeBarMobile` and the
 `OpenCodeBarWidgets` extension. The app and extension share the hub connection
 through a keychain access group, so widgets work as soon as the app is paired;
 no extra capability setup is needed beyond normal automatic signing.

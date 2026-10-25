@@ -47,7 +47,7 @@ window you are in.
   </div>
   <div className="featureCard">
     <h3>System</h3>
-    <p>CPU, memory, disks, battery, network, now-playing media, processes, installed apps, Homebrew, developer tools, and a read-only host file browser.</p>
+    <p>CPU, memory, disks, battery, network, now-playing media, processes, installed apps, Homebrew, developer tools, a read-only host file browser, and interactive terminals on the host.</p>
   </div>
   <div className="featureCard">
     <h3>Settings</h3>

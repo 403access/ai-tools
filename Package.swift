@@ -9,9 +9,22 @@ let package = Package(
     products: [
         .executable(name: "OpenCodeBar", targets: ["OpenCodeBar"])
     ],
+    dependencies: [
+        // Full terminal emulation for the OpenCode PTYs shown in System. This
+        // revision is after v1.5.1 removed its stray debug print and before the
+        // optional Metal renderer added a .metal build resource, which needs
+        // the Xcode Metal toolchain component on every build machine.
+        .package(
+            url: "https://github.com/migueldeicaza/SwiftTerm.git",
+            revision: "493d99e4e3e99a27077bf24bc0e1c8d20f9f7925"
+        )
+    ],
     targets: [
         .executableTarget(
             name: "OpenCodeBar",
+            dependencies: [
+                .product(name: "SwiftTerm", package: "SwiftTerm")
+            ],
             path: "Sources/OpenCodeBar"
         ),
         .testTarget(

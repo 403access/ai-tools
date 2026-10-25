@@ -15,6 +15,9 @@ struct SystemView: View {
     @State private var showAllPorts = false
     @State private var volumeDraft: Double = 0
     @State private var adjustingVolume = false
+    @State private var selectedTerminal: SystemTerminal?
+    @State private var showingNewTerminal = false
+    @State private var pendingTerminal: SystemTerminal?
     /// Debug/screenshot hook: `OPENCODEBAR_FILES=<path>` opens the host file
     /// browser directly on launch.
     @State private var debugFilesPath: String? = ProcessInfo.processInfo.environment["OPENCODEBAR_FILES"]
@@ -47,7 +50,7 @@ struct SystemView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await store.refreshSystemInfo(force: true) }
+                        Task { await refreshAll(force: true) }
                     } label: {
                         if store.isRefreshingSystemInfo {
                             ProgressView().controlSize(.small)
@@ -59,21 +62,39 @@ struct SystemView: View {
                     .accessibilityLabel("Refresh system information")
                 }
             }
-            .refreshable { await store.refreshSystemInfo(force: true) }
+            .refreshable { await refreshAll(force: true) }
             .navigationDestination(item: $debugFilesPath) { path in
                 MobileFileBrowserView(startPath: path)
             }
             .task { await poll() }
+            .sheet(item: $selectedTerminal) { terminal in
+                if let api = store.api {
+                    MobileTerminalDetailView(terminal: terminal, api: api)
+                        .environmentObject(store)
+                }
+            }
+            .sheet(isPresented: $showingNewTerminal, onDismiss: openPendingTerminal) {
+                MobileNewTerminalSheet(directory: store.orderedProjects.first?.canonical) { terminal in
+                    pendingTerminal = terminal
+                }
+                .environmentObject(store)
+            }
         }
     }
 
     private func poll() async {
         while !Task.isCancelled {
             if !store.isPaused {
-                await store.refreshSystemInfo()
+                await refreshAll()
             }
             try? await Task.sleep(nanoseconds: 5_000_000_000)
         }
+    }
+
+    private func refreshAll(force: Bool = false) async {
+        async let system: Void = store.refreshSystemInfo(force: force)
+        async let terminals: Void = store.refreshTerminals(force: force)
+        _ = await (system, terminals)
     }
 
     @ViewBuilder
@@ -87,6 +108,7 @@ struct SystemView: View {
 
                     overview(info)
                     mediaSection(info)
+                    terminalsSection
                     filesSection(info)
                     hostSection(info)
                     cpuSection(info)
@@ -122,6 +144,19 @@ struct SystemView: View {
                     .padding(16)
             }
         }
+    }
+
+    private var terminalsSection: some View {
+        MobileTerminalsSection(
+            onOpen: { terminal in selectedTerminal = terminal },
+            onNew: { showingNewTerminal = true }
+        )
+    }
+
+    private func openPendingTerminal() {
+        guard let terminal = pendingTerminal else { return }
+        pendingTerminal = nil
+        selectedTerminal = terminal
     }
 
     // MARK: - Overview

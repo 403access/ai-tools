@@ -14,6 +14,9 @@ struct SystemTab: View {
     @State private var showAllPorts = false
     @State private var volumeDraft: Double = 0
     @State private var adjustingVolume = false
+    @State private var selectedTerminal: SystemTerminal?
+    @State private var showingNewTerminal = false
+    @State private var pendingTerminal: SystemTerminal?
 
     enum ProcessMetric: String, CaseIterable, Identifiable {
         case cpu = "CPU"
@@ -33,6 +36,7 @@ struct SystemTab: View {
             if let info = state.systemInfo {
                 overview(info)
                 mediaSection(info)
+                terminalsSection
                 filesSection(info)
                 hostSection(info)
                 cpuSection(info)
@@ -60,13 +64,40 @@ struct SystemTab: View {
             }
         }
         .task { await poll() }
+        .sheet(item: $selectedTerminal) { terminal in
+            if let api = state.api {
+                TerminalDetailView(terminal: terminal, api: api)
+            }
+        }
+        .sheet(isPresented: $showingNewTerminal, onDismiss: openPendingTerminal) {
+            NewTerminalSheet(directory: state.orderedProjects.first?.canonical) { terminal in
+                pendingTerminal = terminal
+            }
+        }
     }
 
     private func poll() async {
         while !Task.isCancelled {
-            await state.refreshSystemInfo()
+            async let system: Void = state.refreshSystemInfo()
+            async let terminals: Void = state.refreshTerminals()
+            _ = await (system, terminals)
             try? await Task.sleep(nanoseconds: 5_000_000_000)
         }
+    }
+
+    private var terminalsSection: some View {
+        TerminalsSection(
+            onOpen: { terminal in selectedTerminal = terminal },
+            onNew: { showingNewTerminal = true }
+        )
+    }
+
+    /// Opening the detail page from the new-terminal sheet's `onDismiss` avoids
+    /// presenting two sheets in the same run loop.
+    private func openPendingTerminal() {
+        guard let terminal = pendingTerminal else { return }
+        pendingTerminal = nil
+        selectedTerminal = terminal
     }
 
     // MARK: - Header
@@ -83,7 +114,11 @@ struct SystemTab: View {
                         .foregroundStyle(.secondary)
                 }
                 Button {
-                    Task { await state.refreshSystemInfo(force: true) }
+                    Task {
+                        async let system: Void = state.refreshSystemInfo(force: true)
+                        async let terminals: Void = state.refreshTerminals(force: true)
+                        _ = await (system, terminals)
+                    }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 10, weight: .semibold))

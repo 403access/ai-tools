@@ -15,8 +15,15 @@ import {
 import type { Hub } from "./hub.ts";
 import { OpenCodeError } from "./opencode.ts";
 import { resolveProjectIcon } from "./projectIcon.ts";
-import type { MediaControlResult, ServerInfo, SystemInfo } from "./types.ts";
+import type {
+  MediaControlResult,
+  ServerInfo,
+  SystemInfo,
+  TerminalUpdateInput,
+} from "./types.ts";
 import { MediaControlError, SystemInfoService } from "./system.ts";
+import { TerminalService, type TerminalStore } from "./terminals.ts";
+import { TerminalSockets, type TerminalSocketData } from "./api/terminal-socket.ts";
 import { eventStream } from "./api/event-stream.ts";
 import {
   CORS_HEADERS,
@@ -43,9 +50,15 @@ export interface ApiDeps {
     snapshot(force?: boolean): Promise<SystemInfo>;
     control?(action: string, value?: number): Promise<MediaControlResult>;
   };
+  /** Injectable PTY store, used by tests to avoid a live OpenCode service. */
+  terminals?: TerminalStore;
+  /** Websocket proxy for terminal streams; the hub wires this into Bun.serve. */
+  terminalSockets?: TerminalSockets;
 }
 
-export function createHandler(deps: ApiDeps): (request: Request) => Promise<Response> {
+export function createHandler(
+  deps: ApiDeps,
+): (request: Request, server?: Bun.Server<TerminalSocketData>) => Promise<Response> {
   const { db, hub, config, restart, persistSettings } = deps;
   const system: NonNullable<ApiDeps["system"]> = deps.system ?? new SystemInfoService({
     hub: () => ({
@@ -54,8 +67,15 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
       dbPath: config.dbPath,
     }),
   });
+  const terminalService = deps.terminals ? null : new TerminalService(hub, db);
+  const terminalStore = deps.terminals ?? terminalService!;
+  const terminalSockets =
+    deps.terminalSockets ?? (terminalService ? new TerminalSockets(terminalService) : undefined);
 
-  return async (request: Request): Promise<Response> => {
+  return async (
+    request: Request,
+    server?: Bun.Server<TerminalSocketData>,
+  ): Promise<Response> => {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
@@ -137,6 +157,117 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
           if (caught instanceof MediaControlError) return error(caught.message, caught.status);
           throw caught;
         }
+      }
+
+      // MARK: - Terminals
+
+      if (pathname === "/api/terminals") {
+        if (request.method === "GET") {
+          return json({ data: await terminalStore.list(url.searchParams.get("refresh") === "1") });
+        }
+        if (request.method === "POST") {
+          const body = await readJSONBody(request);
+          if (!body) return error("Expected a JSON body", 400);
+
+          const title = optionalString(body.title);
+          if (body.title !== undefined && title === null) {
+            return error("title must be a string", 400);
+          }
+          const cwd = optionalString(body.cwd);
+          if (body.cwd !== undefined && cwd === null) {
+            return error("cwd must be a string", 400);
+          }
+          const command = optionalString(body.command);
+          if (body.command !== undefined && command === null) {
+            return error("command must be a string", 400);
+          }
+          const location = optionalString(body.location);
+          if (body.location !== undefined && location === null) {
+            return error("location must be a string", 400);
+          }
+          const args = optionalStringArray(body.args);
+          if (body.args !== undefined && args === null) {
+            return error("args must be an array of strings", 400);
+          }
+          const env = optionalStringMap(body.env);
+          if (body.env !== undefined && env === null) {
+            return error("env must be an object of string values", 400);
+          }
+
+          return json({
+            data: await terminalStore.create({
+              title: title ?? undefined,
+              cwd: cwd ?? undefined,
+              command: command ?? undefined,
+              args: args ?? undefined,
+              location: location ?? undefined,
+              env: env ?? undefined,
+            }),
+          });
+        }
+        return error("Method not allowed", 405);
+      }
+
+      if (parts[0] === "api" && parts[1] === "terminals" && parts.length === 3) {
+        const id = decodeURIComponent(parts[2]!);
+        if (request.method === "PUT") {
+          const body = await readJSONBody(request);
+          if (!body) return error("Expected a JSON body", 400);
+
+          const title = optionalString(body.title);
+          if (body.title !== undefined && title === null) {
+            return error("title must be a string", 400);
+          }
+          const size = optionalSize(body.size);
+          if (body.size !== undefined && size === null) {
+            return error("size must contain positive rows and cols", 400);
+          }
+          const location = optionalString(body.location);
+          if (body.location !== undefined && location === null) {
+            return error("location must be a string", 400);
+          }
+
+          const update: TerminalUpdateInput = {};
+          if (title !== null && title !== undefined) update.title = title;
+          if (size !== null && size !== undefined) update.size = size;
+          return json({
+            data: await terminalStore.update(
+              id,
+              update,
+              location ?? url.searchParams.get("location") ?? undefined,
+            ),
+          });
+        }
+        if (request.method === "DELETE") {
+          await terminalStore.remove(
+            id,
+            url.searchParams.get("location") ?? undefined,
+          );
+          return json({ ok: true });
+        }
+        if (request.method === "GET") {
+          const terminals = await terminalStore.list();
+          const terminal = terminals.find((entry) => entry.id === id);
+          return terminal ? json({ data: terminal }) : error("Terminal not found", 404);
+        }
+        return error("Method not allowed", 405);
+      }
+
+      if (parts[0] === "api" && parts[1] === "terminals" && parts[3] === "socket" && parts.length === 4) {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+        if (!server || !terminalSockets) {
+          return error("Terminal streams are unavailable", 501);
+        }
+        const id = decodeURIComponent(parts[2]!);
+        // A successful upgrade returns undefined, which Bun expects; the cast
+        // keeps the handler's normal Response contract for every other route.
+        return (await terminalSockets.upgrade(
+          request,
+          server,
+          id,
+          url.searchParams.get("location"),
+          url.searchParams.get("cursor"),
+        )) as Response;
       }
 
       if (pathname === "/api/files" && request.method === "GET") {
@@ -411,4 +542,34 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
       return error(message, 500);
     }
   };
+}
+
+function optionalString(value: unknown): string | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  return typeof value === "string" ? value : null;
+}
+
+function optionalStringArray(value: unknown): string[] | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
+    return null;
+  }
+  return value;
+}
+
+function optionalStringMap(value: unknown): Record<string, string> | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value);
+  if (!entries.every(([, entry]) => typeof entry === "string")) return null;
+  return Object.fromEntries(entries) as Record<string, string>;
+}
+
+function optionalSize(value: unknown): { rows: number; cols: number } | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const { rows, cols } = value as { rows?: unknown; cols?: unknown };
+  const valid = (entry: unknown): entry is number =>
+    typeof entry === "number" && Number.isInteger(entry) && entry > 0 && entry <= 5_000;
+  return valid(rows) && valid(cols) ? { rows, cols } : null;
 }

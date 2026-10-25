@@ -108,6 +108,11 @@ final class MobileStore: ObservableObject {
     @Published var systemInfoFetchedAt: Date?
     @Published var systemInfoError: String?
     @Published var isRefreshingSystemInfo = false
+    /// Interactive shells running on the Mac, including OpenCode's terminals.
+    @Published var terminals: [SystemTerminal] = []
+    @Published var terminalsFetchedAt: Date?
+    @Published var terminalsError: String?
+    @Published var isRefreshingTerminals = false
     @Published var isControllingMedia = false
     @Published var mediaControlError: String?
     @Published var liveActivity: [String: SessionActivity] = [:]

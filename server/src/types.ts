@@ -287,6 +287,48 @@ export interface ServerInfo {
   hub?: HubHealth;
 }
 
+// MARK: - Terminals
+
+/**
+ * One pseudo-terminal owned by the OpenCode service. The hub proxies the
+ * service's PTYs so both apps can list and drive all terminal sessions on the
+ * machine, including ones started from the OpenCode TUI.
+ */
+export interface Terminal {
+  id: string;
+  title: string;
+  command: string;
+  args: string[];
+  cwd: string;
+  status: "running" | "exited";
+  pid: number;
+  exitCode?: number;
+  /** OpenCode location (working directory) that owns this terminal. */
+  location: string;
+}
+
+export interface TerminalCreateInput {
+  title?: string;
+  cwd?: string;
+  command?: string;
+  args?: string[];
+  location?: string;
+  env?: Record<string, string>;
+}
+
+export interface TerminalUpdateInput {
+  title?: string;
+  size?: { rows: number; cols: number };
+}
+
+export interface TerminalsResponse {
+  data: Terminal[];
+}
+
+export interface TerminalResponse {
+  data: Terminal;
+}
+
 /** A Mac or iOS app that has talked to this hub. */
 export interface ConnectedDevice {
   id: string;

@@ -11,6 +11,19 @@ The apps can start sessions and send prompts, but they cannot interrupt, stop,
 or delete a session. Prompts sent while a session is running are queued behind
 the current turn (or steered if the client requests it).
 
+## Terminals
+
+Terminals are OpenCode PTYs, so they need a reachable OpenCode service. The hub
+can list terminals only for locations it knows about: the service's default
+location and cached project directories. A shell created in an arbitrary
+directory should be started through OpenCodeBar (or opened once) so its location
+is included in later lists.
+
+Closing a terminal window disconnects; it does not stop the shell. Use the stop
+button to terminate the process. Terminals run as the hub's user with that
+user's full environment and permissions; there is no command allow-list or
+sandbox.
+
 ## Hub dependency
 
 The phone always needs a reachable hub for live updates. The iOS app still

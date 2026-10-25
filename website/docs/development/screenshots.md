@@ -33,7 +33,9 @@ swift build
 ```
 
 Use `--session <id>` to open a specific session. Combine it with
-`--detail-mode subagents` to capture child sessions.
+`--detail-mode subagents` to capture child sessions. Add `--terminal` to render
+the first OpenCode terminal instead of the panel; start a terminal first, since
+the harness only renders one that the hub already lists.
 
 :::note
 Stats and Changes hydrate history on their first request. Open those tabs once,

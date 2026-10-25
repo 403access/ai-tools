@@ -78,6 +78,12 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `GET` | `/api/hub/info` | Alias for health |
 | `GET` | `/api/info` | Server info, URLs, capabilities, and hub health |
 | `GET` | `/api/system` | Full snapshot of the machine running the hub |
+| `GET` | `/api/terminals` | Terminals across OpenCode locations |
+| `POST` | `/api/terminals` | Start a PTY |
+| `GET` | `/api/terminals/{id}` | One terminal |
+| `PUT` | `/api/terminals/{id}` | Rename or resize a terminal |
+| `DELETE` | `/api/terminals/{id}` | Stop and remove a terminal |
+| `GET` | `/api/terminals/{id}/socket` | WebSocket for terminal I/O |
 | `GET` | `/api/devices` | Connected devices |
 | `GET` | `/api/settings` | Tunable hub settings |
 | `PATCH` | `/api/settings` | Update the event throttle |
@@ -151,6 +157,78 @@ The response carries the updated `media` and `audio` state:
 macOS sends MediaRemote commands to the current system player and falls back to
 AppleScript for Music and Spotify. Linux uses `playerctl` and `pactl`. Playback
 commands return `409` when nothing is playing; unknown actions return `400`.
+
+### Terminals
+
+Terminals are OpenCode's PTY sessions, proxied by the hub so a remote client can
+list and drive them with only the hub token.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/terminals` | Every terminal across known locations |
+| `POST` | `/api/terminals` | Create a PTY |
+| `GET` | `/api/terminals/{id}` | One cached terminal |
+| `PUT` | `/api/terminals/{id}` | Rename or resize |
+| `DELETE` | `/api/terminals/{id}` | Stop and remove the PTY |
+| `GET` | `/api/terminals/{id}/socket` | WebSocket for output and input |
+
+`GET /api/terminals` returns `{ "data": [ … ] }`. OpenCode scopes PTYs by
+location, so the hub queries the service's default location plus every cached
+project directory, merges the results, and annotates each row with its
+`location`:
+
+```json
+{
+  "id": "pty_123",
+  "title": "Build",
+  "command": "/bin/zsh",
+  "args": ["-l"],
+  "cwd": "/Users/you/src/app",
+  "status": "running",
+  "pid": 4321,
+  "location": "/Users/you/src/app"
+}
+```
+
+`?refresh=1` bypasses the hub's short list cache. Exited PTYs stay listed until
+OpenCode evicts them or a client removes them; `exitCode` is present once the
+process has exited.
+
+Create one with an optional `title`, `cwd`, `command`, `args`, `env`, and the
+`location` whose terminal registry should own it. When `location` is omitted the
+service's default location is used, and `cwd` defaults to that directory:
+
+```json
+{ "title": "Tests", "location": "/Users/you/src/app" }
+```
+
+Update accepts `title` and/or `size` (`rows`, `cols`). Resizing is an HTTP call
+because normal PTYs do not carry resize frames on the socket:
+
+```json
+{ "size": { "rows": 40, "cols": 120 } }
+```
+
+`PUT` and `DELETE` take the terminal's `location` from the JSON body or the
+`?location=` query parameter; the hub remembers locations it has listed, so the
+query is normally only needed for the first request after a restart.
+
+#### Terminal socket
+
+Connect with `GET /api/terminals/{id}/socket?location=…&cursor=…` and the same
+Bearer token as every other endpoint. The hub opens the upstream OpenCode socket
+and forwards frames without modification:
+
+- **Server → client:** text frames are raw terminal output. One binary control
+  frame starts with `0x00` and carries `{"cursor": <absolute output position>}`;
+  it marks the end of the retained replay.
+- **Client → server:** text frames are raw terminal input, byte for byte. Send
+  `\r` for Enter, not `\n`.
+- Pass the last `cursor` when reconnecting to receive only output after that
+  position. Omit it for a full replay of the retained buffer.
+
+When the shell exits, OpenCode closes the socket; the PTY remains in the list
+until it is removed.
 
 ### Host files
 

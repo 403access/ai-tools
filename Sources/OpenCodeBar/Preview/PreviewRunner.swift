@@ -171,12 +171,28 @@ enum PreviewRunner {
         // happens after the run loop above has already settled.
         let wantsSettings = value(after: "--tab", in: CommandLine.arguments)?.lowercased() == "settings"
 
+        // `--terminal` renders the first terminal instead of the panel, for
+        // inspecting the emulator without driving the UI by hand.
+        let wantsTerminal = CommandLine.arguments.contains("--terminal")
+        if wantsTerminal {
+            var finished = false
+            Task { @MainActor in
+                await state.refreshTerminals(force: true)
+                finished = true
+            }
+            let deadline = Date().addingTimeInterval(10)
+            while !finished && Date() < deadline {
+                RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+            }
+        }
+
         // The offscreen harness never runs SwiftUI's `.task`, so preload the
         // System tab explicitly. Its first fetch scans apps and Homebrew.
         if value(after: "--tab", in: CommandLine.arguments)?.lowercased() == "system" {
             var finished = false
             Task { @MainActor in
                 await state.refreshSystemInfo(force: true)
+                await state.refreshTerminals(force: true)
                 finished = true
             }
             let deadline = Date().addingTimeInterval(25)
@@ -203,7 +219,19 @@ enum PreviewRunner {
             }
         }
 
-        let hosting = NSHostingView(rootView: ScreenshotRoot(state: state))
+        let root: AnyView
+        if wantsTerminal,
+           let terminal = state.terminals.first,
+           let api = state.api {
+            root = AnyView(
+                TerminalDetailView(terminal: terminal, api: api)
+                    .environmentObject(state)
+            )
+        } else {
+            root = AnyView(ScreenshotRoot(state: state))
+        }
+
+        let hosting = NSHostingView(rootView: root)
         hosting.appearance = NSAppearance(named: .darkAqua)
 
         let window = NSWindow(
@@ -226,7 +254,8 @@ enum PreviewRunner {
             || wantsProjectDetail
             || wantsDeviceDetail
             || wantsSettings
-            || wantsFiles {
+            || wantsFiles
+            || wantsTerminal {
             let detailDeadline = Date().addingTimeInterval(3)
             while Date() < detailDeadline {
                 RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))

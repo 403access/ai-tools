@@ -8,8 +8,32 @@ import type {
   SessionPendingItem,
   SessionsResponse,
   StatsResponse,
+  TerminalCreateInput,
+  TerminalUpdateInput,
 } from "../types.ts";
 import { OpenCodeError, type OpenCodeLocation } from "./errors.ts";
+
+/** The shape OpenCode's PTY routes return. */
+export interface Pty {
+  id: string;
+  title: string;
+  command: string;
+  args: string[];
+  cwd: string;
+  status: "running" | "exited";
+  pid: number;
+  exitCode?: number;
+}
+
+interface PtyEnvelope {
+  location: { directory: string };
+  data: Pty;
+}
+
+interface PtyListEnvelope {
+  location: { directory: string };
+  data: Pty[];
+}
 
 export interface SessionsOptions {
   limit?: number;
@@ -83,6 +107,72 @@ export class OpenCodeClient {
 
   async post<T>(path: string, body: unknown, timeoutMs = this.timeoutMs): Promise<T> {
     return this.request<T>(path, { method: "POST", body, timeoutMs });
+  }
+
+  async put<T>(path: string, body: unknown, timeoutMs = this.timeoutMs): Promise<T> {
+    return this.request<T>(path, { method: "PUT", body, timeoutMs });
+  }
+
+  async delete<T>(path: string, timeoutMs = this.timeoutMs): Promise<T> {
+    return this.request<T>(path, { method: "DELETE", timeoutMs });
+  }
+
+  /** Header the hub uses when it proxies a terminal socket upstream. */
+  get authorizationHeader(): string {
+    return this.authHeader;
+  }
+
+  /**
+   * PTY routes are location-scoped. `location[directory]` selects the OpenCode
+   * working directory whose terminals should be listed or addressed.
+   */
+  private withLocation(path: string, directory?: string): string {
+    if (!directory) return path;
+    const query = new URLSearchParams({ "location[directory]": directory });
+    return `${path}${path.includes("?") ? "&" : "?"}${query}`;
+  }
+
+  async listPtys(directory?: string): Promise<PtyListEnvelope> {
+    return this.get<PtyListEnvelope>(this.withLocation("/api/pty", directory));
+  }
+
+  async createPty(input: TerminalCreateInput, directory?: string): Promise<PtyEnvelope> {
+    const body = {
+      title: input.title,
+      cwd: input.cwd,
+      command: input.command,
+      args: input.args,
+      env: input.env,
+    };
+    return this.post<PtyEnvelope>(this.withLocation("/api/pty", directory), body);
+  }
+
+  async updatePty(
+    id: string,
+    input: TerminalUpdateInput,
+    directory?: string,
+  ): Promise<PtyEnvelope> {
+    return this.put<PtyEnvelope>(
+      this.withLocation(`/api/pty/${encodeURIComponent(id)}`, directory),
+      { title: input.title, size: input.size },
+    );
+  }
+
+  async removePty(id: string, directory?: string): Promise<void> {
+    await this.delete<void>(
+      this.withLocation(`/api/pty/${encodeURIComponent(id)}`, directory),
+    );
+  }
+
+  /** WebSocket URL for a terminal, carrying the location and optional cursor. */
+  ptySocketURL(id: string, options: { directory?: string; cursor?: string } = {}): string {
+    const url = new URL(`/api/pty/${encodeURIComponent(id)}/connect`, this.location.url);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    if (options.directory) {
+      url.searchParams.set("location[directory]", options.directory);
+    }
+    if (options.cursor) url.searchParams.set("cursor", options.cursor);
+    return url.toString();
   }
 
   /** Creates a session in the given directory. The service picks the default agent/model. */

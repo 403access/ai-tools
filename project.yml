@@ -13,6 +13,13 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     SWIFT_STRICT_CONCURRENCY: minimal
 
+packages:
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm.git
+    # After v1.5.1 (no stray debug print) and before the Metal resource was
+    # added; see Package.swift for why this revision is pinned.
+    revision: 493d99e4e3e99a27077bf24bc0e1c8d20f9f7925
+
 targets:
   OpenCodeBarMobile:
     type: application
@@ -28,6 +35,7 @@ targets:
       - path: Sources/OpenCodeBar/Core/DeviceIdentity.swift
       - path: Sources/OpenCodeBar/Core/HubConfig.swift
       - path: Sources/OpenCodeBar/Core/WidgetShared.swift
+      - path: Sources/OpenCodeBar/Core/TerminalConnection.swift
       - path: Sources/OpenCodeBar/Support/Formatters.swift
       - path: Sources/OpenCodeBar/Support/SpeechInput.swift
       - path: Sources/OpenCodeBar/Views/Theme.swift
@@ -35,10 +43,14 @@ targets:
       - path: Sources/OpenCodeBar/Views/PerformanceViews.swift
       - path: Sources/OpenCodeBar/Views/HeatmapView.swift
       - path: Sources/OpenCodeBar/Views/LiveActivityView.swift
+      - path: Sources/OpenCodeBar/Views/TerminalEmulatorView.swift
       - path: Mobile/Assets.xcassets
+      - path: THIRD_PARTY_NOTICES.md
+        buildPhase: resources
     dependencies:
       - sdk: libsqlite3.tbd
       - target: OpenCodeBarWidgets
+      - package: SwiftTerm
     entitlements:
       path: Mobile/OpenCodeBar.entitlements
       properties:

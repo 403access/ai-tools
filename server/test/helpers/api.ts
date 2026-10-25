@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createHandler } from "../../src/api.ts";
+import { createHandler, type ApiDeps } from "../../src/api.ts";
 import type { HubConfig } from "../../src/config.ts";
 import { HubDB } from "../../src/db.ts";
 import { Hub } from "../../src/hub.ts";
@@ -41,14 +41,17 @@ export function session(id: string, updated: number, overrides: Partial<Session>
   };
 }
 
-export function setup(overrides: Partial<HubConfig> = {}) {
+export function setup(
+  overrides: Partial<HubConfig> = {},
+  deps: Partial<ApiDeps> = {},
+) {
   const db = new HubDB(":memory:");
   const cfg = config(overrides);
   const hub = new Hub(cfg, db, {
     discover: async () => null,
     usageFetcher: async () => ({ rolling: { percent: 12 } }),
   });
-  const handler = createHandler({ db, hub, config: cfg });
+  const handler = createHandler({ db, hub, config: cfg, ...deps });
   return { db, hub, handler };
 }
 

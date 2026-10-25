@@ -8,7 +8,8 @@ sidebar_position: 5
 The **System** tab shows the machine running OpenCodeBar Hub. It works from both
 the Mac panel and the iPhone/iPad app, so you can check the host's health even
 when you are away from it. The hub does the collection; the clients only render
-its snapshot.
+its snapshot. Terminals are the one interactive exception: the hub proxies
+OpenCode's PTY sockets so both apps can type into shells on the host.
 
 The tab polls every five seconds. Dynamic values update on each poll, while
 expensive inventory scans are cached by the hub for five minutes. Use the
@@ -53,6 +54,39 @@ playing.
 All controls use the same authenticated hub connection as the rest of the panel.
 The Mac app updates immediately from the control response; the next five-second
 snapshot reconciles any player-specific delays.
+
+## Terminals
+
+The **Terminals** card lists pseudo-terminals owned by the OpenCode service on
+the hub machine. It aggregates every OpenCode location it knows about, so a
+shell started in the OpenCode TUI or in one project appears alongside the ones
+started from OpenCodeBar. Each row shows:
+
+- the terminal title, shell command, and working directory
+- the owning project/location and the shell's PID
+- whether it is running or has exited, including the exit code
+
+Tap a terminal to open it. The Mac panel shows a resizable terminal window and
+the phone presents a full-screen terminal sheet. Both are real terminal
+emulators: arrow keys, Control/Alt sequences, `vim`, `htop`, password prompts,
+and other interactive programs work. The terminal replays the recent output
+OpenCode retained, then streams live output. Input is sent straight to the
+shell, and resizing the window updates the PTY size on the host.
+
+**New** starts another shell. Pick a project or type any absolute directory; the
+shell starts there on the Mac. **Stop** (the stop-circle button) terminates the
+shell and anything running inside it. Closing the terminal window only
+disconnects — the shell keeps running for the next connection, and a
+**Reconnect** button appears if the socket drops.
+
+On the phone, the command field above the keyboard runs one line without
+opening the terminal keyboard first. The SwiftTerm accessory row adds Control and
+Escape keys for interactive programs.
+
+Terminal traffic goes through the hub, so it works over the LAN or a tunnel
+without exposing OpenCode's loopback service. Only the hub's Bearer token is
+needed. The shell runs as the same macOS user as the hub, which makes the token
+as powerful as that user's login — see [Security](../hub/security.md).
 
 ## Processor and memory
 

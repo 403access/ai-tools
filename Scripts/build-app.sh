@@ -45,6 +45,10 @@ if [ -f "$ROOT/Assets/AppIcon.icns" ]; then
     cp "$ROOT/Assets/AppIcon.icns" "$BUNDLE/Contents/Resources/AppIcon.icns"
 fi
 
+if [ -f "$ROOT/THIRD_PARTY_NOTICES.md" ]; then
+    cp "$ROOT/THIRD_PARTY_NOTICES.md" "$BUNDLE/Contents/Resources/ThirdPartyNotices.md"
+fi
+
 cat > "$BUNDLE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

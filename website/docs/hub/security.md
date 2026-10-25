@@ -31,6 +31,14 @@ the read-only host file browser (`/api/files`, `/api/files/content`,
 your macOS user can read. The hub blocks previewing its own config and OpenCode
 credential files, but other files remain readable to a paired client.
 
+**The token also grants a shell.** The terminal API lists OpenCode's PTYs and
+proxies their WebSockets (`/api/terminals`, `/api/terminals/{id}/socket`).
+Anyone with the token can open a terminal in a directory of their choosing and
+run anything the hub's user can run. That is the intended feature, but it makes
+the token equivalent to a local login for that user. Keep it as private as a
+password, rotate it by deleting `opencodebar-hub.json` and restarting the hub,
+and do not expose the hub to untrusted networks.
+
 ## Do not expose the hub directly to the internet
 
 The hub speaks plain HTTP, not HTTPS. For access away from home, use a private
@@ -86,6 +94,7 @@ a scoped exception.
 ## What OpenCodeBar does not do
 
 - It does not stop, interrupt, or delete sessions.
+- It does not sandbox terminal commands: they run as the hub's macOS user.
 - It does not upload your data to an OpenCodeBar service.
 - It does not include analytics or telemetry.
 - It does not bypass OpenCode's own auth; the hub authenticates to OpenCode

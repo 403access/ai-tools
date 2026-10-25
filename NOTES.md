@@ -55,6 +55,15 @@ Follow-ups worth considering:
 - **iOS extras.** Home Screen widgets for active sessions and usage now ship in
   the widget extension. A Live Activity for a running session and background
   refresh would make the phone more useful without opening the app.
+- **Terminal list fan-out.** `/api/terminals` merges PTYs from the default
+  location and every cached project directory. That is one local OpenCode
+  request per location (capped at 80, six at a time) behind a 1.5s cache. A
+  dedicated location index or a PTY event subscription on the OpenCode side
+  would remove the fan-out for large project sets.
+- **Terminal socket ownership.** The hub proxies one WebSocket per client and
+  leaves the PTY running when the socket closes. There is no controller/observer
+  arbitration for two clients typing at once; the last writer wins. Consider
+  surfacing the OpenCode connection role if it becomes noisy.
 - **Website and docs.** `docs/index.html` covers both apps, screenshots, the
   shared hub, and the install flow. The Docusaurus site in `website/` holds the
   full guides, API reference, configuration, and troubleshooting, published at

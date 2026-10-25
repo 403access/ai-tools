@@ -12,6 +12,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
   DesktopWindowController.swift   optional desktop window, Dock mode, app menu
   main.swift                      entry point, preview/screenshot mode
   AppState.swift                  observable state, polling, derived data
+  AppState+Terminals.swift        terminal polling, creation and removal
   Core/
     HubAPI.swift                  async client for the hub (shared)
     HubAPI+Endpoints.swift        endpoint methods
@@ -24,6 +25,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     HubConfig.swift               URL/token settings model (shared)
     WidgetShared.swift            shared keychain + snapshot cache (shared)
     UsageCache.swift              last-known usage on disk
+    TerminalConnection.swift      PTY socket, input and resize bridging (shared)
   Models/                         Codable models, events, activity, ordering
     TokenUsage.swift              token/model primitives
     Session.swift                 sessions and projects
@@ -34,6 +36,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     APIEnvelopes.swift            request/response envelopes
     SessionFilter.swift           project/date filters for recent feeds
     WidgetSnapshot.swift          compact widget payload (shared)
+    Terminals.swift               terminal models and requests (shared)
   Support/
     SpeechInput.swift             speech-to-text dictation (shared)
     QRCode.swift                  pairing QR rendering
@@ -58,6 +61,8 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     ChangeViews.swift             patch cards and diffs
     SubagentViews.swift           child-session tree
     UsageTab.swift                plan limits, trends, heatmap
+    TerminalViews.swift           terminal list, new-terminal sheet, terminal window
+    TerminalEmulatorView.swift    SwiftTerm host for Mac and iOS
   Preview/PreviewRunner.swift     offscreen screenshots
 
 Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
@@ -67,6 +72,7 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   MobileStore+Events.swift        event folding and activity seeding
   MobileStore+Messages.swift      messages and prompt queue
   MobileStore+Loaders.swift       project/changes/stats/subagent loaders
+  MobileStore+Terminals.swift     terminal polling, creation and removal
   MobileDatabase.swift            local SQLite cache + incremental sync
   MobileDatabase+Sessions.swift   sessions/projects persistence
   MobileDatabase+Messages.swift   message cache
@@ -88,6 +94,7 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   UsageView.swift                 plan limits, trends, stats
   SettingsView.swift              appearance, pairing, status
   SettingsView+Connection.swift   status and hub connection controls
+  MobileTerminalViews.swift       terminal list, new-terminal and terminal sheets
   MobileCharts.swift              Swift Charts
   MobileMessageViews.swift        message cards
   MobileChangeViews.swift         patch cards
@@ -107,6 +114,8 @@ server/                           Bun + TypeScript + SQLite hub
   src/types.ts                    wire types shared with the apps
   src/opencode.ts                 OpenCode integration (barrel)
   src/opencode/                   discovery, REST client, errors, Go usage
+  src/terminals.ts                PTY aggregation and lifecycle across locations
+  src/api/terminal-socket.ts      WebSocket proxy for live terminal I/O
   src/db.ts                       SQLite facade
   src/db/                         schema, row mapping, stores, queries
   src/hub.ts                      polling/event hub facade

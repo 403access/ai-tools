@@ -67,6 +67,109 @@ extension HubAPI {
         }
     }
 
+    // MARK: - Terminals
+
+    /// Every PTY the hub can see, including terminals started in OpenCode's
+    /// own TUI. Each carries the location it belongs to.
+    func terminals(force: Bool = false) async throws -> [SystemTerminal] {
+        let response: TerminalsEnvelope = try await get(
+            force ? "/api/terminals?refresh=1" : "/api/terminals"
+        )
+        return response.data
+    }
+
+    /// Starts an interactive shell in `directory` (the OpenCode location).
+    func createTerminal(
+        title: String?,
+        cwd: String?,
+        location: String
+    ) async throws -> SystemTerminal {
+        let request = TerminalCreateRequest(
+            title: title,
+            cwd: cwd,
+            command: nil,
+            location: location
+        )
+        let data = try JSONEncoder().encode(request)
+        let response = try await send("/api/terminals", method: "POST", body: data)
+        do {
+            return try Self.decoder.decode(TerminalEnvelope.self, from: response).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    /// Resizes (and optionally renames) a terminal. OpenCode resizes normal
+    /// PTYs over HTTP rather than through the socket.
+    func updateTerminal(
+        id: String,
+        title: String? = nil,
+        size: TerminalSize? = nil,
+        location: String
+    ) async throws -> SystemTerminal {
+        let request = TerminalUpdateRequest(title: title, size: size, location: location)
+        let data = try JSONEncoder().encode(request)
+        let response = try await send(
+            Self.terminalPath(id, location: nil),
+            method: "PUT",
+            body: data
+        )
+        do {
+            return try Self.decoder.decode(TerminalEnvelope.self, from: response).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    /// Stops and removes a terminal process.
+    func removeTerminal(id: String, location: String) async throws {
+        _ = try await send(
+            Self.terminalPath(id, location: location),
+            method: "DELETE"
+        )
+    }
+
+    /// WebSocket request for a terminal's live output and input. The hub
+    /// proxies the PTY so the client never needs OpenCode's credentials.
+    func terminalSocketRequest(
+        id: String,
+        location: String,
+        cursor: Int? = nil
+    ) throws -> URLRequest {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        guard var components = URLComponents(
+            url: try url(for: "/api/terminals/\(encoded)/socket").absoluteURL,
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw APIError.badURL
+        }
+        components.scheme = components.scheme == "https" ? "wss" : "ws"
+        var items = [URLQueryItem(name: "location", value: location)]
+        if let cursor {
+            items.append(URLQueryItem(name: "cursor", value: String(cursor)))
+        }
+        components.queryItems = items
+        guard let socketURL = components.url else { throw APIError.badURL }
+
+        var request = URLRequest(url: socketURL)
+        request.timeoutInterval = 30
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        for (header, value) in DeviceIdentity.headers {
+            request.setValue(value, forHTTPHeaderField: header)
+        }
+        return request
+    }
+
+    private static func terminalPath(_ id: String, location: String?) -> String {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        var components = URLComponents()
+        components.path = "/api/terminals/\(encoded)"
+        if let location {
+            components.queryItems = [URLQueryItem(name: "location", value: location)]
+        }
+        return components.string ?? "/api/terminals/\(encoded)"
+    }
+
     // MARK: - Host files
 
     /// Lists one folder on the machine running the hub.

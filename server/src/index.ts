@@ -6,18 +6,24 @@ import {
   writeHubConfig,
 } from "./config.ts";
 import { createHandler } from "./api.ts";
+import { TerminalSockets, type TerminalSocketData } from "./api/terminal-socket.ts";
 import { HubDB } from "./db.ts";
 import { Hub } from "./hub.ts";
+import { TerminalService } from "./terminals.ts";
 
 const config = loadConfig();
 const db = new HubDB(config.dbPath);
 const hub = new Hub(config, db);
+const terminals = new TerminalService(hub, db);
+const terminalSockets = new TerminalSockets(terminals);
 const handler = createHandler({
   db,
   hub,
   config,
   restart: restartHub,
   persistSettings: (settings) => writeHubConfig(settings, settings.port),
+  terminals,
+  terminalSockets,
 });
 
 /**
@@ -25,7 +31,7 @@ const handler = createHandler({
  * explicitly, walk forward a few ports — the chosen port is written to the
  * config file, so clients follow along without any setup.
  */
-function listen(): ReturnType<typeof Bun.serve> {
+function listen(): Bun.Server<TerminalSocketData> {
   const explicit = Boolean(process.env.OPENCODEBAR_HUB_PORT);
   let port = config.port;
   for (let attempt = 0; ; attempt += 1) {
@@ -34,6 +40,7 @@ function listen(): ReturnType<typeof Bun.serve> {
         hostname: config.host,
         port,
         fetch: handler,
+        websocket: terminalSockets.handlers,
         idleTimeout: 255,
       });
       if (port !== config.port) {

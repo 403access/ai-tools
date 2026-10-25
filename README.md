@@ -17,7 +17,8 @@ can also be turned on from **Settings → App → Desktop window** and is
 remembered across launches. The iOS app has the same five areas, adapted for
 touch, with the same dark panel design and a floating tab dock. Its Appearance
 setting can follow the system or stay dark/light. Both apps can also start a
-new session and send a prompt into an open conversation. On iOS, **Live** and
+new session, send a prompt into an open conversation, and open terminals on the
+Mac to type into them. On iOS, **Live** and
 **Usage** Home Screen widgets bring the same status to the Home Screen in
 small, medium, and large sizes.
 
@@ -177,6 +178,13 @@ iOS app:
   supports it, mute, and a system output-volume slider. Commands target the
   current system player; available buttons are driven by the player's own
   supported-command list.
+- **Terminals**: every pseudo-terminal OpenCode knows about, across all of its
+  project locations — including terminals opened from OpenCode's own terminal
+  panel. Each row shows the shell, working directory, location, PID, and whether
+  it is running or exited. Tap one to open a full terminal emulator and type
+  into it, or start a new shell in any project and stop terminals you no longer
+  need. The hub proxies the PTY socket, so the same terminals work from the
+  iPhone/iPad app over the LAN or a tunnel.
 - **Host file browser**: browse any folder on the server read-only, with
   breadcrumbs, quick links to Home, Root, Applications, Volumes, and project
   folders, hidden-file toggle, search, and text/image previews. Hub and OpenCode
@@ -223,7 +231,7 @@ iOS app:
   busy sessions do not flood the connection.
 
 Both apps can start sessions and send prompts; neither stops or deletes
-sessions.
+sessions. Both can also list and drive terminals on the hub host.
 
 ## How it works
 
@@ -260,10 +268,12 @@ The hub:
    `/api/project/{id}/files`, `/api/project/{id}/icon`,
    `/api/experimental/session/stats` — plus
    `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`), `/api/usage`,
-   `/api/health`, `/api/system`, `/api/files`, `/api/files/content`,
-   `/api/files/raw`, `/api/devices`, `/api/settings` (`GET`/`PATCH`),
-   `/api/sync` (`GET` delta feed, `POST` force sync), `/api/server/restart`
-   (`POST`), and `/api/event`. Clients
+   `/api/health`, `/api/system`, `/api/terminals` (`GET`/`POST`),
+   `/api/terminals/{id}` (`GET`/`PUT`/`DELETE`),
+   `/api/terminals/{id}/socket` (WebSocket), `/api/files`,
+   `/api/files/content`, `/api/files/raw`, `/api/devices`,
+   `/api/settings` (`GET`/`PATCH`), `/api/sync` (`GET` delta feed, `POST` force
+   sync), `/api/server/restart` (`POST`), and `/api/event`. Clients
    authenticate with a Bearer token and identify their platform with
    `X-OpenCodeBar-*` headers so the settings screen can list connected devices.
 4. Forwards OpenCode events to every connected client, so both apps update live.
@@ -274,8 +284,12 @@ The hub:
 
 Endpoints the hub reads from OpenCode: `/api/info`, `/api/session`,
 `/api/session/active`, `/api/session/{id}`, `/api/session/{id}/message`,
-`/api/project`, `/api/experimental/session/stats`, and `/api/event`. It writes
-through `POST /api/session` and `POST /api/session/{id}/prompt`.
+`/api/project`, `/api/experimental/session/stats`, `/api/pty`, and
+`/api/event`. It writes through `POST /api/session`,
+`POST /api/session/{id}/prompt`, and the PTY create/update/delete routes. Each
+terminal WebSocket is proxied to `/api/pty/{id}/connect`; the hub opens that
+upstream socket with OpenCode's Basic credentials so clients only need the hub
+token.
 
 The event stream does more than trigger refreshes. `session.step.*`,
 `session.reasoning.*`, `session.text.*`, `session.tool.*`, `session.usage.*`,
@@ -358,6 +372,8 @@ without replacing the credential OpenCode uses for inference.
 - OpenCode V2 running as the background service (`opencode service status`
   prints a URL).
 - Node.js 20+ to build the Docusaurus documentation site.
+- The terminal views use [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)
+  (MIT). SwiftPM and Xcode fetch it automatically on the first build.
 
 ## Build and run
 
@@ -484,6 +500,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
   DesktopWindowController.swift  optional desktop window, Dock mode, app menu
   main.swift                entry point (also handles --preview)
   AppState.swift            observable state, polling, derived data
+  AppState+Terminals.swift  terminal polling, creation and removal
   Core/
     HubAPI.swift            async client for the hub (shared with iOS)
     HubAPI+Endpoints.swift  endpoint methods
@@ -495,6 +512,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     DeviceIdentity.swift    stable client id + platform headers (shared)
     WidgetShared.swift      shared keychain + widget snapshot cache
     UsageCache.swift        last-known usage on disk
+    TerminalConnection.swift  terminal WebSocket, input and resize bridging (shared)
   Support/
     QRCode.swift            pairing QR rendering
   Models/                   Codable models, split by domain (shared)
@@ -516,6 +534,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     SessionFilter.swift     project/date filters for recent feeds
     GoUsage.swift           Go plan windows (shared)
     SystemInfo.swift        machine inventory from the system endpoint (shared)
+    Terminals.swift         OpenCode PTY sessions and requests (shared)
     HostFiles.swift         host directory listings and previews (shared)
   Views/                    SwiftUI panel, tabs, heatmap, components
     DesktopView.swift       full-window layout with a persistent sidebar
@@ -532,6 +551,8 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     ProjectSessions.swift             recent-session rows
     SettingsTab.swift       connected devices and server controls
     SystemTab.swift         machine, resources, apps, Homebrew and tools
+    TerminalViews.swift     terminal list, new-terminal sheet and terminal window
+    TerminalEmulatorView.swift  SwiftTerm host for Mac and iOS
     SystemFileBrowser.swift host folder navigation and text/image preview
     SettingsTab+Support.swift         derived labels and actions
     SettingsDeviceRow.swift           device row in the connected list
@@ -573,6 +594,8 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   ProjectDetailView.swift     scoped analytics and project changes
   UsageView.swift             plan limits, trends, stats
   SystemView.swift            machine inventory for the hub host
+  MobileTerminalViews.swift   terminal list, new-terminal sheet and terminal sheet
+  MobileStore+Terminals.swift terminal polling, creation and removal
   MobileFileBrowser.swift     host folders and file previews
   MobileCharts.swift          Swift Charts trend cards
   SettingsView.swift          appearance, pairing, and status
@@ -593,6 +616,8 @@ server/                       Bun + TypeScript + SQLite hub
   src/types.ts                wire types shared with the apps
   src/opencode.ts             OpenCode integration (barrel)
   src/opencode/               discovery, REST client, errors, Go usage
+  src/terminals.ts            PTY aggregation and lifecycle across locations
+  src/api/terminal-socket.ts  WebSocket proxy for live terminal input/output
   src/db.ts                   SQLite facade
   src/db/                     schema, row mapping, stores, queries
   src/hub.ts                  polling/event hub facade
@@ -656,9 +681,10 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
   `stats`, or `changes`) to render the session detail view, or
   `--project-detail` for the first project's detail page. `--session <id>` opens
   a specific session; combine it with `--detail-mode subagents` to inspect a
-  session's child sessions. Stats and Changes hydrate history on the first
-  request, so open those tabs once (or warm the hub cache) if a shot would
-  otherwise capture the loading state.
+  session's child sessions. Add `--terminal` to render the first OpenCode
+  terminal instead of the panel, which is handy for checking the emulator. Stats
+  and Changes hydrate history on the first request, so open those tabs once (or
+  warm the hub cache) if a shot would otherwise capture the loading state.
 - `OPENCODEBAR_DEBUG_SUBAGENTS=1` logs hub/subagent requests to stdout.
 - The menu bar glyph uses SF Symbols (`terminal` / `terminal.fill`).
 - iOS screenshot tooling (Debug builds): `OPENCODEBAR_TAB=live|projects|usage|settings`
@@ -682,6 +708,9 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
 - The apps can start sessions and send prompts, but not interrupt, stop, or
   delete them. Prompts sent to a running session are queued behind the current
   turn.
+- Terminal access runs commands as the same user as the hub and OpenCode. The
+  hub token protects it, but anyone with the token can run anything that user
+  can. Keep the token private and use a trusted network or a tunnel.
 - The hub relies on the local OpenCode service; when the service is stopped it
   keeps serving cached data and shows an offline state, reconnecting when
   OpenCode returns.
