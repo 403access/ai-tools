@@ -8,11 +8,13 @@ import {
 import { createHandler } from "./api.ts";
 import { TerminalSockets } from "./api/terminal-socket.ts";
 import { RemoteSockets } from "./api/remote-socket.ts";
+import { VMSockets } from "./api/vm-socket.ts";
 import type { HubSocketData } from "./api/socket.ts";
 import { HubDB } from "./db.ts";
 import { Hub } from "./hub.ts";
 import { RemoteHostService } from "./remote.ts";
 import { TerminalService } from "./terminals.ts";
+import { VirtualMachineService } from "./vms/service.ts";
 
 const config = loadConfig();
 const db = new HubDB(config.dbPath);
@@ -21,6 +23,8 @@ const terminals = new TerminalService(hub, db);
 const terminalSockets = new TerminalSockets(terminals);
 const remote = new RemoteHostService();
 const remoteSockets = new RemoteSockets(remote);
+const vms = new VirtualMachineService();
+const vmSockets = new VMSockets();
 const handler = createHandler({
   db,
   hub,
@@ -31,6 +35,8 @@ const handler = createHandler({
   terminalSockets,
   remote,
   remoteSockets,
+  vms,
+  vmSockets,
 });
 
 /**
@@ -53,6 +59,8 @@ function listen(): Bun.Server<HubSocketData> {
           open: (ws) => {
             if (ws.data.kind === "terminal") {
               terminalSockets.handlers.open?.(ws);
+            } else if (ws.data.kind === "vm-serial") {
+              vmSockets.handlers.open?.(ws);
             } else {
               remoteSockets.handlers.open?.(ws);
             }
@@ -60,6 +68,8 @@ function listen(): Bun.Server<HubSocketData> {
           message: (ws, message) => {
             if (ws.data.kind === "terminal") {
               terminalSockets.handlers.message?.(ws, message);
+            } else if (ws.data.kind === "vm-serial") {
+              vmSockets.handlers.message?.(ws, message);
             } else {
               remoteSockets.handlers.message?.(ws, message);
             }
@@ -67,6 +77,8 @@ function listen(): Bun.Server<HubSocketData> {
           close: (ws, code, reason) => {
             if (ws.data.kind === "terminal") {
               terminalSockets.handlers.close?.(ws, code, reason);
+            } else if (ws.data.kind === "vm-serial") {
+              vmSockets.handlers.close?.(ws, code, reason);
             } else {
               remoteSockets.handlers.close?.(ws, code, reason);
             }

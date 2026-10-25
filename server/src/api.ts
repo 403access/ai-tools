@@ -27,7 +27,16 @@ import { AppActionError, MediaControlError, SystemInfoService } from "./system.t
 import { TerminalService, type TerminalStore } from "./terminals.ts";
 import { TerminalSockets } from "./api/terminal-socket.ts";
 import { RemoteSockets } from "./api/remote-socket.ts";
+import { VMSockets } from "./api/vm-socket.ts";
 import type { HubSocketData } from "./api/socket.ts";
+import { VirtualMachineService } from "./vms/service.ts";
+import { VMHelperError } from "./vms/helper.ts";
+import { VMValidationError } from "./vms/nixos.ts";
+import type {
+  VMAction,
+  VMLogType,
+  VirtualMachineStore,
+} from "./vms/types.ts";
 import {
   HostTerminalError,
   HostTerminalService,
@@ -76,6 +85,10 @@ export interface ApiDeps {
   remote?: RemoteHost;
   /** Websocket relay for remote-desktop frames and input. */
   remoteSockets?: RemoteSockets;
+  /** Virtual-machine definitions and lifecycle, injectable for tests. */
+  vms?: VirtualMachineStore;
+  /** Websocket relay for VM serial consoles. */
+  vmSockets?: VMSockets;
 }
 
 export function createHandler(
@@ -94,6 +107,18 @@ export function createHandler(
   const terminalSockets =
     deps.terminalSockets ?? (terminalService ? new TerminalSockets(terminalService) : undefined);
   const hostTerminals = deps.hostTerminals ?? new HostTerminalService();
+  const vms = deps.vms ?? new VirtualMachineService();
+  const vmSockets = deps.vmSockets;
+
+  const withVMErrors = async (work: () => Promise<Response>): Promise<Response> => {
+    try {
+      return await work();
+    } catch (caught) {
+      if (caught instanceof VMValidationError) return error(caught.message, caught.status);
+      if (caught instanceof VMHelperError) return error(caught.message, caught.status);
+      throw caught;
+    }
+  };
 
   return async (
     request: Request,
@@ -333,6 +358,173 @@ export function createHandler(
           return error("Remote desktop streams are unavailable", 501);
         }
         return deps.remoteSockets.upgrade(request, server) as Response;
+      }
+
+      // MARK: - Virtual machines
+
+      if (pathname === "/api/vms" && request.method === "GET") {
+        return withVMErrors(async () => json({ data: await vms.list() }));
+      }
+
+      if (pathname === "/api/vms/capabilities" && request.method === "GET") {
+        return withVMErrors(async () => json({ data: await vms.capabilities() }));
+      }
+
+      if (pathname === "/api/vms" && request.method === "POST") {
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+
+        const name = optionalString(body.name);
+        if (name === undefined || name === null) return error("A name is required", 400);
+        const channel = optionalString(body.channel);
+        if (body.channel !== undefined && channel === null) {
+          return error("channel must be a string", 400);
+        }
+        const packages = optionalStringArray(body.packages);
+        if (body.packages !== undefined && packages === null) {
+          return error("packages must be an array of strings", 400);
+        }
+        const cpuCount = optionalNumber(body.cpuCount);
+        if (body.cpuCount !== undefined && cpuCount === null) {
+          return error("cpuCount must be a number", 400);
+        }
+        const memoryMB = optionalNumber(body.memoryMB);
+        if (body.memoryMB !== undefined && memoryMB === null) {
+          return error("memoryMB must be a number", 400);
+        }
+        const diskGB = optionalNumber(body.diskGB);
+        if (body.diskGB !== undefined && diskGB === null) {
+          return error("diskGB must be a number", 400);
+        }
+        if (body.autostart !== undefined && typeof body.autostart !== "boolean") {
+          return error("autostart must be a boolean", 400);
+        }
+
+        return withVMErrors(async () =>
+          json({
+            data: await vms.create({
+              name,
+              channel: channel ?? undefined,
+              packages: packages ?? undefined,
+              cpuCount: cpuCount ?? undefined,
+              memoryMB: memoryMB ?? undefined,
+              diskGB: diskGB ?? undefined,
+              autostart: body.autostart !== false,
+            }),
+          }, 201),
+        );
+      }
+
+      if (pathname === "/api/vms/setup") {
+        if (request.method === "GET") {
+          return withVMErrors(async () => json({ data: await vms.setupStatus() }));
+        }
+        if (request.method === "POST") {
+          const body = await readJSONBody(request);
+          if (!body) return error("Expected a JSON body", 400);
+          const step = body.step;
+          if (step !== "nix" && step !== "helper") {
+            return error("step must be nix or helper", 400);
+          }
+          return withVMErrors(async () =>
+            json({ data: await vms.startSetup(step) }, 202),
+          );
+        }
+        return error("Method not allowed", 405);
+      }
+
+      if (pathname === "/api/vms/setup/cancel" && request.method === "POST") {
+        return withVMErrors(async () => json({ data: await vms.cancelSetup() }));
+      }
+
+      if (parts[0] === "api" && parts[1] === "vms" && parts.length >= 3) {
+        const id = decodeURIComponent(parts[2]!);
+
+        if (parts.length === 3) {
+          if (request.method === "GET") {
+            return withVMErrors(async () => {
+              const vm = await vms.get(id, url.searchParams.get("refresh") === "1");
+              return vm ? json({ data: vm }) : error("Virtual machine not found", 404);
+            });
+          }
+          if (request.method === "PATCH") {
+            const body = await readJSONBody(request);
+            if (!body) return error("Expected a JSON body", 400);
+            const name = optionalString(body.name);
+            if (body.name !== undefined && name === null) return error("name must be a string", 400);
+            const cpuCount = optionalNumber(body.cpuCount);
+            if (body.cpuCount !== undefined && cpuCount === null) {
+              return error("cpuCount must be a number", 400);
+            }
+            const memoryMB = optionalNumber(body.memoryMB);
+            if (body.memoryMB !== undefined && memoryMB === null) {
+              return error("memoryMB must be a number", 400);
+            }
+            const packages = optionalStringArray(body.packages);
+            if (body.packages !== undefined && packages === null) {
+              return error("packages must be an array of strings", 400);
+            }
+            if (
+              name === undefined &&
+              cpuCount === undefined &&
+              memoryMB === undefined &&
+              packages === undefined
+            ) {
+              return error("Provide name, cpuCount, memoryMB, or packages", 400);
+            }
+            return withVMErrors(async () =>
+              json({
+                data: await vms.update(id, {
+                  name: name ?? undefined,
+                  cpuCount: cpuCount ?? undefined,
+                  memoryMB: memoryMB ?? undefined,
+                  packages: packages ?? undefined,
+                }),
+              }),
+            );
+          }
+          if (request.method === "DELETE") {
+            const force = url.searchParams.get("force") === "1";
+            return withVMErrors(async () => {
+              await vms.remove(id, force);
+              return json({ ok: true });
+            });
+          }
+          return error("Method not allowed", 405);
+        }
+
+        if (parts.length === 4 && request.method === "POST") {
+          const action = parts[3] as VMAction;
+          if (!VM_ACTIONS.has(action)) return error("Unknown VM action", 404);
+          const body = await readJSONBody(request).catch(() => null);
+          const force =
+            url.searchParams.get("force") === "1" || body?.force === true;
+          return withVMErrors(async () => json({ data: await vms.control(id, action, force) }));
+        }
+
+        if (parts.length === 4 && parts[3] === "log" && request.method === "GET") {
+          const type = (url.searchParams.get("type") ?? "build") as VMLogType;
+          if (!VM_LOG_TYPES.has(type)) return error("type must be build, serial, or apply", 400);
+          const tail = intParam(url.searchParams.get("tail"), 240, 1, 2_000);
+          return withVMErrors(async () => json({ data: await vms.log(id, type, tail) }));
+        }
+
+        if (
+          parts.length === 5 &&
+          parts[3] === "console" &&
+          parts[4] === "socket" &&
+          request.method === "GET"
+        ) {
+          if (!server || !vmSockets) {
+            return error("VM console streams are unavailable", 501);
+          }
+          return withVMErrors(async () => {
+            const target = await vms.consoleTarget(id);
+            return (await vmSockets.upgrade(request, server, target)) as Response;
+          });
+        }
+
+        return error("Not found", 404);
       }
 
       // MARK: - Terminals
@@ -770,6 +962,23 @@ export function createHandler(
       return error(message, 500);
     }
   };
+}
+
+const VM_ACTIONS = new Set<VMAction>([
+  "start",
+  "stop",
+  "restart",
+  "pause",
+  "resume",
+  "rebuild",
+  "apply",
+]);
+
+const VM_LOG_TYPES = new Set<VMLogType>(["build", "serial", "apply"]);
+
+function optionalNumber(value: unknown): number | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function optionalString(value: unknown): string | null | undefined {

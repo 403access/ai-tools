@@ -8,7 +8,7 @@ import SwiftTerm
 /// sent back as text, and resizing goes over HTTP because normal PTYs do not
 /// carry resize frames on the socket.
 @MainActor
-final class TerminalConnection: ObservableObject {
+final class TerminalConnection: ObservableObject, TerminalSession {
     enum State: Equatable {
         case connecting
         case connected

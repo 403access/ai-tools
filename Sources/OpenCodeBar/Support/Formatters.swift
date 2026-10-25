@@ -38,6 +38,10 @@ enum Fmt {
         return byteFormatter.string(fromByteCount: value)
     }
 
+    static func bytes(_ value: UInt64?) -> String {
+        bytes(value.map { Int64(clamping: $0) })
+    }
+
     /// Short uptime label for system cards: "6d 5h", "3h 24m", "12m".
     static func uptime(_ seconds: Int) -> String {
         if seconds < 60 { return "\(seconds)s" }

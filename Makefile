@@ -1,4 +1,4 @@
-.PHONY: build test app run desktop restart preview shots site docs docs-build docs-serve clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host mobile-project mobile-build mobile-run mobile-device mobile-icon bench
+.PHONY: build test app run desktop restart preview shots site docs docs-build docs-serve clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-icon bench
 
 # Compile the Swift package (debug).
 build:
@@ -96,12 +96,22 @@ web-icons:
 remote-host:
 	swift build --product OpenCodeBarRemoteHost
 
+# Build the Virtualization.framework helper used by the VMs tab. The hub finds
+# it under .build/{debug,release} or dist/, or via OPENCODEBAR_VZ_HELPER.
+# Ad-hoc signing with com.apple.security.virtualization is required even though
+# the helper is a plain CLI: VZ refuses to configure a machine without it.
+vz-helper:
+	swift build --product OpenCodeBarVZ
+	codesign --force --sign - \
+		--entitlements Sources/OpenCodeBarVZ/OpenCodeBarVZ.entitlements \
+		"$$(swift build --show-bin-path)/OpenCodeBarVZ"
+
 # Run the SQLite sync hub that both apps talk to (foreground).
-hub: remote-host
+hub: remote-host vz-helper
 	cd server && bun install && bun run start
 
 # Hub with auto-reload while developing.
-hub-dev: remote-host
+hub-dev: remote-host vz-helper
 	cd server && bun run dev
 
 # Hub unit tests (Bun).

@@ -101,7 +101,7 @@
       <div class="section-head reveal">
         <span class="kicker">Features</span>
         <h2>Everything at a glance</h2>
-        <p>Two native apps and one shared hub. The Mac panel and the iPhone/iPad app show the same live activity, conversation, project, and usage data — with the same compact panel design. On iPhone and iPad, the Host tab can also stream and control the Mac's screen.</p>
+        <p>Two native apps and one shared hub. The Mac panel and the iPhone/iPad app show the same live activity, conversation, project, and usage data — with the same compact panel design. On iPhone and iPad, the Host tab can also stream and control the Mac's screen, and the VMs tab runs NixOS guests on the Mac.</p>
       </div>
 
       <div class="grid features">
@@ -156,13 +156,19 @@
         <article class="card tone-amber reveal">
           <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.6"/><path d="M10.5 5.2h3"/><path d="M11 18.2h2"/></svg></span>
           <h3>iPhone &amp; iPad</h3>
-          <p>The same Live, Projects, Usage, and Settings areas with a floating tab dock, search, pull-to-refresh, and deep links to a session. Appearance can follow the system or stay dark or light.</p>
+          <p>The same Live, Projects, Usage, Host, VMs, and Settings areas with a floating tab dock, search, pull-to-refresh, and deep links to a session. Appearance can follow the system or stay dark or light.</p>
         </article>
 
         <article class="card tone-amber reveal">
           <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="15" rx="2.5"/><path d="M7 9l3 2.8-3 2.8M12.5 15h4.5"/></svg></span>
           <h3>Machine &amp; terminals</h3>
           <p>The Host tab shows the Mac's CPU, memory, disks, media, apps, Homebrew and more — and lists every terminal OpenCode knows about. Switch it to Remote to stream the Mac's display and control it with touch or a keyboard. Open a terminal from the Mac or phone, type into it, run a new shell in any project, or stop it when you're done. Tabs already open in Terminal.app appear too, with a live text mirror and a command line.</p>
+        </article>
+
+        <article class="card tone-blue reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3" width="17" height="7" rx="2"/><rect x="3.5" y="14" width="17" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6"/></svg></span>
+          <h3>NixOS virtual machines</h3>
+          <p>The VMs tab builds declarative NixOS guests with Nix and boots them natively through Apple's Virtualization.framework. Create with CPU, memory, disk, channel and packages; start, stop, pause, restart or rebuild; watch guest CPU, memory, disk and load; open the serial console; and apply package changes with <code>nixos-rebuild</code> over SSH. Setup gaps (helper, Nix, Linux builder) are reported with the exact command to fix them.</p>
         </article>
 
         <article class="card reveal">

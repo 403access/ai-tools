@@ -27,6 +27,8 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     WidgetShared.swift            shared keychain + snapshot cache (shared)
     UsageCache.swift              last-known usage on disk
     TerminalConnection.swift      PTY socket, input and resize bridging (shared)
+    VMConsoleConnection.swift     serial-console WebSocket client (shared)
+    VirtualMachinesStore.swift    shared VM list, polling, actions, and logs
     HostTerminalMirror.swift      Terminal.app text mirror and commands (shared)
   Models/                         Codable models, events, activity, ordering
     TokenUsage.swift              token/model primitives
@@ -40,6 +42,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     WidgetSnapshot.swift          compact widget payload (shared)
     Terminals.swift               terminal models and requests (shared)
     HostTerminals.swift           Terminal.app tab models (shared)
+    VirtualMachine.swift          VM definitions, metrics, capabilities (shared)
   Support/
     SpeechInput.swift             speech-to-text dictation (shared)
     QRCode.swift                  pairing QR rendering
@@ -66,12 +69,24 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     UsageTab.swift                plan limits, trends, heatmap
     TerminalViews.swift           terminal list, new-terminal sheet, terminal window
     TerminalEmulatorView.swift    SwiftTerm host for Mac and iOS
+    VirtualMachinesTab.swift      VM list, lifecycle actions, setup card
+    VirtualMachineDetailView.swift  VM overview, console, packages, logs
+    NewVirtualMachineSheet.swift  create a NixOS guest
+    VMComponents.swift            serial console pane and setup notice (shared)
   Preview/PreviewRunner.swift     offscreen screenshots
 
 Sources/OpenCodeBarRemoteHost/    ScreenCaptureKit helper for remote desktop
   main.swift                      stdio entry point and AppKit run loop
   RemoteHost.swift                displays, capture, permissions, input
   Wire.swift                      framed status/frame/log transport
+
+Sources/OpenCodeBarVZ/            Virtualization.framework helper for VMs
+  main.swift                      CLI entry, listeners, runtime record, signals
+  VMRunner.swift                  EFI boot, raw disk, NAT, lifecycle
+  SerialConsole.swift             virtio console <-> loopback socket + log
+  ControlServer.swift             JSON-lines control protocol
+  Support.swift                   config/runtime models, loopback TCP, fd I/O
+  OpenCodeBarVZ.entitlements      com.apple.security.virtualization
 
 Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   OpenCodeBarMobileApp.swift      app entry + floating tab dock
@@ -98,6 +113,9 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   SessionDetailView+Content.swift   tab content
   SessionDetailView+Loading.swift   message paging
   NewSessionSheet.swift           create a session from the phone
+  VirtualMachinesView.swift       VM list, create sheet, lifecycle actions
+  VirtualMachineMobileDetailView.swift  VM overview, console, packages, logs
+  NewVirtualMachineSheet.swift    create a NixOS guest from the phone
   ProjectDetailView.swift         scoped analytics and changes
   ProjectsView.swift              list + search
   UsageView.swift                 plan limits, trends, stats
@@ -133,6 +151,8 @@ server/                           Bun + TypeScript + SQLite hub
   src/api/terminal-socket.ts      WebSocket proxy for live terminal I/O
   src/remote.ts                   capture helper lifecycle and status
   src/api/remote-socket.ts        WebSocket fan-out for frames and input
+  src/vms/                        VM store, NixOS definitions, builds, metrics
+  src/api/vm-socket.ts            WebSocket proxy for VM serial consoles
   src/db.ts                       SQLite facade
   src/db/                         schema, row mapping, stores, queries
   src/hub.ts                      polling/event hub facade

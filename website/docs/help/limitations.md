@@ -44,6 +44,28 @@ keys, and `Ctrl-C` cannot be injected, and only Terminal.app is supported
 (iTerm2, Warp, and IDE terminals are not). The hub must be granted macOS
 Automation permission for Terminal.app; without it the section shows an error.
 
+## Virtual machines
+
+Virtual machines are macOS-on-Apple-silicon only. A Linux or Windows hub host
+cannot run them, and an Intel Mac cannot run the arm64 NixOS guests. The feature
+uses Apple's Virtualization.framework rather than QEMU.
+
+Building an image needs Nix and an `aarch64-linux` builder. The first build
+downloads and assembles a full system and can take a long time. There is no
+prebuilt-image path, no snapshots, clones, suspend images, or disk resizing, and
+rebuilding replaces the guest disk. There is no graphical console, GPU
+acceleration, USB passthrough, or VNC; the serial console and SSH are the
+management surfaces.
+
+Package changes run `nixos-rebuild switch` inside the guest and therefore need
+the guest to reach the Nix binary cache. The channel is fixed when the VM is
+created. Guests keep running when the hub exits or restarts and continue to use
+host CPU and memory until stopped.
+
+The helper is ad-hoc signed for local use. A distributed build should sign it
+with the app's Developer ID and include it in the signed bundle. Anyone with the
+hub token can control VMs and attach to their serial consoles.
+
 ## Hub dependency
 
 The phone always needs a reachable hub for live updates. The iOS app still
@@ -109,6 +131,8 @@ each run and stops working when the process exits.
 - A steer-versus-queue toggle in every client.
 - Opening a session in the TUI or a terminal.
 - A first-class project new-session action on iOS.
+- VM snapshots, clones, graphical consoles, disk resizing, and guests other
+  than NixOS.
 
 Home Screen widgets refresh on the schedule iOS gives them (usually every five
 to fifteen minutes, less often in Low Power Mode); they are not a real-time

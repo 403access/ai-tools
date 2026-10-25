@@ -26,6 +26,7 @@ const sidebars = {
         'using/projects',
         'using/usage',
         'using/system',
+        'using/virtual-machines',
         'using/remote',
         'using/settings',
         'using/voice',

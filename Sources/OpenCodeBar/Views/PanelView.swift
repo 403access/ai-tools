@@ -50,6 +50,8 @@ struct PanelView: View {
                             ProjectsTab()
                         case .system:
                             SystemTab()
+                        case .vms:
+                            VirtualMachinesTab()
                         case .settings:
                             SettingsTab()
                         }
@@ -81,9 +83,13 @@ struct TabBar: View {
                 Button {
                     selection = tab
                 } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: tab.icon).font(.system(size: 11, weight: .semibold))
-                        Text(tab.rawValue).font(.system(size: 12, weight: .semibold))
+                    HStack(spacing: 4) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(tab.rawValue)
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)

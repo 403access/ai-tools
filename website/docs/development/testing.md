@@ -31,6 +31,8 @@ The Bun tests in `server/test/` cover:
 - API routing, auth, device headers, and error responses,
 - terminal routing, validation, and multi-location aggregation,
 - Terminal.app tab routing, command validation, and focus,
+- VM definition validation, NixOS configuration generation, the Nix build
+  pipeline with an injected `nix`, package updates, logs, and VM API routes,
 - stats and changes aggregation.
 
 Type-check the server:
