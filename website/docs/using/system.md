@@ -18,6 +18,14 @@ expensive inventory scans are cached by the hub for five minutes. Use the
 refresh button in the header (or pull to refresh on iOS) for an immediate
 dynamic refresh.
 
+On iPhone and iPad the Host → System screen opens on a compact dashboard: the
+six live tiles, a **Now Playing** card, and an **Explore** grid. The grid opens
+short category pages — Performance, Terminals, Storage, Network, Software, Files,
+Health, and Machine — so the long inventory is split into focused screens
+instead of one endless scroll. The vitals are links too: CPU opens Performance,
+disk opens Storage, battery opens Health, and system/uptime open Machine. The
+Mac panel keeps its single-scroll layout.
+
 ## Overview and machine
 
 Six tiles summarise the host: operating system, uptime, CPU, memory, free disk
@@ -151,7 +159,7 @@ shown above the list.
 
 ## Files
 
-The **Files** card opens a read-only browser for the hub machine:
+The **Files** category opens a read-only browser for the hub machine:
 
 - quick links to Home, Root, Applications, Volumes, and the current OpenCode
   project folders

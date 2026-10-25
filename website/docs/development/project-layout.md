@@ -119,7 +119,9 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   ProjectDetailView.swift         scoped analytics and changes
   ProjectsView.swift              list + search
   UsageView.swift                 plan limits, trends, stats
-  SystemView.swift                machine inventory for the hub host
+  SystemView.swift                host dashboard, vitals and Now Playing
+  SystemCategoryView.swift        focused performance/storage/network/software pages
+  SystemComponents.swift          shared system tiles, rows, bars and formatting
   HostView.swift                  System/Remote switch for the Host tab
   RemoteDesktopView.swift         remote display, controls, permission cards
   RemoteDesktopSurface.swift      zoomable display view and touch gestures

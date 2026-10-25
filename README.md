@@ -287,10 +287,13 @@ iOS app:
 - The same Live, Projects, Usage, Host, VMs, and Settings areas as the Mac
   panel, with the same compact panel design, live-activity folding, and a
   floating tab dock built for touch. **Host** has a System/Remote switch:
-  System mirrors the Mac's full machine inventory, so the phone can monitor CPU,
-  memory, disks, processes, Homebrew, and installed apps without the Mac app
-  being open — and browse the Mac's files with the same read-only browser.
-  Remote streams and controls the Mac's display with touch and keyboard input.
+  System opens on a compact dashboard with live vitals, Now Playing, and an
+  **Explore** grid. Performance, Terminals, Storage, Network, Software, Files,
+  Health, and Machine each open a short, focused page, so the phone can monitor
+  CPU, memory, disks, processes, Homebrew, and installed apps without scrolling
+  through one long inventory — and browse the Mac's files with the same
+  read-only browser. Remote streams and controls the Mac's display with touch
+  and keyboard input.
   **VMs** creates and drives NixOS guests, with the serial console and package
   editor adapted for touch.
 - Search projects, pull to refresh any screen, and open a session from a deep
@@ -766,7 +769,9 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   ProjectsView.swift          project list + search
   ProjectDetailView.swift     scoped analytics and project changes
   UsageView.swift             plan limits, trends, stats
-  SystemView.swift            machine inventory for the hub host
+  SystemView.swift            host dashboard, live vitals and Now Playing
+  SystemCategoryView.swift    focused performance/storage/network/software pages
+  SystemComponents.swift      shared system tiles, rows, bars and formatting
   HostView.swift              System/Remote switch for the Host tab
   RemoteDesktopView.swift     remote display, controls, permission cards
   RemoteDesktopSurface.swift  zoomable display view and touch gestures
