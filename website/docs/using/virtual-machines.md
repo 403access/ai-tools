@@ -107,6 +107,13 @@ If you use nix-darwin, the supported alternative is
 `nix.linux-builder.enable = true`, which starts the builder and writes these
 settings for you.
 
+Once Nix is configured, the VMs tab shows a read-only **Host build service**
+card for the Linux builder. It stays outside the guest list because the hub does
+not own the builder's lifecycle, and it is not counted as a machine. The card
+copies the start command and opens the builder log. Its **Nix configured** chip
+means the `builders` entry is present, not that the builder process is still
+running; if builds fail, check the builder's Terminal window.
+
 ### Setup logs
 
 Installer, helper-build, and Linux-builder output is stored on the hub host:
@@ -129,6 +136,11 @@ GET /api/vms/setup/logs
 Terminal may print shell-startup warnings before the installer output (for
 example a missing tool referenced by `~/.zprofile` or `~/.zshrc`). Those lines
 come from the Mac's shell, not from Nix, and do not affect the install.
+
+Setup logs can contain the literal `Password:` prompt printed by `sudo`, but not
+the password you type: `sudo` reads the password directly from the terminal with
+echo disabled, so it never reaches the log file. Treat the logs like terminal
+scrollback when sharing them; they can contain local paths and hostnames.
 
 ## Creating a guest
 

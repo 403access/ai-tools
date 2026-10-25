@@ -9,6 +9,7 @@ struct VirtualMachinesTab: View {
 
     @State private var showingCreate = false
     @State private var showingSetupLogs = false
+    @State private var setupLogStep: VMSetupStep = .nix
     @State private var pendingDelete: VirtualMachine?
     @State private var pendingRebuild: VirtualMachine?
 
@@ -31,7 +32,7 @@ struct VirtualMachinesTab: View {
             NewVirtualMachineSheet(model: model)
         }
         .sheet(isPresented: $showingSetupLogs) {
-            VMSetupLogSheet(api: state.api)
+            VMSetupLogSheet(api: state.api, initialStep: setupLogStep)
         }
         .alert(item: $pendingDelete) { machine in
             Alert(
@@ -68,8 +69,18 @@ struct VirtualMachinesTab: View {
                     capabilities: capabilities,
                     model: model,
                     api: state.api,
-                    onViewLogs: { showingSetupLogs = true }
+                    onViewLogs: {
+                        setupLogStep = .nix
+                        showingSetupLogs = true
+                    }
                 )
+            }
+
+            if let capabilities = model.capabilities, capabilities.linuxBuilder {
+                VMLinuxBuilderCard(capabilities: capabilities) {
+                    setupLogStep = .builder
+                    showingSetupLogs = true
+                }
             }
 
             if let error = model.error, !model.machines.isEmpty {
@@ -127,6 +138,7 @@ struct VirtualMachinesTab: View {
                         .monospacedDigit()
                 }
                 Button {
+                    setupLogStep = .nix
                     showingSetupLogs = true
                 } label: {
                     Image(systemName: "doc.text.magnifyingglass")

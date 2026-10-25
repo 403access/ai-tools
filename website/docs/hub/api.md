@@ -458,6 +458,9 @@ lists the current and rotated files:
 }
 ```
 
+Logs can include the literal `Password:` prompt printed by `sudo`, but never the
+password itself: `sudo` reads it from the terminal with echo disabled.
+
 `GET /api/vms/setup/log?step=nix|helper|builder&tail=240` returns the newest log
 for that step, ANSI stripped:
 

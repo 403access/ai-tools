@@ -258,7 +258,10 @@ Follow-ups:
   lists the history. This survives a hub restart or a cleared in-memory job.
   `builder.log` holds the captured `darwin.linux-builder` terminal output and
   the builder-configuration transcript. The builder itself is a Nix build
-  service, not an OpenCodeBar guest: it is absent from the VMs list by design.
+  service, not an OpenCodeBar guest, so it is not in the guest list; when
+  configured, the VMs tab shows a read-only **Host build service** card for it.
+  Logs can include the literal `Password:` prompt from `sudo`, but never the
+  typed password: `sudo` reads it from the terminal with echo disabled.
 - **Setup runner edge cases.** The Nix installer is launched in Terminal.app as
   the hub user, not via an `osascript` root shell: macOS 27 SIP restrictions
   block `/etc/fstab` creation from a non-GUI process. The Terminal script tees

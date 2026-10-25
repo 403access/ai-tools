@@ -11,6 +11,7 @@ struct VirtualMachinesView: View {
     @State private var path = NavigationPath()
     @State private var showingCreate = false
     @State private var showingSetupLogs = false
+    @State private var setupLogStep: VMSetupStep = .nix
     @State private var pendingDelete: VirtualMachine?
     @State private var openedRequestedVM = false
 
@@ -27,8 +28,17 @@ struct VirtualMachinesView: View {
                                 capabilities: capabilities,
                                 model: model,
                                 api: store.api,
-                                onViewLogs: { showingSetupLogs = true }
+                                onViewLogs: {
+                                    setupLogStep = .nix
+                                    showingSetupLogs = true
+                                }
                             )
+                        }
+                        if let capabilities = model.capabilities, capabilities.linuxBuilder {
+                            VMLinuxBuilderCard(capabilities: capabilities) {
+                                setupLogStep = .builder
+                                showingSetupLogs = true
+                            }
                         }
                         if let error = model.error, !model.machines.isEmpty {
                             NoticeRow(
@@ -48,6 +58,7 @@ struct VirtualMachinesView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
+                        setupLogStep = .nix
                         showingSetupLogs = true
                     } label: {
                         Image(systemName: "doc.text.magnifyingglass")
@@ -82,7 +93,7 @@ struct VirtualMachinesView: View {
                 }
             }
             .sheet(isPresented: $showingSetupLogs) {
-                VMSetupLogSheet(api: store.api)
+                VMSetupLogSheet(api: store.api, initialStep: setupLogStep)
             }
             .confirmationDialog(
                 "Delete “\(pendingDelete?.name ?? "VM")”?",

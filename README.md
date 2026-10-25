@@ -252,11 +252,13 @@ iOS app:
   each case. **Run** installs Nix or rebuilds/signs the helper from the app; the
   Nix installer runs in Terminal on the Mac and streams the installer log back
   to the VMs tab. The Linux builder command stays copyable for Terminal because
-  the builder VM must keep running; it is a Nix build service, not an
-  app-managed guest, so it does not appear in the VMs list. **Setup logs** keeps
-  the Nix, helper, and builder console logs under
+  the builder VM must keep running. Once configured, it appears as a read-only
+  **Host build service** card, separate from the guest list, because it is a Nix
+  build service rather than an app-managed guest. **Setup logs** keeps the Nix,
+  helper, and builder console logs under
   `~/.local/share/opencodebar/vms/setup/` and exposes them in the app; each new
-  run rotates the previous file.
+  run rotates the previous file. A log may show the literal `Password:` prompt,
+  but never the password itself.
 
 **Settings**
 - Every app connected to the hub — macOS, iOS, and iPadOS — with its device
@@ -479,9 +481,10 @@ without replacing the credential OpenCode uses for inference.
   opens Terminal.app on the Mac and streams the log back to the app. The Linux
   builder is copyable for Terminal because it must stay running; after it
   starts, add the builders/SSH config from the Virtual machines guide (or use
-  nix-darwin's `nix.linux-builder.enable`). `make hub` builds and ad-hoc signs
-  the helper with `com.apple.security.virtualization`; `make vz-helper` rebuilds
-  it alone.
+  nix-darwin's `nix.linux-builder.enable`). Once configured, the VMs tab lists it
+  as a read-only **Host build service** card, separate from guests and with a
+  link to its log. `make hub` builds and ad-hoc signs the helper with
+  `com.apple.security.virtualization`; `make vz-helper` rebuilds it alone.
 
 ## Build and run
 

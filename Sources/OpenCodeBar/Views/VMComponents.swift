@@ -293,17 +293,106 @@ struct VMSetupRunnerCard: View {
     }
 }
 
-/// Full-window/mobile viewer for the stored Nix installer and helper-build
-/// logs. The hub keeps the latest `nix.log`/`helper.log` plus rotated history.
+/// Read-only status for Nix's `darwin.linux-builder` host build service. It is
+/// deliberately separate from the guest list: the hub reads its Nix
+/// configuration and stored console log, but does not own the VM's lifecycle.
+struct VMLinuxBuilderCard: View {
+    let capabilities: VMCapabilities
+    var onViewLogs: (() -> Void)? = nil
+
+    private let command =
+        "nix --extra-experimental-features 'nix-command flakes' run nixpkgs#darwin.linux-builder"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "hammer.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                Text("Host build service")
+                    .font(.system(size: 11, weight: .semibold))
+                Spacer(minLength: 4)
+                Chip(text: "Nix configured", tint: Theme.running)
+            }
+
+            Text("Linux builder")
+                .font(.system(size: 12, weight: .semibold))
+
+            Text("Nix sends aarch64-linux builds to the `darwin.linux-builder` VM. It is not an OpenCodeBar guest, so it stays outside the guest list and is not counted as a machine. Keep its Terminal window running.")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(command)
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color.primary.opacity(0.06))
+                )
+
+            HStack(spacing: 10) {
+                Button {
+                    copy(command)
+                } label: {
+                    Label("Copy command", systemImage: "doc.on.doc")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.accent)
+
+                if let onViewLogs {
+                    Button {
+                        onViewLogs()
+                    } label: {
+                        Label("Builder log", systemImage: "doc.text.magnifyingglass")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.accent)
+                }
+                Spacer(minLength: 0)
+            }
+
+            Text("This card confirms Nix is configured, not that the builder process is still running.")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .card(padding: 10)
+    }
+
+    private func copy(_ text: String) {
+        #if os(macOS)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        #else
+        UIPasteboard.general.string = text
+        #endif
+    }
+}
+
+/// Full-window/mobile viewer for the stored Nix installer, helper-build, and
+/// Linux-builder logs. The hub keeps the latest files plus rotated history.
 struct VMSetupLogSheet: View {
     @Environment(\.dismiss) private var dismiss
     let api: HubAPI?
 
-    @State private var step: VMSetupStep = .nix
+    @State private var step: VMSetupStep
     @State private var log: VMSetupLogResult?
     @State private var error: String?
     @State private var loading = false
     @State private var copied = false
+
+    init(api: HubAPI?, initialStep: VMSetupStep = .nix) {
+        self.api = api
+        _step = State(initialValue: initialStep)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -311,7 +400,7 @@ struct VMSetupLogSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Setup logs")
                         .font(.system(size: 15, weight: .semibold))
-                    Text("Stored on the hub host, including the last rotated run.")
+                    Text("Stored on the hub host, including the last rotated run. Sudo prompts appear here; passwords never do.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
