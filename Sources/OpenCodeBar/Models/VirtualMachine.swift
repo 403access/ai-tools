@@ -222,6 +222,7 @@ struct VMLog: Decodable, Equatable {
 enum VMSetupStep: String, CaseIterable, Identifiable, Equatable, Hashable {
     case nix
     case helper
+    case builder
 
     var id: String { rawValue }
 
@@ -229,6 +230,7 @@ enum VMSetupStep: String, CaseIterable, Identifiable, Equatable, Hashable {
         switch self {
         case .nix: return "Install Nix"
         case .helper: return "Build VM helper"
+        case .builder: return "Linux builder"
         }
     }
 
@@ -236,6 +238,7 @@ enum VMSetupStep: String, CaseIterable, Identifiable, Equatable, Hashable {
         switch self {
         case .nix: return "curl -fsSL https://nixos.org/nix/install | sh -s -- --yes"
         case .helper: return "make vz-helper"
+        case .builder: return "nix --extra-experimental-features 'nix-command flakes' run nixpkgs#darwin.linux-builder"
         }
     }
 }

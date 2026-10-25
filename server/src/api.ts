@@ -443,8 +443,8 @@ export function createHandler(
 
       if (pathname === "/api/vms/setup/log" && request.method === "GET") {
         const step = url.searchParams.get("step");
-        if (step !== "nix" && step !== "helper") {
-          return error("step must be nix or helper", 400);
+        if (step !== "nix" && step !== "helper" && step !== "builder") {
+          return error("step must be nix, helper, or builder", 400);
         }
         const tail = intParam(url.searchParams.get("tail"), 240, 1, 2_000);
         return withVMErrors(async () => json({ data: await vms.setupLog(step, tail) }));

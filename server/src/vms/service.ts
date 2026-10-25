@@ -394,7 +394,9 @@ export class VirtualMachineService implements VirtualMachineStore {
           ? "nix"
           : name === "helper.log" || name.startsWith("helper-")
             ? "helper"
-            : null;
+            : name === "builder.log" || name.startsWith("builder-")
+              ? "builder"
+              : null;
       if (!step) continue;
       const path = join(directory, name);
       try {

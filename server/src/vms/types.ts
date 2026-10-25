@@ -190,8 +190,12 @@ export interface VMLog {
   truncated: boolean;
 }
 
-/** Host setup actions the hub can run without accepting arbitrary commands. */
-export type VMSetupStep = "nix" | "helper";
+/**
+ * Stored setup-log categories. `builder` is a long-lived Nix build-service VM
+ * started by the user; the app can read its captured console log but does not
+ * start it as a setup job.
+ */
+export type VMSetupStep = "nix" | "helper" | "builder";
 
 export type VMSetupJobStatus = "running" | "succeeded" | "failed" | "cancelled";
 

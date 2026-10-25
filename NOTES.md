@@ -256,6 +256,9 @@ Follow-ups:
   `nix.log`/`helper.log` to a timestamped file and keeps ten per step. The VMs
   tab's document button opens the latest log, and `GET /api/vms/setup/logs`
   lists the history. This survives a hub restart or a cleared in-memory job.
+  `builder.log` holds the captured `darwin.linux-builder` terminal output and
+  the builder-configuration transcript. The builder itself is a Nix build
+  service, not an OpenCodeBar guest: it is absent from the VMs list by design.
 - **Setup runner edge cases.** The Nix installer is launched in Terminal.app as
   the hub user, not via an `osascript` root shell: macOS 27 SIP restrictions
   block `/etc/fstab` creation from a non-GUI process. The Terminal script tees

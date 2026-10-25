@@ -104,7 +104,7 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `POST` | `/api/vms/setup` | Run the fixed Nix or helper setup step |
 | `POST` | `/api/vms/setup/cancel` | Cancel a running setup job |
 | `GET` | `/api/vms/setup/logs` | Stored setup logs, including rotated runs |
-| `GET` | `/api/vms/setup/log` | Latest Nix or helper log tail |
+| `GET` | `/api/vms/setup/log` | Latest Nix, helper, or builder log tail |
 | `GET` | `/api/remote` | Capture helper status, displays, and permissions |
 | `POST` | `/api/remote/configure` | Change fps, quality, max width, or display |
 | `POST` | `/api/remote/permissions` | Request Screen Recording / Accessibility |
@@ -444,8 +444,10 @@ output log. (A GUI Terminal is required because macOS SIP blocks the installer's
 in the repository. The Linux builder is intentionally not a job: it is a
 long-lived VM started from a terminal.
 
-Setup output is retained after the job ends. `GET /api/vms/setup/logs` lists
-the current and rotated files:
+Setup output is retained after the job ends, including the captured
+`darwin.linux-builder` console (that builder is a Nix build service, not an
+OpenCodeBar guest, so it never appears in `/api/vms`). `GET /api/vms/setup/logs`
+lists the current and rotated files:
 
 ```json
 {
@@ -456,8 +458,8 @@ the current and rotated files:
 }
 ```
 
-`GET /api/vms/setup/log?step=nix|helper&tail=240` returns the newest log for
-that step, ANSI stripped:
+`GET /api/vms/setup/log?step=nix|helper|builder&tail=240` returns the newest log
+for that step, ANSI stripped:
 
 ```json
 {

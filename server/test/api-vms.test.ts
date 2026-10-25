@@ -391,6 +391,10 @@ describe("virtual machine API", () => {
     expect(payload.data.lines).toEqual(["line"]);
     expect(calls.setupLogs).toEqual([{ step: "nix", tail: 10 }]);
 
+    const builder = await handler(request("/api/vms/setup/log?step=builder"));
+    expect(builder.status).toBe(200);
+    expect(calls.setupLogs.at(-1)).toEqual({ step: "builder", tail: 240 });
+
     const invalid = await handler(request("/api/vms/setup/log?step=shell"));
     expect(invalid.status).toBe(400);
   });

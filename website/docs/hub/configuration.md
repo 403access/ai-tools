@@ -55,7 +55,9 @@ run two of them:
 - **Build VM helper** runs `make vz-helper` and streams the build/signing output.
 
 The hub only accepts those fixed steps; clients cannot send arbitrary commands.
-The Linux builder still needs a terminal because it must keep running:
+The Linux builder is a Nix build service rather than an app-managed VM, so it
+does not appear in the VMs list; it still needs a terminal because it must keep
+running:
 
 ```sh
 # Start a NixOS builder VM so Nix can build aarch64-linux images on macOS.
@@ -74,7 +76,7 @@ Set `OPENCODEBAR_NIX` if the hub cannot find Nix from a GUI launch, and
 | `~/.config/opencode/opencodebar-hub.json` | Hub URL, token, port, version (mode `0600`) |
 | `~/.local/share/opencodebar/hub.sqlite` | Cache and device registry (WAL mode) |
 | `~/.local/share/opencodebar/vms/{id}/` | VM definition, `configuration.nix`, flake, raw disk, SSH key, logs |
-| `~/.local/share/opencodebar/vms/setup/` | Nix installer and helper-build logs, including rotated history |
+| `~/.local/share/opencodebar/vms/setup/` | Nix installer, helper-build, and Linux-builder logs, including rotated history |
 | `~/.config/opencode/opencodebar.json` | Optional app config (`hubURL`, `hubToken`, `goUsageKey`) |
 | `~/.local/share/opencode/auth.json` | OpenCode credentials; final fallback for a Go key |
 | `~/Library/Caches/OpenCodeBar/usage.json` | macOS last-known usage cache |

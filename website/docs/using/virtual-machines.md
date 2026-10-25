@@ -41,6 +41,11 @@ Virtual machines need an Apple silicon Mac running macOS 14 or later, plus:
    (a `sudo` prompt). nix-darwin users can enable `nix.linux-builder` instead.
    The hub checks the `builders` line in `nix config show`; it looks for an
    `aarch64-linux` entry.
+
+   The `darwin.linux-builder` VM is a Nix **build service**, not a guest managed
+   by OpenCodeBar. It is intentionally absent from the VMs list and has no
+   start/stop controls in the app; its terminal must stay open while builds run.
+   You can still read its captured console output under **Setup logs**.
 3. **The signed helper** — `make hub` builds `OpenCodeBarVZ` and ad-hoc signs it
    with `com.apple.security.virtualization`. To rebuild it alone:
 
@@ -104,18 +109,20 @@ settings for you.
 
 ### Setup logs
 
-Installer and helper-build output is stored on the hub host:
+Installer, helper-build, and Linux-builder output is stored on the hub host:
 
 - `~/.local/share/opencodebar/vms/setup/nix.log`
 - `~/.local/share/opencodebar/vms/setup/helper.log`
+- `~/.local/share/opencodebar/vms/setup/builder.log` (captured
+  `darwin.linux-builder` terminal output and builder configuration)
 
-Each new run rotates the previous file to `nix-<timestamp>.log` or
-`helper-<timestamp>.log`, keeping the last ten per step. The **Setup logs**
-button in the VMs tab opens the latest log for either step, with copy and
-refresh. The same content is available at:
+Each new run rotates the previous file to `nix-<timestamp>.log`,
+`helper-<timestamp>.log`, or `builder-<timestamp>.log`, keeping the last ten per
+step. The **Setup logs** button in the VMs tab opens the latest log for any of
+the three steps, with copy and refresh. The same content is available at:
 
 ```text
-GET /api/vms/setup/log?step=nix|helper&tail=1200
+GET /api/vms/setup/log?step=nix|helper|builder&tail=1200
 GET /api/vms/setup/logs
 ```
 

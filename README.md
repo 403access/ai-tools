@@ -252,9 +252,11 @@ iOS app:
   each case. **Run** installs Nix or rebuilds/signs the helper from the app; the
   Nix installer runs in Terminal on the Mac and streams the installer log back
   to the VMs tab. The Linux builder command stays copyable for Terminal because
-  the builder VM must keep running. **Setup logs** keeps the Nix and helper logs
-  under `~/.local/share/opencodebar/vms/setup/` and exposes them in the app;
-  each new run rotates the previous file.
+  the builder VM must keep running; it is a Nix build service, not an
+  app-managed guest, so it does not appear in the VMs list. **Setup logs** keeps
+  the Nix, helper, and builder console logs under
+  `~/.local/share/opencodebar/vms/setup/` and exposes them in the app; each new
+  run rotates the previous file.
 
 **Settings**
 - Every app connected to the hub — macOS, iOS, and iPadOS — with its device
@@ -863,10 +865,11 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
 - VM environment: `OPENCODEBAR_VM_DIR` (default
   `~/.local/share/opencodebar/vms`), `OPENCODEBAR_VZ_HELPER`,
   `OPENCODEBAR_NIX`, and `OPENCODEBAR_NIXOS_CHANNEL` (default `nixos-26.05`).
-- Host setup logs are kept in `$OPENCODEBAR_VM_DIR/setup/` as `nix.log` and
-  `helper.log`, with rotated `nix-<timestamp>.log`/`helper-<timestamp>.log`
+- Host setup logs are kept in `$OPENCODEBAR_VM_DIR/setup/` as `nix.log`,
+  `helper.log`, and `builder.log`, with rotated
+  `nix-<timestamp>.log`/`helper-<timestamp>.log`/`builder-<timestamp>.log`
   history. The VMs tab's **Setup logs** button shows them, and the hub serves
-  them at `GET /api/vms/setup/log?step=nix|helper`.
+  them at `GET /api/vms/setup/log?step=nix|helper|builder`.
 - The VZ helper must be signed with `com.apple.security.virtualization`; a bare
   `swift build` does not add it. Use `make vz-helper` (or `make hub`, which
   builds and signs it) after changing the helper. Without the entitlement

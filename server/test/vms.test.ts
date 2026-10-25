@@ -187,14 +187,20 @@ describe("VirtualMachineService", () => {
     writeFileSync(join(setup, "nix.log"), "current nix install\n");
     writeFileSync(join(setup, "nix-2026-01-01T00-00-00-000Z.log"), "old nix install\n");
     writeFileSync(join(setup, "helper.log"), "helper build\n");
+    writeFileSync(join(setup, "builder.log"), "builder boot\n");
     const service = new VirtualMachineService({ root });
     const files = await service.setupLogs();
     expect(files.filter((file) => file.step === "nix")).toHaveLength(2);
     expect(files.filter((file) => file.step === "helper")).toHaveLength(1);
+    expect(files.filter((file) => file.step === "builder")).toHaveLength(1);
 
     const log = await service.setupLog("nix", 20);
     expect(log.path.endsWith("nix.log")).toBe(true);
     expect(log.lines).toContain("current nix install");
+
+    const builder = await service.setupLog("builder", 20);
+    expect(builder.path.endsWith("builder.log")).toBe(true);
+    expect(builder.lines).toContain("builder boot");
 
     rmSync(setup, { recursive: true, force: true });
     rmSync(root, { recursive: true, force: true });

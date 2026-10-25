@@ -332,6 +332,7 @@ struct VMSetupLogSheet: View {
             Picker("", selection: $step) {
                 Text("Nix install").tag(VMSetupStep.nix)
                 Text("Helper build").tag(VMSetupStep.helper)
+                Text("Linux builder").tag(VMSetupStep.builder)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
