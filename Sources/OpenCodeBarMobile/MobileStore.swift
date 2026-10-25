@@ -110,6 +110,8 @@ final class MobileStore: ObservableObject {
     /// The project's own app icon, fetched from the hub. Missing entries fall
     /// back to a folder glyph in the views.
     @Published var projectIcons: [String: UIImage] = [:]
+    /// Cached project icons currently being revalidated in the background.
+    @Published var refreshingProjectIcons: Set<String> = []
     @Published var stats: Stats?
     @Published var statsStale = false
     @Published var usage: HubUsageResponse?
@@ -176,6 +178,8 @@ final class MobileStore: ObservableObject {
     /// Last icon fetch per project, so a missing icon is not retried on every
     /// incremental sync.
     var projectIconAttempts: [String: Date] = [:]
+    /// Last time the host snapshot was written to the on-demand cache.
+    var systemInfoCacheWrittenAt: Date?
     var eventStreamConnected = false
     var isRefreshingUsage = false
     var isRefreshingHealth = false
@@ -206,8 +210,10 @@ final class MobileStore: ObservableObject {
         let hubURL = location.url.absoluteString
         if database?.matches(hubURL: hubURL) == false {
             database?.clear()
+            AppIconCache.reset()
         }
         database?.setHubURL(hubURL)
+        AppIconCache.persistence = database
         hydrateFromCache()
         publishWidgetSnapshot(force: true)
 
@@ -276,6 +282,7 @@ final class MobileStore: ObservableObject {
         WidgetPublisher.shared.clear()
         stop()
         database?.clear()
+        AppIconCache.reset()
         cachedRevision = 0
         sessions = []
         activeIDs = []
@@ -291,6 +298,7 @@ final class MobileStore: ObservableObject {
         projectFiles = [:]
         sessionStats = [:]
         subagentLists = [:]
+        refreshingProjectIcons = []
         lastUpdated = nil
         statsFetchedAt = nil
         hubError = nil
@@ -314,6 +322,9 @@ final class MobileStore: ObservableObject {
         WidgetPublisher.shared.clear()
         stop()
         database?.clear()
+        AppIconCache.reset()
+        AppIconCache.persistence = nil
+        refreshingProjectIcons = []
         cachedRevision = 0
         connection = .disabled
         hubHealth = nil
@@ -351,6 +362,11 @@ final class MobileStore: ObservableObject {
         usage = snapshot.usage
         usageFetchedAt = snapshot.usage?.fetchedDate
         lastUpdated = snapshot.lastSyncedAt
+        if let cached = database?.cachedSystemInfo() {
+            systemInfo = cached.info
+            systemInfoFetchedAt = cached.fetchedAt
+            systemInfoCacheWrittenAt = cached.fetchedAt
+        }
         // Running flags are only trusted briefly; the first delta corrects them.
         if let at = snapshot.activeAt, Date().timeIntervalSince(at) < 120 {
             activeIDs = Set(snapshot.active)

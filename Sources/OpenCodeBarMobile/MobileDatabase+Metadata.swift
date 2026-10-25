@@ -62,6 +62,7 @@ extension MobileDatabase {
             try execute("DELETE FROM messages")
             try execute("DELETE FROM stats")
             try execute("DELETE FROM usage")
+            try execute("DELETE FROM cache")
             try execute("DELETE FROM meta WHERE key NOT IN ('hubURL', 'schemaVersion')")
         }
     }

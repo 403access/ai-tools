@@ -293,8 +293,10 @@ iOS app:
   Machine — while the grid adds Network, Software, Terminals, and Files. The
   phone can monitor CPU, memory, disks, processes, Homebrew, and installed apps
   without scrolling through one long inventory — and browse the Mac's files
-  with the same read-only browser. Remote streams and controls the Mac's display
-  with touch and keyboard input.
+  with the same read-only browser. The latest host snapshot and any app or
+  project icons the phone has seen are cached in local SQLite, so the Host tab
+  still renders with cached data while the hub is offline. Remote streams and
+  controls the Mac's display with touch and keyboard input.
   **VMs** creates and drives NixOS guests, with the serial console and package
   editor adapted for touch.
 - Search projects, pull to refresh any screen, and open a session from a deep

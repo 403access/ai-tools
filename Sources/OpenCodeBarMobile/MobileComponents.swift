@@ -189,6 +189,7 @@ extension UIPasteboard {
 struct ProjectIconTile: View {
     let image: UIImage?
     var running = false
+    var isLoading = false
     var size: CGFloat = 34
 
     private var tint: Color { running ? Theme.running : Theme.accent }
@@ -217,6 +218,16 @@ struct ProjectIconTile: View {
                     .fill(Theme.running)
                     .frame(width: size * 0.24, height: size * 0.24)
                     .padding(size * 0.03)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if isLoading {
+                ProgressView()
+                    .controlSize(.mini)
+                    .scaleEffect(0.55)
+                    .padding(1)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .offset(x: 1, y: -1)
             }
         }
         .accessibilityHidden(true)

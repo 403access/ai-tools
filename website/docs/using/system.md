@@ -26,6 +26,12 @@ open Machine. A **More** grid adds Network, Software, Terminals, and Files, so
 the long inventory is split into focused screens instead of one endless scroll.
 The Mac panel keeps its single-scroll layout.
 
+On iOS, the latest host snapshot and any app or project artwork the phone has
+seen are stored in the app's SQLite cache. Cached data renders immediately; a
+small spinner or the header refresh indicator shows while it is revalidated,
+and the fresh value replaces it when the request succeeds. If the hub is
+offline, the last snapshot and cached icons remain available.
+
 ## Overview and machine
 
 Six tiles summarise the host: operating system, uptime, CPU, memory, free disk

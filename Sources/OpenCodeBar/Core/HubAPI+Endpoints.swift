@@ -21,6 +21,19 @@ extension HubAPI {
         return response.data
     }
 
+    /// Same snapshot as `systemInfo`, plus the raw envelope bytes so callers
+    /// can persist an offline copy without re-encoding the whole model tree.
+    func systemInfoWithPayload(force: Bool = false) async throws -> (info: SystemInfo, payload: Data) {
+        let path = force ? "/api/system?refresh=1" : "/api/system"
+        let payload = try await send(path)
+        do {
+            let response = try Self.decoder.decode(SystemInfoEnvelope.self, from: payload)
+            return (response.data, payload)
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     func systemAppDetail(path: String) async throws -> SystemAppDetail {
         let response: SystemAppDetailEnvelope = try await get(
             Self.pathQuery("/api/system/apps/detail", path: path)

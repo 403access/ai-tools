@@ -160,9 +160,18 @@ extension MobileStore {
         isRefreshingSystemInfo = true
         defer { isRefreshingSystemInfo = false }
         do {
-            systemInfo = try await api.systemInfo(force: force)
-            systemInfoFetchedAt = Date()
+            let result = try await api.systemInfoWithPayload(force: force)
+            let now = Date()
+            systemInfo = result.info
+            systemInfoFetchedAt = now
             systemInfoError = nil
+            // Persist at most once a minute: the snapshot is ~170 KB and the
+            // UI polls every few seconds, but offline startup only needs a
+            // reasonably recent copy.
+            if systemInfoCacheWrittenAt.map({ now.timeIntervalSince($0) >= 60 }) ?? true {
+                database?.storeSystemInfoPayload(result.payload, fetchedAt: now)
+                systemInfoCacheWrittenAt = now
+            }
         } catch {
             if let apiError = error as? APIError, case .request(404, _) = apiError {
                 systemInfoError = "This hub does not serve system information yet. Restart it with the latest code."

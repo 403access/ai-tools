@@ -217,6 +217,7 @@ struct ProjectDetailView: View {
             ProjectIconTile(
                 image: store.projectIcons[project.id],
                 running: !running.isEmpty,
+                isLoading: store.refreshingProjectIcons.contains(project.id),
                 size: 42
             )
 

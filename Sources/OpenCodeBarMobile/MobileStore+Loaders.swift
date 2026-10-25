@@ -240,25 +240,61 @@ extension MobileStore {
         }
     }
 
-    /// Fetches icons for projects that do not have one yet. Best effort: a
-    /// project without usable artwork keeps the folder glyph, and a failed
-    /// attempt waits five minutes before trying again.
+    /// Fetches icons for projects that do not have one yet. Cached artwork is
+    /// restored from SQLite immediately and revalidated in the background when
+    /// it is stale. A project without usable artwork keeps the folder glyph,
+    /// and a failed attempt waits five minutes before trying again.
     func loadProjectIcons(for projectList: some Sequence<Project>) {
         guard let api else { return }
         let now = Date()
+        let canFetch = connection.isConnected
+        let iconTTL: TimeInterval = 6 * 60 * 60
+        let retryTTL: TimeInterval = 5 * 60
 
         for project in projectList where projectIcons[project.id] == nil {
+            var hasCachedIcon = false
+            if let cached = database?.cachedBlob(kind: "project-icon", key: project.id) {
+                if let data = cached.data, let image = UIImage(data: data) {
+                    projectIcons[project.id] = image
+                    hasCachedIcon = true
+                    if now.timeIntervalSince(cached.fetchedAt) < iconTTL { continue }
+                } else if cached.data == nil,
+                          now.timeIntervalSince(cached.fetchedAt) < retryTTL {
+                    continue
+                }
+            }
+
+            guard canFetch else { continue }
             if let attempted = projectIconAttempts[project.id],
-               now.timeIntervalSince(attempted) < 300 {
+               now.timeIntervalSince(attempted) < retryTTL {
                 continue
             }
             projectIconAttempts[project.id] = now
+            let cachedIcon = hasCachedIcon
+            if cachedIcon { refreshingProjectIcons.insert(project.id) }
 
             Task { @MainActor [weak self] in
+                defer { self?.refreshingProjectIcons.remove(project.id) }
                 guard let data = await api.projectIcon(id: project.id),
                       let image = UIImage(data: data)
-                else { return }
+                else {
+                    if !cachedIcon {
+                        self?.database?.storeBlob(
+                            kind: "project-icon",
+                            key: project.id,
+                            data: nil,
+                            fetchedAt: Date()
+                        )
+                    }
+                    return
+                }
                 self?.projectIcons[project.id] = image
+                self?.database?.storeBlob(
+                    kind: "project-icon",
+                    key: project.id,
+                    data: data,
+                    fetchedAt: Date()
+                )
             }
         }
     }

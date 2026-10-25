@@ -216,9 +216,21 @@ struct ProjectIconView: View {
 }
 #endif
 
-/// Loads one installed app's icon from the hub, keyed by its bundle path. The
-/// generic app glyph stays visible until the artwork arrives; hits and misses
-/// are cached so scrolling the apps list does not refetch them.
+/// A persisted icon lookup. The iOS app backs this with its SQLite cache; the
+/// Mac app leaves it nil and uses the in-memory cache only.
+struct CachedAppIcon {
+    let data: Data?
+    let fetchedAt: Date
+}
+
+protocol AppIconCacheStore: AnyObject {
+    func cachedIcon(for key: String) -> CachedAppIcon?
+    func storeCachedIcon(_ data: Data?, for key: String, fetchedAt: Date)
+}
+
+/// Loads one installed app's icon from the hub, keyed by its bundle path.
+/// Cached artwork renders immediately; a small spinner appears while it is
+/// revalidated in the background, and the fresh artwork replaces it on success.
 struct AppIconView: View {
     let api: HubAPI?
     let path: String
@@ -226,6 +238,7 @@ struct AppIconView: View {
     var size: CGFloat = 16
 
     @State private var image: AppIconImage?
+    @State private var isRefreshing = false
 
     var body: some View {
         Group {
@@ -248,6 +261,17 @@ struct AppIconView: View {
             }
         }
         .frame(width: size, height: size)
+        .overlay(alignment: .bottomTrailing) {
+            if isRefreshing {
+                ProgressView()
+                    .controlSize(.mini)
+                    .scaleEffect(0.55)
+                    .padding(1)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .offset(x: 1, y: 1)
+                    .accessibilityHidden(true)
+            }
+        }
         .task(id: taskID) { await load() }
         .accessibilityHidden(true)
     }
@@ -257,30 +281,87 @@ struct AppIconView: View {
     }
 
     private func load() async {
-        guard image == nil, hasIcon, !path.isEmpty, let api else { return }
-        let key = "\(api.baseURL.absoluteString)|\(path)"
+        guard !path.isEmpty else { return }
+        let key = path
+        let now = Date()
+        var hasCachedImage = false
 
         if let cached = AppIconCache.images[key] {
             image = cached
-            return
+            hasCachedImage = true
+        } else if let persisted = AppIconCache.persistence?.cachedIcon(for: key) {
+            AppIconCache.lastRefresh[key] = persisted.fetchedAt
+            if let data = persisted.data, let loaded = AppIconImage(data: data) {
+                AppIconCache.images[key] = loaded
+                image = loaded
+                hasCachedImage = true
+            } else if persisted.data == nil {
+                AppIconCache.misses.insert(key)
+                AppIconCache.missedAt[key] = persisted.fetchedAt
+            }
         }
-        guard !AppIconCache.misses.contains(key) else { return }
 
-        guard let data = await api.systemAppIcon(path: path),
-              let loaded = AppIconImage(data: data)
-        else {
-            AppIconCache.misses.insert(key)
+        guard hasIcon, let api else { return }
+
+        if AppIconCache.misses.contains(key) {
+            let missedAt = AppIconCache.missedAt[key] ?? .distantPast
+            if now.timeIntervalSince(missedAt) < AppIconCache.retryInterval { return }
+            AppIconCache.misses.remove(key)
+            AppIconCache.missedAt.removeValue(forKey: key)
+        }
+
+        if hasCachedImage,
+           now.timeIntervalSince(AppIconCache.lastRefresh[key] ?? .distantPast)
+            < AppIconCache.refreshInterval {
             return
         }
-        AppIconCache.images[key] = loaded
-        image = loaded
+        if let attempted = AppIconCache.lastAttempt[key],
+           now.timeIntervalSince(attempted) < AppIconCache.retryInterval {
+            return
+        }
+
+        AppIconCache.lastAttempt[key] = now
+        if hasCachedImage { isRefreshing = true }
+        defer { isRefreshing = false }
+
+        if let data = await api.systemAppIcon(path: path),
+           let loaded = AppIconImage(data: data) {
+            let fetchedAt = Date()
+            AppIconCache.images[key] = loaded
+            AppIconCache.lastRefresh[key] = fetchedAt
+            AppIconCache.misses.remove(key)
+            AppIconCache.missedAt.removeValue(forKey: key)
+            AppIconCache.persistence?.storeCachedIcon(data, for: key, fetchedAt: fetchedAt)
+            image = loaded
+        } else if !hasCachedImage {
+            let failedAt = Date()
+            AppIconCache.misses.insert(key)
+            AppIconCache.missedAt[key] = failedAt
+            AppIconCache.persistence?.storeCachedIcon(nil, for: key, fetchedAt: failedAt)
+        }
     }
 }
 
 @MainActor
-private enum AppIconCache {
+enum AppIconCache {
     static var images: [String: AppIconImage] = [:]
     static var misses: Set<String> = []
+    static var lastRefresh: [String: Date] = [:]
+    static var missedAt: [String: Date] = [:]
+    static var lastAttempt: [String: Date] = [:]
+    static weak var persistence: (any AppIconCacheStore)?
+    /// Artwork changes rarely; revalidate it at most once per six hours.
+    static let refreshInterval: TimeInterval = 6 * 60 * 60
+    /// A miss or failed fetch is retried after five minutes.
+    static let retryInterval: TimeInterval = 5 * 60
+
+    static func reset() {
+        images.removeAll()
+        misses.removeAll()
+        lastRefresh.removeAll()
+        missedAt.removeAll()
+        lastAttempt.removeAll()
+    }
 }
 
 struct LoadingState: View {

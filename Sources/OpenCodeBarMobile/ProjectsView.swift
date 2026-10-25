@@ -112,7 +112,8 @@ struct ProjectsView: View {
                             project: project,
                             icon: store.projectIcons[project.id],
                             running: store.runningSessions(in: project).count,
-                            lastActive: project.lastActiveDate
+                            lastActive: project.lastActiveDate,
+                            isLoading: store.refreshingProjectIcons.contains(project.id)
                         )
                     }
                     .buttonStyle(.plain)
@@ -161,10 +162,16 @@ struct ProjectRow: View {
     let icon: UIImage?
     let running: Int
     let lastActive: Date
+    var isLoading = false
 
     var body: some View {
         HStack(spacing: 11) {
-            ProjectIconTile(image: icon, running: running > 0, size: 34)
+            ProjectIconTile(
+                image: icon,
+                running: running > 0,
+                isLoading: isLoading,
+                size: 34
+            )
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
