@@ -1,6 +1,7 @@
 import { arch, cpus, hostname, loadavg, platform, release, uptime } from "node:os";
 import { HUB_VERSION } from "../config.ts";
-import type { MediaControlResult, SystemInfo } from "../types.ts";
+import type { MediaControlResult, SystemAppDetail, SystemInfo } from "../types.ts";
+import { AppActionError, collectAppDetail, performAppAction } from "./appDetail.ts";
 import { collectApps } from "./apps.ts";
 import { collectAudio, setSystemMuted, setSystemVolume } from "./audio.ts";
 import { collectBattery } from "./battery.ts";
@@ -247,6 +248,29 @@ export class SystemInfoService {
   /** Alias used by the HTTP layer. */
   control(action: string, value?: number): Promise<MediaControlResult> {
     return this.controlMedia(action, value);
+  }
+
+  /**
+   * Detailed inventory for one installed app. Only paths from the current
+   * snapshot are accepted, so clients cannot use this to inspect arbitrary
+   * files on the host.
+   */
+  async appDetail(path: string): Promise<SystemAppDetail | null> {
+    const snapshot = await this.snapshot(false);
+    const app = snapshot.apps.find((entry) => entry.path === path);
+    if (!app) return null;
+    return collectAppDetail(this.runner, app);
+  }
+
+  /** Runs a management action for an app and returns the refreshed detail. */
+  async appAction(
+    path: string,
+    action: string,
+    target?: string,
+  ): Promise<SystemAppDetail> {
+    const detail = await this.appDetail(path);
+    if (!detail) throw new AppActionError("Unknown application", 404);
+    return performAppAction(this.runner, detail, action, target);
   }
 
   /**

@@ -3,6 +3,7 @@
  * `./system/` so each platform collector stays small and independently testable.
  */
 export { SystemInfoService } from "./system/index.ts";
+export { AppActionError } from "./system/appDetail.ts";
 export { MediaControlError } from "./system/media.ts";
 export { findExecutable } from "./system/commands.ts";
 export { parseBrewVersions } from "./system/homebrew.ts";

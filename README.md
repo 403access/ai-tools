@@ -169,7 +169,10 @@ iOS app:
   the page breakdown, swap, and the largest processes by memory.
 - Installed applications discovered from the OS (with real app icons where
   available, plus versions, bundle ids, sources, and paths) and a searchable
-  filter.
+  filter. Open any app for its bundle facts, extensions, signing identity, URL
+  schemes and document types. Xcode adds its installed SDKs, shipped
+  frameworks, and every simulator runtime and device, with boot, shutdown,
+  erase, delete, and runtime-removal controls.
 - Homebrew version, prefix, formula/cask counts, outdated markers, and the full
   package list with versions.
 - Developer runtimes and tools (Node, Bun, Python, Go, Rust, Java, Swift, Docker,
@@ -296,7 +299,9 @@ The hub:
    `/api/project/{id}/files`, `/api/project/{id}/icon`,
    `/api/experimental/session/stats` — plus
    `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`), `/api/usage`,
-   `/api/health`, `/api/system`, `/api/system/apps/icon`, `/api/terminals` (`GET`/`POST`),
+   `/api/health`, `/api/system`, `/api/system/apps/icon`,
+   `/api/system/apps/detail`, `/api/system/apps/action` (`POST`),
+   `/api/terminals` (`GET`/`POST`),
    `/api/terminals/{id}` (`GET`/`PUT`/`DELETE`),
    `/api/terminals/{id}/socket` (WebSocket), `/api/host-terminals`,
    `/api/host-terminals/{id}`, `/api/host-terminals/{id}/command`,
@@ -601,6 +606,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     ProjectSessions.swift             recent-session rows
     SettingsTab.swift       connected devices and server controls
     SystemTab.swift         machine, resources, apps, Homebrew and tools
+    SystemAppDetailView.swift  app bundle facts and Xcode simulator management
     TerminalViews.swift     terminal list, new-terminal sheet and terminal window
     TerminalEmulatorView.swift  SwiftTerm host for Mac and iOS
     SystemFileBrowser.swift host folder navigation and text/image preview

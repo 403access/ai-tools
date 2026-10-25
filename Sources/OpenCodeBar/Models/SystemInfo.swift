@@ -284,6 +284,132 @@ struct SystemBrewPackage: Decodable, Equatable, Sendable, Identifiable {
     var isCask: Bool { kind == "cask" }
 }
 
+// MARK: - App detail
+
+/// Detailed inventory for one installed application. Mirrors `SystemAppDetail`
+/// in `server/src/types.ts`.
+struct SystemAppDetail: Decodable, Equatable, Sendable {
+    var app: SystemApp
+    var info: SystemAppInfo
+    /// Present for apps the hub knows how to inspect further, such as Xcode.
+    var xcode: SystemXcodeDetail?
+    var generatedAt: Double
+
+    var generatedDate: Date {
+        Date(timeIntervalSince1970: generatedAt / 1_000)
+    }
+}
+
+struct SystemAppInfo: Decodable, Equatable, Sendable {
+    var displayName: String?
+    var bundleID: String?
+    var version: String?
+    var build: String?
+    var minimumOS: String?
+    var copyright: String?
+    var executable: String?
+    var sizeBytes: Int64?
+    var urlSchemes: [String]?
+    var documentTypes: [String]?
+    var extensions: [SystemAppExtension]
+    var signing: SystemAppSigning?
+}
+
+struct SystemAppExtension: Decodable, Equatable, Sendable, Identifiable {
+    var name: String
+    var path: String
+    var kind: String
+    var bundleID: String?
+    var version: String?
+
+    var id: String { path }
+    var kindLabel: String {
+        switch kind {
+        case "xpc": return "XPC service"
+        case "login-item": return "Login item"
+        default: return "App extension"
+        }
+    }
+}
+
+struct SystemAppSigning: Decodable, Equatable, Sendable {
+    var authority: String?
+    var identifier: String?
+    var teamID: String?
+    var verified: Bool
+}
+
+struct SystemXcodeDetail: Decodable, Equatable, Sendable {
+    var developerDir: String?
+    var version: String?
+    var error: String?
+    var simulators: [SystemSimulatorRuntime]
+    var sdks: [SystemXcodeSDK]
+    var frameworks: [SystemXcodeFramework]
+
+    var devices: [SystemSimulatorDevice] {
+        simulators.flatMap(\.devices)
+    }
+
+    var bootedCount: Int {
+        devices.filter(\.isBooted).count
+    }
+}
+
+struct SystemSimulatorRuntime: Decodable, Equatable, Sendable, Identifiable {
+    var identifier: String
+    var name: String
+    var platform: String
+    var version: String
+    var build: String?
+    var available: Bool
+    var devices: [SystemSimulatorDevice]
+
+    var id: String { identifier }
+    var bootedCount: Int { devices.filter(\.isBooted).count }
+}
+
+struct SystemSimulatorDevice: Decodable, Equatable, Sendable, Identifiable {
+    var udid: String
+    var name: String
+    var state: String
+    var available: Bool
+    var deviceType: String?
+    var dataPath: String?
+    var dataSizeBytes: Int64?
+    var lastUsedAt: String?
+
+    var id: String { udid }
+    var isBooted: Bool { state.lowercased() == "booted" }
+    var isShutdown: Bool { state.lowercased() == "shutdown" }
+    var deviceFamily: String? {
+        let raw = deviceType?.components(separatedBy: ".").last ?? ""
+        return raw.isEmpty ? nil : raw.replacingOccurrences(of: "-", with: " ")
+    }
+}
+
+struct SystemXcodeSDK: Decodable, Equatable, Sendable, Identifiable {
+    var name: String
+    var version: String?
+    var platform: String?
+    var canonicalName: String?
+    var path: String?
+
+    var id: String { canonicalName ?? "\(name)-\(version ?? "")" }
+}
+
+struct SystemXcodeFramework: Decodable, Equatable, Sendable, Identifiable {
+    var name: String
+    var path: String
+    var platform: String
+
+    var id: String { path }
+}
+
+struct SystemAppDetailEnvelope: Decodable, Sendable {
+    var data: SystemAppDetail
+}
+
 struct SystemHomebrew: Decodable, Equatable, Sendable {
     var available: Bool
     var version: String?

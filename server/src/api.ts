@@ -19,10 +19,11 @@ import { resolveAppIcon } from "./system/appIcons.ts";
 import type {
   MediaControlResult,
   ServerInfo,
+  SystemAppDetail,
   SystemInfo,
   TerminalUpdateInput,
 } from "./types.ts";
-import { MediaControlError, SystemInfoService } from "./system.ts";
+import { AppActionError, MediaControlError, SystemInfoService } from "./system.ts";
 import { TerminalService, type TerminalStore } from "./terminals.ts";
 import { TerminalSockets } from "./api/terminal-socket.ts";
 import { RemoteSockets } from "./api/remote-socket.ts";
@@ -62,6 +63,8 @@ export interface ApiDeps {
   system?: {
     snapshot(force?: boolean): Promise<SystemInfo>;
     control?(action: string, value?: number): Promise<MediaControlResult>;
+    appDetail?(path: string): Promise<SystemAppDetail | null>;
+    appAction?(path: string, action: string, target?: string): Promise<SystemAppDetail>;
   };
   /** Injectable PTY store, used by tests to avoid a live OpenCode service. */
   terminals?: TerminalStore;
@@ -216,6 +219,39 @@ export function createHandler(
             ...CORS_HEADERS,
           },
         });
+      }
+
+      if (
+        parts[0] === "api" && parts[1] === "system" && parts[2] === "apps" &&
+        parts[3] === "detail" && parts.length === 4
+      ) {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+        const appPath = url.searchParams.get("path")?.trim();
+        if (!appPath) return error("An application path is required", 400);
+        if (!system.appDetail) return error("App details are unavailable", 501);
+
+        const detail = await system.appDetail(appPath);
+        if (!detail) return error("Unknown application", 404);
+        return json({ data: detail });
+      }
+
+      if (pathname === "/api/system/apps/action" && request.method === "POST") {
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+
+        const appPath = typeof body.path === "string" ? body.path.trim() : "";
+        const action = typeof body.action === "string" ? body.action.trim() : "";
+        const target = typeof body.target === "string" ? body.target.trim() : undefined;
+        if (!appPath) return error("An application path is required", 400);
+        if (!action) return error("An action is required", 400);
+        if (!system.appAction) return error("App actions are unavailable", 501);
+
+        try {
+          return json({ data: await system.appAction(appPath, action, target) });
+        } catch (caught) {
+          if (caught instanceof AppActionError) return error(caught.message, caught.status);
+          throw caught;
+        }
       }
 
       if (pathname === "/api/media" && request.method === "POST") {

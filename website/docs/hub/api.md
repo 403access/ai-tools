@@ -79,6 +79,8 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `GET` | `/api/info` | Server info, URLs, capabilities, and hub health |
 | `GET` | `/api/system` | Full snapshot of the machine running the hub |
 | `GET` | `/api/system/apps/icon?path=…` | Icon artwork for one installed app, when available |
+| `GET` | `/api/system/apps/detail?path=…` | Bundle facts and app-specific inventory for one installed app |
+| `POST` | `/api/system/apps/action` | Manage an app's resources (Xcode simulators) |
 | `GET` | `/api/terminals` | Terminals across OpenCode locations |
 | `POST` | `/api/terminals` | Start a PTY |
 | `GET` | `/api/terminals/{id}` | One terminal |
@@ -141,6 +143,50 @@ than reported as zero.
 returns its PNG artwork plus an `ETag`. Apps whose bundles have no usable
 artwork report `hasIcon: false` and return `404` here, so clients can keep the
 generic app glyph.
+
+`GET /api/system/apps/detail` accepts the same `path` and returns the facts
+clients show on an app's detail page: display name, bundle id, version and
+build, minimum OS, executable, recursive bundle size, URL schemes, document
+types, extensions, and the signing authority. Only apps in the current snapshot
+are accepted, so the endpoint cannot probe arbitrary folders.
+
+Apps with a dedicated provider include more inventory. Xcode returns a `xcode`
+object with its developer directory, SDKs, the frameworks shipped in its
+platform toolchains, and simulator runtimes with every device and its state:
+
+```json
+{
+  "data": {
+    "app": { "name": "Xcode", "path": "/Applications/Xcode.app" },
+    "info": { "bundleID": "com.apple.dt.Xcode", "version": "27.1" },
+    "xcode": {
+      "developerDir": "/Applications/Xcode.app/Contents/Developer",
+      "simulators": [{
+        "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-18-0",
+        "name": "iOS 18.0",
+        "platform": "iOS",
+        "version": "18.0",
+        "available": true,
+        "devices": [{
+          "udid": "1A2B3C4D-…",
+          "name": "iPhone 16 Pro",
+          "state": "Booted",
+          "available": true
+        }]
+      }],
+      "sdks": [{ "name": "iOS 18.0", "platform": "iphoneos" }],
+      "frameworks": [{ "name": "XcodeKit", "platform": "Xcode" }]
+    }
+  }
+}
+```
+
+`POST /api/system/apps/action` manages those extras. The body carries the app
+`path`, an `action`, and a `target` id. Supported actions are
+`simulator.boot`, `simulator.shutdown`, `simulator.erase`,
+`simulator.delete`, and `runtime.delete`. The target must already exist in the
+current inventory, so requests cannot pass arbitrary arguments to `simctl`. The
+response is the refreshed detail page.
 
 ### Media controls
 

@@ -21,6 +21,34 @@ extension HubAPI {
         return response.data
     }
 
+    func systemAppDetail(path: String) async throws -> SystemAppDetail {
+        let response: SystemAppDetailEnvelope = try await get(
+            Self.pathQuery("/api/system/apps/detail", path: path)
+        )
+        return response.data
+    }
+
+    /// Runs a management action for an app (currently Xcode simulator commands)
+    /// and returns the refreshed detail page.
+    func systemAppAction(
+        path: String,
+        action: String,
+        target: String? = nil
+    ) async throws -> SystemAppDetail {
+        struct Body: Encodable {
+            var path: String
+            var action: String
+            var target: String?
+        }
+        let data = try JSONEncoder().encode(Body(path: path, action: action, target: target))
+        let response = try await send("/api/system/apps/action", method: "POST", body: data)
+        do {
+            return try Self.decoder.decode(SystemAppDetailEnvelope.self, from: response).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     /// Mac and iOS apps known to the hub, including which ones are live now.
     func devices() async throws -> [ConnectedDevice] {
         let response: DevicesResponse = try await get("/api/devices")

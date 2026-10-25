@@ -1063,31 +1063,40 @@ struct SystemView: View {
                 } else {
                     LazyVStack(alignment: .leading, spacing: 9) {
                         ForEach(visible) { app in
-                            HStack(spacing: 9) {
-                                AppIconView(
-                                    api: store.api,
-                                    path: app.path,
-                                    hasIcon: app.hasIcon == true,
-                                    size: 18
-                                )
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(app.name)
-                                        .font(.caption.weight(.medium))
-                                        .lineLimit(1)
-                                    Text(app.path)
-                                        .font(.caption2)
+                            NavigationLink {
+                                MobileSystemAppDetailView(app: app)
+                            } label: {
+                                HStack(spacing: 9) {
+                                    AppIconView(
+                                        api: store.api,
+                                        path: app.path,
+                                        hasIcon: app.hasIcon == true,
+                                        size: 18
+                                    )
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(app.name)
+                                            .font(.caption.weight(.medium))
+                                            .lineLimit(1)
+                                        Text(app.path)
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                    }
+                                    Spacer(minLength: 4)
+                                    if let version = app.version {
+                                        Text(version)
+                                            .font(.caption2.monospaced())
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2.weight(.bold))
                                         .foregroundStyle(.tertiary)
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
                                 }
-                                Spacer(minLength: 4)
-                                if let version = app.version {
-                                    Text(version)
-                                        .font(.caption2.monospaced())
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                         }
                         if !showAllApps && appQuery.isEmpty && matches.count > 10 {
                             Button("Show all \(matches.count) applications") {

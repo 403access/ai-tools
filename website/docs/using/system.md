@@ -168,7 +168,7 @@ On macOS the browser replaces the panel content so Back returns to the System
 tab. On iOS it pushes onto the System navigation stack and keeps the standard
 Back button.
 
-## Installed apps and Homebrew
+## Installed apps, app details, and Homebrew
 
 **Installed Apps** enumerates applications from the operating system:
 
@@ -179,6 +179,19 @@ Back button.
 
 Type in the filter field to search names, bundle IDs, and paths. Long lists open
 in pages with **Show all**.
+
+Press an application to open its detail page. Alongside the icon and version it
+shows the bundle ID, build, size, modification date, source, architecture,
+minimum OS, executable, URL schemes, document types, bundled extensions, and
+the signing authority. The folder button opens the bundle in the host file
+browser.
+
+Apps the hub knows how to inspect add their own sections. **Xcode** shows its
+developer directory and installed SDKs, the frameworks shipped with its
+platform toolchains, and every simulator runtime with its devices. Booted
+simulators are marked and sorted first. From here you can boot, shut down,
+erase, or delete a simulator, and remove a simulator runtime. Destructive
+actions ask for confirmation and the list refreshes from the Mac immediately.
 
 **Homebrew** shows the installed version, prefix, formula and cask counts, and
 how many packages are outdated. Outdated packages are marked with an amber dot

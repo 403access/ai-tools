@@ -228,4 +228,55 @@ final class SystemInfoTests: XCTestCase {
         MediaControlOptimism.apply(to: &info, action: "mute", value: 1)
         XCTAssertEqual(info.audio?.muted, true)
     }
+
+    func testDecodesAppDetailWithXcodeSimulators() throws {
+        let detailJSON = """
+        {
+          "app": { "name": "Xcode", "path": "/Applications/Xcode.app", "bundleID": "com.apple.dt.Xcode" },
+          "info": {
+            "displayName": "Xcode",
+            "bundleID": "com.apple.dt.Xcode",
+            "version": "27.1",
+            "build": "25183",
+            "sizeBytes": 4202012672,
+            "urlSchemes": ["xcode"],
+            "extensions": [
+              { "name": "Xcode Widgets", "path": "/Applications/Xcode.app/Contents/PlugIns/Widgets.appex", "kind": "extension" }
+            ],
+            "signing": { "authority": "Apple Mac OS Application Signing", "teamID": "59GAB85EFG", "verified": true }
+          },
+          "xcode": {
+            "developerDir": "/Applications/Xcode.app/Contents/Developer",
+            "version": "27.1",
+            "simulators": [{
+              "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-18-0",
+              "name": "iOS 18.0",
+              "platform": "iOS",
+              "version": "18.0",
+              "available": true,
+              "devices": [{
+                "udid": "1A2B3C4D",
+                "name": "iPhone 16 Pro",
+                "state": "Booted",
+                "available": true,
+                "dataSizeBytes": 1024
+              }]
+            }],
+            "sdks": [{ "name": "iOS 18.0", "platform": "iphoneos" }],
+            "frameworks": [{ "name": "XcodeKit", "path": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/XcodeKit.framework", "platform": "Xcode" }]
+          },
+          "generatedAt": 1700000000000
+        }
+        """
+
+        let detail = try JSONDecoder().decode(SystemAppDetail.self, from: Data(detailJSON.utf8))
+
+        XCTAssertEqual(detail.info.bundleID, "com.apple.dt.Xcode")
+        XCTAssertEqual(detail.info.extensions.first?.kindLabel, "App extension")
+        XCTAssertEqual(detail.info.signing?.verified, true)
+        XCTAssertEqual(detail.xcode?.bootedCount, 1)
+        XCTAssertEqual(detail.xcode?.simulators.first?.devices.first?.isBooted, true)
+        XCTAssertEqual(detail.xcode?.sdks.first?.name, "iOS 18.0")
+        XCTAssertEqual(detail.xcode?.frameworks.first?.name, "XcodeKit")
+    }
 }

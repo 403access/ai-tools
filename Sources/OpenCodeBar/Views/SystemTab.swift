@@ -10,6 +10,7 @@ struct SystemTab: View {
     @State private var showAllDisks = false
     @State private var showAllApps = false
     @State private var appQuery = ""
+    @State private var selectedApp: SystemApp?
     @State private var showAllBrew = false
     @State private var showAllPorts = false
     @State private var volumeDraft: Double = 0
@@ -78,6 +79,10 @@ struct SystemTab: View {
             if let api = state.api {
                 HostTerminalDetailView(terminal: terminal, api: api)
             }
+        }
+        .sheet(item: $selectedApp) { app in
+            SystemAppDetailView(app: app)
+                .environmentObject(state)
         }
         .sheet(isPresented: $showingNewTerminal, onDismiss: openPendingTerminal) {
             NewTerminalSheet(directory: state.orderedProjects.first?.canonical) { terminal in
@@ -1082,31 +1087,41 @@ struct SystemTab: View {
                 } else {
                     LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(visible) { app in
-                            HStack(spacing: 8) {
-                                AppIconView(
-                                    api: state.api,
-                                    path: app.path,
-                                    hasIcon: app.hasIcon == true,
-                                    size: 16
-                                )
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(app.name)
-                                        .font(.system(size: 10, weight: .medium))
-                                        .lineLimit(1)
-                                    Text(app.sourceLabel)
-                                        .font(.system(size: 8))
+                            Button {
+                                selectedApp = app
+                            } label: {
+                                HStack(spacing: 8) {
+                                    AppIconView(
+                                        api: state.api,
+                                        path: app.path,
+                                        hasIcon: app.hasIcon == true,
+                                        size: 16
+                                    )
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(app.name)
+                                            .font(.system(size: 10, weight: .medium))
+                                            .lineLimit(1)
+                                        Text(app.sourceLabel)
+                                            .font(.system(size: 8))
+                                            .foregroundStyle(.tertiary)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer(minLength: 4)
+                                    if let version = app.version {
+                                        Text(version)
+                                            .font(.system(size: 8.5, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 8, weight: .bold))
                                         .foregroundStyle(.tertiary)
-                                        .lineLimit(1)
                                 }
-                                Spacer(minLength: 4)
-                                if let version = app.version {
-                                    Text(version)
-                                        .font(.system(size: 8.5, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                             .help(app.path)
+                            .accessibilityHint("Opens app details")
                         }
 
                         if !showAllApps && appQuery.isEmpty && matches.count > 10 {

@@ -593,6 +593,97 @@ export interface SystemApp {
   hasIcon?: boolean;
 }
 
+/** Extra facts read from an installed application bundle. */
+export interface SystemAppInfo {
+  /** Display name from the bundle, when it differs from the folder name. */
+  displayName?: string;
+  bundleID?: string;
+  version?: string;
+  build?: string;
+  minimumOS?: string;
+  copyright?: string;
+  executable?: string;
+  /** Recursive size of the bundle, when the hub could measure it. */
+  sizeBytes?: number;
+  urlSchemes?: string[];
+  documentTypes?: string[];
+  /** App extensions, XPC services and login items shipped inside the bundle. */
+  extensions: SystemAppExtension[];
+  signing?: SystemAppSigning;
+}
+
+export interface SystemAppExtension {
+  name: string;
+  path: string;
+  kind: "extension" | "xpc" | "login-item";
+  bundleID?: string;
+  version?: string;
+}
+
+export interface SystemAppSigning {
+  authority?: string;
+  identifier?: string;
+  teamID?: string;
+  verified: boolean;
+}
+
+/** One simulator runtime and the devices created for it. */
+export interface SystemSimulatorRuntime {
+  identifier: string;
+  name: string;
+  platform: string;
+  version: string;
+  build?: string;
+  available: boolean;
+  devices: SystemSimulatorDevice[];
+}
+
+export interface SystemSimulatorDevice {
+  udid: string;
+  name: string;
+  state: string;
+  available: boolean;
+  deviceType?: string;
+  dataPath?: string;
+  dataSizeBytes?: number;
+  lastUsedAt?: string;
+}
+
+export interface SystemXcodeSDK {
+  name: string;
+  version?: string;
+  platform?: string;
+  canonicalName?: string;
+  path?: string;
+}
+
+/** A framework bundled with Xcode or one of its platform toolchains. */
+export interface SystemXcodeFramework {
+  name: string;
+  path: string;
+  platform: string;
+}
+
+/** Xcode-specific inventory shown on its app detail page. */
+export interface SystemXcodeDetail {
+  developerDir?: string;
+  version?: string;
+  /** Set when simctl could not be read; the rest of the detail still renders. */
+  error?: string;
+  simulators: SystemSimulatorRuntime[];
+  sdks: SystemXcodeSDK[];
+  frameworks: SystemXcodeFramework[];
+}
+
+/** The detail page for one installed application. */
+export interface SystemAppDetail {
+  app: SystemApp;
+  info: SystemAppInfo;
+  /** Present only for apps the hub knows how to inspect further, such as Xcode. */
+  xcode?: SystemXcodeDetail;
+  generatedAt: number;
+}
+
 export interface SystemBrewPackage {
   name: string;
   version: string;
@@ -692,6 +783,10 @@ export interface MediaControlResult {
 
 export interface SystemInfoResponse {
   data: SystemInfo;
+}
+
+export interface SystemAppDetailResponse {
+  data: SystemAppDetail;
 }
 
 export interface MediaControlResponse {
