@@ -23,13 +23,20 @@ import type {
 } from "./types.ts";
 import { MediaControlError, SystemInfoService } from "./system.ts";
 import { TerminalService, type TerminalStore } from "./terminals.ts";
-import { TerminalSockets, type TerminalSocketData } from "./api/terminal-socket.ts";
+import { TerminalSockets } from "./api/terminal-socket.ts";
+import { RemoteSockets } from "./api/remote-socket.ts";
+import type { HubSocketData } from "./api/socket.ts";
 import {
   HostTerminalError,
   HostTerminalService,
   type HostTerminalStore,
 } from "./host-terminals.ts";
 import { eventStream } from "./api/event-stream.ts";
+import {
+  emptyRemoteStatus,
+  type RemoteConfigureInput,
+  type RemoteHost,
+} from "./remote.ts";
 import {
   CORS_HEADERS,
   activeResponse,
@@ -61,12 +68,16 @@ export interface ApiDeps {
   terminalSockets?: TerminalSockets;
   /** Injectable Terminal.app integration, used by tests to avoid macOS automation. */
   hostTerminals?: HostTerminalStore;
+  /** Screen capture and input service used by the Remote tab. */
+  remote?: RemoteHost;
+  /** Websocket relay for remote-desktop frames and input. */
+  remoteSockets?: RemoteSockets;
 }
 
 export function createHandler(
   deps: ApiDeps,
-): (request: Request, server?: Bun.Server<TerminalSocketData>) => Promise<Response> {
-  const { db, hub, config, restart, persistSettings } = deps;
+): (request: Request, server?: Bun.Server<HubSocketData>) => Promise<Response> {
+  const { db, hub, config, restart, persistSettings, remote } = deps;
   const system: NonNullable<ApiDeps["system"]> = deps.system ?? new SystemInfoService({
     hub: () => ({
       startedAt: hub.startedAt,
@@ -82,7 +93,7 @@ export function createHandler(
 
   return async (
     request: Request,
-    server?: Bun.Server<TerminalSocketData>,
+    server?: Bun.Server<HubSocketData>,
   ): Promise<Response> => {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -181,6 +192,70 @@ export function createHandler(
           if (caught instanceof MediaControlError) return error(caught.message, caught.status);
           throw caught;
         }
+      }
+
+      // MARK: - Remote desktop
+
+      if (pathname === "/api/remote" && request.method === "GET") {
+        if (!remote) {
+          return json({
+            data: emptyRemoteStatus(
+              "This hub build does not serve remote desktop. Restart it with the latest code.",
+            ),
+          });
+        }
+        return json({ data: await remote.status() });
+      }
+
+      if (pathname === "/api/remote/configure" && request.method === "POST") {
+        if (!remote) return error("Remote desktop is unavailable", 501);
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+
+        const input: RemoteConfigureInput = {};
+        for (const key of ["fps", "quality", "maxWidth", "displayID"] as const) {
+          const value = body[key];
+          if (value === undefined) continue;
+          if (typeof value !== "number" || !Number.isFinite(value)) {
+            return error(`${key} must be a number`, 400);
+          }
+          input[key] = value;
+        }
+        if (Object.keys(input).length === 0) {
+          return error("Provide fps, quality, maxWidth, or displayID", 400);
+        }
+        return json({ data: remote.configure(input) });
+      }
+
+      if (pathname === "/api/remote/permissions" && request.method === "POST") {
+        if (!remote) return error("Remote desktop is unavailable", 501);
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+        for (const key of ["screenRecording", "accessibility"] as const) {
+          const value = body[key];
+          if (value !== undefined && typeof value !== "boolean") {
+            return error(`${key} must be a boolean`, 400);
+          }
+        }
+        return json({
+          data: remote.requestPermissions({
+            screenRecording: body.screenRecording === true,
+            accessibility: body.accessibility === true,
+          }),
+        });
+      }
+
+      if (
+        parts[0] === "api" &&
+        parts[1] === "remote" &&
+        parts[2] === "socket" &&
+        parts.length === 3
+      ) {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+        if (!server || !deps.remoteSockets) {
+          return error("Remote desktop streams are unavailable", 501);
+        }
+        return deps.remoteSockets.upgrade(request, server) as Response;
       }
 
       // MARK: - Terminals

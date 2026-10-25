@@ -68,6 +68,11 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     TerminalEmulatorView.swift    SwiftTerm host for Mac and iOS
   Preview/PreviewRunner.swift     offscreen screenshots
 
+Sources/OpenCodeBarRemoteHost/    ScreenCaptureKit helper for remote desktop
+  main.swift                      stdio entry point and AppKit run loop
+  RemoteHost.swift                displays, capture, permissions, input
+  Wire.swift                      framed status/frame/log transport
+
 Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   OpenCodeBarMobileApp.swift      app entry + floating tab dock
   MobileStore.swift               observable hub state
@@ -96,6 +101,11 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   ProjectDetailView.swift         scoped analytics and changes
   ProjectsView.swift              list + search
   UsageView.swift                 plan limits, trends, stats
+  SystemView.swift                machine inventory for the hub host
+  HostView.swift                  System/Remote switch for the Host tab
+  RemoteDesktopView.swift         remote display, controls, permission cards
+  RemoteDesktopSurface.swift      zoomable display view and touch gestures
+  RemoteDesktopConnection.swift   frame WebSocket, decoding, pointer/key input
   SettingsView.swift              appearance, pairing, status
   SettingsView+Connection.swift   status and hub connection controls
   MobileTerminalViews.swift       terminal list, new-terminal and terminal sheets
@@ -121,6 +131,8 @@ server/                           Bun + TypeScript + SQLite hub
   src/terminals.ts                PTY aggregation and lifecycle across locations
   src/host-terminals.ts           Terminal.app tabs via macOS automation
   src/api/terminal-socket.ts      WebSocket proxy for live terminal I/O
+  src/remote.ts                   capture helper lifecycle and status
+  src/api/remote-socket.ts        WebSocket fan-out for frames and input
   src/db.ts                       SQLite facade
   src/db/                         schema, row mapping, stores, queries
   src/hub.ts                      polling/event hub facade

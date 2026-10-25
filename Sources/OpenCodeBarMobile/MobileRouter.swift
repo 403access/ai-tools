@@ -7,6 +7,8 @@ final class MobileRouter: ObservableObject {
     /// A session the Live tab should push once the row is available.
     @Published var requestedSessionID: String?
     @Published var requestedTab: RootView.Tab?
+    /// Which half of the Host tab a deep link wants.
+    @Published var requestedHostMode: HostMode?
 
     @discardableResult
     func handle(_ url: URL) -> Bool {
@@ -19,6 +21,16 @@ final class MobileRouter: ObservableObject {
 
         case "usage":
             requestedTab = .usage
+            return true
+
+        case "remote":
+            requestedHostMode = .remote
+            requestedTab = .host
+            return true
+
+        case "system":
+            requestedHostMode = .system
+            requestedTab = .host
             return true
 
         case "session":
@@ -39,5 +51,6 @@ final class MobileRouter: ObservableObject {
     func clear() {
         requestedSessionID = nil
         requestedTab = nil
+        requestedHostMode = nil
     }
 }

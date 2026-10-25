@@ -7,7 +7,8 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "OpenCodeBar", targets: ["OpenCodeBar"])
+        .executable(name: "OpenCodeBar", targets: ["OpenCodeBar"]),
+        .executable(name: "OpenCodeBarRemoteHost", targets: ["OpenCodeBarRemoteHost"])
     ],
     dependencies: [
         // Full terminal emulation for the OpenCode PTYs shown in System. This
@@ -26,6 +27,12 @@ let package = Package(
                 .product(name: "SwiftTerm", package: "SwiftTerm")
             ],
             path: "Sources/OpenCodeBar"
+        ),
+        // Screen capture and input helper for remote desktop. The hub spawns it
+        // on demand; it speaks the framed protocol in Wire.swift over stdio.
+        .executableTarget(
+            name: "OpenCodeBarRemoteHost",
+            path: "Sources/OpenCodeBarRemoteHost"
         ),
         .testTarget(
             name: "OpenCodeBarTests",

@@ -6,9 +6,12 @@ import {
   writeHubConfig,
 } from "./config.ts";
 import { createHandler } from "./api.ts";
-import { TerminalSockets, type TerminalSocketData } from "./api/terminal-socket.ts";
+import { TerminalSockets } from "./api/terminal-socket.ts";
+import { RemoteSockets } from "./api/remote-socket.ts";
+import type { HubSocketData } from "./api/socket.ts";
 import { HubDB } from "./db.ts";
 import { Hub } from "./hub.ts";
+import { RemoteHostService } from "./remote.ts";
 import { TerminalService } from "./terminals.ts";
 
 const config = loadConfig();
@@ -16,6 +19,8 @@ const db = new HubDB(config.dbPath);
 const hub = new Hub(config, db);
 const terminals = new TerminalService(hub, db);
 const terminalSockets = new TerminalSockets(terminals);
+const remote = new RemoteHostService();
+const remoteSockets = new RemoteSockets(remote);
 const handler = createHandler({
   db,
   hub,
@@ -24,6 +29,8 @@ const handler = createHandler({
   persistSettings: (settings) => writeHubConfig(settings, settings.port),
   terminals,
   terminalSockets,
+  remote,
+  remoteSockets,
 });
 
 /**
@@ -31,16 +38,40 @@ const handler = createHandler({
  * explicitly, walk forward a few ports — the chosen port is written to the
  * config file, so clients follow along without any setup.
  */
-function listen(): Bun.Server<TerminalSocketData> {
+function listen(): Bun.Server<HubSocketData> {
   const explicit = Boolean(process.env.OPENCODEBAR_HUB_PORT);
   let port = config.port;
   for (let attempt = 0; ; attempt += 1) {
     try {
-      const server = Bun.serve({
+      const server = Bun.serve<HubSocketData>({
         hostname: config.host,
         port,
         fetch: handler,
-        websocket: terminalSockets.handlers,
+        websocket: {
+          data: {} as HubSocketData,
+          idleTimeout: 0,
+          open: (ws) => {
+            if (ws.data.kind === "terminal") {
+              terminalSockets.handlers.open?.(ws);
+            } else {
+              remoteSockets.handlers.open?.(ws);
+            }
+          },
+          message: (ws, message) => {
+            if (ws.data.kind === "terminal") {
+              terminalSockets.handlers.message?.(ws, message);
+            } else {
+              remoteSockets.handlers.message?.(ws, message);
+            }
+          },
+          close: (ws, code, reason) => {
+            if (ws.data.kind === "terminal") {
+              terminalSockets.handlers.close?.(ws, code, reason);
+            } else {
+              remoteSockets.handlers.close?.(ws, code, reason);
+            }
+          },
+        },
         idleTimeout: 255,
       });
       if (port !== config.port) {
@@ -113,6 +144,8 @@ function restartHub(): void {
   console.log("[hub] Restarting…");
 
   hub.stop();
+  remoteSockets.dispose();
+  remote.shutdown();
   try {
     server.stop(true);
   } catch {
@@ -148,6 +181,8 @@ function shutdown(): void {
   shuttingDown = true;
   console.log("\n[hub] Stopping…");
   hub.stop();
+  remoteSockets.dispose();
+  remote.shutdown();
   server.stop();
   db.close();
   process.exit(0);

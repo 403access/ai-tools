@@ -1,4 +1,4 @@
-.PHONY: build test app run desktop restart preview shots site docs docs-build docs-serve clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel mobile-project mobile-build mobile-run mobile-device mobile-icon bench
+.PHONY: build test app run desktop restart preview shots site docs docs-build docs-serve clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host mobile-project mobile-build mobile-run mobile-device mobile-icon bench
 
 # Compile the Swift package (debug).
 build:
@@ -91,12 +91,17 @@ web-icons:
 	cp .build/web-icon.iconset/icon_512x512.png website/static/img/icon-history/website-icon-v3.png
 	rm -rf .build/web-icon.iconset
 
+# Build the ScreenCaptureKit helper used by the Remote tab. `make hub` builds
+# it too; the hub spawns it on demand and speaks a framed protocol over stdio.
+remote-host:
+	swift build --product OpenCodeBarRemoteHost
+
 # Run the SQLite sync hub that both apps talk to (foreground).
-hub:
+hub: remote-host
 	cd server && bun install && bun run start
 
 # Hub with auto-reload while developing.
-hub-dev:
+hub-dev: remote-host
 	cd server && bun run dev
 
 # Hub unit tests (Bun).

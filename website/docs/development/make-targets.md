@@ -16,10 +16,11 @@ sidebar_position: 2
 | `make shots` | Regenerate docs screenshots |
 | `make site` | Open the marketing site (`docs/index.html`) |
 | `make icon` | Regenerate the Mac app icon |
-| `make hub` | Install and run the SQLite hub |
+| `make hub` | Install and run the SQLite hub (also builds the remote helper) |
 | `make hub-dev` | Hub with auto-reload |
 | `make hub-test` | Bun hub tests |
 | `make hub-tunnel` | Expose the running hub through a Cloudflare quick tunnel |
+| `make remote-host` | Build the ScreenCaptureKit remote-desktop helper |
 | `make mobile-project` | Generate the iOS Xcode project |
 | `make mobile-build` | Build the iOS app for the simulator |
 | `make mobile-run` | Build, install, launch, and pair the simulator app |

@@ -31,60 +31,58 @@ struct SystemView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if !settings.isConfigured {
-                    ScrollView {
-                        SetupPrompt(
-                            title: "Connect to your Mac",
-                            message: "Pair with the hub on your Mac to see its CPU, memory, disks, apps and Homebrew packages from here."
-                        )
-                        .padding(16)
+        Group {
+            if !settings.isConfigured {
+                ScrollView {
+                    SetupPrompt(
+                        title: "Connect to your Mac",
+                        message: "Pair with the hub on your Mac to see its CPU, memory, disks, apps and Homebrew packages from here."
+                    )
+                    .padding(16)
+                }
+            } else {
+                content
+            }
+        }
+        .mobileScreenBackground()
+        .navigationTitle("System")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await refreshAll(force: true) }
+                } label: {
+                    if store.isRefreshingSystemInfo {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
                     }
-                } else {
-                    content
                 }
+                .disabled(store.isRefreshingSystemInfo)
+                .accessibilityLabel("Refresh system information")
             }
-            .mobileScreenBackground()
-            .navigationTitle("System")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await refreshAll(force: true) }
-                    } label: {
-                        if store.isRefreshingSystemInfo {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                    }
-                    .disabled(store.isRefreshingSystemInfo)
-                    .accessibilityLabel("Refresh system information")
-                }
+        }
+        .refreshable { await refreshAll(force: true) }
+        .navigationDestination(item: $debugFilesPath) { path in
+            MobileFileBrowserView(startPath: path)
+        }
+        .task { await poll() }
+        .sheet(item: $selectedTerminal) { terminal in
+            if let api = store.api {
+                MobileTerminalDetailView(terminal: terminal, api: api)
+                    .environmentObject(store)
             }
-            .refreshable { await refreshAll(force: true) }
-            .navigationDestination(item: $debugFilesPath) { path in
-                MobileFileBrowserView(startPath: path)
+        }
+        .sheet(item: $selectedHostTerminal) { terminal in
+            if let api = store.api {
+                MobileHostTerminalDetailView(terminal: terminal, api: api)
             }
-            .task { await poll() }
-            .sheet(item: $selectedTerminal) { terminal in
-                if let api = store.api {
-                    MobileTerminalDetailView(terminal: terminal, api: api)
-                        .environmentObject(store)
-                }
+        }
+        .sheet(isPresented: $showingNewTerminal, onDismiss: openPendingTerminal) {
+            MobileNewTerminalSheet(directory: store.orderedProjects.first?.canonical) { terminal in
+                pendingTerminal = terminal
             }
-            .sheet(item: $selectedHostTerminal) { terminal in
-                if let api = store.api {
-                    MobileHostTerminalDetailView(terminal: terminal, api: api)
-                }
-            }
-            .sheet(isPresented: $showingNewTerminal, onDismiss: openPendingTerminal) {
-                MobileNewTerminalSheet(directory: store.orderedProjects.first?.canonical) { terminal in
-                    pendingTerminal = terminal
-                }
-                .environmentObject(store)
-            }
+            .environmentObject(store)
         }
     }
 

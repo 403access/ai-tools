@@ -47,6 +47,14 @@ The hub needs macOS Automation permission for Terminal.app; grant it only to a
 hub you trust. Revoke it under **System Settings → Privacy & Security →
 Automation**.
 
+**The token can also see and control the screen.** When the remote helper is
+enabled, `/api/remote/socket` streams the Mac's display and accepts pointer,
+scroll, and keyboard events. Screen Recording and Accessibility permission must
+be granted to the helper first, but once they are, any paired device can drive
+the Mac. Treat pairing as full control, use `OPENCODEBAR_REMOTE=0` if you do not
+want that, and revoke the helper's grants in **System Settings → Privacy &
+Security** when they are no longer needed.
+
 ## Do not expose the hub directly to the internet
 
 The hub speaks plain HTTP, not HTTPS. For access away from home, use a private

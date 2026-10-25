@@ -88,6 +88,10 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `GET` | `/api/host-terminals/{tty}` | Terminal.app text mirror |
 | `POST` | `/api/host-terminals/{tty}/command` | Run a line in Terminal.app |
 | `POST` | `/api/host-terminals/{tty}/focus` | Focus a Terminal.app tab |
+| `GET` | `/api/remote` | Capture helper status, displays, and permissions |
+| `POST` | `/api/remote/configure` | Change fps, quality, max width, or display |
+| `POST` | `/api/remote/permissions` | Request Screen Recording / Accessibility |
+| `GET` | `/api/remote/socket` | WebSocket for frames, status, and input |
 | `GET` | `/api/devices` | Connected devices |
 | `GET` | `/api/settings` | Tunable hub settings |
 | `PATCH` | `/api/settings` | Update the event throttle or sleep preference |
@@ -236,6 +240,68 @@ and forwards frames without modification:
 
 When the shell exits, OpenCode closes the socket; the PTY remains in the list
 until it is removed.
+
+### Remote desktop
+
+The remote endpoints drive the ScreenCaptureKit helper used by the iOS app's
+**Host → Remote** view. Build it with `make remote-host`; the hub finds it in
+`.build/` or uses `OPENCODEBAR_REMOTE_HOST`. Set `OPENCODEBAR_REMOTE=0` to
+disable the endpoints.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/remote` | Helper status, displays, permissions, capture settings |
+| `POST` | `/api/remote/configure` | Set `fps`, `quality`, `maxWidth`, or `displayID` |
+| `POST` | `/api/remote/permissions` | Request `screenRecording` and/or `accessibility` |
+| `GET` | `/api/remote/socket` | WebSocket for JPEG frames, status, and input |
+
+`/api/remote` returns:
+
+```json
+{
+  "data": {
+    "available": true,
+    "running": true,
+    "viewers": 1,
+    "version": "1.0.0",
+    "screenRecording": true,
+    "accessibility": false,
+    "displays": [
+      { "id": 1, "name": "Built-in Retina Display", "width": 1470, "height": 956, "scale": 2, "primary": true }
+    ],
+    "displayID": 1,
+    "fps": 12,
+    "quality": 0.6,
+    "maxWidth": 1600,
+    "streaming": true,
+    "error": null
+  }
+}
+```
+
+Connect to `/api/remote/socket` with the Bearer token. The server sends:
+
+- **Text** JSON messages: `{"type":"status","data":{…}}` for the status above,
+  and `{"type":"log","level":"info","message":"…"}` for helper events.
+- **Binary** frames. The first 15 bytes are `0x02`, `"RD"`, a big-endian
+  sequence number, a millisecond timestamp, and the frame's width and height
+  (both `UInt16`); the rest is a JPEG.
+
+Client messages are JSON:
+
+```json
+{"type":"pointer","action":"down|up|drag|move","x":0.5,"y":0.5,"button":"left|right","clickCount":1}
+{"type":"scroll","dx":0,"dy":-24,"x":0.5,"y":0.5}
+{"type":"key","key":"escape","modifiers":["cmd"]}
+{"type":"text","text":"hello"}
+{"type":"configure","fps":8,"quality":0.45,"maxWidth":1280}
+{"type":"permissions","screenRecording":true,"accessibility":true}
+{"type":"status"}
+```
+
+Coordinates are normalized to the selected display. Keys use a small named
+table (US layout); modifiers are `cmd`, `ctrl`, `opt`, and `shift`. The helper
+requires Accessibility permission to post events.
 
 ### Terminal.app tabs
 

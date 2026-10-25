@@ -170,6 +170,82 @@ extension HubAPI {
         return request
     }
 
+    // MARK: - Remote desktop
+
+    /// Status of the hub's screen-capture helper, including display geometry
+    /// and whether macOS has granted Screen Recording and Accessibility.
+    func remoteStatus() async throws -> RemoteDesktopStatus {
+        let response: RemoteStatusEnvelope = try await get("/api/remote")
+        return response.data
+    }
+
+    /// Asks the helper to prompt macOS for one or both privacy permissions.
+    /// The prompt appears on the Mac, not on the phone.
+    func requestRemotePermissions(
+        screenRecording: Bool,
+        accessibility: Bool
+    ) async throws -> RemoteDesktopStatus {
+        struct Body: Encodable {
+            var screenRecording: Bool
+            var accessibility: Bool
+        }
+        let body = try JSONEncoder().encode(
+            Body(screenRecording: screenRecording, accessibility: accessibility)
+        )
+        let data = try await send("/api/remote/permissions", method: "POST", body: body)
+        do {
+            return try Self.decoder.decode(RemoteStatusEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    /// Changes capture resolution or frame rate. The hub applies the values to
+    /// the helper and returns the new status.
+    func configureRemote(
+        fps: Int? = nil,
+        quality: Double? = nil,
+        maxWidth: Int? = nil,
+        displayID: UInt32? = nil
+    ) async throws -> RemoteDesktopStatus {
+        struct Body: Encodable {
+            var fps: Int?
+            var quality: Double?
+            var maxWidth: Int?
+            var displayID: UInt32?
+        }
+        let body = try JSONEncoder().encode(
+            Body(fps: fps, quality: quality, maxWidth: maxWidth, displayID: displayID)
+        )
+        let data = try await send("/api/remote/configure", method: "POST", body: body)
+        do {
+            return try Self.decoder.decode(RemoteStatusEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    /// WebSocket that streams JPEG frames and accepts pointer, scroll, and key
+    /// messages. The hub fans one capture out to every connected viewer.
+    func remoteSocketRequest() throws -> URLRequest {
+        guard var components = URLComponents(
+            url: try url(for: "/api/remote/socket").absoluteURL,
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw APIError.badURL
+        }
+        components.scheme = components.scheme == "https" ? "wss" : "ws"
+        guard let socketURL = components.url else { throw APIError.badURL }
+
+        var request = URLRequest(url: socketURL)
+        request.timeoutInterval = 30
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        for (header, value) in DeviceIdentity.headers {
+            request.setValue(value, forHTTPHeaderField: header)
+        }
+        return request
+    }
+
     private static func terminalPath(_ id: String, location: String?) -> String {
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         var components = URLComponents()

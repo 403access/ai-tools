@@ -1,22 +1,13 @@
 import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
 import { OpenCodeError } from "../opencode.ts";
 import type { TerminalService } from "../terminals.ts";
+import type { HubSocketData, TerminalSocketData } from "./socket.ts";
 import { error } from "./support.ts";
 
 /**
- * State attached to every downstream terminal socket. The hub opens a second
- * WebSocket to OpenCode when the app connects and forwards frames both ways, so
- * the client only ever needs the hub's Bearer token.
+ * Proxies one terminal WebSocket per client through the hub. OpenCode's PTY
+ * socket stays upstream; the app only ever needs the hub's Bearer token.
  */
-export interface TerminalSocketData {
-  url: string;
-  authorization: string;
-  terminalID: string;
-  location: string;
-  upstream?: WebSocket;
-  closed?: boolean;
-}
-
 export class TerminalSockets {
   constructor(private readonly terminals: Pick<TerminalService, "socketTarget">) {}
 
@@ -27,7 +18,7 @@ export class TerminalSockets {
    */
   async upgrade(
     request: Request,
-    server: Server<TerminalSocketData>,
+    server: Server<HubSocketData>,
     terminalID: string,
     location: string | null,
     cursor: string | null,
@@ -47,6 +38,7 @@ export class TerminalSockets {
     }
 
     const data: TerminalSocketData = {
+      kind: "terminal",
       ...target,
       terminalID,
     };
@@ -56,22 +48,23 @@ export class TerminalSockets {
     return undefined;
   }
 
-  readonly handlers: WebSocketHandler<TerminalSocketData> = {
-    data: {} as TerminalSocketData,
+  readonly handlers: WebSocketHandler<HubSocketData> = {
+    data: {} as HubSocketData,
     // A terminal can sit at a prompt for hours; Bun's default 120-second idle
     // timeout would otherwise disconnect it.
     idleTimeout: 0,
 
     open: (ws) => {
-      const upstream = new WebSocket(ws.data.url, {
-        headers: { Authorization: ws.data.authorization },
+      const data = ws.data as TerminalSocketData;
+      const upstream = new WebSocket(data.url, {
+        headers: { Authorization: data.authorization },
       });
       upstream.binaryType = "arraybuffer";
-      ws.data.upstream = upstream;
+      data.upstream = upstream;
 
       upstream.onopen = () => {
         // The client may have gone away while the upstream was connecting.
-        if (ws.data.closed) {
+        if (data.closed) {
           try {
             upstream.close();
           } catch {
@@ -81,14 +74,14 @@ export class TerminalSockets {
       };
 
       upstream.onmessage = (event) => {
-        if (ws.data.closed) return;
-        const data = event.data;
-        if (typeof data === "string") {
-          ws.send(data);
-        } else if (data instanceof ArrayBuffer) {
-          ws.send(new Uint8Array(data));
+        if (data.closed) return;
+        const message = event.data;
+        if (typeof message === "string") {
+          ws.send(message);
+        } else if (message instanceof ArrayBuffer) {
+          ws.send(new Uint8Array(message));
         } else {
-          ws.send(data as Blob);
+          ws.send(message as Blob);
         }
       };
 
@@ -103,15 +96,17 @@ export class TerminalSockets {
     },
 
     message: (ws, message) => {
-      const upstream = ws.data.upstream;
+      const data = ws.data as TerminalSocketData;
+      const upstream = data.upstream;
       if (!upstream || upstream.readyState !== WebSocket.OPEN) return;
       upstream.send(message);
     },
 
     close: (ws) => {
-      ws.data.closed = true;
-      const upstream = ws.data.upstream;
-      ws.data.upstream = undefined;
+      const data = ws.data as TerminalSocketData;
+      data.closed = true;
+      const upstream = data.upstream;
+      data.upstream = undefined;
       if (upstream && upstream.readyState < WebSocket.CLOSING) {
         try {
           upstream.close();
@@ -136,7 +131,7 @@ function normalizeCloseCode(code: number): number {
   return 1011;
 }
 
-function safeClose(ws: ServerWebSocket<TerminalSocketData>, code: number, reason: string): void {
+function safeClose(ws: ServerWebSocket<HubSocketData>, code: number, reason: string): void {
   try {
     ws.close(code, reason);
   } catch {

@@ -49,6 +49,14 @@ Scripts/run-mobile-device.sh --console    # stream app logs
 On the first run, connect and unlock the device, tap **Trust**, and enable
 **Settings → Privacy & Security → Developer Mode** on the iPhone/iPad.
 
+## Remote desktop permissions
+
+`make hub` also builds the ScreenCaptureKit helper used by **Host → Remote**. The
+first time you open Remote, allow **Screen Recording** and **Accessibility** for
+the helper on the Mac. Screen Recording is required for the image; Accessibility
+is required to send taps and keys. See [Remote desktop](../using/remote.md) for
+the full setup and troubleshooting guide.
+
 :::note
 A device build needs an Apple Development identity in Xcode. If provisioning
 fails, sign in under **Xcode → Settings → Accounts** and try again.

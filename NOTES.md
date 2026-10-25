@@ -1,7 +1,7 @@
 # Notes
 
 Working notes for OpenCodeBar: follow-ups, known polish items, and environment
-observations. Last updated 2026-10-23.
+observations. Last updated 2026-10-25.
 
 ## Hub and mobile (v2)
 
@@ -75,6 +75,57 @@ Follow-ups worth considering:
   full guides, API reference, configuration, and troubleshooting, published at
   `/docs/` by `.github/workflows/deploy-pages.yml`. Keep both in sync when
   screens, commands, or endpoints change.
+
+## Remote desktop (2026-10-25)
+
+The iOS app's **Host → Remote** segment can now stream and control the Mac.
+The hub spawns `OpenCodeBarRemoteHost` (a small Swift/ScreenCaptureKit helper)
+on demand and relays its frames and input over one authenticated WebSocket.
+
+- **Transport.** Helper → hub is a framed stdio protocol (`Wire.swift`):
+  `[kind][u32 length][payload]`; frames carry `RD`, sequence, timestamp, size,
+  then a JPEG. The hub re-frames the same bytes for clients as binary WebSocket
+  messages and broadcasts JSON status/log events alongside them. `GET
+  /api/remote` reports helper availability, displays, permissions, and capture
+  settings; `GET /api/remote/socket` is the stream; `POST /api/remote/configure`
+  and `/api/remote/permissions` are the control endpoints.
+- **Capture.** ScreenCaptureKit captures the selected `SCDisplay` at up to
+  1600 px wide, 12 fps, JPEG quality 0.6 by default. The iOS quality menu offers
+  Sharp (1920/18fps/0.72), Balanced, and Fast (1280/8fps/0.45). Encoding drops
+  frames while a previous frame is still being encoded and the hub drops frames
+  for a client with more than 4 MB queued.
+- **Input.** Normalized 0–1 coordinates map to the display's `CGDisplayBounds`,
+  so the phone does not need to know the Mac's resolution. `CGEvent` posts
+  mouse moved/down/up/drag, right-click, pixel scrolling, named key codes (US
+  layout), modifier flags, and Unicode text. Accessibility permission is
+  required; without it the helper stays view-only. Gestures: one-finger drag =
+  drag, one-finger tap = click, double-tap = double-click, two-finger tap =
+  toggle zoom, pinch = zoom, two-finger pan = canvas pan when zoomed / wheel
+  scroll when not.
+- **Permissions.** `CGPreflightScreenCaptureAccess` / `CGRequestScreenCaptureAccess`
+  and `AXIsProcessTrustedWithOptions` prompt for the helper. The iOS permission
+  card requests them and polls `/api/remote` until the status flips. The helper
+  retries capture every 3 seconds while Screen Recording is not granted.
+- **Startup gotcha.** Reading stdin with a blocking `FileHandle.read` parked a
+  thread and made the first `SCShareableContent` request hang; `WireInput` now
+  uses a `DispatchSourceRead` and hands commands to the main queue.
+- **One viewer capture.** Every viewer shares one helper capture. Input is
+  last-writer-wins; there is no controller/observer arbitration. The helper is
+  stopped 8 seconds after the last viewer disconnects, but the process stays
+  alive so permission identity and display state are reused.
+- **Packaging.** During development `make hub` builds
+  `.build/debug/OpenCodeBarRemoteHost`; `OPENCODEBAR_REMOTE_HOST` overrides the
+  path and `OPENCODEBAR_REMOTE=0` disables the feature. A distributed build
+  should ship the helper inside a signed `.app`/LaunchAgent so TCC attributes
+  Screen Recording and Accessibility to OpenCodeBar rather than the terminal
+  that launched the hub.
+- **Follow-ups.** H.264/VideoToolbox instead of per-frame JPEG for lower
+  bandwidth and smoother motion; clipboard sync; a Mac-app remote client (the
+  models and `HubAPI` methods are shared); a display picker is wired but only
+  exercised with one display; keyboard layout is US-only; multi-monitor
+  coordinates assume one helper per capture; and a controller lock would make
+  two phones safer. The iOS app keeps a frozen frame after capture stops, so a
+  `streaming: false` banner would make that state clearer.
 
 ## Performance (2026-10-22)
 

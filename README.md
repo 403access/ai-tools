@@ -14,11 +14,13 @@ app — a resizable window with a persistent sidebar — or **right-click** (or
 control-click) for the compact panel with **live** activity, a full **session**
 view, per-project **analytics**, and a **usage** overview. The desktop window
 can also be turned on from **Settings → App → Desktop window** and is
-remembered across launches. The iOS app has the same five areas, adapted for
-touch, with the same dark panel design and a floating tab dock. Its Appearance
-setting can follow the system or stay dark/light. Both apps can also start a
-new session, send a prompt into an open conversation, and open terminals on the
-Mac to type into them. On iOS, **Live** and
+remembered across launches. The iOS app has the same five areas — Live,
+Projects, Usage, Host, and Settings — adapted for touch, with the same dark
+panel design and a floating tab dock. **Host** switches between the System
+inventory and Remote desktop, so the phone can also watch and control the Mac's
+screen. Its Appearance setting can follow the system or stay dark/light. Both
+apps can also start a new session, send a prompt into an open conversation, and
+open terminals on the Mac to type into them. On iOS, **Live** and
 **Usage** Home Screen widgets bring the same status to the Home Screen in
 small, medium, and large sizes.
 
@@ -197,6 +199,19 @@ iOS app:
 - Polls every five seconds; expensive inventory scans are cached by the hub so
   the panel stays responsive.
 
+**Remote desktop (iOS)**
+- The **Host → Remote** segment streams the Mac's display to the phone over the
+  hub and sends taps, drags, scrolling, and keyboard input back. Pinch to zoom,
+  two-finger pan, and a two-finger tap toggles between fit and zoomed; the
+  toolbar has modifier chips and Escape, Tab, Delete, Return, and arrow keys.
+- A small ScreenCaptureKit helper captures one display as JPEG over the same
+  authenticated WebSocket. **Sharp**, **Balanced**, and **Fast** quality presets
+  trade resolution and frame rate for Wi-Fi or a tunnel, and the status strip
+  shows the measured frame rate.
+- Screen Recording and Accessibility permissions are required on the Mac (the
+  app links straight to the request). Without Accessibility the stream is
+  view-only. `make hub` builds the helper; `make remote-host` rebuilds it alone.
+
 **Settings**
 - Every app connected to the hub — macOS, iOS, and iPadOS — with its device
   name, platform, app version, and whether it is live right now. Click a device
@@ -212,12 +227,13 @@ iOS app:
   hub and applied again after a restart.
 
 **iPhone & iPad**
-- The same Live, Projects, Usage, System, and Settings areas as the Mac panel,
+- The same Live, Projects, Usage, Host, and Settings areas as the Mac panel,
   with the same compact panel design, live-activity folding, and a floating tab
-  dock built for touch. System mirrors the Mac's full machine inventory, so the
-  phone can monitor CPU, memory, disks, processes, Homebrew, and installed apps
-  without the Mac app being open — and browse the Mac's files with the same
-  read-only browser.
+  dock built for touch. **Host** has a System/Remote switch: System mirrors the
+  Mac's full machine inventory, so the phone can monitor CPU, memory, disks,
+  processes, Homebrew, and installed apps without the Mac app being open — and
+  browse the Mac's files with the same read-only browser. Remote streams and
+  controls the Mac's display with touch and keyboard input.
 - Search projects, pull to refresh any screen, and open a session from a deep
   link. Settings shows hub and OpenCode health, cached session/message counts,
   uptime, last sync, and a **Keep Mac awake** switch for the host Mac.
@@ -431,6 +447,7 @@ make hub           # run the SQLite sync hub (foreground)
 make hub-dev       # hub with auto-reload
 make hub-test      # hub unit tests (Bun)
 make hub-tunnel    # expose the hub through a Cloudflare quick tunnel
+make remote-host   # build the ScreenCaptureKit remote-desktop helper
 make mobile-build  # build the iOS app and widget extension for the simulator
 make mobile-run    # build, install, launch, and pair the iOS app in a simulator
 make mobile-device # the same on a connected iPhone/iPad
@@ -459,6 +476,21 @@ Scripts/run-mobile-device.sh --console    # stream the app's log output
 
 On the first run, connect and unlock the device, tap **Trust**, and enable
 **Settings → Privacy & Security → Developer Mode**.
+
+Remote desktop needs two macOS privacy grants for the capture helper. `make hub`
+builds the helper automatically (or run `make remote-host` yourself), then open
+**Host → Remote** on the phone and tap **Allow** on the permission card:
+
+- **Screen Recording** lets the helper capture the display. Without it the
+  Remote screen stays black and explains what is missing.
+- **Accessibility** lets the helper post pointer and keyboard events. Without it
+  you can still watch the screen, but the app shows **View only**.
+
+The prompt appears on the Mac. If it does not, add the helper in **System
+Settings → Privacy & Security → Screen Recording / Accessibility** and restart
+the hub. The helper is `.build/debug/OpenCodeBarRemoteHost` during development;
+override the path with `OPENCODEBAR_REMOTE_HOST=/path/to/helper` or disable the
+feature entirely with `OPENCODEBAR_REMOTE=0`.
 
 The first Mac build generates `Assets/AppIcon.icns` and ad-hoc signs the bundle.
 
@@ -519,6 +551,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     HubAPI+Transport.swift  requests, decoding and diagnostics
     HubModels.swift         hub transport/health models
     HubEventStream.swift    SSE subscription with reconnect (shared)
+    RemoteDesktopModels.swift  remote status, frame header, modifiers (shared)
     HubDiscovery.swift      reads the hub URL + token (macOS)
     ServiceDiscovery.swift  OpenCode config paths
     DeviceIdentity.swift    stable client id + platform headers (shared)
@@ -575,6 +608,11 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     SubagentViews.swift     tap-through child-session tree
   Preview/PreviewRunner.swift
 
+Sources/OpenCodeBarRemoteHost/  ScreenCaptureKit helper for remote desktop
+  main.swift                stdio entry point, AppKit run loop
+  RemoteHost.swift          capture, permissions, pointer/key board input
+  Wire.swift                framed status/frame/log transport
+
 Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   OpenCodeBarMobileApp.swift  app entry + tab bar
   MobileStore.swift           observable state for the hub
@@ -608,6 +646,10 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   ProjectDetailView.swift     scoped analytics and project changes
   UsageView.swift             plan limits, trends, stats
   SystemView.swift            machine inventory for the hub host
+  HostView.swift              System/Remote switch for the Host tab
+  RemoteDesktopView.swift     remote display, controls, permission cards
+  RemoteDesktopSurface.swift  zoomable display view and touch gestures
+  RemoteDesktopConnection.swift  frame WebSocket, decoding, pointer/key input
   MobileTerminalViews.swift   terminal list, new-terminal sheet and terminal sheet
   MobileStore+Terminals.swift terminal polling, creation and removal
   MobileStore+HostTerminals.swift Terminal.app tab polling
@@ -634,6 +676,8 @@ server/                       Bun + TypeScript + SQLite hub
   src/terminals.ts            PTY aggregation and lifecycle across locations
   src/host-terminals.ts       Terminal.app tabs via macOS automation
   src/api/terminal-socket.ts  WebSocket proxy for live terminal input/output
+  src/remote.ts               capture helper lifecycle and status
+  src/api/remote-socket.ts    WebSocket fan-out for frames and input
   src/db.ts                   SQLite facade
   src/db/                     schema, row mapping, stores, queries
   src/hub.ts                  polling/event hub facade

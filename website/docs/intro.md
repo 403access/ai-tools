@@ -50,6 +50,10 @@ window you are in.
     <p>CPU, memory, disks, battery, network, now-playing media, processes, installed apps, Homebrew, developer tools, a read-only host file browser, interactive OpenCode terminals, and a mirror of tabs already open in Terminal.app.</p>
   </div>
   <div className="featureCard">
+    <h3>Remote desktop</h3>
+    <p>On iPhone/iPad, switch Host to Remote to stream the Mac's display and control it with touch, scrolling, modifiers, and a keyboard.</p>
+  </div>
+  <div className="featureCard">
     <h3>Settings</h3>
     <p>Connected devices, hub health, sync, restart, data files, and one-click pairing.</p>
   </div>

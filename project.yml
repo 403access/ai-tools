@@ -36,6 +36,7 @@ targets:
       - path: Sources/OpenCodeBar/Core/HubConfig.swift
       - path: Sources/OpenCodeBar/Core/WidgetShared.swift
       - path: Sources/OpenCodeBar/Core/TerminalConnection.swift
+      - path: Sources/OpenCodeBar/Core/RemoteDesktopModels.swift
       - path: Sources/OpenCodeBar/Core/HostTerminalMirror.swift
       - path: Sources/OpenCodeBar/Support/Formatters.swift
       - path: Sources/OpenCodeBar/Support/SpeechInput.swift
@@ -108,6 +109,7 @@ targets:
       - path: Sources/OpenCodeBar/Core/DeviceIdentity.swift
       - path: Sources/OpenCodeBar/Core/HubConfig.swift
       - path: Sources/OpenCodeBar/Core/WidgetShared.swift
+      - path: Sources/OpenCodeBar/Core/RemoteDesktopModels.swift
       - path: Sources/OpenCodeBar/Support/Formatters.swift
       - path: Sources/OpenCodeBar/Views/Theme.swift
     settings:

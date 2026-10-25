@@ -7,9 +7,11 @@ sidebar_position: 5
 
 The **System** tab shows the machine running OpenCodeBar Hub. It works from both
 the Mac panel and the iPhone/iPad app, so you can check the host's health even
-when you are away from it. The hub does the collection; the clients only render
-its snapshot. Terminals are the one interactive exception: the hub proxies
-OpenCode's PTY sockets so both apps can type into shells on the host.
+when you are away from it. On iOS, System shares the **Host** tab with
+[Remote desktop](remote.md), which adds screen streaming and control. The hub
+does the collection; the clients only render its snapshot. Terminals are the one
+interactive exception in this tab: the hub proxies OpenCode's PTY sockets so both
+apps can type into shells on the host.
 
 The tab polls every five seconds. Dynamic values update on each poll, while
 expensive inventory scans are cached by the hub for five minutes. Use the

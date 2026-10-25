@@ -24,6 +24,8 @@ file. Client overrides work the same way.
 | `OPENCODEBAR_USAGE_POLL_MS` | `60000` | Go usage poll interval |
 | `OPENCODEBAR_EVENT_THROTTLE_MS` | `250` | Coalescing window for event updates sent to the apps; `0` forwards every event |
 | `OPENCODEBAR_PREVENT_SLEEP` | `false` | Keep a macOS idle-sleep assertion while the hub runs (`1`/`true`/`on`) |
+| `OPENCODEBAR_REMOTE` | enabled | Set to `0`/`false`/`off` to disable remote desktop |
+| `OPENCODEBAR_REMOTE_HOST` | auto-detected | Path to the `OpenCodeBarRemoteHost` helper |
 | `OPENCODEBAR_LOG_LEVEL` | `info` | `debug`, `info`, or `warn` |
 | `OPENCODE_GO_USAGE_URL` | OpenCode console endpoint | Override the usage endpoint |
 | `OPENCODE_GO_USAGE_KEY` | resolved | Usage-only key |

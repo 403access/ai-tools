@@ -11,6 +11,19 @@ The apps can start sessions and send prompts, but they cannot interrupt, stop,
 or delete a session. Prompts sent while a session is running are queued behind
 the current turn (or steered if the client requests it).
 
+## Remote desktop
+
+Remote desktop is an iOS client feature today; the Mac panel can host the stream
+but cannot view one yet. It captures one display at a time, encodes JPEG frames
+(no H.264), and does not sync the clipboard. The keyboard mapping assumes a US
+layout. Input is last-writer-wins when more than one viewer is connected, and any
+device paired with the hub can control the Mac while the stream is open.
+
+The helper needs Screen Recording and Accessibility permission. Without the
+first there is no image; without the second the phone is view-only. A distributed
+build should bundle the helper in a signed app so macOS attributes those grants
+to OpenCodeBar rather than the terminal that launched the hub.
+
 ## Terminals
 
 Terminals are OpenCode PTYs, so they need a reachable OpenCode service. The hub
