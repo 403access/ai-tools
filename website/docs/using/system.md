@@ -21,8 +21,10 @@ dynamic refresh.
 ## Overview and machine
 
 Six tiles summarise the host: operating system, uptime, CPU, memory, free disk
-space, and either battery or process count. The **Machine** card has the full
-identifiers:
+space, and either battery or process count. The **Memory** tile is interactive:
+tap it on iOS or click it on the Mac to open a memory monitor with the page
+breakdown, swap, and a searchable list of the largest processes. The **Machine**
+card has the full identifiers:
 
 - hostname and computer name
 - macOS version/build or Linux distribution and Windows edition
@@ -122,7 +124,9 @@ temperature appear when the platform exposes them.
 
 The **Memory** card separates used, free, and available memory, then breaks out
 active, inactive, wired, and compressed pages. Swap usage appears whenever the
-system has a swap device.
+system has a swap device. The full memory monitor, opened from the overview
+tile, adds cached files, per-page bars, and a filterable process table with PID,
+user, resident size, and percentage of physical memory.
 
 ## Disks and network
 

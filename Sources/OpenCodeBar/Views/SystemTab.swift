@@ -18,6 +18,7 @@ struct SystemTab: View {
     @State private var selectedHostTerminal: HostTerminal?
     @State private var showingNewTerminal = false
     @State private var pendingTerminal: SystemTerminal?
+    @State private var showingMemoryMonitor = false
 
     enum ProcessMetric: String, CaseIterable, Identifiable {
         case cpu = "CPU"
@@ -82,6 +83,10 @@ struct SystemTab: View {
             NewTerminalSheet(directory: state.orderedProjects.first?.canonical) { terminal in
                 pendingTerminal = terminal
             }
+        }
+        .sheet(isPresented: $showingMemoryMonitor) {
+            MemoryMonitorView()
+                .environmentObject(state)
         }
     }
 
@@ -201,7 +206,9 @@ struct SystemTab: View {
                 tint: Theme.reasoning,
                 label: "Memory",
                 value: Fmt.bytes(info.memory.usedBytes),
-                caption: "of \(Fmt.bytes(info.memory.totalBytes))"
+                caption: "of \(Fmt.bytes(info.memory.totalBytes))",
+                action: { showingMemoryMonitor = true },
+                showsDisclosure: true
             )
             StatTile(
                 icon: "internaldrive",
@@ -1441,7 +1448,7 @@ private struct SystemInfoRow: View {
     }
 }
 
-private struct UsageBar: View {
+struct UsageBar: View {
     let fraction: Double
     var tint: Color = Theme.accent
     var height: CGFloat = 5

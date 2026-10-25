@@ -5,6 +5,12 @@ import { COMMAND_TIMEOUT_MS } from "./constants.ts";
 import type { CommandRunner } from "./types.ts";
 import { asRecord, numberValue, parseJSONValue, round, stringValue, text } from "./util.ts";
 
+// The System snapshot is polled every few seconds, so only the most useful
+// rows travel over the wire. Memory gets a longer list because the memory
+// monitor opened from the overview tile behaves like a small Activity Monitor.
+const TOP_CPU_LIMIT = 12;
+const TOP_MEMORY_LIMIT = 50;
+
 export async function collectProcesses(run: CommandRunner): Promise<{ total: number; topCPU: SystemProcess[]; topMemory: SystemProcess[] }> {
   const os = platform();
   if (os === "win32") {
@@ -33,10 +39,10 @@ export async function collectProcesses(run: CommandRunner): Promise<{ total: num
     });
     return {
       total: processes.length,
-      topCPU: processes.slice(0, 12),
+      topCPU: processes.slice(0, TOP_CPU_LIMIT),
       topMemory: [...processes]
         .sort((a, b) => (b.memoryBytes ?? 0) - (a.memoryBytes ?? 0))
-        .slice(0, 12),
+        .slice(0, TOP_MEMORY_LIMIT),
     };
   }
 
@@ -78,10 +84,10 @@ export function summarizeProcesses(value: string): {
 
   const topCPU = [...processes]
     .sort((a, b) => (b.cpuPercent ?? 0) - (a.cpuPercent ?? 0))
-    .slice(0, 12);
+    .slice(0, TOP_CPU_LIMIT);
   const topMemory = [...processes]
     .sort((a, b) => (b.memoryBytes ?? 0) - (a.memoryBytes ?? 0))
-    .slice(0, 12);
+    .slice(0, TOP_MEMORY_LIMIT);
 
   return { total: processes.length, topCPU, topMemory };
 }

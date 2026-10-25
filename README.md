@@ -164,7 +164,9 @@ iOS app:
   listening TCP ports with their owning process.
 - Battery percentage, state, health, cycle count, condition, and temperature;
   SIP, FileVault, firewall, Gatekeeper, SELinux/AppArmor, and Defender status.
-- Top processes by CPU or memory, with PID, user, and resident size.
+- Top processes by CPU or memory, with PID, user, and resident size. The
+  **Memory** overview tile opens a searchable Activity Monitor-style view with
+  the page breakdown, swap, and the largest processes by memory.
 - Installed applications discovered from the OS (with real app icons where
   available, plus versions, bundle ids, sources, and paths) and a searchable
   filter.

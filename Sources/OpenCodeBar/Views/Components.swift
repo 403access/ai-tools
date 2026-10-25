@@ -73,8 +73,25 @@ struct StatTile: View {
     let label: String
     let value: String
     var caption: String?
+    /// When set, the whole tile becomes a button. Used by summary tiles that
+    /// open a detail view, such as Memory opening the process monitor.
+    var action: (() -> Void)?
+    /// Shows a chevron when the tile is interactive.
+    var showsDisclosure = false
 
     var body: some View {
+        if let action {
+            Button(action: action) {
+                tile
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens \(label) details")
+        } else {
+            tile
+        }
+    }
+
+    private var tile: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
                 Image(systemName: icon)
@@ -85,6 +102,12 @@ struct StatTile: View {
                     .tracking(0.5)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if showsDisclosure {
+                    Spacer(minLength: 2)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                }
             }
             Text(value)
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
@@ -100,6 +123,7 @@ struct StatTile: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .card(padding: 10)
     }
 }

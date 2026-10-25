@@ -127,7 +127,7 @@ response is wrapped in `{ "data": { … } }` and includes:
 | `disks` / `network` | Mounted volumes, filesystem and capacity; interfaces, addresses, gateway, DNS |
 | `battery` / `thermal` / `security` | Battery health and cycles; thermal pressure; SIP, FileVault, firewall, Gatekeeper, SELinux, AppArmor, Defender |
 | `media` | Now-playing sessions: owning app, bundle id, title, artist, album, state, elapsed/duration, audio or video |
-| `processes` | Total process count and the top rows by CPU and by memory |
+| `processes` | Total process count, the top 12 rows by CPU, and the top 50 by memory |
 | `apps` | Installed applications with path, version, bundle id, source, architecture, and whether icon artwork is available |
 | `homebrew` | Version, prefix, formula/cask counts, outdated markers, full package list |
 | `runtimes` | Installed developer runtimes and tools with versions and paths |

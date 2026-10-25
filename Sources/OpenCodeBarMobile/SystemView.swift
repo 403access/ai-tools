@@ -203,13 +203,20 @@ struct SystemView: View {
                 value: cpuValue,
                 caption: "\(info.cpu.logicalCores) cores"
             )
-            MobileSystemTile(
-                icon: "memorychip",
-                tint: Theme.reasoning,
-                label: "Memory",
-                value: Fmt.bytes(info.memory.usedBytes),
-                caption: "of \(Fmt.bytes(info.memory.totalBytes))"
-            )
+            NavigationLink {
+                MobileMemoryMonitorView()
+            } label: {
+                MobileSystemTile(
+                    icon: "memorychip",
+                    tint: Theme.reasoning,
+                    label: "Memory",
+                    value: Fmt.bytes(info.memory.usedBytes),
+                    caption: "of \(Fmt.bytes(info.memory.totalBytes))",
+                    showsDisclosure: true
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens memory details and top processes")
             MobileSystemTile(
                 icon: "internaldrive",
                 tint: Theme.cacheRead,
@@ -1382,6 +1389,7 @@ private struct MobileSystemTile: View {
     let label: String
     let value: String
     var caption: String?
+    var showsDisclosure = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1394,6 +1402,12 @@ private struct MobileSystemTile: View {
                     .tracking(0.5)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if showsDisclosure {
+                    Spacer(minLength: 2)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                }
             }
             Text(value)
                 .font(.system(size: 19, weight: .semibold, design: .rounded))
@@ -1409,6 +1423,7 @@ private struct MobileSystemTile: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .card(padding: 11)
     }
 }
@@ -1443,7 +1458,7 @@ private struct MobileSystemRow: View {
     }
 }
 
-private struct MobileSystemBar: View {
+struct MobileSystemBar: View {
     let fraction: Double
     var tint: Color = Theme.accent
     var height: CGFloat = 6

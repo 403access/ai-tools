@@ -168,4 +168,15 @@ describe("system parsers", () => {
     expect(result.topMemory[0]?.name).toBe("beta");
     expect(result.topMemory[0]?.memoryBytes).toBe(1_073_741_824);
   });
+
+  test("keeps a deeper memory list for the memory monitor", () => {
+    const lines = Array.from({ length: 60 }, (_, index) =>
+      `  ${index + 1}  1.0  1.0  ${(index + 1) * 1_024} user /usr/bin/process-${index}`,
+    );
+    const result = summarizeProcesses(lines.join("\n"));
+    expect(result.total).toBe(60);
+    expect(result.topCPU).toHaveLength(12);
+    expect(result.topMemory).toHaveLength(50);
+    expect(result.topMemory[0]?.name).toBe("process-59");
+  });
 });
