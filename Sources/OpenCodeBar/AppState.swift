@@ -170,6 +170,13 @@ final class AppState: ObservableObject {
     @Published var systemInfoFetchedAt: Date?
     @Published var systemInfoError: String?
     @Published var isRefreshingSystemInfo = false
+    /// Interactive shells running on the hub host, including OpenCode's own
+    /// terminal sessions.
+    @Published var terminals: [SystemTerminal] = []
+    @Published var terminalsFetchedAt: Date?
+    @Published var terminalsError: String?
+    @Published var isRefreshingTerminals = false
+    @Published var isCreatingTerminal = false
     @Published var isControllingMedia = false
     @Published var mediaControlError: String?
     /// Tunable hub behaviour, such as the event-stream throttle.
@@ -212,6 +219,18 @@ final class AppState: ObservableObject {
     /// Section the project detail view opens on. Kept while a session opened
     /// from the project is on screen, so Back returns to the same tab.
     var projectMode: ProjectDetailMode = .overview
+
+    /// Whether OpenCodeBar also runs as a desktop app. The menu bar item is
+    /// always available; this controls the extra resizable window and the Dock
+    /// icon that comes with it. Closing the window clears it again.
+    @Published var usesDesktopWindow: Bool {
+        didSet {
+            guard oldValue != usesDesktopWindow else { return }
+            UserDefaults.standard.set(usesDesktopWindow, forKey: Self.desktopWindowDefaultsKey)
+        }
+    }
+
+    static let desktopWindowDefaultsKey = "OpenCodeBarUsesDesktopWindow"
 
     /// Connection details for the Settings tab. The token stays in memory and is
     /// only used to build the pairing link on request.
@@ -285,6 +304,7 @@ final class AppState: ObservableObject {
     var eventStreamConnected = false
 
     init() {
+        usesDesktopWindow = UserDefaults.standard.bool(forKey: Self.desktopWindowDefaultsKey)
         // Allows the preview harness to open a specific tab:
         //   OpenCodeBar --preview --tab usage
         if let index = CommandLine.arguments.firstIndex(of: "--tab"),

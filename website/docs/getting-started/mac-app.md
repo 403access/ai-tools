@@ -17,16 +17,36 @@ This compiles the release binary, assembles and ad-hoc signs
 `dist/OpenCodeBar.app`, and opens it. The first build also generates the app
 icon.
 
-<Figure src="/img/screenshots/live.png" alt="OpenCodeBar Live tab on macOS" caption="The panel opens from the menu bar item." />
+To launch straight into the desktop window instead, use `make desktop`.
+
+<Figure src="/img/screenshots/live.png" alt="OpenCodeBar Live tab on macOS" caption="Right-click the menu bar item to open the compact panel." />
 
 ## What you get
 
 - A terminal glyph in the menu bar, with the number of active sessions while
   work is running.
-- A compact panel with **Live**, **Usage**, **Projects**, **System**, and
-  **Settings**.
+- **Left-click** the icon for the full desktop window; **right-click** (or
+  control-click) for the compact panel with **Live**, **Usage**, **Projects**,
+  **System**, and **Settings**.
 - Session detail pages, project detail pages, and a full conversation view.
 - A footer with the active count and the last refresh time.
+
+## Desktop window
+
+OpenCodeBar can also run as a regular desktop app. Left-click the menu bar
+icon, or turn on **Settings → App → Desktop window**. The same views move into
+a resizable window with a persistent sidebar, a Dock icon, and an app menu; the
+menu bar item keeps working alongside it.
+
+When the window is wide enough, the list stays beside the page you are reading:
+projects next to their project page, and projects → project → session as three
+columns when you open a session from a project. Narrow windows fall back to the
+single-page layout. The window remembers its size and position.
+
+The setting is remembered, so the window reopens on the next launch. Closing
+the window (or turning the setting off) returns OpenCodeBar to menu-bar-only
+mode and removes the Dock icon. `make desktop` turns the setting on and
+launches straight into the window.
 
 The app reads `~/.config/opencode/opencodebar-hub.json` and connects
 automatically. If you override the hub URL or token with environment variables,

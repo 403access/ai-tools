@@ -18,6 +18,7 @@ struct SettingsTab: View {
                 NoticeRow(icon: "checkmark.circle.fill", message: notice, tint: Theme.accent)
             }
 
+            appSection
             serverSection
             updatesSection
             devicesSection
@@ -32,6 +33,34 @@ struct SettingsTab: View {
             }
         } message: {
             Text("OpenCodeBar will briefly lose its connection while the hub process restarts. Mac and iOS apps reconnect automatically.")
+        }
+    }
+
+    // MARK: - App
+
+    /// The menu bar panel is always available. This adds an optional full
+    /// desktop window (with a Dock icon) that shares the same live state.
+    var appSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("App")
+
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle(isOn: Binding(
+                    get: { state.usesDesktopWindow },
+                    set: { state.usesDesktopWindow = $0 }
+                )) {
+                    Text("Desktop window")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+                Text("Run OpenCodeBar as a desktop app alongside the menu bar item. A resizable window opens at launch, with a Dock icon and the same sessions, projects, and settings.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .card()
         }
     }
 

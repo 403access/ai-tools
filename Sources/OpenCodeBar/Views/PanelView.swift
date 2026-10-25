@@ -3,10 +3,11 @@ import SwiftUI
 struct PanelView: View {
     @EnvironmentObject var state: AppState
 
-    /// Fixed panel height. The menu bar popover sizes to its content, so keeping
-    /// the height the same across tabs and the session detail view avoids the
+    /// Fixed panel height. The popover sizes to its content, so keeping the
+    /// height the same across tabs and the session detail view avoids the
     /// window resizing — and leaving a gap — when navigating.
-    private static let contentHeight: CGFloat = 626
+    static let panelWidth: CGFloat = 400
+    static let panelHeight: CGFloat = 626
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,8 +63,8 @@ struct PanelView: View {
             Divider().opacity(0.5)
             FooterView()
         }
-        .frame(width: 400)
-        .frame(height: Self.contentHeight)
+        .frame(width: Self.panelWidth)
+        .frame(height: Self.panelHeight)
         .animation(.easeInOut(duration: 0.18), value: state.selectedSession?.id)
         .animation(.easeInOut(duration: 0.18), value: state.selectedProject?.id)
         .animation(.easeInOut(duration: 0.18), value: state.selectedDevice?.id)

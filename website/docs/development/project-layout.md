@@ -7,7 +7,9 @@ sidebar_position: 4
 
 ```text
 Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
-  OpenCodeBarApp.swift            MenuBarExtra scene
+  OpenCodeBarApp.swift            AppKit entry point, app delegate, status item install
+  StatusItemController.swift      status item, left/right click routing, panel popover
+  DesktopWindowController.swift   optional desktop window, Dock mode, app menu
   main.swift                      entry point, preview/screenshot mode
   AppState.swift                  observable state, polling, derived data
   Core/
@@ -39,6 +41,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     DebugLog.swift
   Views/
     PanelView.swift               panel shell and tabs
+    DesktopView.swift             desktop window: sidebar + content
     LiveTab.swift                 running and recent sessions
     SessionDetailView.swift       chat, stats, changes, prompts, subagents
     SessionDetailView+Composer.swift  pending queue and composer

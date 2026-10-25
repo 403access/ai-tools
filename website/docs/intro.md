@@ -12,10 +12,11 @@ import Figure from '@site/src/components/Figure';
 
 <HomeHero />
 
-OpenCodeBar is a native macOS menu bar app and an iPhone/iPad app for
-[OpenCode](https://opencode.ai). Both clients talk to **OpenCodeBar Hub**, a
-small Bun + SQLite server that ingests your local OpenCode service and keeps one
-shared, cached history.
+OpenCodeBar is a native macOS app and an iPhone/iPad app for
+[OpenCode](https://opencode.ai). On the Mac it runs in the menu bar and,
+optionally, as a full desktop window. Both clients talk to **OpenCodeBar Hub**,
+a small Bun + SQLite server that ingests your local OpenCode service and keeps
+one shared, cached history.
 
 <p className="lead">
 Watch running sessions, read and reply in any conversation, start new work,

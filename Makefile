@@ -1,4 +1,4 @@
-.PHONY: build test app run restart preview shots site docs docs-build docs-serve clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel mobile-project mobile-build mobile-run mobile-device mobile-icon bench
+.PHONY: build test app run desktop restart preview shots site docs docs-build docs-serve clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel mobile-project mobile-build mobile-run mobile-device mobile-icon bench
 
 # Compile the Swift package (debug).
 build:
@@ -19,6 +19,10 @@ app:
 # Build and launch the menu bar app.
 run: app
 	open dist/OpenCodeBar.app
+
+# Build and launch with the desktop window open.
+desktop: app
+	open dist/OpenCodeBar.app --args --desktop
 
 # Rebuild and restart the running app in one step.
 restart:

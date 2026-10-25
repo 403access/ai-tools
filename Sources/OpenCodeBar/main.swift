@@ -6,5 +6,5 @@ import Foundation
 if CommandLine.arguments.contains("--preview") || CommandLine.arguments.contains("--screenshot") {
     MainActor.assumeIsolated { PreviewRunner.run() }
 } else {
-    OpenCodeBarApp.main()
+    MainActor.assumeIsolated { AppRuntime.run() }
 }

@@ -1,21 +1,25 @@
 # OpenCodeBar
 
-Watch your [OpenCode](https://opencode.ai) work from a native macOS menu bar app
-and from an iPhone/iPad app. Both talk to **OpenCodeBar Hub**, a small Bun +
-SQLite server that ingests your local OpenCode service and keeps one shared,
-cached history — so the phone can see the Mac's sessions, projects, and usage.
+Watch your [OpenCode](https://opencode.ai) work from a native macOS app — in the
+menu bar, in an optional desktop window, or from an iPhone/iPad app. Both talk
+to **OpenCodeBar Hub**, a small Bun + SQLite server that ingests your local
+OpenCode service and keeps one shared, cached history — so the phone can see
+the Mac's sessions, projects, and usage.
 
 📚 **Documentation:** <https://403access.github.io/ai-tools/docs/>
 
 On macOS the menu bar item displays a terminal glyph and, when sessions are
-running, the number of active sessions. Clicking it opens a panel with **live**
-activity, a full **session** view, per-project **analytics**, and a **usage**
-overview. The iOS app has the same five areas, adapted for touch, with the same
-dark panel design and a floating tab dock. Its Appearance setting can follow the
-system or stay dark/light. Both apps can also start a new session and send a
-prompt into an open conversation. On iOS, **Live** and **Usage** Home Screen
-widgets bring the same status to the Home Screen in small, medium, and large
-sizes.
+running, the number of active sessions. **Left-click** it for the full desktop
+app — a resizable window with a persistent sidebar — or **right-click** (or
+control-click) for the compact panel with **live** activity, a full **session**
+view, per-project **analytics**, and a **usage** overview. The desktop window
+can also be turned on from **Settings → App → Desktop window** and is
+remembered across launches. The iOS app has the same five areas, adapted for
+touch, with the same dark panel design and a floating tab dock. Its Appearance
+setting can follow the system or stay dark/light. Both apps can also start a
+new session and send a prompt into an open conversation. On iOS, **Live** and
+**Usage** Home Screen widgets bring the same status to the Home Screen in
+small, medium, and large sizes.
 
 macOS panel:
 
@@ -36,6 +40,20 @@ iOS app:
 ![iOS usage](docs/screenshots/ios-usage.png)
 
 ## Features
+
+**Desktop window (macOS)**
+- Left-click the menu bar icon to run OpenCodeBar as a regular desktop app
+  alongside the menu bar item. The resizable window has a persistent sidebar,
+  shares live state with the compact panel, gets a Dock icon, and comes to the
+  front when the icon is clicked again.
+- On wide windows the list stays visible beside the detail page: projects sit
+  next to their project page, and a session opened from a project adds a third
+  column. Narrow windows fall back to the single-page layout.
+- The window remembers its size and position. Right-click (or control-click)
+  the menu bar icon for the compact tray panel.
+- The window can also be toggled from **Settings → App → Desktop window** and
+  is remembered across launches. Closing the window returns to menu-bar-only
+  mode; left-clicking the icon opens it again.
 
 **Live**
 - Running sessions update in real time via OpenCode's SSE event stream, with new
@@ -461,7 +479,9 @@ workflow then publish:
 
 ```
 Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
-  OpenCodeBarApp.swift      MenuBarExtra scene
+  OpenCodeBarApp.swift      AppKit entry point, app delegate
+  StatusItemController.swift    status item, left/right click routing, panel popover
+  DesktopWindowController.swift  optional desktop window, Dock mode, app menu
   main.swift                entry point (also handles --preview)
   AppState.swift            observable state, polling, derived data
   Core/
@@ -498,6 +518,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     SystemInfo.swift        machine inventory from the system endpoint (shared)
     HostFiles.swift         host directory listings and previews (shared)
   Views/                    SwiftUI panel, tabs, heatmap, components
+    DesktopView.swift       full-window layout with a persistent sidebar
     ChangeViews.swift       patch cards and change summaries
     NewSessionSheet.swift   start a session with an optional first prompt
     PerformanceViews.swift  skeleton placeholders and shimmer (shared)
@@ -619,6 +640,13 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
 
 ## Development notes
 
+- The status item is created by hand (`StatusItemController`) rather than by a
+  `MenuBarExtra` scene: left-click opens the desktop window, right-click opens
+  the compact panel.
+- `make desktop` builds the app and turns on the desktop window (`--desktop`).
+  The saved preference lives in **Settings → App → Desktop window**; when it
+  is on, the window opens on every launch and the app keeps a Dock icon.
+  Closing the window switches back to menu-bar-only mode.
 - `--preview` runs the panel in a regular window instead of the menu bar
   popover, which makes screenshots and layout iteration easy.
   `--preview --tab usage` opens the Usage tab directly.

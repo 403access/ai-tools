@@ -55,10 +55,13 @@ GitHub Pages workflow runs the same command.
 1. Start `make hub`.
 2. Start `make run`.
 3. Confirm the menu bar item shows the hub connection.
-4. Open a running session and send a prompt.
-5. Create a new session with a first message.
-6. Pair the iOS app and repeat the session view.
-7. Stop OpenCode and confirm cached history still renders.
+4. Right-click the icon and confirm the compact panel opens; left-click it and
+   confirm the desktop window opens (with a Dock icon). Close the window and
+   confirm only the menu bar item remains.
+5. Open a running session and send a prompt.
+6. Create a new session with a first message.
+7. Pair the iOS app and repeat the session view.
+8. Stop OpenCode and confirm cached history still renders.
 
 ## CI
 

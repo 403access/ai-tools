@@ -8,13 +8,16 @@ extension AppState {
     /// recent sessions on demand.
     func open(_ project: Project) {
         sessionStack.removeAll()
+        selectedSession = nil
         selectedDevice = nil
+        fileBrowserPath = nil
         selectedProject = project
         Task { await loadProject(project.id) }
     }
 
     func closeProject() {
         sessionStack.removeAll()
+        selectedSession = nil
         selectedProject = nil
     }
 

@@ -27,6 +27,15 @@ struct HeaderView: View {
             }
 
             Button {
+                state.usesDesktopWindow = true
+            } label: {
+                Image(systemName: "macwindow").font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Open the desktop window")
+
+            Button {
                 Task { await state.refreshAll() }
             } label: {
                 Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold))

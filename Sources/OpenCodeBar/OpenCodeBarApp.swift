@@ -1,39 +1,38 @@
-import SwiftUI
+import AppKit
 
-struct OpenCodeBarApp: App {
-    @StateObject private var state: AppState
+/// AppKit entry point for the menu bar app.
+///
+/// OpenCodeBar owns its status item directly instead of using a
+/// `MenuBarExtra` scene: a left click opens the desktop window while a right
+/// click opens the compact panel, and `MenuBarExtra` cannot make that
+/// distinction.
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    let state = AppState()
 
-    init() {
-        let state = AppState()
-        _state = StateObject(wrappedValue: state)
-        state.start()
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Both surfaces share the same state.
+        DesktopWindowController.shared.attach(state)
+        StatusItemController.shared.attach(state)
     }
 
-    var body: some Scene {
-        MenuBarExtra {
-            PanelView()
-                .environmentObject(state)
-        } label: {
-            MenuBarLabel(activeCount: state.activeCount)
-        }
-        .menuBarExtraStyle(.window)
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        StatusItemController.shared.install()
+        DesktopWindowController.shared.applicationDidFinishLaunching()
+        state.start()
     }
 }
 
-/// The always-visible menu bar item: a terminal glyph plus the active session
-/// count when sessions are running.
-struct MenuBarLabel: View {
-    let activeCount: Int
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: activeCount > 0 ? "terminal.fill" : "terminal")
-            if activeCount > 0 {
-                Text("\(activeCount)")
-                    .font(.system(size: 11, weight: .semibold))
-                    .monospacedDigit()
-            }
+/// Sets up and runs the AppKit application.
+@MainActor
+enum AppRuntime {
+    static func run() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.setActivationPolicy(.accessory)
+        withExtendedLifetime(delegate) {
+            app.run()
         }
-        .accessibilityLabel(activeCount > 0 ? "\(activeCount) active OpenCode sessions" : "OpenCode")
     }
 }

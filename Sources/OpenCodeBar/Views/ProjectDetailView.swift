@@ -14,6 +14,9 @@ import SwiftUI
 struct ProjectDetailView: View {
     @EnvironmentObject private var state: AppState
     let project: Project
+    /// False when the page is shown in the middle column of a wide desktop
+    /// window and the Projects list is already visible to its left.
+    let showsBackButton: Bool
 
     typealias Mode = AppState.ProjectDetailMode
 
@@ -26,8 +29,9 @@ struct ProjectDetailView: View {
     private static let overviewSessionCount = 6
     private let topAnchor = "project-detail-top"
 
-    init(project: Project, initialMode: Mode = .overview) {
+    init(project: Project, initialMode: Mode = .overview, showsBackButton: Bool = true) {
         self.project = project
+        self.showsBackButton = showsBackButton
         _mode = State(initialValue: initialMode)
     }
 
@@ -99,20 +103,26 @@ struct ProjectDetailView: View {
 
     private var navigationBar: some View {
         HStack(spacing: 8) {
-            Button {
-                state.closeProject()
-            } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 10, weight: .bold))
-                    Text("Projects")
-                        .font(.system(size: 11, weight: .semibold))
+            if showsBackButton {
+                Button {
+                    state.closeProject()
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Projects")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .contentShape(Rectangle())
                 }
-                .foregroundStyle(Theme.accent)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .help("Back to projects")
+            } else {
+                Text("Project")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
-            .help("Back to projects")
 
             Spacer(minLength: 8)
 
