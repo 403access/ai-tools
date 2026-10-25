@@ -121,6 +121,13 @@ struct VMSetupRunnerCard: View {
                 if runningStep == step {
                     ProgressView().controlSize(.small).scaleEffect(0.75)
                 } else {
+                    Button("Copy") {
+                        copy(step.command)
+                    }
+                    .font(.system(size: 10, weight: .semibold))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+
                     Button("Run") {
                         Task { await model.startSetup(api: api, step: step) }
                     }
@@ -145,7 +152,7 @@ struct VMSetupRunnerCard: View {
                 )
 
             if step == .nix {
-                Text("macOS asks for your administrator password on the Mac. The installer runs on the Mac, not on the phone.")
+                Text("Terminal opens on the Mac. Enter your administrator password there; the installer log streams back here.")
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -229,7 +236,7 @@ struct VMSetupRunnerCard: View {
                 }
             } else if job.status == .running {
                 Text(job.requiresAdmin && job.status == .running
-                    ? "Waiting for the administrator prompt on the Mac…"
+                    ? "Waiting for Terminal on the Mac…"
                     : "Waiting for output…")
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
@@ -241,7 +248,7 @@ struct VMSetupRunnerCard: View {
         switch job.status {
         case .running:
             return job.requiresAdmin
-                ? "Enter the administrator password in the dialog on the Mac."
+                ? "Terminal is open on the Mac. Enter the administrator password there."
                 : "Running on the Mac…"
         case .succeeded:
             return "Finished. Refreshing host capabilities…"

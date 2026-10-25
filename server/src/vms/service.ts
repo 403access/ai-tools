@@ -114,6 +114,8 @@ export class VirtualMachineService implements VirtualMachineStore {
 
   private setupJob: VMSetupJob | null = null;
   private setupProcess: ReturnType<typeof Bun.spawn> | null = null;
+  /** Terminal.app tab running the Nix installer, when the job uses Terminal. */
+  private setupTerminalWindow: number | null = null;
 
   private readonly builds = new Set<string>();
   private readonly applies = new Set<string>();
@@ -417,6 +419,7 @@ export class VirtualMachineService implements VirtualMachineStore {
       log: { path: logPath, lines: [], bytes: 0, truncated: false },
     };
     this.setupJob = job;
+    this.setupTerminalWindow = null;
 
     void this.runSetup(job).catch((error) => {
       job.status = "failed";
@@ -433,6 +436,23 @@ export class VirtualMachineService implements VirtualMachineStore {
     job.status = "cancelled";
     job.finishedAt = this.now();
     job.error = "Cancelled";
+    const window = this.setupTerminalWindow;
+    this.setupTerminalWindow = null;
+    if (window !== null) {
+      // The installer runs inside Terminal.app, so close its dedicated window
+      // rather than trying to signal a process the hub no longer owns.
+      const applescript =
+        `tell application "Terminal" to close (every window whose id is ${window}) saving no`;
+      try {
+        Bun.spawn(["/usr/bin/osascript", "-e", applescript], {
+          stdin: "ignore",
+          stdout: "ignore",
+          stderr: "ignore",
+        });
+      } catch {
+        // Terminal may already be closed.
+      }
+    }
     const proc = this.setupProcess;
     this.setupProcess = null;
     if (proc) {
@@ -460,74 +480,125 @@ export class VirtualMachineService implements VirtualMachineStore {
   }
 
   private async runSetup(job: VMSetupJob): Promise<void> {
-    const logPath = job.log.path;
-    const writer = createLogWriter(logPath);
-    let command = "/usr/bin/make";
-    let args = ["vz-helper"];
-    let cwd = this.repoRoot;
-    let env: NodeJS.ProcessEnv = { ...this.env };
-
     if (job.step === "nix") {
-      const directory = join(this.store.root, "setup");
-      const scriptPath = join(directory, "install-nix.sh");
-      const user = userInfo().username;
-      const home = homedir();
-      // `do shell script … with administrator privileges` runs the installer
-      // as root; give it the real user identity so the profile, channels, and
-      // trusted-user setup target the person running the hub.
-      //
-      // The installer's `vifs` step needs /etc/fstab to exist and a TTY. A
-      // previous attempt can also leave a "Nix Store" APFS volume behind, so
-      // reuse it and pre-seed the fstab line instead of creating a second one.
-      const script = `#!/bin/sh
-set -eu
+      await this.runNixInTerminal(job);
+    } else {
+      await this.runHelperBuild(job);
+    }
+  }
+
+  /**
+   * Runs the official installer inside Terminal.app as the logged-in user.
+   *
+   * The installer's `vifs` step is blocked when the hub spawns it directly:
+   * macOS 27 marks /etc SIP-restricted, and a non-GUI process cannot create
+   * /etc/fstab. A GUI Terminal session is the documented workaround. The script
+   * tees the installer output into the hub's setup log, so the phone still sees
+   * live progress, and writes an exit code for the hub to poll.
+   */
+  private async runNixInTerminal(job: VMSetupJob): Promise<void> {
+    const directory = join(this.store.root, "setup");
+    const scriptPath = join(directory, "run-nix-terminal.sh");
+    const statusPath = join(directory, "nix.status");
+    const logPath = job.log.path;
+    rmSync(statusPath, { force: true });
+    const user = userInfo().username;
+    const home = homedir();
+    const script = `#!/bin/sh
+set -u
 export HOME=${shellQuote(home)}
 export USER=${shellQuote(user)}
 export LOGNAME=${shellQuote(user)}
 export TERM=xterm-256color
 umask 0022
-
-# On macOS 27 the /etc symlink is SIP-restricted; creating a new file through
-# /etc is denied even for root. /private/etc is the real, writable directory.
-if [ ! -e /private/etc/fstab ]; then
-  /usr/bin/touch /private/etc/fstab
-  /bin/chmod 644 /private/etc/fstab
-fi
-
-VOL_SPECIAL=$(/usr/sbin/diskutil list 2>/dev/null | /usr/bin/awk '/Nix Store/ {print $NF; exit}')
-if [ -n "$VOL_SPECIAL" ]; then
-  export NIX_VOLUME_USE_SPECIAL="$VOL_SPECIAL"
-  VOL_UUID=$(/usr/sbin/diskutil info "$VOL_SPECIAL" 2>/dev/null | /usr/bin/awk -F': ' '/Volume UUID/ {print $2; exit}')
-  if [ -n "$VOL_UUID" ]; then
-    export NIX_VOLUME_USE_UUID="$VOL_UUID"
-    if ! /usr/bin/grep -q "UUID=$VOL_UUID /nix apfs rw" /private/etc/fstab 2>/dev/null; then
-      printf 'UUID=%s /nix apfs rw,noauto,nobrowse,nosuid,noatime,owners\\n' "$VOL_UUID" >> /private/etc/fstab
-    fi
-  fi
-fi
-
-STATUS=0
-/usr/bin/script -q /dev/null /bin/sh -c ${shellQuote(job.command)} >> ${shellQuote(logPath)} 2>&1 || STATUS=$?
-if [ ! -x /nix/var/nix/profiles/default/bin/nix ]; then
-  echo "Nix was not found after the installer finished." >&2
-  exit 1
-fi
-exit $STATUS
+{
+  /bin/sh -c ${shellQuote(job.command)}
+  echo $? > ${shellQuote(statusPath)}
+} 2>&1 | /usr/bin/tee -a ${shellQuote(logPath)}
 `;
-      writeFileSync(scriptPath, script, { mode: 0o700 });
-      chmodSync(scriptPath, 0o700);
-      const escaped = scriptPath.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-      const applescript =
-        `do shell script "/bin/sh " & quoted form of "${escaped}" with administrator privileges`;
-      command = "/usr/bin/osascript";
-      args = ["-e", applescript];
-      cwd = directory;
-      env = { ...this.env };
-    }
+    writeFileSync(scriptPath, script, { mode: 0o700 });
+    chmodSync(scriptPath, 0o700);
 
-    const proc = Bun.spawn([command, ...args], {
-      cwd,
-      env,
+    const escaped = scriptPath.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    // A dedicated window gives us a stable window id for Cancel. Terminal's
+    // tab objects do not expose `id` on current macOS versions.
+    const applescript = `tell application "Terminal"
+  activate
+  set w to make new window
+  do script "/bin/sh " & quoted form of "${escaped}" in w
+  return id of w
+end tell`;
+    const proc = Bun.spawn(["/usr/bin/osascript", "-e", applescript], {
+      cwd: directory,
+      env: { ...this.env },
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    this.setupProcess = proc;
+    let stdout = "";
+    let stderr = "";
+    let launchCode = 0;
+    try {
+      [stdout, stderr, launchCode] = await Promise.all([
+        readTextStream(proc.stdout),
+        readTextStream(proc.stderr),
+        proc.exited,
+      ]);
+    } finally {
+      if (this.setupProcess === proc) this.setupProcess = null;
+    }
+    if (launchCode !== 0) {
+      throw new VMValidationError(
+        stderr.trim() ||
+          "Could not open Terminal on the Mac. Allow OpenCodeBar to control Terminal, or run the command manually.",
+        500,
+      );
+    }
+    const tab = Number.parseInt(stdout.trim(), 10);
+    if (Number.isFinite(tab)) this.setupTerminalWindow = tab;
+    appendLog(
+      logPath,
+      `\n# Terminal opened on the Mac. Enter the administrator password there.\n`,
+    );
+
+    const deadline = this.now() + 60 * 60_000;
+    while (job.status === "running" && this.now() < deadline) {
+      if (existsSync(statusPath)) {
+        const raw = readFileSync(statusPath, "utf8").trim();
+        const exitCode = Number.parseInt(raw, 10);
+        job.exitCode = Number.isFinite(exitCode) ? exitCode : 1;
+        job.finishedAt = this.now();
+        if (job.exitCode === 0 && existsSync("/nix/var/nix/profiles/default/bin/nix")) {
+          job.status = "succeeded";
+          this.capabilitiesCache = null;
+        } else {
+          job.status = "failed";
+          job.error =
+            job.exitCode === 0
+              ? "The installer finished, but the Nix binary was not found."
+              : lastLogLines(logPath, 6).replace(ANSI_ESCAPE, "") ||
+                `Installer exited with code ${job.exitCode}`;
+        }
+        this.setupJob = job;
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    }
+    if (job.status === "running") {
+      job.status = "failed";
+      job.finishedAt = this.now();
+      job.error = "Timed out waiting for the installer in Terminal.";
+      this.setupJob = job;
+    }
+  }
+
+  private async runHelperBuild(job: VMSetupJob): Promise<void> {
+    const logPath = job.log.path;
+    const writer = createLogWriter(logPath);
+    const proc = Bun.spawn(["/usr/bin/make", "vz-helper"], {
+      cwd: this.repoRoot,
+      env: { ...this.env },
       stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
@@ -544,15 +615,12 @@ exit $STATUS
     job.finishedAt = this.now();
     if (exitCode === 0) {
       job.status = "succeeded";
-      // Drop the 30s capability cache so the next poll sees the new Nix or
-      // helper state.
       this.capabilitiesCache = null;
     } else {
       job.status = "failed";
-      const tail = lastLogLines(logPath, 6).replace(ANSI_ESCAPE, "");
-      job.error = /User canceled|-128/i.test(tail)
-        ? "Administrator authorization was cancelled."
-        : tail || `Host setup exited with code ${exitCode}`;
+      job.error =
+        lastLogLines(logPath, 6).replace(ANSI_ESCAPE, "") ||
+        `Helper build exited with code ${exitCode}`;
     }
     this.setupJob = job;
   }
@@ -1271,6 +1339,11 @@ function statusFromHelper(state: HelperStatus["state"]): VMStatus | null {
 function lastLogLines(path: string, count: number): string {
   const tail = readLogTail(path, count, 64 * 1024);
   return tail.lines.filter((line) => line.trim()).slice(-count).join("\n");
+}
+
+async function readTextStream(stream: ReadableStream<Uint8Array> | undefined): Promise<string> {
+  if (!stream) return "";
+  return new Response(stream).text();
 }
 
 async function pump(
