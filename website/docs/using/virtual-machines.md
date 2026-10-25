@@ -56,10 +56,11 @@ disabled until all three are ready.
 The setup card has a **Run** button for the Nix installer and for rebuilding the
 helper:
 
-- **Install Nix** runs the official installer through a macOS administrator
-  prompt. The dialog appears **on the Mac**, not on the phone; enter the Mac's
-  admin password there. The installer output streams into the VMs tab, and the
-  capability check refreshes when it finishes.
+- **Install Nix** opens Terminal.app on the Mac and runs the official installer.
+  Enter the Mac's administrator password in that Terminal window; the installer
+  output streams into the VMs tab, and the capability check refreshes when it
+  finishes. A GUI Terminal is required because macOS SIP blocks the installer's
+  `/etc/fstab` step from a non-GUI process.
 - **Build VM helper** runs `make vz-helper` locally and streams the Swift build
   and codesign output.
 - The **Linux builder** command is copyable rather than runnable from the app:
@@ -68,6 +69,27 @@ helper:
 
 The hub only exposes these fixed, allow-listed steps; clients cannot send
 arbitrary commands.
+
+### Setup logs
+
+Installer and helper-build output is stored on the hub host:
+
+- `~/.local/share/opencodebar/vms/setup/nix.log`
+- `~/.local/share/opencodebar/vms/setup/helper.log`
+
+Each new run rotates the previous file to `nix-<timestamp>.log` or
+`helper-<timestamp>.log`, keeping the last ten per step. The **Setup logs**
+button in the VMs tab opens the latest log for either step, with copy and
+refresh. The same content is available at:
+
+```text
+GET /api/vms/setup/log?step=nix|helper&tail=1200
+GET /api/vms/setup/logs
+```
+
+Terminal may print shell-startup warnings before the installer output (for
+example a missing tool referenced by `~/.zprofile` or `~/.zshrc`). Those lines
+come from the Mac's shell, not from Nix, and do not affect the install.
 
 ## Creating a guest
 

@@ -5,6 +5,7 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -69,6 +70,8 @@ import type {
   VMLogType,
   VMMetrics,
   VMSetupJob,
+  VMSetupLogFile,
+  VMSetupLogResult,
   VMSetupStep,
   VMStatus,
   VMUpdateInput,
@@ -379,6 +382,68 @@ export class VirtualMachineService implements VirtualMachineStore {
     return { ...this.setupJob, log: this.readSetupLog(this.setupJob) };
   }
 
+  /** Stored setup logs, including rotated runs, newest first. */
+  async setupLogs(): Promise<VMSetupLogFile[]> {
+    const directory = join(this.store.root, "setup");
+    if (!existsSync(directory)) return [];
+    const entries: VMSetupLogFile[] = [];
+    for (const name of readdirSync(directory)) {
+      if (!name.endsWith(".log")) continue;
+      const step: VMSetupStep | null =
+        name === "nix.log" || name.startsWith("nix-")
+          ? "nix"
+          : name === "helper.log" || name.startsWith("helper-")
+            ? "helper"
+            : null;
+      if (!step) continue;
+      const path = join(directory, name);
+      try {
+        const stats = statSync(path);
+        if (!stats.isFile()) continue;
+        entries.push({ step, path, bytes: stats.size, modified: stats.mtimeMs });
+      } catch {
+        // A log can disappear while the directory is being cleaned up.
+      }
+    }
+    return entries.sort((a, b) => b.modified - a.modified);
+  }
+
+  async setupLog(step: VMSetupStep, tail = 240): Promise<VMSetupLogResult> {
+    const directory = join(this.store.root, "setup");
+    let path = join(directory, `${step}.log`);
+    if (!existsSync(path)) {
+      const newest = (await this.setupLogs()).find((entry) => entry.step === step);
+      if (!newest) {
+        return { step, path, lines: [], bytes: 0, truncated: false };
+      }
+      path = newest.path;
+    }
+    const result = readLogTail(path, Math.min(Math.max(tail, 1), 2_000));
+    return {
+      step,
+      path,
+      lines: result.lines.map((line) => line.replace(ANSI_ESCAPE, "")),
+      bytes: result.bytes,
+      truncated: result.truncated,
+    };
+  }
+
+  private pruneSetupLogs(step: VMSetupStep, keep: number): void {
+    const directory = join(this.store.root, "setup");
+    if (!existsSync(directory)) return;
+    const prefix = `${step}-`;
+    const files = readdirSync(directory)
+      .filter((name) => name.startsWith(prefix) && name.endsWith(".log"))
+      .map((name) => {
+        const path = join(directory, name);
+        return { path, mtime: statSync(path).mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+    for (const file of files.slice(keep)) {
+      rmSync(file.path, { force: true });
+    }
+  }
+
   async startSetup(step: VMSetupStep): Promise<VMSetupJob> {
     if (this.setupJob?.status === "running") {
       throw new VMValidationError("A host setup job is already running", 409);
@@ -399,8 +464,15 @@ export class VirtualMachineService implements VirtualMachineStore {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     chmodSync(directory, 0o700);
     const logPath = join(directory, `${step}.log`);
-    // The Nix installer runs as root through `osascript`. Keep the log readable
-    // by the hub user while the directory itself stays owner-only.
+    // Preserve the previous run before starting a new one. The UI can always
+    // read the latest `step.log`; rotated copies keep the installer history.
+    if (existsSync(logPath) && statSync(logPath).size > 0) {
+      const stamp = new Date(this.now()).toISOString().replace(/[:.]/g, "-");
+      renameSync(logPath, join(directory, `${step}-${stamp}.log`));
+      this.pruneSetupLogs(step, 10);
+    }
+    // Keep the log readable by the hub user while the directory stays
+    // owner-only. The Nix installer writes to it from Terminal.
     writeFileSync(logPath, "", { mode: 0o644 });
     chmodSync(logPath, 0o644);
 

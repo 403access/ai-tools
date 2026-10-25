@@ -437,6 +437,19 @@ export function createHandler(
         return withVMErrors(async () => json({ data: await vms.cancelSetup() }));
       }
 
+      if (pathname === "/api/vms/setup/logs" && request.method === "GET") {
+        return withVMErrors(async () => json({ data: await vms.setupLogs() }));
+      }
+
+      if (pathname === "/api/vms/setup/log" && request.method === "GET") {
+        const step = url.searchParams.get("step");
+        if (step !== "nix" && step !== "helper") {
+          return error("step must be nix or helper", 400);
+        }
+        const tail = intParam(url.searchParams.get("tail"), 240, 1, 2_000);
+        return withVMErrors(async () => json({ data: await vms.setupLog(step, tail) }));
+      }
+
       if (parts[0] === "api" && parts[1] === "vms" && parts.length >= 3) {
         const id = decodeURIComponent(parts[2]!);
 

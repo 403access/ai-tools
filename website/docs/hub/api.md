@@ -103,6 +103,8 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `GET` | `/api/vms/setup` | Current host setup job and streamed log |
 | `POST` | `/api/vms/setup` | Run the fixed Nix or helper setup step |
 | `POST` | `/api/vms/setup/cancel` | Cancel a running setup job |
+| `GET` | `/api/vms/setup/logs` | Stored setup logs, including rotated runs |
+| `GET` | `/api/vms/setup/log` | Latest Nix or helper log tail |
 | `GET` | `/api/remote` | Capture helper status, displays, and permissions |
 | `POST` | `/api/remote/configure` | Change fps, quality, max width, or display |
 | `POST` | `/api/remote/permissions` | Request Screen Recording / Accessibility |
@@ -435,11 +437,39 @@ Start one with `POST /api/vms/setup` and `{ "step": "nix" }` or
 running or the step is already satisfied. `POST /api/vms/setup/cancel` stops a
 running job and marks it `cancelled`.
 
-The Nix step is run through
-`osascript … with administrator privileges`, so macOS shows the password dialog
-on the Mac; the hub never receives the password. The helper step runs
-`make vz-helper` in the repository. The Linux builder is intentionally not a
-job: it is a long-lived VM started from a terminal.
+The Nix step opens Terminal.app on the Mac and runs the installer as the
+logged-in user; the password stays in Terminal, and the hub only reads the
+output log. (A GUI Terminal is required because macOS SIP blocks the installer's
+`/etc/fstab` step from a non-GUI process.) The helper step runs `make vz-helper`
+in the repository. The Linux builder is intentionally not a job: it is a
+long-lived VM started from a terminal.
+
+Setup output is retained after the job ends. `GET /api/vms/setup/logs` lists
+the current and rotated files:
+
+```json
+{
+  "data": [
+    { "step": "nix", "path": "/…/vms/setup/nix.log", "bytes": 21913, "modified": 1792905120000 },
+    { "step": "nix", "path": "/…/vms/setup/nix-2026-10-25T11-29-07.log", "bytes": 21913, "modified": 1792905000000 }
+  ]
+}
+```
+
+`GET /api/vms/setup/log?step=nix|helper&tail=240` returns the newest log for
+that step, ANSI stripped:
+
+```json
+{
+  "data": {
+    "step": "nix",
+    "path": "/…/vms/setup/nix.log",
+    "lines": ["downloading Nix…", "…"],
+    "bytes": 21913,
+    "truncated": true
+  }
+}
+```
 
 ### Remote desktop
 

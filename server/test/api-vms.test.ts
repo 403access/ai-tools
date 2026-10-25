@@ -80,6 +80,7 @@ interface Calls {
   logs: Array<{ id: string; type: VMLogType; tail: number }>;
   setups: VMSetupStep[];
   cancelled: number;
+  setupLogs: Array<{ step: VMSetupStep; tail: number }>;
 }
 
 function setupJob(step: VMSetupStep): VMSetupJob {
@@ -142,6 +143,13 @@ function fakeStore(items: VirtualMachine[], calls: Calls): VirtualMachineStore {
       calls.cancelled += 1;
       return null;
     },
+    async setupLogs() {
+      return [];
+    },
+    async setupLog(step, tail = 240) {
+      calls.setupLogs.push({ step, tail });
+      return { step, path: "/tmp/setup.log", lines: ["line"], bytes: 5, truncated: false };
+    },
   };
 }
 
@@ -154,6 +162,7 @@ function emptyCalls(): Calls {
     logs: [],
     setups: [],
     cancelled: 0,
+    setupLogs: [],
   };
 }
 
@@ -363,6 +372,27 @@ describe("virtual machine API", () => {
     const cancel = await handler(request("/api/vms/setup/cancel", { method: "POST" }));
     expect(cancel.status).toBe(200);
     expect(calls.cancelled).toBe(1);
+  });
+
+  test("serves setup log history and tails", async () => {
+    const calls = emptyCalls();
+    const { handler } = setup({}, { vms: fakeStore([], calls) });
+
+    const files = await handler(request("/api/vms/setup/logs"));
+    expect(files.status).toBe(200);
+    expect(await body<{ data: unknown[] }>(files)).toEqual({ data: [] });
+
+    const log = await handler(request("/api/vms/setup/log?step=nix&tail=10"));
+    expect(log.status).toBe(200);
+    const payload = await body<{
+      data: { step: string; path: string; lines: string[] };
+    }>(log);
+    expect(payload.data.step).toBe("nix");
+    expect(payload.data.lines).toEqual(["line"]);
+    expect(calls.setupLogs).toEqual([{ step: "nix", tail: 10 }]);
+
+    const invalid = await handler(request("/api/vms/setup/log?step=shell"));
+    expect(invalid.status).toBe(400);
   });
 
   test("requires the hub token", async () => {

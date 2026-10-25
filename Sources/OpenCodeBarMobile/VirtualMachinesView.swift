@@ -10,6 +10,7 @@ struct VirtualMachinesView: View {
 
     @State private var path = NavigationPath()
     @State private var showingCreate = false
+    @State private var showingSetupLogs = false
     @State private var pendingDelete: VirtualMachine?
     @State private var openedRequestedVM = false
 
@@ -25,7 +26,8 @@ struct VirtualMachinesView: View {
                             VMSetupRunnerCard(
                                 capabilities: capabilities,
                                 model: model,
-                                api: store.api
+                                api: store.api,
+                                onViewLogs: { showingSetupLogs = true }
                             )
                         }
                         if let error = model.error, !model.machines.isEmpty {
@@ -44,6 +46,14 @@ struct VirtualMachinesView: View {
             .navigationTitle("Virtual Machines")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showingSetupLogs = true
+                    } label: {
+                        Image(systemName: "doc.text.magnifyingglass")
+                    }
+                    .accessibilityLabel("Setup logs")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingCreate = true
@@ -70,6 +80,9 @@ struct VirtualMachinesView: View {
                 MobileNewVirtualMachineSheet(model: model) { machine in
                     path.append(machine.id)
                 }
+            }
+            .sheet(isPresented: $showingSetupLogs) {
+                VMSetupLogSheet(api: store.api)
             }
             .confirmationDialog(
                 "Delete “\(pendingDelete?.name ?? "VM")”?",

@@ -251,21 +251,25 @@ Follow-ups:
 - **Serial console auth.** The helper's control and serial ports bind to
   loopback, and the hub token gates the WebSocket. A local process can still
   connect directly; a per-helper secret would close that gap.
-- **Setup runner edge cases.** The Nix installer is launched as root through
-  `osascript … with administrator privileges`, with `HOME`/`USER`/`LOGNAME` set
-  to the hub user so profiles and trusted-user settings target that account.
-  Its `vifs` step needs `/etc/fstab` to exist and a TTY, so the runner wraps
-  the installer in `script -q /dev/null`. On macOS 27 the `/etc` symlink is
-  SIP-restricted, so creating `/etc/fstab` fails with `Operation not permitted`
-  even as root; `/private/etc/fstab` is writable. The runner creates that file
-  and pre-seeds the Nix mount line. An interrupted attempt leaves a “Nix Store”
-  APFS volume and `/etc/synthetic.conf` behind; the runner detects that volume,
-  sets `NIX_VOLUME_USE_SPECIAL`/`_UUID`, and reuses it instead of creating a
-  second volume. With the fstab line present the installer skips `vifs`.
-  The installer output goes to `vms/setup/nix.log`; the hub streams its tail.
-  If the user cancels the dialog, osascript reports `User canceled (-128)` and
-  the card offers Run again. The root-run path should be re-tested whenever the
-  official installer changes. `make vz-helper` is streamed the same way. The
+- **Setup logs are retained.** Installer/helper output lives in
+  `~/.local/share/opencodebar/vms/setup/`; each new job rotates the previous
+  `nix.log`/`helper.log` to a timestamped file and keeps ten per step. The VMs
+  tab's document button opens the latest log, and `GET /api/vms/setup/logs`
+  lists the history. This survives a hub restart or a cleared in-memory job.
+- **Setup runner edge cases.** The Nix installer is launched in Terminal.app as
+  the hub user, not via an `osascript` root shell: macOS 27 SIP restrictions
+  block `/etc/fstab` creation from a non-GUI process. The Terminal script tees
+  output into the setup log and writes an exit status; the hub polls it.
+  The installer's `vifs` step needs a TTY and a GUI session; direct root
+  attempts failed with `vifs: error creating /etc/fstab` and then
+  `touch: /etc/fstab: Operation not permitted`. Terminal.app supplies the
+  required context. The runner opens a dedicated Terminal window, tees output
+  into `vms/setup/nix.log`, and polls a small status file; Cancel closes that
+  window. A previous attempt can leave a “Nix Store” APFS volume and
+  `/etc/synthetic.conf` behind; the installer detects and reuses/cleans them.
+  If the user cancels the sudo prompt, no status file is written and the job
+  times out; use Cancel and retry. The Terminal launch path should be re-tested
+  when the installer changes. `make vz-helper` is streamed the same way. The
   Linux builder is still a manual terminal command because it is a long-lived
   VM and cannot be a one-shot setup job.
 

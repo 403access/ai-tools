@@ -678,6 +678,20 @@ extension HubAPI {
         }
     }
 
+    /// Stored Nix-installer and helper-build logs, including rotated runs.
+    func vmSetupLogs() async throws -> [VMSetupLogFile] {
+        let response: VMSetupLogFilesEnvelope = try await get("/api/vms/setup/logs")
+        return response.data
+    }
+
+    /// The newest log for one setup step (ANSI stripped by the hub).
+    func vmSetupLog(step: VMSetupStep, tail: Int = 1_200) async throws -> VMSetupLogResult {
+        let response: VMSetupLogResultEnvelope = try await get(
+            "/api/vms/setup/log?step=\(step.rawValue)&tail=\(tail)"
+        )
+        return response.data
+    }
+
     /// WebSocket for the guest's serial console. The hub proxies the helper's
     /// loopback socket, so the client only needs the hub token.
     func virtualMachineConsoleRequest(id: String) throws -> URLRequest {

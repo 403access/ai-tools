@@ -8,6 +8,7 @@ struct VirtualMachinesTab: View {
     @StateObject private var model = VirtualMachinesStore()
 
     @State private var showingCreate = false
+    @State private var showingSetupLogs = false
     @State private var pendingDelete: VirtualMachine?
     @State private var pendingRebuild: VirtualMachine?
 
@@ -28,6 +29,9 @@ struct VirtualMachinesTab: View {
         .task { await poll() }
         .sheet(isPresented: $showingCreate) {
             NewVirtualMachineSheet(model: model)
+        }
+        .sheet(isPresented: $showingSetupLogs) {
+            VMSetupLogSheet(api: state.api)
         }
         .alert(item: $pendingDelete) { machine in
             Alert(
@@ -60,7 +64,12 @@ struct VirtualMachinesTab: View {
             header
 
             if let capabilities = model.capabilities, !capabilities.ready {
-                VMSetupRunnerCard(capabilities: capabilities, model: model, api: state.api)
+                VMSetupRunnerCard(
+                    capabilities: capabilities,
+                    model: model,
+                    api: state.api,
+                    onViewLogs: { showingSetupLogs = true }
+                )
             }
 
             if let error = model.error, !model.machines.isEmpty {
@@ -117,6 +126,16 @@ struct VirtualMachinesTab: View {
                         .foregroundStyle(Theme.running)
                         .monospacedDigit()
                 }
+                Button {
+                    showingSetupLogs = true
+                } label: {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Setup logs")
+
                 Button {
                     Task { await model.refresh(api: state.api) }
                 } label: {

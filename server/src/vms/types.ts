@@ -216,6 +216,23 @@ export interface VMSetupJob {
   log: VMSetupLog;
 }
 
+/** One stored installer/helper log, including rotated history. */
+export interface VMSetupLogFile {
+  step: VMSetupStep;
+  path: string;
+  bytes: number;
+  /** Milliseconds since the epoch. */
+  modified: number;
+}
+
+export interface VMSetupLogResult {
+  step: VMSetupStep;
+  path: string;
+  lines: string[];
+  bytes: number;
+  truncated: boolean;
+}
+
 export interface VMConsoleTarget {
   vmID: string;
   /** The helper listens on loopback only. */
@@ -240,4 +257,6 @@ export interface VirtualMachineStore {
   setupStatus(): Promise<VMSetupJob | null>;
   startSetup(step: VMSetupStep): Promise<VMSetupJob>;
   cancelSetup(): Promise<VMSetupJob | null>;
+  setupLogs(): Promise<VMSetupLogFile[]>;
+  setupLog(step: VMSetupStep, tail?: number): Promise<VMSetupLogResult>;
 }

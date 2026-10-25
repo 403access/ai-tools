@@ -219,7 +219,7 @@ struct VMLog: Decodable, Equatable {
     var truncated: Bool
 }
 
-enum VMSetupStep: String, CaseIterable, Identifiable, Equatable {
+enum VMSetupStep: String, CaseIterable, Identifiable, Equatable, Hashable {
     case nix
     case helper
 
@@ -288,6 +288,32 @@ struct VMSetupJob: Decodable, Equatable {
 
 struct VMSetupJobEnvelope: Decodable {
     var data: VMSetupJob?
+}
+
+struct VMSetupLogFile: Decodable, Equatable, Identifiable {
+    var step: String
+    var path: String
+    var bytes: Int
+    var modified: Double
+
+    var id: String { path }
+    var modifiedDate: Date { Date(timeIntervalSince1970: modified / 1000) }
+}
+
+struct VMSetupLogFilesEnvelope: Decodable {
+    var data: [VMSetupLogFile]
+}
+
+struct VMSetupLogResult: Decodable, Equatable {
+    var step: String
+    var path: String
+    var lines: [String]
+    var bytes: Int
+    var truncated: Bool
+}
+
+struct VMSetupLogResultEnvelope: Decodable {
+    var data: VMSetupLogResult
 }
 
 struct VMSetupStartRequest: Encodable {

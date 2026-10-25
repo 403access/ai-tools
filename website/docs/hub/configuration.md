@@ -74,6 +74,7 @@ Set `OPENCODEBAR_NIX` if the hub cannot find Nix from a GUI launch, and
 | `~/.config/opencode/opencodebar-hub.json` | Hub URL, token, port, version (mode `0600`) |
 | `~/.local/share/opencodebar/hub.sqlite` | Cache and device registry (WAL mode) |
 | `~/.local/share/opencodebar/vms/{id}/` | VM definition, `configuration.nix`, flake, raw disk, SSH key, logs |
+| `~/.local/share/opencodebar/vms/setup/` | Nix installer and helper-build logs, including rotated history |
 | `~/.config/opencode/opencodebar.json` | Optional app config (`hubURL`, `hubToken`, `goUsageKey`) |
 | `~/.local/share/opencode/auth.json` | OpenCode credentials; final fallback for a Go key |
 | `~/Library/Caches/OpenCodeBar/usage.json` | macOS last-known usage cache |

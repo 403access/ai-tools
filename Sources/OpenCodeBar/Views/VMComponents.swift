@@ -60,6 +60,7 @@ struct VMSetupRunnerCard: View {
     let capabilities: VMCapabilities
     @ObservedObject var model: VirtualMachinesStore
     let api: HubAPI?
+    var onViewLogs: (() -> Void)? = nil
 
     private var job: VMSetupJob? { model.setup }
     private var running: Bool { job?.status == .running }
@@ -100,6 +101,17 @@ struct VMSetupRunnerCard: View {
 
             if let job {
                 jobProgress(job)
+            }
+
+            if let onViewLogs {
+                Button {
+                    onViewLogs()
+                } label: {
+                    Label("Setup log history", systemImage: "doc.text.magnifyingglass")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.accent)
             }
         }
         .card(padding: 10)
@@ -278,6 +290,172 @@ struct VMSetupRunnerCard: View {
         #else
         UIPasteboard.general.string = text
         #endif
+    }
+}
+
+/// Full-window/mobile viewer for the stored Nix installer and helper-build
+/// logs. The hub keeps the latest `nix.log`/`helper.log` plus rotated history.
+struct VMSetupLogSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let api: HubAPI?
+
+    @State private var step: VMSetupStep = .nix
+    @State private var log: VMSetupLogResult?
+    @State private var error: String?
+    @State private var loading = false
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Setup logs")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("Stored on the hub host, including the last rotated run.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Close")
+            }
+
+            Picker("", selection: $step) {
+                Text("Nix install").tag(VMSetupStep.nix)
+                Text("Helper build").tag(VMSetupStep.helper)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .onChange(of: step) { _, _ in
+                Task { await load() }
+            }
+
+            HStack(spacing: 8) {
+                Text(log?.path ?? "—")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 4)
+                if loading {
+                    ProgressView().controlSize(.small).scaleEffect(0.7)
+                }
+                Button {
+                    Task { await load() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Reload")
+
+                Button {
+                    copy(log?.lines.joined(separator: "\n") ?? "")
+                } label: {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Copy the log")
+            }
+
+            if let error {
+                Text(error)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Text(logText)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .id("setup-log-sheet-end")
+                }
+                .frame(minHeight: 280)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.black.opacity(0.20))
+                )
+                .onChange(of: log?.lines.count) { _, _ in
+                    proxy.scrollTo("setup-log-sheet-end", anchor: .bottom)
+                }
+            }
+
+            HStack {
+                if let log {
+                    Text("\(log.lines.count) lines · \(Fmt.bytes(Int64(log.bytes)))")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                Spacer()
+                if log?.truncated == true {
+                    Text("Showing the end of the log")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(12)
+        #if os(macOS)
+        .frame(width: 560, height: 600)
+        #elseif os(iOS)
+        .presentationDetents([.large])
+        #endif
+        .task(id: step) {
+            await load()
+        }
+    }
+
+    private var logText: String {
+        guard let log else { return loading ? "Loading…" : "No setup log yet." }
+        return log.lines.isEmpty ? "No setup log yet." : log.lines.joined(separator: "\n")
+    }
+
+    private func load() async {
+        guard let api else {
+            error = "Not connected to the hub"
+            return
+        }
+        loading = true
+        defer { loading = false }
+        do {
+            log = try await api.vmSetupLog(step: step)
+            error = nil
+        } catch {
+            self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func copy(_ text: String) {
+        #if os(macOS)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        #else
+        UIPasteboard.general.string = text
+        #endif
+        copied = true
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            copied = false
+        }
     }
 }
 
