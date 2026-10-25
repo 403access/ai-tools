@@ -25,6 +25,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 appearanceSection
                 statusSection
+                powerSection
                 connectionSection
                 pairingSection
                 howToSection
@@ -50,6 +51,7 @@ struct SettingsView: View {
         }
         .task {
             await store.refreshHealth()
+            await store.refreshSettings()
         }
     }
 

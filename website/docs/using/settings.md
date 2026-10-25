@@ -78,6 +78,9 @@ The iOS Settings screen includes:
 
 - **Appearance** — follow the system or stay dark/light.
 - **Status** — hub/OpenCode health, cached counts, uptime, and last sync.
+- **Power** — choose whether the Mac running the hub may sleep. Turning on
+  **Keep Mac awake** holds the same idle-sleep assertion as the Mac app, so the
+  phone keeps its connection while the Mac is idle.
 - **Hub connection** — URL, token, test, and save/reconnect.
 - **Pairing link** — paste a link and apply it.
 - **Remove hub configuration** — clears the URL and token from the device.

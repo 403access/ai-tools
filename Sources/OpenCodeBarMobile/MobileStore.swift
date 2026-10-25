@@ -103,6 +103,11 @@ final class MobileStore: ObservableObject {
     @Published var usage: HubUsageResponse?
     @Published var usageFetchedAt: Date?
     @Published var hubHealth: HubHealthResponse?
+    /// Hub behaviour tuned from Settings, including the host Mac's sleep policy.
+    @Published var serverSettings: ServerSettings?
+    @Published var isRefreshingSettings = false
+    @Published var isUpdatingSettings = false
+    @Published var settingsError: String?
     /// Snapshot of the Mac running the hub, shown on the System tab.
     @Published var systemInfo: SystemInfo?
     @Published var systemInfoFetchedAt: Date?

@@ -95,10 +95,13 @@ struct SettingsTab: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                } else if state.serverSettings?.preventSleepSupported == false {
+                    Text("This hub is not running on macOS, so there is no host sleep to manage.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    Text(state.serverSettings == nil
-                         ? "Sleep settings load from the hub. Connect to the hub to manage them."
-                         : "This hub is not running on macOS, so there is no host sleep to manage.")
+                    Text("Sleep settings load from the hub. Connect to the hub to manage them.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

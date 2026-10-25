@@ -249,4 +249,42 @@ extension MobileStore {
             // The connection status is already surfaced by refreshLive.
         }
     }
+
+    /// Loads the hub's tunable settings. The sleep preference belongs to the
+    /// Mac running the hub, not this phone, but it is useful to change it from
+    /// here.
+    func refreshSettings() async {
+        guard let api else { return }
+        guard !isRefreshingSettings else { return }
+        isRefreshingSettings = true
+        defer { isRefreshingSettings = false }
+        do {
+            serverSettings = try await api.settings()
+            settingsError = nil
+        } catch {
+            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Keeps the hub host awake so the phone's connection survives an idle Mac.
+    func updatePreventSleep(_ enabled: Bool) async {
+        guard let api else { return }
+        guard !isUpdatingSettings else { return }
+        let previous = serverSettings
+        // Move the switch immediately; a LAN round-trip is usually fast, but an
+        // optimistic update avoids a visible snap back while it completes.
+        if var optimistic = serverSettings {
+            optimistic.preventSleep = enabled
+            serverSettings = optimistic
+        }
+        isUpdatingSettings = true
+        defer { isUpdatingSettings = false }
+        do {
+            serverSettings = try await api.updateSettings(preventSleep: enabled)
+            settingsError = nil
+        } catch {
+            serverSettings = previous
+            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
 }

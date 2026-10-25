@@ -215,7 +215,7 @@ iOS app:
   read-only browser.
 - Search projects, pull to refresh any screen, and open a session from a deep
   link. Settings shows hub and OpenCode health, cached session/message counts,
-  uptime, and last sync.
+  uptime, last sync, and a **Keep Mac awake** switch for the host Mac.
 - A local SQLite cache renders the last snapshot on launch, then asks the hub
   for changes only (`/api/sync?since=…`) instead of re-reading every session and
   project on each poll. Opened sessions keep their newest messages on device too.

@@ -74,6 +74,63 @@ extension SettingsView {
         }
     }
 
+    // MARK: - Power
+
+    /// The hub runs on the Mac, so its host sleep policy is the setting that
+    /// decides whether the phone keeps its connection while the Mac is idle.
+    var powerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Power")
+
+            VStack(alignment: .leading, spacing: 10) {
+                if let settings = store.serverSettings,
+                   settings.preventSleepSupported == true {
+                    Toggle(isOn: Binding(
+                        get: { store.serverSettings?.preventSleep ?? false },
+                        set: { value in
+                            Task { await store.updatePreventSleep(value) }
+                        }
+                    )) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Keep Mac awake")
+                                .font(.subheadline.weight(.medium))
+                            Text(settings.preventSleep == true
+                                 ? "Idle sleep is blocked while the hub runs, so this phone keeps its connection. The Mac's display can still turn off."
+                                 : "The Mac can sleep normally. This phone loses its connection while the Mac is asleep.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .tint(Theme.accent)
+                    .disabled(store.isUpdatingSettings)
+                } else if store.serverSettings?.preventSleepSupported == false {
+                    Text("This hub is not running on macOS, so there is no host sleep to manage.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(store.isRefreshingSettings
+                         ? "Loading the Mac's power settings…"
+                         : "The Mac's power settings are unavailable. Make sure the hub is running the latest version.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let error = store.settingsError {
+                    Text(error)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.warn)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .card(padding: 12)
+
+            sectionNote("This controls the Mac running the hub. The display can still turn off; closing the lid still sleeps the Mac.")
+        }
+    }
+
     // MARK: - Hub connection
 
     var connectionSection: some View {
