@@ -487,9 +487,11 @@ export LOGNAME=${shellQuote(user)}
 export TERM=xterm-256color
 umask 0022
 
-if [ ! -e /etc/fstab ]; then
-  /usr/bin/touch /etc/fstab
-  /bin/chmod 644 /etc/fstab
+# On macOS 27 the /etc symlink is SIP-restricted; creating a new file through
+# /etc is denied even for root. /private/etc is the real, writable directory.
+if [ ! -e /private/etc/fstab ]; then
+  /usr/bin/touch /private/etc/fstab
+  /bin/chmod 644 /private/etc/fstab
 fi
 
 VOL_SPECIAL=$(/usr/sbin/diskutil list 2>/dev/null | /usr/bin/awk '/Nix Store/ {print $NF; exit}')
@@ -498,8 +500,8 @@ if [ -n "$VOL_SPECIAL" ]; then
   VOL_UUID=$(/usr/sbin/diskutil info "$VOL_SPECIAL" 2>/dev/null | /usr/bin/awk -F': ' '/Volume UUID/ {print $2; exit}')
   if [ -n "$VOL_UUID" ]; then
     export NIX_VOLUME_USE_UUID="$VOL_UUID"
-    if ! /usr/bin/grep -q "UUID=$VOL_UUID /nix apfs rw" /etc/fstab 2>/dev/null; then
-      printf 'UUID=%s /nix apfs rw,noauto,nobrowse,nosuid,noatime,owners\\n' "$VOL_UUID" >> /etc/fstab
+    if ! /usr/bin/grep -q "UUID=$VOL_UUID /nix apfs rw" /private/etc/fstab 2>/dev/null; then
+      printf 'UUID=%s /nix apfs rw,noauto,nobrowse,nosuid,noatime,owners\\n' "$VOL_UUID" >> /private/etc/fstab
     fi
   fi
 fi

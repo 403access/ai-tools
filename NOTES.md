@@ -254,12 +254,14 @@ Follow-ups:
 - **Setup runner edge cases.** The Nix installer is launched as root through
   `osascript … with administrator privileges`, with `HOME`/`USER`/`LOGNAME` set
   to the hub user so profiles and trusted-user settings target that account.
-  Its `vifs` step needs `/etc/fstab` to exist and a TTY, so the runner
-  pre-creates the file and wraps the installer in `script -q /dev/null`. An
-  interrupted attempt leaves a “Nix Store” APFS volume and `/etc/synthetic.conf`
-  behind; the runner detects that volume, sets `NIX_VOLUME_USE_SPECIAL`/`_UUID`,
-  and pre-seeds the fstab line so a retry reuses it instead of creating a second
-  volume.
+  Its `vifs` step needs `/etc/fstab` to exist and a TTY, so the runner wraps
+  the installer in `script -q /dev/null`. On macOS 27 the `/etc` symlink is
+  SIP-restricted, so creating `/etc/fstab` fails with `Operation not permitted`
+  even as root; `/private/etc/fstab` is writable. The runner creates that file
+  and pre-seeds the Nix mount line. An interrupted attempt leaves a “Nix Store”
+  APFS volume and `/etc/synthetic.conf` behind; the runner detects that volume,
+  sets `NIX_VOLUME_USE_SPECIAL`/`_UUID`, and reuses it instead of creating a
+  second volume. With the fstab line present the installer skips `vifs`.
   The installer output goes to `vms/setup/nix.log`; the hub streams its tail.
   If the user cancels the dialog, osascript reports `User canceled (-128)` and
   the card offers Run again. The root-run path should be re-tested whenever the
