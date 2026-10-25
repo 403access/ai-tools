@@ -38,6 +38,7 @@ targets:
       - path: Sources/OpenCodeBar/Core/TerminalConnection.swift
       - path: Sources/OpenCodeBar/Core/VMConsoleConnection.swift
       - path: Sources/OpenCodeBar/Core/VirtualMachinesStore.swift
+      - path: Sources/OpenCodeBar/Core/NixOSBuilderModel.swift
       - path: Sources/OpenCodeBar/Core/RemoteDesktopModels.swift
       - path: Sources/OpenCodeBar/Core/HostTerminalMirror.swift
       - path: Sources/OpenCodeBar/Support/Formatters.swift
@@ -49,6 +50,7 @@ targets:
       - path: Sources/OpenCodeBar/Views/LiveActivityView.swift
       - path: Sources/OpenCodeBar/Views/TerminalEmulatorView.swift
       - path: Sources/OpenCodeBar/Views/VMComponents.swift
+      - path: Sources/OpenCodeBar/Views/NixOSBuilderView.swift
       - path: Mobile/Assets.xcassets
       - path: THIRD_PARTY_NOTICES.md
         buildPhase: resources

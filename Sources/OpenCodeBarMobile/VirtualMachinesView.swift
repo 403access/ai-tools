@@ -301,8 +301,8 @@ private struct MobileVirtualMachineRow: View {
                         .font(.caption2)
                         .foregroundStyle(Theme.danger)
                         .lineLimit(2)
-                } else if machine.hasPendingPackages {
-                    Text("Package changes pending")
+                } else if machine.hasPendingChanges {
+                    Text("Changes pending")
                         .font(.caption2)
                         .foregroundStyle(Theme.warn)
                 }

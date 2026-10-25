@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { VMValidationError } from "../src/vms/nixos.ts";
+import { defaultBuilderConfig } from "../src/vms/catalog.ts";
 import type {
   VMAction,
   VMCapabilities,
@@ -30,6 +31,8 @@ function vm(overrides: Partial<VirtualMachine> = {}): VirtualMachine {
     diskGB: 12,
     packages: [],
     pendingPackages: [],
+    pendingConfig: false,
+    config: defaultBuilderConfig(),
     lastError: null,
     progress: null,
     ssh: { user: "opencodebar", keyPath: "/tmp/key", publicKey: "ssh-ed25519 AAAA" },
@@ -120,7 +123,15 @@ function fakeStore(items: VirtualMachine[], calls: Calls): VirtualMachineStore {
     },
     async update(id, input) {
       calls.updated.push({ id, input });
-      return { ...(items.find((entry) => entry.id === id) ?? vm()), ...input };
+      const base = items.find((entry) => entry.id === id) ?? vm();
+      return {
+        ...base,
+        name: input.name ?? base.name,
+        cpuCount: input.cpuCount ?? base.cpuCount,
+        memoryMB: input.memoryMB ?? base.memoryMB,
+        packages: input.packages ?? base.packages,
+        config: (input.config as VirtualMachine["config"] | undefined) ?? base.config,
+      };
     },
     async remove(id, force = false) {
       calls.removed.push({ id, force });
@@ -396,6 +407,118 @@ describe("virtual machine API", () => {
     expect(calls.setupLogs.at(-1)).toEqual({ step: "builder", tail: 240 });
 
     const invalid = await handler(request("/api/vms/setup/log?step=shell"));
+    expect(invalid.status).toBe(400);
+  });
+
+  test("serves the builder catalog and previews draft and existing configurations", async () => {
+    const calls = emptyCalls();
+    const { handler } = setup({}, { vms: fakeStore([vm()], calls) });
+
+    const catalog = await handler(request("/api/vms/catalog"));
+    expect(catalog.status).toBe(200);
+    const catalogBody = await body<{
+      data: { options: Array<{ id: string; nix?: string }>; presets: Array<{ id: string }> };
+    }>(catalog);
+    expect(catalogBody.data.options.some((entry) => entry.id === "docker")).toBe(true);
+    expect(catalogBody.data.options[0]?.nix).toBeUndefined();
+    expect(catalogBody.data.presets.some((entry) => entry.id === "developer")).toBe(true);
+
+    const draft = await handler(
+      request("/api/vms/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Draft",
+          config: { enabled: ["jupyter"], users: [], settings: {}, extraPackages: [] },
+        }),
+      }),
+    );
+    expect(draft.status).toBe(200);
+    const draftBody = await body<{
+      data: { configuration: string; added: string[]; packages: string[] };
+    }>(draft);
+    expect(draftBody.data.configuration).toContain("system.stateVersion");
+    expect(draftBody.data.added).toContain("python");
+    expect(draftBody.data.packages).toContain("python3Packages.jupyterlab");
+
+    const preview = await handler(
+      request("/api/vms/vm_abcdef123456/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: { enabled: ["docker"] } }),
+      }),
+    );
+    expect(preview.status).toBe(200);
+    const previewBody = await body<{ data: { configuration: string; services: string[] } }>(
+      preview,
+    );
+    expect(previewBody.data.configuration).toContain("virtualisation.docker");
+    expect(previewBody.data.services).toContain("Docker Engine");
+
+    const missing = await handler(
+      request("/api/vms/vm_missing/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(missing.status).toBe(404);
+
+    const invalid = await handler(
+      request("/api/vms/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: { enabled: ["not-a-real-option"] } }),
+      }),
+    );
+    expect(invalid.status).toBe(400);
+  });
+
+  test("accepts builder configurations on create and update", async () => {
+    const calls = emptyCalls();
+    const { handler } = setup({}, { vms: fakeStore([vm()], calls) });
+    const config = {
+      enabled: ["docker", "tailscale"],
+      users: [
+        {
+          name: "alice",
+          groups: ["docker"],
+          shell: "zsh",
+          sshKeys: [],
+          passwordlessSudo: false,
+          createHome: true,
+        },
+      ],
+      extraPackages: ["ripgrep"],
+    };
+
+    const created = await handler(
+      request("/api/vms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Builder", config }),
+      }),
+    );
+    expect(created.status).toBe(201);
+    expect(calls.created[0]?.config).toMatchObject({ enabled: ["docker", "tailscale"] });
+
+    const updated = await handler(
+      request("/api/vms/vm_abcdef123456", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config }),
+      }),
+    );
+    expect(updated.status).toBe(200);
+    expect(calls.updated[0]?.input.config).toMatchObject({ enabled: ["docker", "tailscale"] });
+
+    const invalid = await handler(
+      request("/api/vms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Builder", config: "nope" }),
+      }),
+    );
     expect(invalid.status).toBe(400);
   });
 

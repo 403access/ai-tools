@@ -144,7 +144,11 @@ scrollback when sharing them; they can contain local paths and hostnames.
 
 ## Creating a guest
 
-Open **VMs → +** and choose:
+Open **VMs → +**. The create sheet is the **NixOS configuration builder**: it
+starts with a recommended **Developer** preset and lets you click together a
+complete machine before anything is written to disk.
+
+### Machine basics
 
 | Field | Notes |
 | --- | --- |
@@ -153,8 +157,40 @@ Open **VMs → +** and choose:
 | Memory | Guest RAM in 1 GB steps |
 | Disk | Raw disk size in GB; the image is sparse on APFS |
 | NixOS channel | A flake ref such as `nixos-26.05`; also sets the initial `stateVersion` |
-| Extra packages | Comma- or space-separated nixpkgs attributes, for example `nodejs, ripgrep` |
 | Start after build | Boot the guest immediately after the image is ready |
+
+### Configuration builder
+
+The builder is shared by the Mac and iPhone/iPad apps and is driven by the
+hub's catalog (`GET /api/vms/catalog`). Every card is metadata plus a small
+NixOS module snippet, so the same selection always renders the same
+`configuration.nix`.
+
+- **Presets** — Minimal, Developer, Homelab, Media, AI Lab, Data Science, Web
+  stack, Kubernetes, Desktop, Hardened, and Gaming. Applying a preset replaces
+  the option selection but keeps your users, ports, and custom Nix.
+- **Categories** — System, Users, Desktop, Development, Containers, Services,
+  Networking, Media, AI, Monitoring, Security, Gaming, and Advanced.
+- **Search** — Matches names, descriptions, tags, package attributes, and
+  service names across every category. Try `docker`, `llm`, `media`, or
+  `postgres`.
+- **Dependencies and conflicts** — Selecting JupyterLab adds Python
+  automatically. Selecting Docker replaces Podman, and choosing a different
+  desktop session replaces the previous one. The build plan explains each
+  change.
+- **Users** — The `opencodebar` admin is always present with the hub's generated
+  key. Add extra logins with a shell, groups, SSH public keys, passwordless
+  sudo, and home-directory options.
+- **System settings** — Time zone, locale, keyboard layout, the guest firewall,
+  optional SSH password logins, and extra TCP/UDP ports.
+- **Advanced** — Extra nixpkgs attributes, firewall ports, and a raw Nix module
+  body. The raw body is appended verbatim; the preview shows exactly what will
+  be written.
+- **Live build plan** — A running summary of packages, services, open ports,
+  users, warnings, and estimated size, plus a **Nix** tab with the rendered
+  module and a copy button. Its `configuration.nix` preview is a request to
+  `POST /api/vms/preview` (or `POST /api/vms/{id}/preview` for an existing VM),
+  so it is the real output, not a client-side approximation.
 
 The hub writes the configuration and flake, then runs:
 
@@ -213,9 +249,10 @@ path when the network or SSH is misconfigured.
 The serial console is not a graphical display. There is no VNC, GPU
 acceleration, or USB passthrough.
 
-## Installing software
+## Changing a guest configuration
 
-Packages are declarative. Edit the list in **Packages**:
+Open a VM and press **Configure** (Mac) or **Configure…** in the phone's menu.
+The builder edits the stored definition:
 
 - While the guest is **running**, the hub copies the generated
   `configuration.nix` to `/etc/nixos/configuration.nix` and runs
@@ -224,15 +261,59 @@ Packages are declarative. Edit the list in **Packages**:
 - While the guest is **stopped**, the change is stored and applied after the
   next boot reaches SSH.
 - While the image is **building**, the change is part of the image being built.
+- CPU and memory can only change while the guest is stopped. Disk size and the
+  NixOS channel are fixed at creation; use **Rebuild** for a fresh disk.
+
+The older **Packages** tab still adds raw nixpkgs attributes. It uses the same
+apply path and is useful for one-off packages that are not in the builder
+catalog. Both the builder's extra packages and this list end up in
+`environment.systemPackages`.
 
 The guest needs network access to the Nix binary cache for a rebuild. If the
 apply fails, the error is shown on the VM and in the log; the previous
-generation keeps running. The NixOS channel is fixed at creation; changing it
-means rebuilding from a definition with a new channel.
+generation keeps running.
 
 To install something for a single session without changing the system, use the
 SSH command from the detail page and `nix-shell -p <package>` inside the guest.
 That state is not managed by the hub.
+
+## Builder API
+
+The catalog and preview endpoints are authenticated like every other hub route:
+
+```text
+GET  /api/vms/catalog
+POST /api/vms/preview                 # render a definition before it exists
+POST /api/vms/{id}/preview            # render against a real VM
+PATCH /api/vms/{id}                   # body may include "config"
+```
+
+A builder configuration looks like this:
+
+```json
+{
+  "version": 1,
+  "preset": "developer",
+  "enabled": ["zram", "docker", "tailscale", "neovim", "nodejs"],
+  "settings": {
+    "timezone": "UTC",
+    "locale": "en_US.UTF-8",
+    "keymap": "us",
+    "firewall": true,
+    "passwordAuthentication": false,
+    "extraTCPPorts": [],
+    "extraUDPPorts": []
+  },
+  "users": [],
+  "extraPackages": ["ripgrep"],
+  "extraConfig": ""
+}
+```
+
+`enabled` holds catalog option ids. The hub expands `requires`, rejects
+conflicts and unknown ids, and returns the rendered module plus the resolved
+package/service/port plan. The full schema is in the
+[API reference](../hub/api.md) under **Virtual machines**.
 
 ## Networking and SSH
 

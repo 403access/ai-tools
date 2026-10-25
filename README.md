@@ -223,8 +223,15 @@ iOS app:
 - A top-level **VMs** tab on both apps. The hub builds declarative NixOS
   guests, boots them with Apple's Virtualization.framework, and keeps the
   definition, raw EFI disk, SSH key, serial log, and metrics on the host.
-- **Create from a form**: name, vCPU count, memory, disk size, NixOS channel,
-  extra nixpkgs attributes, and autostart. The first build runs
+- **Create with the configuration builder**: a full click-together NixOS
+  builder on both apps. Pick a preset, search and select from categorized
+  options (system, desktop, development, containers, services, networking,
+  media, AI, monitoring, security, gaming, and advanced), add users with
+  groups and SSH keys, choose time zone/locale/keymap, open firewall ports, and
+  drop in raw nixpkgs attributes or a custom module body. Dependencies are
+  expanded automatically, conflicting choices replace each other, and a live
+  build plan previews the real `configuration.nix` from the hub before anything
+  is built. The first build runs
   `nix build .#packages.aarch64-linux.default` against a generated flake and
   copies the `raw-efi` image out of the Nix store. Progress and the full build
   log are streamed to the VM page.
@@ -239,10 +246,12 @@ iOS app:
 - **Serial console**: a live, typeable virtio console (`hvc0`) over the hub's
   authenticated WebSocket. Opening it replays the tail of the boot log, so a
   guest that has not reached SSH is still visible and recoverable.
-- **Install software declaratively**: edit the package list in the app. While
-  the guest is running, the hub copies the generated `configuration.nix` and
-  runs `nixos-rebuild switch` over SSH; while it is stopped, the change is
-  queued for the next boot. Base tools are curl, git, htop, and vim.
+- **Change the configuration declaratively**: reopen **Configure** and edit any
+  option, user, service, port, or setting. While the guest is running, the hub
+  copies the generated `configuration.nix` and runs `nixos-rebuild switch` over
+  SSH; while it is stopped, the change is queued for the next boot. The older
+  **Packages** tab remains for raw nixpkgs attributes. Base tools are curl, git,
+  htop, and vim.
 - **Per-VM SSH**: each guest gets a generated ed25519 key, a passwordless-sudo
   `opencodebar` user, SSH key authentication only, and a host-only NAT address
   discovered from the ARP table. The detail page copies the SSH command.
@@ -352,7 +361,9 @@ The hub:
    `/api/host-terminals/{id}`, `/api/host-terminals/{id}/command`,
    `/api/host-terminals/{id}/focus`, `/api/files`, `/api/files/content`,
    `/api/files/raw`, `/api/vms`, `/api/vms/capabilities`,
+   `/api/vms/catalog`, `/api/vms/preview` (`POST`),
    `/api/vms/{id}` (`GET`/`PATCH`/`DELETE`),
+   `/api/vms/{id}/preview` (`POST`),
    `/api/vms/{id}/{start|stop|restart|pause|resume|rebuild|apply}` (`POST`),
    `/api/vms/{id}/log`, `/api/vms/{id}/console/socket` (WebSocket),
    `/api/vms/setup` (`GET`/`POST`), `/api/vms/setup/cancel` (`POST`),
@@ -652,6 +663,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     TerminalConnection.swift  terminal WebSocket, input and resize bridging (shared)
     VMConsoleConnection.swift serial-console WebSocket client (shared)
     VirtualMachinesStore.swift shared VM list, polling, actions, and logs
+    NixOSBuilderModel.swift  dependency resolution, presets, users, and preview (shared)
     HostTerminalMirror.swift  Terminal.app text mirror and command input (shared)
   Support/
     QRCode.swift            pairing QR rendering
@@ -698,7 +710,8 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     TerminalEmulatorView.swift  SwiftTerm host for Mac and iOS
     VirtualMachinesTab.swift      VM list, lifecycle actions, setup card
     VirtualMachineDetailView.swift  VM overview, console, packages, logs
-    NewVirtualMachineSheet.swift   create a NixOS guest
+    NewVirtualMachineSheet.swift   create or configure a NixOS guest
+    NixOSBuilderView.swift  catalog browser, users, presets, live build plan (shared)
     VMComponents.swift      serial console pane and VM setup notice (shared)
     SystemFileBrowser.swift host folder navigation and text/image preview
     SettingsTab+Support.swift         derived labels and actions
@@ -763,7 +776,7 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   MobileStore+HostTerminals.swift Terminal.app tab polling
   VirtualMachinesView.swift   VM list, create sheet, lifecycle actions
   VirtualMachineMobileDetailView.swift  VM overview, console, packages, logs
-  NewVirtualMachineSheet.swift  create a NixOS guest from the phone
+  NewVirtualMachineSheet.swift  create or configure a NixOS guest from the phone
   MobileFileBrowser.swift     host folders and file previews
   MobileCharts.swift          Swift Charts trend cards
   SettingsView.swift          appearance, pairing, and status
@@ -789,7 +802,7 @@ server/                       Bun + TypeScript + SQLite hub
   src/api/terminal-socket.ts  WebSocket proxy for live terminal input/output
   src/remote.ts               capture helper lifecycle and status
   src/api/remote-socket.ts    WebSocket fan-out for frames and input
-  src/vms/                    VM store, NixOS definitions, builds, helper client
+  src/vms/                    VM store, NixOS catalog/builder renderer, builds, helper client
   src/api/vm-socket.ts        WebSocket proxy for VM serial consoles
   src/db.ts                   SQLite facade
   src/db/                     schema, row mapping, stores, queries

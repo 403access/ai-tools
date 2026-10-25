@@ -31,7 +31,8 @@ import { VMSockets } from "./api/vm-socket.ts";
 import type { HubSocketData } from "./api/socket.ts";
 import { VirtualMachineService } from "./vms/service.ts";
 import { VMHelperError } from "./vms/helper.ts";
-import { VMValidationError } from "./vms/nixos.ts";
+import { VMValidationError, previewConfiguration, previewDraftConfiguration } from "./vms/nixos.ts";
+import { catalogForClient } from "./vms/catalog.ts";
 import type {
   VMAction,
   VMLogType,
@@ -379,6 +380,16 @@ export function createHandler(
         return withVMErrors(async () => json({ data: await vms.capabilities() }));
       }
 
+      if (pathname === "/api/vms/catalog" && request.method === "GET") {
+        return withVMErrors(async () => json({ data: catalogForClient() }));
+      }
+
+      if (pathname === "/api/vms/preview" && request.method === "POST") {
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+        return withVMErrors(async () => json({ data: previewDraftConfiguration(body) }));
+      }
+
       if (pathname === "/api/vms" && request.method === "POST") {
         const body = await readJSONBody(request);
         if (!body) return error("Expected a JSON body", 400);
@@ -392,6 +403,10 @@ export function createHandler(
         const packages = optionalStringArray(body.packages);
         if (body.packages !== undefined && packages === null) {
           return error("packages must be an array of strings", 400);
+        }
+        const config = optionalObject(body.config);
+        if (body.config !== undefined && config === null) {
+          return error("config must be an object", 400);
         }
         const cpuCount = optionalNumber(body.cpuCount);
         if (body.cpuCount !== undefined && cpuCount === null) {
@@ -415,6 +430,7 @@ export function createHandler(
               name,
               channel: channel ?? undefined,
               packages: packages ?? undefined,
+              config: config ?? undefined,
               cpuCount: cpuCount ?? undefined,
               memoryMB: memoryMB ?? undefined,
               diskGB: diskGB ?? undefined,
@@ -486,13 +502,18 @@ export function createHandler(
             if (body.packages !== undefined && packages === null) {
               return error("packages must be an array of strings", 400);
             }
+            const config = optionalObject(body.config);
+            if (body.config !== undefined && config === null) {
+              return error("config must be an object", 400);
+            }
             if (
               name === undefined &&
               cpuCount === undefined &&
               memoryMB === undefined &&
-              packages === undefined
+              packages === undefined &&
+              config === undefined
             ) {
-              return error("Provide name, cpuCount, memoryMB, or packages", 400);
+              return error("Provide name, cpuCount, memoryMB, packages, or config", 400);
             }
             return withVMErrors(async () =>
               json({
@@ -501,6 +522,7 @@ export function createHandler(
                   cpuCount: cpuCount ?? undefined,
                   memoryMB: memoryMB ?? undefined,
                   packages: packages ?? undefined,
+                  config: config ?? undefined,
                 }),
               }),
             );
@@ -513,6 +535,13 @@ export function createHandler(
             });
           }
           return error("Method not allowed", 405);
+        }
+
+        if (parts.length === 4 && parts[3] === "preview" && request.method === "POST") {
+          const vm = await vms.get(id, false);
+          if (!vm) return error("Virtual machine not found", 404);
+          const body = (await readJSONBody(request)) ?? {};
+          return withVMErrors(async () => json({ data: previewConfiguration(vm, body) }));
         }
 
         if (parts.length === 4 && request.method === "POST") {
@@ -1014,6 +1043,12 @@ function optionalStringArray(value: unknown): string[] | null | undefined {
     return null;
   }
   return value;
+}
+
+function optionalObject(value: unknown): Record<string, unknown> | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
 }
 
 function optionalStringMap(value: unknown): Record<string, string> | null | undefined {

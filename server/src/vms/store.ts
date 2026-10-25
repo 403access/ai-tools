@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { dataDir } from "../config.ts";
+import { defaultBuilderConfig, normalizeBuilderConfig } from "./catalog.ts";
 import type { VMPaths, VirtualMachine } from "./types.ts";
 
 /** Environment override used by tests and by users who keep VMs elsewhere. */
@@ -158,6 +159,13 @@ function normalize(
   const layout = vmLayout(root, id);
   const createdAt = numberOr(value.createdAt, Date.now());
   const packages = stringArray(value.packages);
+  let config = defaultBuilderConfig();
+  try {
+    config = normalizeBuilderConfig(value.config, true);
+  } catch {
+    // A definition written by a newer catalog must still be readable. Keep the
+    // VM visible and let the builder write a clean configuration next time.
+  }
   // Derive paths from the current root so moving the VM directory (or setting
   // OPENCODEBAR_VM_DIR) keeps working instead of reading stale absolute paths.
   const paths: VMPaths = layout;
@@ -177,6 +185,8 @@ function normalize(
     diskGB: numberOr(value.diskGB, 20),
     packages,
     pendingPackages: stringArray(value.pendingPackages),
+    pendingConfig: value.pendingConfig === true,
+    config,
     lastError: typeof value.lastError === "string" ? value.lastError : null,
     progress: value.progress ?? null,
     ssh: {

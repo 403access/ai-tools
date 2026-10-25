@@ -546,6 +546,58 @@ extension HubAPI {
         return response.data
     }
 
+    /// Every category, option, preset, and default used by the configuration builder.
+    func virtualMachineCatalog() async throws -> VMConfigCatalog {
+        let response: VMConfigCatalogEnvelope = try await get("/api/vms/catalog")
+        return response.data
+    }
+
+    /// Render a draft configuration before the VM exists.
+    func previewVirtualMachineConfiguration(
+        config: NixOSBuilderConfig,
+        packages: [String],
+        name: String? = nil,
+        diskGB: Int? = nil,
+        channel: String? = nil
+    ) async throws -> VMConfigPreview {
+        struct Body: Encodable {
+            var config: NixOSBuilderConfig
+            var packages: [String]
+            var name: String?
+            var diskGB: Int?
+            var channel: String?
+        }
+        let data = try JSONEncoder().encode(
+            Body(config: config, packages: packages, name: name, diskGB: diskGB, channel: channel)
+        )
+        let response = try await send("/api/vms/preview", method: "POST", body: data)
+        do {
+            return try Self.decoder.decode(VMConfigPreviewEnvelope.self, from: response).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    /// Render a configuration against an existing VM's hostname, key, and disk.
+    func previewVirtualMachineConfiguration(
+        id: String,
+        config: NixOSBuilderConfig,
+        packages: [String]
+    ) async throws -> VMConfigPreview {
+        struct Body: Encodable {
+            var config: NixOSBuilderConfig
+            var packages: [String]
+        }
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let data = try JSONEncoder().encode(Body(config: config, packages: packages))
+        let response = try await send("/api/vms/\(encoded)/preview", method: "POST", body: data)
+        do {
+            return try Self.decoder.decode(VMConfigPreviewEnvelope.self, from: response).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     func virtualMachine(id: String, refresh: Bool = true) async throws -> VirtualMachine {
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         let response: VirtualMachineEnvelope = try await get(
@@ -561,6 +613,7 @@ extension HubAPI {
         diskGB: Int?,
         channel: String?,
         packages: [String],
+        config: NixOSBuilderConfig? = nil,
         autostart: Bool = true
     ) async throws -> VirtualMachine {
         let request = VMCreateRequest(
@@ -570,6 +623,7 @@ extension HubAPI {
             diskGB: diskGB,
             channel: channel,
             packages: packages,
+            config: config,
             autostart: autostart
         )
         let data = try JSONEncoder().encode(request)
@@ -606,14 +660,16 @@ extension HubAPI {
         name: String? = nil,
         cpuCount: Int? = nil,
         memoryMB: Int? = nil,
-        packages: [String]? = nil
+        packages: [String]? = nil,
+        config: NixOSBuilderConfig? = nil
     ) async throws -> VirtualMachine {
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         let request = VMUpdateRequest(
             name: name,
             cpuCount: cpuCount,
             memoryMB: memoryMB,
-            packages: packages
+            packages: packages,
+            config: config
         )
         let data = try JSONEncoder().encode(request)
         let response = try await send("/api/vms/\(encoded)", method: "PATCH", body: data)

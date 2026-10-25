@@ -1016,7 +1016,8 @@ export const SCHEMAS = {
     required: [
       "id", "name", "distro", "channel", "stateVersion", "arch", "status",
       "createdAt", "updatedAt", "cpuCount", "memoryMB", "diskGB", "packages",
-      "pendingPackages", "lastError", "progress", "ssh", "network", "paths",
+      "pendingPackages", "pendingConfig", "config", "lastError", "progress",
+      "ssh", "network", "paths",
     ],
     properties: {
       id: string,
@@ -1033,6 +1034,8 @@ export const SCHEMAS = {
       diskGB: number,
       packages: stringArray,
       pendingPackages: stringArray,
+      pendingConfig: bool,
+      config: { $ref: "#/components/schemas/NixOSBuilderConfig" },
       lastError: { type: "string", nullable: true },
       progress: {
         type: "object",
@@ -1087,6 +1090,204 @@ export const SCHEMAS = {
 
   VMCapabilitiesResponse: data({ $ref: "#/components/schemas/VMCapabilities" }),
 
+  NixOSManagedUser: {
+    type: "object",
+    required: ["name", "description", "groups", "shell", "sshKeys", "passwordlessSudo", "createHome"],
+    properties: {
+      name: string,
+      description: string,
+      groups: stringArray,
+      shell: { type: "string", enum: ["bash", "zsh", "fish"] },
+      sshKeys: stringArray,
+      passwordlessSudo: bool,
+      createHome: bool,
+    },
+  },
+
+  NixOSBuilderSettings: {
+    type: "object",
+    required: [
+      "timezone", "locale", "keymap", "firewall", "passwordAuthentication",
+      "extraTCPPorts", "extraUDPPorts",
+    ],
+    properties: {
+      timezone: string,
+      locale: string,
+      keymap: string,
+      firewall: bool,
+      passwordAuthentication: bool,
+      extraTCPPorts: { type: "array", items: integer },
+      extraUDPPorts: { type: "array", items: integer },
+    },
+  },
+
+  NixOSBuilderConfig: {
+    type: "object",
+    required: ["version", "preset", "enabled", "settings", "users", "extraPackages", "extraConfig"],
+    properties: {
+      version: { type: "integer", enum: [1] },
+      preset: { type: "string", nullable: true },
+      enabled: stringArray,
+      settings: { $ref: "#/components/schemas/NixOSBuilderSettings" },
+      users: {
+        type: "array",
+        items: { $ref: "#/components/schemas/NixOSManagedUser" },
+      },
+      extraPackages: stringArray,
+      extraConfig: string,
+    },
+    example: {
+      version: 1,
+      preset: "developer",
+      enabled: ["zram", "docker", "tailscale", "neovim", "nodejs"],
+      settings: {
+        timezone: "UTC",
+        locale: "en_US.UTF-8",
+        keymap: "us",
+        firewall: true,
+        passwordAuthentication: false,
+        extraTCPPorts: [],
+        extraUDPPorts: [],
+      },
+      users: [],
+      extraPackages: ["ripgrep"],
+      extraConfig: "",
+    },
+  },
+
+  VMConfigCategory: {
+    type: "object",
+    required: ["id", "name", "summary", "icon", "tint"],
+    properties: {
+      id: string,
+      name: string,
+      summary: string,
+      icon: string,
+      tint: string,
+    },
+  },
+
+  VMConfigOption: {
+    type: "object",
+    required: [
+      "id", "category", "name", "summary", "description", "icon", "tint",
+      "tags", "badge", "packages", "requires", "recommends", "conflicts",
+      "ports", "services", "defaultOn", "locked", "sizeMB", "unfree",
+    ],
+    properties: {
+      id: string,
+      category: string,
+      name: string,
+      summary: string,
+      description: string,
+      icon: string,
+      tint: string,
+      tags: stringArray,
+      badge: { type: "string", nullable: true },
+      packages: stringArray,
+      requires: stringArray,
+      recommends: stringArray,
+      conflicts: stringArray,
+      ports: { type: "array", items: integer },
+      services: stringArray,
+      defaultOn: bool,
+      locked: bool,
+      sizeMB: integer,
+      unfree: bool,
+    },
+  },
+
+  VMConfigPreset: {
+    type: "object",
+    required: ["id", "name", "summary", "icon", "tint", "options", "tags"],
+    properties: {
+      id: string,
+      name: string,
+      summary: string,
+      icon: string,
+      tint: string,
+      options: stringArray,
+      tags: stringArray,
+    },
+  },
+
+  VMConfigCatalog: {
+    type: "object",
+    required: [
+      "version", "categories", "options", "presets", "defaults",
+      "recommendedPreset", "shells", "groups", "timezones", "locales",
+      "keymaps", "limits",
+    ],
+    properties: {
+      version: { type: "integer", enum: [1] },
+      categories: {
+        type: "array",
+        items: { $ref: "#/components/schemas/VMConfigCategory" },
+      },
+      options: {
+        type: "array",
+        items: { $ref: "#/components/schemas/VMConfigOption" },
+      },
+      presets: {
+        type: "array",
+        items: { $ref: "#/components/schemas/VMConfigPreset" },
+      },
+      defaults: { $ref: "#/components/schemas/NixOSBuilderConfig" },
+      recommendedPreset: { type: "string", nullable: true },
+      shells: stringArray,
+      groups: stringArray,
+      timezones: stringArray,
+      locales: stringArray,
+      keymaps: stringArray,
+      limits: {
+        type: "object",
+        required: ["maxUsers", "maxExtraPackages", "maxExtraConfigBytes", "maxPorts"],
+        properties: {
+          maxUsers: integer,
+          maxExtraPackages: integer,
+          maxExtraConfigBytes: integer,
+          maxPorts: integer,
+        },
+      },
+    },
+  },
+
+  VMConfigPreview: {
+    type: "object",
+    required: [
+      "configuration", "flake", "packages", "services", "ports", "users",
+      "optionCount", "added", "warnings", "sizeMB", "stateVersion",
+    ],
+    properties: {
+      configuration: string,
+      flake: string,
+      packages: stringArray,
+      services: stringArray,
+      ports: { type: "array", items: integer },
+      users: stringArray,
+      optionCount: integer,
+      added: stringArray,
+      warnings: stringArray,
+      sizeMB: integer,
+      stateVersion: string,
+    },
+  },
+
+  VMConfigCatalogResponse: data({ $ref: "#/components/schemas/VMConfigCatalog" }),
+  VMConfigPreviewResponse: data({ $ref: "#/components/schemas/VMConfigPreview" }),
+
+  VMConfigPreviewRequest: {
+    type: "object",
+    properties: {
+      config: { $ref: "#/components/schemas/NixOSBuilderConfig" },
+      packages: stringArray,
+      name: string,
+      diskGB: number,
+      channel: string,
+      stateVersion: string,
+    },
+  },
+
   VMCreateRequest: {
     type: "object",
     required: ["name"],
@@ -1097,6 +1298,7 @@ export const SCHEMAS = {
       diskGB: number,
       channel: string,
       packages: stringArray,
+      config: { $ref: "#/components/schemas/NixOSBuilderConfig" },
       autostart: { type: "boolean", default: true },
     },
     example: {
@@ -1118,6 +1320,7 @@ export const SCHEMAS = {
       cpuCount: integer,
       memoryMB: integer,
       packages: stringArray,
+      config: { $ref: "#/components/schemas/NixOSBuilderConfig" },
     },
   },
 

@@ -118,9 +118,12 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `POST` | `/api/host-terminals/{tty}/focus` | Focus a Terminal.app tab |
 | `GET` | `/api/vms` | Virtual-machine definitions and status |
 | `GET` | `/api/vms/capabilities` | Host support, helper/Nix/builder readiness |
+| `GET` | `/api/vms/catalog` | Categories, clickable options, presets, and defaults |
+| `POST` | `/api/vms/preview` | Render a draft configuration and build plan |
 | `POST` | `/api/vms` | Create a NixOS VM definition and start its build |
 | `GET` | `/api/vms/{id}` | One VM with metrics |
-| `PATCH` | `/api/vms/{id}` | Rename, resize, or replace the package list |
+| `PATCH` | `/api/vms/{id}` | Rename, resize, replace packages, or replace the builder config |
+| `POST` | `/api/vms/{id}/preview` | Render a configuration against a real VM |
 | `DELETE` | `/api/vms/{id}` | Stop the helper and remove the VM |
 | `POST` | `/api/vms/{id}/{action}` | Start, stop, restart, pause, resume, rebuild, or apply |
 | `GET` | `/api/vms/{id}/log` | Build, serial, or apply log tail |
@@ -366,7 +369,8 @@ helper listens on loopback only and the hub proxies its serial console.
 }
 ```
 
-Create one with a name and optional resources, channel, packages, and autostart:
+Create one with a name, optional resources, and either a builder `config` or a
+legacy package list:
 
 ```json
 {
@@ -375,15 +379,69 @@ Create one with a name and optional resources, channel, packages, and autostart:
   "memoryMB": 4096,
   "diskGB": 20,
   "channel": "nixos-26.05",
-  "packages": ["nodejs", "ripgrep"],
+  "config": {
+    "version": 1,
+    "preset": "developer",
+    "enabled": ["zram", "docker", "tailscale", "neovim", "nodejs"],
+    "settings": {
+      "timezone": "UTC",
+      "locale": "en_US.UTF-8",
+      "keymap": "us",
+      "firewall": true,
+      "passwordAuthentication": false,
+      "extraTCPPorts": [8080],
+      "extraUDPPorts": []
+    },
+    "users": [
+      {
+        "name": "alice",
+        "description": "Alice",
+        "groups": ["wheel", "docker"],
+        "shell": "zsh",
+        "sshKeys": ["ssh-ed25519 AAAAC3Nza… alice@example"],
+        "passwordlessSudo": false,
+        "createHome": true
+      }
+    ],
+    "extraPackages": ["ripgrep"],
+    "extraConfig": ""
+  },
   "autostart": true
+}
+```
+
+`GET /api/vms/catalog` returns every category, option, preset, and default. Each
+option includes its category, icon/tint hints, tags, package attributes,
+requirements, recommendations, conflicts, ports, and service names. The Nix
+module body stays on the hub.
+
+`POST /api/vms/preview` and `POST /api/vms/{id}/preview` render the real
+`configuration.nix` and report the resolved plan without writing or building
+anything:
+
+```json
+{
+  "data": {
+    "configuration": "# Managed by OpenCodeBar …",
+    "flake": "{ … }",
+    "packages": ["curl", "git", "htop", "nodejs", "ripgrep", "vim"],
+    "services": ["Docker Engine", "Tailscale"],
+    "ports": [8080, 11434],
+    "users": ["opencodebar", "alice"],
+    "optionCount": 5,
+    "added": [],
+    "warnings": [],
+    "sizeMB": 2100,
+    "stateVersion": "26.05"
+  }
 }
 ```
 
 The response is `201` with a `building` VM. The build runs asynchronously; poll
 the VM or its build log. A VM object includes `status`, `progress`,
-`lastError`, resources, packages, pending packages, SSH information, the
-discovered network address, paths, and the last metrics snapshot:
+`lastError`, resources, packages, pending packages, pending builder changes,
+the builder config, SSH information, the discovered network address, paths, and
+the last metrics snapshot:
 
 ```json
 {
@@ -397,15 +455,18 @@ discovered network address, paths, and the last metrics snapshot:
   "diskGB": 20,
   "packages": ["nodejs"],
   "pendingPackages": [],
+  "pendingConfig": false,
+  "config": { "version": 1, "preset": "developer", "enabled": ["docker"], "…": "…" },
   "network": { "mac": "52:54:00:…", "ip": "192.168.64.7", "reachable": true },
   "ssh": { "user": "opencodebar", "keyPath": "/…/ssh/id_ed25519", "publicKey": "ssh-ed25519 …" },
   "metrics": { "collectedAt": 1792900000000, "host": { … }, "guest": { … } }
 }
 ```
 
-`PATCH` accepts `name`, `cpuCount` (stopped only), `memoryMB` (stopped only), and
-`packages`. Replacing packages while the guest is running queues an apply. The
-action routes are `POST` with an optional `force` body or `?force=1`:
+`PATCH` accepts `name`, `cpuCount` (stopped only), `memoryMB` (stopped only),
+`packages`, and `config`. Replacing packages or the builder config while the
+guest is running queues an apply. The action routes are `POST` with an optional
+`force` body or `?force=1`:
 
 | Action | Notes |
 | --- | --- |

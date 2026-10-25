@@ -131,6 +131,10 @@ struct VirtualMachine: Decodable, Identifiable, Equatable {
     var diskGB: Int
     var packages: [String]
     var pendingPackages: [String]
+    /// True when the builder configuration changed but has not been applied.
+    var pendingConfig: Bool?
+    /// The click-together builder configuration. Nil on older hubs.
+    var config: NixOSBuilderConfig?
     var lastError: String?
     var progress: Progress?
     var ssh: SSH
@@ -148,6 +152,18 @@ struct VirtualMachine: Decodable, Identifiable, Equatable {
     var isRunning: Bool { status == .running || status == .paused }
     var isBusy: Bool { status.isBusy }
     var hasPendingPackages: Bool { !pendingPackages.isEmpty }
+    var hasPendingConfig: Bool { pendingConfig == true }
+    var hasPendingChanges: Bool { hasPendingPackages || hasPendingConfig }
+
+    /// The stored builder configuration, with a sensible fallback for hubs
+    /// created before the builder existed.
+    var builder: NixOSBuilderConfig { config ?? .fresh() }
+
+    var optionCount: Int {
+        builder.enabled.filter { id in
+            id != "ssh" && id != "flakes" && id != "optimise"
+        }.count
+    }
 
     /// NixOS already ships the base packages; show what the user added.
     var extraPackages: [String] {
@@ -193,6 +209,185 @@ struct VMCapabilities: Decodable, Equatable {
     var ready: Bool {
         supported && helperAvailable && helperEntitled && nixAvailable && linuxBuilder
     }
+}
+
+// MARK: - NixOS configuration builder
+
+struct NixOSManagedUser: Codable, Equatable, Identifiable {
+    var name: String
+    var description: String
+    var groups: [String]
+    var shell: String
+    var sshKeys: [String]
+    var passwordlessSudo: Bool
+    var createHome: Bool
+
+    var id: String { name }
+
+    static func fresh(existing: [NixOSManagedUser] = []) -> NixOSManagedUser {
+        let used = Set(existing.map(\.name))
+        var candidate = "user"
+        var index = 2
+        while used.contains(candidate) {
+            candidate = "user\(index)"
+            index += 1
+        }
+        return NixOSManagedUser(
+            name: candidate,
+            description: "Managed user",
+            groups: [],
+            shell: "bash",
+            sshKeys: [],
+            passwordlessSudo: false,
+            createHome: true
+        )
+    }
+}
+
+struct NixOSBuilderSettings: Codable, Equatable {
+    var timezone: String
+    var locale: String
+    var keymap: String
+    var firewall: Bool
+    var passwordAuthentication: Bool
+    var extraTCPPorts: [Int]
+    var extraUDPPorts: [Int]
+
+    static let standard = NixOSBuilderSettings(
+        timezone: "UTC",
+        locale: "en_US.UTF-8",
+        keymap: "us",
+        firewall: true,
+        passwordAuthentication: false,
+        extraTCPPorts: [],
+        extraUDPPorts: []
+    )
+}
+
+struct NixOSBuilderConfig: Codable, Equatable {
+    var version: Int
+    var preset: String?
+    var enabled: [String]
+    var settings: NixOSBuilderSettings
+    var users: [NixOSManagedUser]
+    var extraPackages: [String]
+    var extraConfig: String
+
+    static func fresh() -> NixOSBuilderConfig {
+        NixOSBuilderConfig(
+            version: 1,
+            preset: nil,
+            enabled: [],
+            settings: .standard,
+            users: [],
+            extraPackages: [],
+            extraConfig: ""
+        )
+    }
+}
+
+struct VMConfigCategory: Decodable, Equatable, Identifiable {
+    var id: String
+    var name: String
+    var summary: String
+    var icon: String
+    var tint: String
+}
+
+struct VMConfigOption: Decodable, Equatable, Identifiable {
+    var id: String
+    var category: String
+    var name: String
+    var summary: String
+    var description: String
+    var icon: String
+    var tint: String
+    var tags: [String]
+    var badge: String?
+    var packages: [String]
+    var requires: [String]
+    var recommends: [String]
+    var conflicts: [String]
+    var ports: [Int]
+    var services: [String]
+    var defaultOn: Bool
+    var locked: Bool
+    var sizeMB: Int
+    var unfree: Bool
+}
+
+struct VMConfigPreset: Decodable, Equatable, Identifiable {
+    var id: String
+    var name: String
+    var summary: String
+    var icon: String
+    var tint: String
+    var options: [String]
+    var tags: [String]
+}
+
+struct VMConfigLimits: Decodable, Equatable {
+    var maxUsers: Int
+    var maxExtraPackages: Int
+    var maxExtraConfigBytes: Int
+    var maxPorts: Int
+}
+
+struct VMConfigCatalog: Decodable, Equatable {
+    var version: Int
+    var categories: [VMConfigCategory]
+    var options: [VMConfigOption]
+    var presets: [VMConfigPreset]
+    var defaults: NixOSBuilderConfig
+    var recommendedPreset: String?
+    var shells: [String]
+    var groups: [String]
+    var timezones: [String]
+    var locales: [String]
+    var keymaps: [String]
+    var limits: VMConfigLimits
+
+    func option(_ id: String) -> VMConfigOption? {
+        options.first { $0.id == id }
+    }
+
+    func preset(_ id: String?) -> VMConfigPreset? {
+        guard let id else { return nil }
+        return presets.first { $0.id == id }
+    }
+
+    func category(_ id: String) -> VMConfigCategory? {
+        categories.first { $0.id == id }
+    }
+}
+
+struct VMConfigPreview: Decodable, Equatable {
+    var configuration: String
+    var flake: String
+    var packages: [String]
+    var services: [String]
+    var ports: [Int]
+    var users: [String]
+    var optionCount: Int
+    var added: [String]
+    var warnings: [String]
+    var sizeMB: Int
+    var stateVersion: String
+
+    var sizeLabel: String {
+        if sizeMB >= 1_024 {
+            return String(format: "%.1f GB", Double(sizeMB) / 1_024)
+        }
+        return "\(sizeMB) MB"
+    }
+}
+
+struct VMConfigCatalogEnvelope: Decodable {
+    var data: VMConfigCatalog
+}
+
+struct VMConfigPreviewEnvelope: Decodable {
+    var data: VMConfigPreview
 }
 
 enum VMLogType: String, CaseIterable, Identifiable {
@@ -348,6 +543,7 @@ struct VMCreateRequest: Encodable {
     var diskGB: Int?
     var channel: String?
     var packages: [String]?
+    var config: NixOSBuilderConfig?
     var autostart: Bool?
 }
 
@@ -356,6 +552,7 @@ struct VMUpdateRequest: Encodable {
     var cpuCount: Int?
     var memoryMB: Int?
     var packages: [String]?
+    var config: NixOSBuilderConfig?
 }
 
 struct VMControlRequest: Encodable {

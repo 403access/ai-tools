@@ -9,6 +9,7 @@ import Foundation
 final class VirtualMachinesStore: ObservableObject {
     @Published private(set) var machines: [VirtualMachine] = []
     @Published private(set) var capabilities: VMCapabilities?
+    @Published private(set) var catalog: VMConfigCatalog?
     @Published private(set) var isLoading = false
     @Published private(set) var isRefreshing = false
     @Published private(set) var fetchedAt: Date?
@@ -64,6 +65,9 @@ final class VirtualMachinesStore: ObservableObject {
             if wantsCapabilities {
                 capabilities = try? await api.virtualMachineCapabilities()
                 capabilitiesFetchedAt = Date()
+                if catalog == nil {
+                    catalog = try? await api.virtualMachineCatalog()
+                }
             }
         } catch {
             self.error = message(for: error)
@@ -78,6 +82,50 @@ final class VirtualMachinesStore: ObservableObject {
         } catch {
             self.error = message(for: error)
         }
+    }
+
+    /// Loads the builder catalog once; the builder view calls this when it opens.
+    func loadCatalog(api: HubAPI?, force: Bool = false) async {
+        guard let api else { return }
+        if !force, catalog != nil { return }
+        do {
+            catalog = try await api.virtualMachineCatalog()
+            error = nil
+        } catch {
+            self.error = message(for: error)
+        }
+    }
+
+    func preview(
+        api: HubAPI?,
+        config: NixOSBuilderConfig,
+        packages: [String],
+        name: String?,
+        diskGB: Int?,
+        channel: String?
+    ) async throws -> VMConfigPreview {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+        return try await api.previewVirtualMachineConfiguration(
+            config: config,
+            packages: packages,
+            name: name,
+            diskGB: diskGB,
+            channel: channel
+        )
+    }
+
+    func preview(
+        api: HubAPI?,
+        machine: VirtualMachine,
+        config: NixOSBuilderConfig,
+        packages: [String]
+    ) async throws -> VMConfigPreview {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+        return try await api.previewVirtualMachineConfiguration(
+            id: machine.id,
+            config: config,
+            packages: packages
+        )
     }
 
     /// One poll tick used by both platforms: the list every time, a deeper
@@ -147,7 +195,9 @@ final class VirtualMachinesStore: ObservableObject {
         memoryMB: Int,
         diskGB: Int,
         channel: String,
-        packages: [String]
+        packages: [String],
+        config: NixOSBuilderConfig? = nil,
+        autostart: Bool = true
     ) async throws -> VirtualMachine {
         guard let api else { throw APIError.transport("Not connected to the hub") }
         isLoading = true
@@ -158,7 +208,9 @@ final class VirtualMachinesStore: ObservableObject {
             memoryMB: memoryMB,
             diskGB: diskGB,
             channel: channel,
-            packages: packages
+            packages: packages,
+            config: config,
+            autostart: autostart
         )
         replace(machine)
         selectedID = machine.id
@@ -197,7 +249,8 @@ final class VirtualMachinesStore: ObservableObject {
         name: String? = nil,
         cpuCount: Int? = nil,
         memoryMB: Int? = nil,
-        packages: [String]? = nil
+        packages: [String]? = nil,
+        config: NixOSBuilderConfig? = nil
     ) async {
         guard let api else {
             error = "Not connected to the hub"
@@ -211,7 +264,8 @@ final class VirtualMachinesStore: ObservableObject {
                 name: name,
                 cpuCount: cpuCount,
                 memoryMB: memoryMB,
-                packages: packages
+                packages: packages,
+                config: config
             )
             replace(updated)
             error = nil

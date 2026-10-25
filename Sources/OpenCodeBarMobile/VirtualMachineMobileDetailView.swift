@@ -33,6 +33,7 @@ struct VirtualMachineMobileDetailView: View {
     @State private var packageDraft = ""
     @State private var showingDelete = false
     @State private var showingRebuild = false
+    @State private var showingBuilder = false
     @State private var copied = false
 
     private var machine: VirtualMachine? { model.machine(machineID) }
@@ -69,6 +70,11 @@ struct VirtualMachineMobileDetailView: View {
                         } label: {
                             Label("Copy SSH command", systemImage: "doc.on.doc")
                         }
+                    }
+                    Button {
+                        showingBuilder = true
+                    } label: {
+                        Label("Configure…", systemImage: "slider.horizontal.3")
                     }
                     Button(role: .destructive) {
                         showingRebuild = true
@@ -116,6 +122,11 @@ struct VirtualMachineMobileDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The disk image, SSH key, logs, and all data inside the guest are removed.")
+        }
+        .sheet(isPresented: $showingBuilder) {
+            if let machine {
+                MobileNixOSConfigSheet(machine: machine, model: model)
+            }
         }
     }
 
@@ -233,7 +244,7 @@ struct VirtualMachineMobileDetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 4)
-                if machine.hasPendingPackages, !isActing {
+                if machine.hasPendingChanges, machine.status == .running, !isActing {
                     actionButton("Apply", icon: "arrow.triangle.2.circlepath", tint: Theme.warn) {
                         await model.control(api: store.api, machine: machine, action: "apply")
                     }
@@ -382,6 +393,28 @@ struct VirtualMachineMobileDetailView: View {
                 .card()
             }
 
+            VStack(alignment: .leading, spacing: 6) {
+                SectionHeader("Configuration") {
+                    Button("Open builder") { showingBuilder = true }
+                        .font(.caption2.weight(.semibold))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.reasoning)
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    infoRow("Preset", machine.builder.preset ?? "Custom")
+                    infoRow("Options", "\(machine.builder.enabled.count)")
+                    infoRow("Users", "\(machine.builder.users.count + 1)")
+                    infoRow("Extra packages", "\(machine.builder.extraPackages.count)")
+                    if machine.hasPendingConfig {
+                        Text("Configuration changes are queued for the next apply.")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.warn)
+                            .padding(.top, 4)
+                    }
+                }
+                .card()
+            }
+
             if !machine.packages.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     SectionHeader("Packages") {
@@ -478,17 +511,17 @@ struct VirtualMachineMobileDetailView: View {
             }
             .card()
 
-            if machine.hasPendingPackages {
+            if machine.hasPendingChanges {
                 NoticeRow(
                     icon: "arrow.triangle.2.circlepath",
                     message: machine.status == .running
-                        ? "Package changes are queued for the next apply."
-                        : "Package changes will be applied on the next boot.",
+                        ? "Changes are queued for the next apply."
+                        : "Changes will be applied on the next boot.",
                     tint: Theme.warn
                 )
             }
 
-            if machine.status == .running, machine.network.reachable, !machine.hasPendingPackages {
+            if machine.status == .running, machine.network.reachable, !machine.hasPendingChanges {
                 Button {
                     Task { await model.control(api: store.api, machine: machine, action: "apply") }
                 } label: {

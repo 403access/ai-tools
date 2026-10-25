@@ -90,6 +90,162 @@ export interface VMNetworkInfo {
   reachable: boolean;
 }
 
+/** One additional login rendered into `users.users.<name>`. */
+export interface NixOSManagedUser {
+  /** Unix login name. `root` and `opencodebar` are reserved. */
+  name: string;
+  description: string;
+  /** Additional groups joined to the user's primary group. */
+  groups: string[];
+  shell: "bash" | "zsh" | "fish";
+  /** OpenSSH public keys authorized for this login. */
+  sshKeys: string[];
+  /** Add a NOPASSWD sudo rule for this user. */
+  passwordlessSudo: boolean;
+  createHome: boolean;
+}
+
+export interface NixOSBuilderSettings {
+  timezone: string;
+  locale: string;
+  keymap: string;
+  firewall: boolean;
+  /** Permit password logins over SSH. Off by default; keys are required. */
+  passwordAuthentication: boolean;
+  /** Extra TCP/UDP ports opened on the guest firewall. */
+  extraTCPPorts: number[];
+  extraUDPPorts: number[];
+}
+
+/**
+ * The declarative, click-together description of a guest. `enabled` holds
+ * catalog option ids; everything else is the small set of values that cannot
+ * be expressed as a boolean option.
+ */
+export interface NixOSBuilderConfig {
+  version: 1;
+  /** The preset the user applied last, kept for the UI. */
+  preset: string | null;
+  enabled: string[];
+  settings: NixOSBuilderSettings;
+  users: NixOSManagedUser[];
+  extraPackages: string[];
+  /** Raw Nix module body appended verbatim for advanced users. */
+  extraConfig: string;
+}
+
+export type VMConfigCategoryID =
+  | "system"
+  | "desktop"
+  | "development"
+  | "containers"
+  | "services"
+  | "networking"
+  | "media"
+  | "ai"
+  | "observability"
+  | "security"
+  | "gaming"
+  | "advanced";
+
+export interface VMConfigCategory {
+  id: VMConfigCategoryID;
+  name: string;
+  summary: string;
+  /** SF Symbol name understood by the macOS and iOS clients. */
+  icon: string;
+  /** Theme palette key: accent, input, output, reasoning, warn, danger, running. */
+  tint: string;
+}
+
+export interface VMConfigOption {
+  id: string;
+  category: VMConfigCategoryID;
+  name: string;
+  summary: string;
+  description: string;
+  icon: string;
+  tint: string;
+  tags: string[];
+  /** Short label shown on the card, for example "Popular" or "Self-hosted". */
+  badge: string | null;
+  /** nixpkgs attributes added to environment.systemPackages. */
+  packages: string[];
+  /** Options automatically enabled with this one. */
+  requires: string[];
+  /** Options worth suggesting but not enabling automatically. */
+  recommends: string[];
+  /** Options that cannot be enabled at the same time. */
+  conflicts: string[];
+  /** Informational port list; the Nix snippet opens the firewall itself. */
+  ports: number[];
+  /** Human-readable service names for the build plan. */
+  services: string[];
+  /** Enabled in a fresh configuration. */
+  defaultOn: boolean;
+  /** Always on and not toggleable. */
+  locked: boolean;
+  /** Rough installed size used by the build-plan estimate. */
+  sizeMB: number;
+  /** Requires `nixpkgs.config.allowUnfree`. */
+  unfree: boolean;
+}
+
+export interface VMConfigPreset {
+  id: string;
+  name: string;
+  summary: string;
+  icon: string;
+  tint: string;
+  options: string[];
+  tags: string[];
+}
+
+export interface VMConfigLimits {
+  maxUsers: number;
+  maxExtraPackages: number;
+  maxExtraConfigBytes: number;
+  maxPorts: number;
+}
+
+export interface VMConfigCatalog {
+  version: 1;
+  categories: VMConfigCategory[];
+  options: VMConfigOption[];
+  presets: VMConfigPreset[];
+  defaults: NixOSBuilderConfig;
+  recommendedPreset: string | null;
+  shells: string[];
+  groups: string[];
+  timezones: string[];
+  locales: string[];
+  keymaps: string[];
+  limits: VMConfigLimits;
+}
+
+export interface VMConfigPreview {
+  configuration: string;
+  flake: string;
+  /** All package attributes in the rendered configuration, sorted. */
+  packages: string[];
+  services: string[];
+  ports: number[];
+  users: string[];
+  /** Number of enabled catalog options, excluding locked core options. */
+  optionCount: number;
+  /** Options added automatically because another option requires them. */
+  added: string[];
+  warnings: string[];
+  /** Rough installed-size estimate in MiB. */
+  sizeMB: number;
+  stateVersion: string;
+}
+
+export interface VMConfigPreviewInput {
+  config?: unknown;
+  packages?: unknown;
+}
+
 export interface VMPaths {
   directory: string;
   disk: string;
@@ -123,6 +279,10 @@ export interface VirtualMachine {
   packages: string[];
   /** Package changes waiting for the guest to become reachable. */
   pendingPackages: string[];
+  /** True when the builder configuration changed but has not been applied. */
+  pendingConfig: boolean;
+  /** The click-together builder configuration. */
+  config: NixOSBuilderConfig;
   lastError: string | null;
   progress: VMProgress | null;
   ssh: VMSshInfo;
@@ -168,6 +328,8 @@ export interface VMCreateInput {
   diskGB?: number;
   channel?: string;
   packages?: string[];
+  /** Full builder configuration. Replaces the package-derived defaults. */
+  config?: unknown;
   /** Boot the VM as soon as the image is ready. Defaults to true. */
   autostart?: boolean;
 }
@@ -178,6 +340,8 @@ export interface VMUpdateInput {
   memoryMB?: number;
   /** Replaces the package list. Applied when the guest is reachable. */
   packages?: string[];
+  /** Replaces the builder configuration. */
+  config?: unknown;
 }
 
 export type VMLogType = "build" | "serial" | "apply";

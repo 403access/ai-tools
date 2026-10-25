@@ -62,6 +62,12 @@ the guest to reach the Nix binary cache. The channel is fixed when the VM is
 created. Guests keep running when the hub exits or restarts and continue to use
 host CPU and memory until stopped.
 
+The configuration builder ships a curated catalog; it is not a live mirror of
+every nixpkgs module. Anything outside the catalog is reachable through the
+advanced **Extra packages** and **Custom Nix** fields, but those are also your
+responsibility to keep valid. Applying a preset replaces the option selection,
+not your users, ports, or custom Nix.
+
 The helper is ad-hoc signed for local use. A distributed build should sign it
 with the app's Developer ID and include it in the signed bundle. Anyone with the
 hub token can control VMs and attach to their serial consoles.

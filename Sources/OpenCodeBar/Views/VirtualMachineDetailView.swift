@@ -32,6 +32,7 @@ struct VirtualMachineDetailView: View {
     @State private var logType: VMLogType = .build
     @State private var packageDraft = ""
     @State private var copied = false
+    @State private var showingBuilder = false
 
     private var guest: VirtualMachine.GuestMetrics? { machine.metrics?.guest }
     private var host: VirtualMachine.HostMetrics? { machine.metrics?.host }
@@ -63,6 +64,9 @@ struct VirtualMachineDetailView: View {
         }
         .padding(.bottom, 6)
         .onExitCommand(perform: onBack)
+        .sheet(isPresented: $showingBuilder) {
+            NixOSConfigSheet(machine: machine, model: model)
+        }
         .task(id: machine.id) {
             await loadBuildLogIfNeeded()
         }
@@ -89,6 +93,16 @@ struct VirtualMachineDetailView: View {
             .help("Back to virtual machines")
 
             Spacer()
+
+            Button {
+                showingBuilder = true
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.reasoning)
+            }
+            .buttonStyle(.plain)
+            .help("Open the NixOS configuration builder")
 
             Button {
                 copy(machine.sshCommand ?? machine.paths.directory)
@@ -205,7 +219,7 @@ struct VirtualMachineDetailView: View {
 
                 Spacer(minLength: 4)
 
-                if machine.hasPendingPackages, !isActing {
+                if machine.hasPendingChanges, machine.status == .running, !isActing {
                     actionButton("Apply", icon: "arrow.triangle.2.circlepath", tint: Theme.warn) {
                         await model.control(api: state.api, machine: machine, action: "apply")
                     }
@@ -268,8 +282,9 @@ struct VirtualMachineDetailView: View {
             metricsGrid
             resourceSection
             networkSection
+            builderSection
             configurationSection
-            if !machine.packages.isEmpty { packagesPreview }
+             if !machine.packages.isEmpty { packagesPreview }
             logsPreview
         }
     }
@@ -443,6 +458,51 @@ struct VirtualMachineDetailView: View {
         }
     }
 
+    private var builderSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Configuration") {
+                Button("Open builder") { showingBuilder = true }
+                    .font(.system(size: 9, weight: .semibold))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.reasoning)
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 14) {
+                    metric("Preset", presetLabel)
+                    metric("Options", "\(machine.builder.enabled.count)")
+                    metric("Users", "\(machine.builder.users.count + 1)")
+                    metric("Custom packages", "\(machine.builder.extraPackages.count)")
+                }
+
+                if !enabledOptionNames.isEmpty {
+                    FlowChips(items: Array(enabledOptionNames.prefix(12)), tint: Theme.reasoning)
+                } else {
+                    Text("Minimal configuration. Open the builder to add apps, services, and users.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+
+                if machine.hasPendingConfig {
+                    Text("Builder changes are queued for the next apply.")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.warn)
+                }
+            }
+            .card()
+        }
+    }
+
+    private var presetLabel: String {
+        guard let presetID = machine.builder.preset else { return "Custom" }
+        return model.catalog?.preset(presetID)?.name ?? presetID
+    }
+
+    private var enabledOptionNames: [String] {
+        machine.builder.enabled.compactMap { id in
+            model.catalog?.option(id)?.name ?? id
+        }
+    }
+
     private var configurationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("NixOS") {
@@ -502,11 +562,15 @@ struct VirtualMachineDetailView: View {
                 } else {
                     FlowChips(items: machine.packages, tint: Theme.accent)
                 }
-                if machine.hasPendingPackages {
-                    Text("Pending: \(machine.pendingPackages.joined(separator: ", "))")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Theme.warn)
-                        .lineLimit(2)
+                if machine.hasPendingChanges {
+                    Text(
+                        machine.hasPendingPackages
+                            ? "Pending: \(machine.pendingPackages.joined(separator: ", "))"
+                            : "Configuration changes are queued."
+                    )
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.warn)
+                    .lineLimit(2)
                 }
             }
             .card()
@@ -617,17 +681,17 @@ struct VirtualMachineDetailView: View {
                         .disabled(packageDraft.trimmingCharacters(in: .whitespaces).isEmpty || isActing || machine.status == .building)
                 }
 
-                if machine.hasPendingPackages {
+                if machine.hasPendingChanges {
                     NoticeRow(
                         icon: "arrow.triangle.2.circlepath",
                         message: machine.status == .running
-                            ? "Package changes are queued for the next apply."
-                            : "Package changes will be applied the next time NixOS boots.",
+                            ? "Changes are queued for the next apply."
+                            : "Changes will be applied the next time NixOS boots.",
                         tint: Theme.warn
                     )
                 }
 
-                if machine.status == .running, machine.network.reachable, !machine.hasPendingPackages {
+                if machine.status == .running, machine.network.reachable, !machine.hasPendingChanges {
                     Button {
                         Task { await model.control(api: state.api, machine: machine, action: "apply") }
                     } label: {

@@ -1023,6 +1023,38 @@ export const PATHS = {
     },
   },
 
+  "/api/vms/catalog": {
+    get: {
+      tags: ["Virtual machines"],
+      summary: "NixOS configuration catalog",
+      description:
+        "Categories, clickable options, presets, defaults, and limits used by the configuration builder in both apps.",
+      operationId: "getVMConfigCatalog",
+      responses: {
+        200: ok(schemaRef("VMConfigCatalogResponse")),
+        401: unauthorized,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/vms/preview": {
+    post: {
+      tags: ["Virtual machines"],
+      summary: "Render and summarize a draft configuration",
+      description:
+        "Returns the generated `configuration.nix`, package/service/port plan, dependency additions, and warnings without creating a VM.",
+      operationId: "previewVMConfig",
+      requestBody: jsonBody(schemaRef("VMConfigPreviewRequest"), false),
+      responses: {
+        200: ok(schemaRef("VMConfigPreviewResponse")),
+        400: badRequest,
+        401: unauthorized,
+        default: failure,
+      },
+    },
+  },
+
   "/api/vms/setup": {
     get: {
       tags: ["Virtual machines"],
@@ -1176,6 +1208,25 @@ export const PATHS = {
           description: "The VM is in a state that cannot accept this action.",
           content: { "application/json": { schema: schemaRef("ErrorResponse") } },
         },
+        default: failure,
+      },
+    },
+  },
+
+  "/api/vms/{id}/preview": {
+    post: {
+      tags: ["Virtual machines"],
+      summary: "Preview a configuration for an existing VM",
+      description:
+        "Renders the configuration with this VM's hostname, SSH key, state version, and disk size. Nothing is written or applied.",
+      operationId: "previewVMConfigForVM",
+      parameters: [pathParam("id", "VM id.")],
+      requestBody: jsonBody(schemaRef("VMConfigPreviewRequest"), false),
+      responses: {
+        200: ok(schemaRef("VMConfigPreviewResponse")),
+        400: badRequest,
+        401: unauthorized,
+        404: notFound,
         default: failure,
       },
     },

@@ -274,8 +274,8 @@ struct VirtualMachineRow: View {
                                     .foregroundStyle(machine.network.reachable ? Theme.accent : .secondary)
                                     .lineLimit(1)
                             }
-                            if machine.hasPendingPackages {
-                                Text("packages pending")
+                            if machine.hasPendingChanges {
+                                Text("changes pending")
                                     .font(.system(size: 8, weight: .semibold))
                                     .foregroundStyle(Theme.warn)
                             }

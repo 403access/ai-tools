@@ -22,6 +22,7 @@ import {
 } from "../src/vms/nixos.ts";
 import { VirtualMachineService } from "../src/vms/service.ts";
 import { readLogTail } from "../src/vms/logs.ts";
+import { defaultBuilderConfig } from "../src/vms/catalog.ts";
 import { VMStore, newMACAddress, newVMID } from "../src/vms/store.ts";
 import type { VirtualMachine } from "../src/vms/types.ts";
 
@@ -260,6 +261,15 @@ describe("VirtualMachineService", () => {
     expect(updated.pendingPackages).toEqual(["nodejs", "ripgrep"]);
     expect(readFileSync(updated.paths.configuration, "utf8")).toContain("ripgrep");
 
+    const withGitea = await service.update(created.id, {
+      config: { ...defaultBuilderConfig(), enabled: ["gitea"] },
+    });
+    expect(withGitea.config.enabled).toEqual(["gitea"]);
+    expect(withGitea.pendingConfig).toBe(true);
+    const giteaConfig = readFileSync(withGitea.paths.configuration, "utf8");
+    expect(giteaConfig).toContain("services.gitea");
+    expect(giteaConfig).toContain("HTTP_PORT = 3000");
+
     await expect(service.control(created.id, "apply")).rejects.toThrow(
       "Start the virtual machine before applying packages",
     );
@@ -289,6 +299,8 @@ function sampleVM(): VirtualMachine {
     diskGB: 20,
     packages: ["nodejs"],
     pendingPackages: [],
+    pendingConfig: false,
+    config: defaultBuilderConfig(),
     lastError: null,
     progress: null,
     ssh: {

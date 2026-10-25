@@ -182,4 +182,284 @@ final class VirtualMachineTests: XCTestCase {
         XCTAssertEqual(envelope.data.lines, ["a", "b"])
         XCTAssertTrue(envelope.data.truncated)
     }
+
+    func testDecodesBuilderConfigAndEffectiveFallback() throws {
+        let envelope = try decode(
+            VirtualMachineEnvelope.self,
+            """
+            {
+              "data": {
+                "id": "vm_abcdef123456",
+                "name": "Builder",
+                "distro": "nixos",
+                "channel": "nixos-26.05",
+                "stateVersion": "26.05",
+                "arch": "aarch64",
+                "status": "stopped",
+                "createdAt": 1,
+                "updatedAt": 1,
+                "cpuCount": 4,
+                "memoryMB": 4096,
+                "diskGB": 20,
+                "packages": [],
+                "pendingPackages": [],
+                "pendingConfig": true,
+                "config": {
+                  "version": 1,
+                  "preset": "developer",
+                  "enabled": ["docker", "tailscale"],
+                  "settings": {
+                    "timezone": "Europe/Berlin",
+                    "locale": "en_US.UTF-8",
+                    "keymap": "de",
+                    "firewall": true,
+                    "passwordAuthentication": false,
+                    "extraTCPPorts": [8080],
+                    "extraUDPPorts": []
+                  },
+                  "users": [
+                    {
+                      "name": "alice",
+                      "description": "Alice",
+                      "groups": ["docker"],
+                      "shell": "zsh",
+                      "sshKeys": [],
+                      "passwordlessSudo": false,
+                      "createHome": true
+                    }
+                  ],
+                  "extraPackages": ["ripgrep"],
+                  "extraConfig": ""
+                },
+                "lastError": null,
+                "progress": null,
+                "ssh": { "user": "opencodebar", "keyPath": "/tmp/k", "publicKey": "ssh-ed25519 A" },
+                "network": { "mac": "52:54:00:00:00:00", "ip": null, "reachable": false },
+                "paths": {
+                  "directory": "/tmp/v",
+                  "disk": "/tmp/v/disk.raw",
+                  "configuration": "/tmp/v/configuration.nix",
+                  "flake": "/tmp/v/flake.nix",
+                  "serialLog": "/tmp/v/serial.log",
+                  "buildLog": "/tmp/v/build.log",
+                  "applyLog": "/tmp/v/apply.log",
+                  "runtime": "/tmp/v/runtime.json"
+                }
+              }
+            }
+            """
+        )
+
+        let vm = envelope.data
+        XCTAssertTrue(vm.hasPendingConfig)
+        XCTAssertTrue(vm.hasPendingChanges)
+        XCTAssertEqual(vm.builder.preset, "developer")
+        XCTAssertEqual(vm.builder.enabled, ["docker", "tailscale"])
+        XCTAssertEqual(vm.builder.settings.extraTCPPorts, [8080])
+        XCTAssertEqual(vm.builder.users.first?.name, "alice")
+        XCTAssertEqual(vm.optionCount, 2)
+    }
+
+    func testDecodesBuilderCatalog() throws {
+        let envelope = try decode(
+            VMConfigCatalogEnvelope.self,
+            """
+            {
+              "data": {
+                "version": 1,
+                "categories": [
+                  { "id": "containers", "name": "Containers", "summary": "Boxes", "icon": "shippingbox.fill", "tint": "output" }
+                ],
+                "options": [
+                  {
+                    "id": "docker",
+                    "category": "containers",
+                    "name": "Docker",
+                    "summary": "Containers",
+                    "description": "Docker Engine",
+                    "icon": "shippingbox.fill",
+                    "tint": "output",
+                    "tags": ["Containers"],
+                    "badge": "Popular",
+                    "packages": [],
+                    "requires": [],
+                    "recommends": ["containers-tools"],
+                    "conflicts": ["podman"],
+                    "ports": [],
+                    "services": ["Docker Engine"],
+                    "defaultOn": false,
+                    "locked": false,
+                    "sizeMB": 380,
+                    "unfree": false
+                  }
+                ],
+                "presets": [
+                  {
+                    "id": "homelab",
+                    "name": "Homelab",
+                    "summary": "Self-hosted",
+                    "icon": "server.rack",
+                    "tint": "accent",
+                    "options": ["docker"],
+                    "tags": ["Infra"]
+                  }
+                ],
+                "defaults": {
+                  "version": 1,
+                  "preset": null,
+                  "enabled": [],
+                  "settings": {
+                    "timezone": "UTC",
+                    "locale": "en_US.UTF-8",
+                    "keymap": "us",
+                    "firewall": true,
+                    "passwordAuthentication": false,
+                    "extraTCPPorts": [],
+                    "extraUDPPorts": []
+                  },
+                  "users": [],
+                  "extraPackages": [],
+                  "extraConfig": ""
+                },
+                "recommendedPreset": "homelab",
+                "shells": ["bash", "zsh", "fish"],
+                "groups": ["wheel", "docker"],
+                "timezones": ["UTC"],
+                "locales": ["en_US.UTF-8"],
+                "keymaps": ["us"],
+                "limits": {
+                  "maxUsers": 16,
+                  "maxExtraPackages": 128,
+                  "maxExtraConfigBytes": 16000,
+                  "maxPorts": 32
+                }
+              }
+            }
+            """
+        )
+
+        let catalog = envelope.data
+        XCTAssertEqual(catalog.options.count, 1)
+        XCTAssertEqual(catalog.option("docker")?.conflicts, ["podman"])
+        XCTAssertEqual(catalog.preset(catalog.recommendedPreset)?.name, "Homelab")
+        XCTAssertEqual(catalog.category("containers")?.icon, "shippingbox.fill")
+        XCTAssertEqual(catalog.limits.maxUsers, 16)
+    }
+}
+
+@MainActor
+final class NixOSBuilderModelTests: XCTestCase {
+    private func option(
+        _ id: String,
+        category: String = "development",
+        requires: [String] = [],
+        conflicts: [String] = []
+    ) -> VMConfigOption {
+        VMConfigOption(
+            id: id,
+            category: category,
+            name: id.capitalized,
+            summary: "Summary",
+            description: "Description",
+            icon: "shippingbox",
+            tint: "accent",
+            tags: [],
+            badge: nil,
+            packages: [id],
+            requires: requires,
+            recommends: [],
+            conflicts: conflicts,
+            ports: [],
+            services: [],
+            defaultOn: false,
+            locked: false,
+            sizeMB: 10,
+            unfree: false
+        )
+    }
+
+    private func catalog() -> VMConfigCatalog {
+        VMConfigCatalog(
+            version: 1,
+            categories: [
+                VMConfigCategory(
+                    id: "development",
+                    name: "Development",
+                    summary: "Tools",
+                    icon: "hammer.fill",
+                    tint: "input"
+                )
+            ],
+            options: [
+                option("python"),
+                option("jupyter", requires: ["python"]),
+                option("docker", category: "containers", conflicts: ["podman"]),
+                option("podman", category: "containers", conflicts: ["docker"]),
+            ],
+            presets: [
+                VMConfigPreset(
+                    id: "data",
+                    name: "Data",
+                    summary: "Notebooks",
+                    icon: "chart.xyaxis.line",
+                    tint: "cacheRead",
+                    options: ["jupyter"],
+                    tags: ["Data"]
+                )
+            ],
+            defaults: .fresh(),
+            recommendedPreset: nil,
+            shells: ["bash", "zsh", "fish"],
+            groups: ["wheel", "docker"],
+            timezones: ["UTC"],
+            locales: ["en_US.UTF-8"],
+            keymaps: ["us"],
+            limits: VMConfigLimits(
+                maxUsers: 16,
+                maxExtraPackages: 128,
+                maxExtraConfigBytes: 16_000,
+                maxPorts: 32
+            )
+        )
+    }
+
+    func testDependenciesAndConflictsResolveLocally() {
+        let model = NixOSBuilderModel(mode: .create, catalog: catalog())
+        XCTAssertFalse(model.config.enabled.contains("python"))
+
+        model.toggle(option("jupyter", requires: ["python"]))
+        XCTAssertTrue(model.config.enabled.contains("jupyter"))
+        XCTAssertTrue(model.config.enabled.contains("python"))
+        XCTAssertTrue(model.notice?.contains("Added Python") == true)
+
+        model.toggle(option("docker", category: "containers", conflicts: ["podman"]))
+        XCTAssertTrue(model.config.enabled.contains("docker"))
+
+        model.toggle(option("podman", category: "containers", conflicts: ["docker"]))
+        XCTAssertTrue(model.config.enabled.contains("podman"))
+        XCTAssertFalse(model.config.enabled.contains("docker"))
+
+        model.toggle(option("python"))
+        XCTAssertFalse(model.config.enabled.contains("python"))
+        XCTAssertFalse(model.config.enabled.contains("jupyter"))
+    }
+
+    func testPresetsAndUserEditing() {
+        let model = NixOSBuilderModel(mode: .create, catalog: catalog())
+        let preset = model.catalog!.presets[0]
+        model.applyPreset(preset)
+        XCTAssertEqual(model.config.preset, "data")
+        XCTAssertTrue(model.config.enabled.contains("jupyter"))
+        XCTAssertTrue(model.config.enabled.contains("python"))
+
+        model.addUser()
+        XCTAssertEqual(model.config.users.count, 1)
+        model.toggleGroup("docker", for: 0)
+        XCTAssertEqual(model.config.users[0].groups, ["docker"])
+        model.addPackages("ripgrep, fd")
+        XCTAssertEqual(model.config.extraPackages, ["ripgrep", "fd"])
+        model.setPorts(tcp: [8080, 8080], udp: [41641])
+        XCTAssertEqual(model.config.settings.extraTCPPorts, [8080])
+        XCTAssertEqual(model.config.settings.extraUDPPorts, [41641])
+    }
 }

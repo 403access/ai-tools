@@ -49,6 +49,7 @@ import {
   stateVersionFor,
   validateVMName,
 } from "./nixos.ts";
+import { normalizeBuilderConfig, resolveBuilderConfig } from "./catalog.ts";
 import {
   clampCPU,
   clampDisk,
@@ -215,6 +216,7 @@ export class VirtualMachineService implements VirtualMachineStore {
     const id = newVMID();
     const hostname = hostnameFor(id);
     const packages = normalizePackages(input.packages);
+    const config = resolveBuilderConfig(normalizeBuilderConfig(input.config)).config;
     const cpuCount = clampCPU(input.cpuCount ?? capabilities.defaultCPU, capabilities.maxCPU);
     const memoryMB = clampMemory(input.memoryMB ?? capabilities.defaultMemoryMB, capabilities.maxMemoryMB);
     const diskGB = clampDisk(input.diskGB);
@@ -240,6 +242,8 @@ export class VirtualMachineService implements VirtualMachineStore {
       diskGB,
       packages,
       pendingPackages: [],
+      pendingConfig: false,
+      config,
       lastError: null,
       progress: {
         phase: "queued",
@@ -308,26 +312,39 @@ export class VirtualMachineService implements VirtualMachineStore {
       if (input.cpuCount !== undefined) vm.cpuCount = clampCPU(input.cpuCount, capabilities.maxCPU);
       if (input.memoryMB !== undefined) vm.memoryMB = clampMemory(input.memoryMB, capabilities.maxMemoryMB);
     }
+    let packagesChanged = false;
     if (input.packages !== undefined) {
       const packages = normalizePackages(input.packages);
-      const changed = !sameStrings(packages, vm.packages);
+      packagesChanged = !sameStrings(packages, vm.packages);
       vm.packages = packages;
-      if (changed) {
-        if (vm.status === "running") {
-          vm.pendingPackages = packages;
-          this.beginApply(vm);
-        } else if (vm.status === "starting") {
-          vm.pendingPackages = packages;
-        } else if (vm.status === "building") {
-          // The build reads the updated configuration from disk.
-          vm.pendingPackages = [];
-        } else {
-          vm.pendingPackages = packages;
-        }
+    }
+    let configChanged = false;
+    if (input.config !== undefined) {
+      const config = resolveBuilderConfig(normalizeBuilderConfig(input.config)).config;
+      configChanged = !sameConfig(config, vm.config);
+      vm.config = config;
+    }
+    let shouldApply = false;
+    if (packagesChanged || configChanged) {
+      if (vm.status === "running") {
+        if (packagesChanged) vm.pendingPackages = [...vm.packages];
+        if (configChanged) vm.pendingConfig = true;
+        shouldApply = true;
+      } else if (vm.status === "building") {
+        // The build reads the updated configuration from disk.
+        if (packagesChanged) vm.pendingPackages = [];
+        if (configChanged) vm.pendingConfig = false;
+      } else {
+        if (packagesChanged) vm.pendingPackages = [...vm.packages];
+        if (configChanged) vm.pendingConfig = true;
       }
     }
+    // Persist the sources and the new pending flags before the asynchronous
+    // apply re-reads the definition; otherwise it can pick up the previous
+    // package list or builder config.
     this.writeSources(vm);
     this.save(vm);
+    if (shouldApply) this.beginApply(vm);
     return vm;
   }
 
@@ -1088,6 +1105,7 @@ end tell`;
     current.pendingPackages = sameStrings(current.packages, latest.packages)
       ? []
       : [...current.packages];
+    current.pendingConfig = sameConfig(current.config, latest.config) ? false : true;
     current.lastError = null;
     current.progress = null;
     try {
@@ -1216,7 +1234,9 @@ end tell`;
             if (current.progress?.phase === "booting") current.progress = null;
             this.metricsCache.delete(id);
             this.save(current);
-            if (current.pendingPackages.length > 0) this.beginApply(current);
+            if (current.pendingPackages.length > 0 || current.pendingConfig) {
+              this.beginApply(current);
+            }
             return;
           }
         }
@@ -1267,7 +1287,9 @@ end tell`;
   }
 
   private writeSources(vm: VirtualMachine): void {
-    writeFileSync(vm.paths.configuration, renderConfiguration(vm, vm.packages), { mode: 0o600 });
+    writeFileSync(vm.paths.configuration, renderConfiguration(vm, vm.packages, vm.config), {
+      mode: 0o600,
+    });
     writeFileSync(vm.paths.flake, renderFlake(vm), { mode: 0o600 });
   }
 
@@ -1447,6 +1469,10 @@ function sameStrings(a: string[], b: string[]): boolean {
   const left = [...a].sort();
   const right = [...b].sort();
   return left.every((value, index) => value === right[index]);
+}
+
+function sameConfig(a: VirtualMachine["config"], b: VirtualMachine["config"]): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 function sshArgsForStreaming(vm: VirtualMachine): string[] {
