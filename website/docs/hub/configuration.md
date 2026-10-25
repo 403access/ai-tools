@@ -59,7 +59,7 @@ The Linux builder still needs a terminal because it must keep running:
 
 ```sh
 # Start a NixOS builder VM so Nix can build aarch64-linux images on macOS.
-nix run nixpkgs#darwin.linux-builder
+nix --extra-experimental-features 'nix-command flakes' run nixpkgs#darwin.linux-builder
 ```
 
 `GET /api/vms/capabilities` reports `helperAvailable`, `helperEntitled`,

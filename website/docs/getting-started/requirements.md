@@ -73,7 +73,7 @@ LAN (or through a tunnel).
   make vz-helper
   ```
 
-  On macOS the easiest builder is `nix run nixpkgs#darwin.linux-builder` (it
+  On macOS the easiest builder is `nix --extra-experimental-features 'nix-command flakes' run nixpkgs#darwin.linux-builder` (it
   asks once for the Nix daemon settings). See
   [Virtual machines](../using/virtual-machines.md) for the full setup and the
   limitations.

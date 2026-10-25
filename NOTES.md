@@ -409,12 +409,19 @@ Follow-ups:
   `~/.config/opencode/opencodebar-hub-tunnel.json` (mode 0600) and is removed
   when `Scripts/hub-tunnel.sh` exits. `cloudflared` is at
   `/opt/homebrew/bin/cloudflared`.
-- **Nix is not installed on this machine and `sudo` requires a password.**
-  The Nix installer and `darwin.linux-builder` both need root, so the VM image
-  path could not be exercised end-to-end here. The hub, helper, API, tests, and
-  both apps were verified; the build path was exercised with an injected Nix
-  and a fake image. Install Nix and run `nix run nixpkgs#darwin.linux-builder`
-  (one sudo prompt) before creating a real guest.
+- **Nix 2.35.4 is now installed on this machine.** The app's setup runner had
+  to switch from an `osascript` root shell to Terminal.app: macOS 27 marks the
+  `/etc` symlink SIP-restricted, so creating `/etc/fstab` fails even as root
+  (`vifs: error creating /etc/fstab`, then `touch: /etc/fstab: Operation not
+  permitted`). Running the installer in a GUI Terminal session works; the hub
+  tees its output into the setup log and polls a status file. The installer
+  enabled only `nix-command`, so the Linux-builder command needs
+  `--extra-experimental-features 'nix-command flakes'`. `/nix` is mounted from
+  the new “Nix Store” APFS volume. The Linux builder still requires a sudo
+  prompt in Terminal.
+- The hub, helper, API, tests, and both apps were verified; the image build path
+  was exercised with an injected Nix and a fake image. A real NixOS image build
+  still needs the Linux builder running.
 - **Virtualization.framework requires the `com.apple.security.virtualization`
   entitlement even for a non-sandboxed CLI.** An unsigned `swift build`
   produces a helper that fails configuration with “Invalid virtual machine

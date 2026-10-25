@@ -34,7 +34,7 @@ Virtual machines need an Apple silicon Mac running macOS 14 or later, plus:
    macOS. The easiest local builder is:
 
    ```sh
-   nix run nixpkgs#darwin.linux-builder
+   nix --extra-experimental-features 'nix-command flakes' run nixpkgs#darwin.linux-builder
    ```
 
    It starts a cached NixOS builder VM and asks once for the Nix daemon settings
@@ -63,7 +63,7 @@ helper:
 - **Build VM helper** runs `make vz-helper` locally and streams the Swift build
   and codesign output.
 - The **Linux builder** command is copyable rather than runnable from the app:
-  `nix run nixpkgs#darwin.linux-builder` starts a long-lived builder VM and
+  `nix --extra-experimental-features 'nix-command flakes' run nixpkgs#darwin.linux-builder` starts a long-lived builder VM and
   needs a terminal on the Mac. Run it once and leave it running.
 
 The hub only exposes these fixed, allow-listed steps; clients cannot send

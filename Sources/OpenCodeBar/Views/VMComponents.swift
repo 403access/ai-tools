@@ -167,7 +167,7 @@ struct VMSetupRunnerCard: View {
                     .font(.system(size: 11, weight: .semibold))
                 Spacer(minLength: 4)
                 Button("Copy") {
-                    copy("nix run nixpkgs#darwin.linux-builder")
+                    copy("nix --extra-experimental-features 'nix-command flakes' run nixpkgs#darwin.linux-builder")
                 }
                 .font(.system(size: 10, weight: .semibold))
                 .buttonStyle(.plain)
@@ -177,7 +177,7 @@ struct VMSetupRunnerCard: View {
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("nix run nixpkgs#darwin.linux-builder")
+            Text("nix --extra-experimental-features 'nix-command flakes' run nixpkgs#darwin.linux-builder")
                 .font(.system(size: 9, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
@@ -311,7 +311,7 @@ struct VMSetupNotice: View {
                     command("curl -L https://nixos.org/nix/install | sh")
                 }
                 if capabilities.nixAvailable && !capabilities.linuxBuilder {
-                    command("nix run nixpkgs#darwin.linux-builder")
+                    command("nix --extra-experimental-features 'nix-command flakes' run nixpkgs#darwin.linux-builder")
                     Text("Accepts the Nix daemon settings after one sudo prompt. Restart the hub afterwards.")
                         .font(.system(size: 9))
                         .foregroundStyle(.secondary)

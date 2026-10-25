@@ -56,7 +56,7 @@ function fakeRunner(nixPath: string): CommandRunner {
       if (args[0] === "--version") {
         return { ok: true, stdout: "nix (Nix) 2.28.3\n", stderr: "" };
       }
-      if (args[0] === "config") {
+      if (args.includes("config") && args.includes("show")) {
         return {
           ok: true,
           stdout: "builders = ssh-ng://builder@linux-builder aarch64-linux /key 4 1\n",

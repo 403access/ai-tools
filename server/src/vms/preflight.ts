@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { arch, cpus, totalmem } from "node:os";
 import { defaultRunner, findExecutable } from "../system/commands.ts";
 import type { CommandRunner } from "../system/types.ts";
@@ -40,7 +41,10 @@ async function linuxBuilderDetail(runner: CommandRunner, nixPath: string): Promi
   detail: string | null;
 }> {
   let output: string | null = null;
-  for (const args of [["config", "show"], ["show-config"]]) {
+  for (const args of [
+    ["--extra-experimental-features", "nix-command", "config", "show"],
+    ["show-config"],
+  ]) {
     const result = await runner(nixPath, args, 12_000);
     if (result.ok) {
       output = result.stdout;
@@ -59,12 +63,30 @@ async function linuxBuilderDetail(runner: CommandRunner, nixPath: string): Promi
     .map((line) => line.trim())
     .find((line) => line.startsWith("builders"));
   const value = builderLine?.includes("=") ? builderLine.slice(builderLine.indexOf("=") + 1).trim() : "";
-  const available = value.split(/\s+/).includes("aarch64-linux");
+
+  // `nix config show` prints `builders = @/etc/nix/machines` rather than
+  // expanding the file, so read the referenced file before deciding.
+  let builderText = value;
+  let unreadableFile: string | null = null;
+  if (value.startsWith("@")) {
+    const file = value.slice(1).trim();
+    try {
+      builderText = readFileSync(file, "utf8");
+    } catch {
+      builderText = "";
+      unreadableFile = file;
+    }
+  }
+  const available =
+    builderText.split(/\s+/).includes("aarch64-linux") ||
+    value.split(/\s+/).includes("aarch64-linux");
   return {
     available,
     detail: available
       ? null
-      : "No aarch64-linux builder is configured. Building a NixOS image on Apple silicon needs one, for example `nix run nixpkgs#darwin.linux-builder` or nix-darwin's `nix.linux-builder.enable`.",
+      : unreadableFile
+        ? `No aarch64-linux builder is configured (could not read ${unreadableFile}). Run \`nix --extra-experimental-features 'nix-command flakes' run nixpkgs#darwin.linux-builder\` or enable nix-darwin's \`nix.linux-builder.enable\`.`
+        : "No aarch64-linux builder is configured. Building a NixOS image on Apple silicon needs one, for example `nix --extra-experimental-features 'nix-command flakes' run nixpkgs#darwin.linux-builder` or nix-darwin's `nix.linux-builder.enable`.",
   };
 }
 

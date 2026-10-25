@@ -467,7 +467,7 @@ without replacing the credential OpenCode uses for inference.
 - **Virtual machines** need an Apple silicon Mac running macOS 14 or later.
   Building the NixOS image also needs [Nix](https://nixos.org/download) with an
   `aarch64-linux` builder. On macOS the easiest builder is
-  `nix run nixpkgs#darwin.linux-builder` (or nix-darwin's
+  `nix --extra-experimental-features 'nix-command flakes' run nixpkgs#darwin.linux-builder` (or nix-darwin's
   `nix.linux-builder.enable`), which starts a cached NixOS builder VM and asks
   for the Nix daemon settings once. The VMs tab checks both prerequisites and
   can run the Nix installer or rebuild the helper with **Run**; the Nix step
