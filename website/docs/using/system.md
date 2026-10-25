@@ -27,6 +27,33 @@ identifiers:
 - boot time, user, shell, timezone, and locale
 - virtual-machine detection when the host is virtualised
 
+## Media
+
+The **Media** card shows what is currently playing on the host and which app owns
+it. macOS reads the same MediaRemote item as Control Center, so Music, Spotify,
+browsers, and other players all report the title, artist, album, elapsed time,
+duration, and playback state. The card also uses system audio/video assertions to
+catch apps that are playing media without publishing metadata; those rows show
+the app and whether audio or video is active.
+
+Paused items stay visible. When nothing is playing, the card says so instead of
+staying hidden, so it doubles as a quick check that media monitoring is working.
+
+The same card has playback controls: previous, back 15 seconds, play/pause,
+forward 15 seconds, and next. Buttons only appear when the current player's
+MediaRemote command list says they are supported, so a browser video may show
+only play/pause while Music also shows track skipping. Controls always target the
+system's current player.
+
+Below the controls, **System output volume** has a mute toggle and a slider. It
+changes the Mac's output volume through the system volume API, not the per-app
+player volume. Volume and mute controls are available even when nothing is
+playing.
+
+All controls use the same authenticated hub connection as the rest of the panel.
+The Mac app updates immediately from the control response; the next five-second
+snapshot reconciles any player-specific delays.
+
 ## Processor and memory
 
 The **Processor** card shows the CPU model, vendor, physical/logical core count,

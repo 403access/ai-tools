@@ -3,7 +3,7 @@ import type { SystemInfo } from "../src/types.ts";
 import { createHandler } from "../src/api.ts";
 import { HubDB } from "../src/db.ts";
 import { Hub } from "../src/hub.ts";
-import { parseBrewVersions, parseDF, summarizeProcesses } from "../src/system.ts";
+import { MediaControlError, parseBrewVersions, parseDF, summarizeProcesses } from "../src/system.ts";
 import { body, config, request, setup } from "./helpers/api.ts";
 
 const sample: SystemInfo = {
@@ -41,6 +41,8 @@ const sample: SystemInfo = {
   displays: [],
   listeningPorts: [],
   docker: null,
+  media: [],
+  audio: null,
   notes: [],
 };
 
@@ -65,16 +67,63 @@ describe("system endpoint", () => {
     expect(forced).toBe(true);
     db.close();
   });
+
+  test("controls media and returns the fresh state", async () => {
+    const calls: Array<{ action: string; value?: number }> = [];
+    const { db, handler } = setupWithSystem(
+      async () => sample,
+      async (action, value) => {
+        calls.push({ action, value });
+        return {
+          media: sample.media,
+          audio: { volumePercent: 60, muted: false, controllable: true },
+        };
+      },
+    );
+    const response = await handler(
+      request("/api/media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "volume", value: 60 }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    const payload = await body<{ data: { audio: { volumePercent: number } } }>(response);
+    expect(calls).toEqual([{ action: "volume", value: 60 }]);
+    expect(payload.data.audio.volumePercent).toBe(60);
+    db.close();
+  });
+
+  test("rejects an unknown media action", async () => {
+    const { db, handler } = setupWithSystem(
+      async () => sample,
+      async () => {
+        throw new MediaControlError("Unknown media action: explode", 400);
+      },
+    );
+    const response = await handler(
+      request("/api/media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "explode" }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    db.close();
+  });
 });
 
-function setupWithSystem(snapshot: (force?: boolean) => Promise<SystemInfo>) {
+function setupWithSystem(
+  snapshot: (force?: boolean) => Promise<SystemInfo>,
+  control?: (action: string, value?: number) => Promise<{ media: SystemInfo["media"]; audio: SystemInfo["audio"] }>,
+) {
   const db = new HubDB(":memory:");
   const cfg = config();
   const hub = new Hub(cfg, db, {
     discover: async () => null,
     usageFetcher: async () => ({}),
   });
-  const handler = createHandler({ db, hub, config: cfg, system: { snapshot } });
+  const handler = createHandler({ db, hub, config: cfg, system: { snapshot, control } });
   return { db, hub, handler };
 }
 

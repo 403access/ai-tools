@@ -172,6 +172,36 @@ extension MobileStore {
         }
     }
 
+    /// Sends a playback or volume action to the Mac and applies the returned
+    /// media/audio state without waiting for the next system poll.
+    func controlMedia(_ action: String, value: Double? = nil) async {
+        guard let api else { return }
+        guard !isControllingMedia else { return }
+        isControllingMedia = true
+        defer { isControllingMedia = false }
+
+        let previous = systemInfo
+        var expectedState: String?
+        if var info = systemInfo {
+            expectedState = MediaControlOptimism.apply(to: &info, action: action, value: value)
+            systemInfo = info
+        }
+
+        do {
+            let result = try await api.controlMedia(action: action, value: value)
+            if var info = systemInfo {
+                info.media = result.media
+                info.audio = result.audio
+                MediaControlOptimism.reconcile(&info, expectedState: expectedState)
+                systemInfo = info
+            }
+            mediaControlError = nil
+        } catch {
+            if let previous { systemInfo = previous }
+            mediaControlError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
     func refreshStats(force: Bool = false) async {
         guard let api else { return }
         if !force, let fetched = statsFetchedAt, Date().timeIntervalSince(fetched) < 30 { return }

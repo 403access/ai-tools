@@ -108,6 +108,8 @@ final class MobileStore: ObservableObject {
     @Published var systemInfoFetchedAt: Date?
     @Published var systemInfoError: String?
     @Published var isRefreshingSystemInfo = false
+    @Published var isControllingMedia = false
+    @Published var mediaControlError: String?
     @Published var liveActivity: [String: SessionActivity] = [:]
     @Published var projectDetails: [String: ProjectDetail] = [:]
     @Published var sessionChanges: [String: ChangesState] = [:]

@@ -347,6 +347,8 @@ export interface SystemInfo {
   displays: SystemDisplayGroup[];
   listeningPorts: SystemPort[];
   docker: SystemDocker | null;
+  media: SystemMedia[];
+  audio: SystemAudio | null;
   notes: string[];
 }
 
@@ -576,8 +578,42 @@ export interface SystemDocker {
   containers: SystemContainer[];
 }
 
+/** One active media session on the hub host, with the app that owns it. */
+export interface SystemMedia {
+  app: string;
+  bundleID?: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  state?: "playing" | "paused" | "stopped";
+  elapsedSeconds?: number;
+  durationSeconds?: number;
+  playbackRate?: number;
+  /** Whether the session is known to be audio or video. */
+  kind?: "audio" | "video";
+  source?: "mediaremote" | "playerctl" | "applescript" | "assertion";
+  /** MediaRemote command numbers the current player accepts. */
+  supportedCommands?: number[];
+}
+
+/** System output volume, controllable from the Media card. */
+export interface SystemAudio {
+  volumePercent?: number;
+  muted?: boolean;
+  controllable: boolean;
+}
+
+export interface MediaControlResult {
+  media: SystemMedia[];
+  audio: SystemAudio | null;
+}
+
 export interface SystemInfoResponse {
   data: SystemInfo;
+}
+
+export interface MediaControlResponse {
+  data: MediaControlResult;
 }
 
 // MARK: - Host file browser

@@ -151,6 +151,14 @@ iOS app:
 - Developer runtimes and tools (Node, Bun, Python, Go, Rust, Java, Swift, Docker,
   Git, and more), Docker containers, GPUs and displays, plus the hub process's
   own PID, uptime, memory, port, and database size.
+- **Now playing**: title, artist, album, elapsed time, duration, playback state,
+  audio/video kind, and the app that owns the session. macOS MediaRemote covers
+  Music, Spotify, browsers, and other players, while audio/video assertions catch
+  apps that play without publishing metadata.
+- **Media controls**: play/pause, previous/next, 15-second skip where the player
+  supports it, mute, and a system output-volume slider. Commands target the
+  current system player; available buttons are driven by the player's own
+  supported-command list.
 - **Host file browser**: browse any folder on the server read-only, with
   breadcrumbs, quick links to Home, Root, Applications, Volumes, and project
   folders, hidden-file toggle, search, and text/image previews. Hub and OpenCode

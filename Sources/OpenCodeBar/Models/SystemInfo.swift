@@ -23,6 +23,8 @@ struct SystemInfo: Decodable, Equatable, Sendable {
     var displays: [SystemDisplayGroup]
     var listeningPorts: [SystemPort]
     var docker: SystemDocker?
+    var media: [SystemMedia]
+    var audio: SystemAudio?
     var notes: [String]
 
     var generatedDate: Date {
@@ -348,6 +350,119 @@ struct SystemDocker: Decodable, Equatable, Sendable {
     var containers: [SystemContainer]
 }
 
+/// A media session on the hub host, including the app that owns it.
+struct SystemMedia: Decodable, Equatable, Sendable, Identifiable {
+    var app: String
+    var bundleID: String?
+    var title: String?
+    var artist: String?
+    var album: String?
+    var state: String?
+    var elapsedSeconds: Double?
+    var durationSeconds: Double?
+    var playbackRate: Double?
+    var kind: String?
+    var source: String?
+    var supportedCommands: [Int]?
+
+    var id: String {
+        "\(app)-\(title ?? "")-\(kind ?? "")-\(bundleID ?? "")"
+    }
+
+    var isPlaying: Bool { state?.lowercased() == "playing" }
+    var isPaused: Bool { state?.lowercased() == "paused" }
+
+    private func supports(_ command: Int) -> Bool {
+        supportedCommands?.contains(command) ?? false
+    }
+
+    var supportsToggle: Bool { supports(2) || supports(0) || supports(1) }
+    var supportsNext: Bool { supports(4) }
+    var supportsPrevious: Bool { supports(5) }
+    var supportsSkipBack: Bool { supports(12) }
+    var supportsSkipForward: Bool { supports(13) }
+    var canControl: Bool {
+        source != "assertion"
+            && (supportsToggle || supportsNext || supportsPrevious || supportsSkipBack || supportsSkipForward)
+    }
+
+    var progress: Double? {
+        guard let elapsedSeconds, let durationSeconds, durationSeconds > 0 else { return nil }
+        return min(1, max(0, elapsedSeconds / durationSeconds))
+    }
+
+    var stateLabel: String {
+        if isPlaying { return "Playing" }
+        if isPaused { return "Paused" }
+        return state?.capitalized ?? "Active"
+    }
+
+    var kindIcon: String {
+        if kind == "video" { return "play.rectangle.fill" }
+        if kind == "audio" { return "waveform" }
+        if title == nil { return "speaker.wave.2.fill" }
+        return "music.note"
+    }
+}
+
+struct SystemAudio: Decodable, Equatable, Sendable {
+    var volumePercent: Int?
+    var muted: Bool?
+    var controllable: Bool
+
+    var volumeFraction: Double {
+        min(1, max(0, Double(volumePercent ?? 0) / 100))
+    }
+}
+
+struct MediaControlResult: Decodable, Sendable {
+    var media: [SystemMedia]
+    var audio: SystemAudio?
+}
+
+/// Helpers shared by the Mac and iOS stores for instant media feedback. Players
+/// publish state changes with a short delay, so the UI flips first and the next
+/// poll reconciles the authoritative value.
+enum MediaControlOptimism {
+    static func apply(to info: inout SystemInfo, action: String, value: Double?) -> String? {
+        switch action {
+        case "toggle", "play", "pause":
+            guard let index = info.media.firstIndex(where: \.canControl) else { return nil }
+            let playing: Bool
+            if action == "play" {
+                playing = true
+            } else if action == "pause" {
+                playing = false
+            } else {
+                playing = !info.media[index].isPlaying
+            }
+            info.media[index].state = playing ? "playing" : "paused"
+            info.media[index].playbackRate = playing ? 1 : 0
+            return info.media[index].state
+        case "volume":
+            info.audio?.volumePercent = Int((value ?? 0).rounded())
+        case "mute":
+            info.audio?.muted = (value ?? 0) != 0
+        default:
+            break
+        }
+        return nil
+    }
+
+    static func reconcile(_ info: inout SystemInfo, expectedState: String?) {
+        guard let expectedState,
+              let index = info.media.firstIndex(where: \.canControl),
+              info.media[index].state != expectedState
+        else { return }
+        info.media[index].state = expectedState
+        info.media[index].playbackRate = expectedState == "playing" ? 1 : 0
+    }
+}
+
 struct SystemInfoEnvelope: Decodable, Sendable {
     var data: SystemInfo
+}
+
+struct MediaControlEnvelope: Decodable, Sendable {
+    var data: MediaControlResult
 }

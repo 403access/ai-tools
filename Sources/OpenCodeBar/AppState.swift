@@ -170,6 +170,8 @@ final class AppState: ObservableObject {
     @Published var systemInfoFetchedAt: Date?
     @Published var systemInfoError: String?
     @Published var isRefreshingSystemInfo = false
+    @Published var isControllingMedia = false
+    @Published var mediaControlError: String?
     /// Tunable hub behaviour, such as the event-stream throttle.
     @Published var serverSettings: ServerSettings?
     @Published var settingsError: String?

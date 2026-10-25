@@ -12,6 +12,8 @@ struct SystemTab: View {
     @State private var appQuery = ""
     @State private var showAllBrew = false
     @State private var showAllPorts = false
+    @State private var volumeDraft: Double = 0
+    @State private var adjustingVolume = false
 
     enum ProcessMetric: String, CaseIterable, Identifiable {
         case cpu = "CPU"
@@ -30,6 +32,7 @@ struct SystemTab: View {
 
             if let info = state.systemInfo {
                 overview(info)
+                mediaSection(info)
                 filesSection(info)
                 hostSection(info)
                 cpuSection(info)
@@ -173,6 +176,254 @@ struct SystemTab: View {
                 )
             }
         }
+    }
+
+    // MARK: - Media
+
+    private func mediaSection(_ info: SystemInfo) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Media") {
+                if !info.media.isEmpty {
+                    Text("\(info.media.count) active")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                if info.media.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.slash")
+                            .font(.system(size: 14, weight: .light))
+                            .foregroundStyle(.tertiary)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Nothing playing")
+                                .font(.system(size: 10, weight: .medium))
+                            Text("Media played in any app appears here with its title and player.")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    ForEach(Array(info.media.enumerated()), id: \.element.id) { index, media in
+                        mediaRow(media, showControls: index == 0)
+                    }
+                }
+
+                if let audio = info.audio, audio.controllable {
+                    Divider().opacity(0.5)
+                    volumeRow(audio)
+                }
+
+                if let error = state.mediaControlError {
+                    Text(error)
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.warn)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .card()
+        }
+        .onAppear { volumeDraft = Double(info.audio?.volumePercent ?? 0) }
+        .onChange(of: info.audio?.volumePercent) { _, value in
+            if !adjustingVolume {
+                volumeDraft = Double(value ?? 0)
+            }
+        }
+    }
+
+    private func mediaRow(_ media: SystemMedia, showControls: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                Image(systemName: media.kindIcon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(media.isPlaying ? Theme.accent : Theme.warn)
+                    .frame(width: 17)
+
+                Text(media.app)
+                    .font(.system(size: 10, weight: .semibold))
+                    .lineLimit(1)
+
+                if let bundle = media.bundleID {
+                    Text(bundle)
+                        .font(.system(size: 7.5, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                Chip(
+                    text: media.stateLabel,
+                    systemImage: media.isPlaying ? "play.fill" : "pause.fill",
+                    tint: media.isPlaying ? Theme.accent : Theme.warn
+                )
+            }
+
+            if let title = media.title {
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(2)
+            } else {
+                Text(media.kind == "video" ? "Video playback detected" : "Audio playback detected")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            if let subtitle = mediaSubtitle(media) {
+                Text(subtitle)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            if let progress = media.progress {
+                UsageBar(fraction: progress, tint: media.isPlaying ? Theme.accent : Theme.warn, height: 4)
+                HStack(spacing: 4) {
+                    Text(mediaTime(media.elapsedSeconds))
+                    Text("·")
+                    Text(mediaTime(media.durationSeconds))
+                    Spacer(minLength: 4)
+                    if let kind = media.kind {
+                        Text(kind.uppercased())
+                            .font(.system(size: 7.5, weight: .bold))
+                            .tracking(0.4)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .font(.system(size: 8, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+            } else if let kind = media.kind {
+                Text("Detected from the system \(kind) session")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.tertiary)
+            }
+
+            if showControls && media.canControl {
+                HStack(spacing: 6) {
+                    if media.supportsPrevious {
+                        mediaButton("backward.fill", help: "Previous") {
+                            Task { await state.controlMedia("previous") }
+                        }
+                    }
+                    if media.supportsSkipBack {
+                        mediaButton("gobackward.15", help: "Back 15 seconds") {
+                            Task { await state.controlMedia("back15") }
+                        }
+                    }
+                    if media.supportsToggle {
+                        mediaButton(media.isPlaying ? "pause.fill" : "play.fill", help: media.isPlaying ? "Pause" : "Play") {
+                            Task { await state.controlMedia("toggle") }
+                        }
+                    }
+                    if media.supportsSkipForward {
+                        mediaButton("goforward.15", help: "Forward 15 seconds") {
+                            Task { await state.controlMedia("forward15") }
+                        }
+                    }
+                    if media.supportsNext {
+                        mediaButton("forward.fill", help: "Next") {
+                            Task { await state.controlMedia("next") }
+                        }
+                    }
+
+                    if state.isControllingMedia {
+                        ProgressView().controlSize(.small).scaleEffect(0.6)
+                    }
+
+                    Spacer(minLength: 4)
+
+                    Text("Controls target \(media.app)")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+                .padding(.top, 2)
+            }
+        }
+    }
+
+    private func volumeRow(_ audio: SystemAudio) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 7) {
+                Button {
+                    Task { await state.controlMedia("mute", value: audio.muted == true ? 0 : 1) }
+                } label: {
+                    Image(systemName: audio.muted == true ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(audio.muted == true ? Theme.warn : Theme.accent)
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(state.isControllingMedia)
+                .help(audio.muted == true ? "Unmute" : "Mute")
+                .accessibilityLabel(audio.muted == true ? "Unmute" : "Mute")
+
+                Slider(
+                    value: Binding(
+                        get: { volumeDraft },
+                        set: { volumeDraft = $0 }
+                    ),
+                    in: 0...100,
+                    onEditingChanged: { editing in
+                        adjustingVolume = editing
+                        if !editing {
+                            Task { await state.controlMedia("volume", value: volumeDraft) }
+                        }
+                    }
+                )
+                .disabled(state.isControllingMedia)
+                .tint(Theme.accent)
+
+                Text("\(Int(volumeDraft.rounded()))%")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .frame(width: 30, alignment: .trailing)
+            }
+            Text("SYSTEM OUTPUT VOLUME")
+                .font(.system(size: 7.5, weight: .bold))
+                .tracking(0.5)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func mediaButton(_ icon: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 22)
+                .background(Capsule().fill(Color.primary.opacity(0.06)))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(state.isControllingMedia)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+
+    private func mediaSubtitle(_ media: SystemMedia) -> String? {
+        let parts = [media.artist, media.album].compactMap { value -> String? in
+            guard let value, !value.isEmpty else { return nil }
+            return value
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private func mediaTime(_ seconds: Double?) -> String {
+        guard let seconds, seconds.isFinite, seconds >= 0 else { return "—" }
+        let total = Int(seconds.rounded())
+        let hours = total / 3_600
+        let minutes = (total % 3_600) / 60
+        let remaining = total % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, remaining)
+        }
+        return String(format: "%d:%02d", minutes, remaining)
     }
 
     // MARK: - Files

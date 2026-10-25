@@ -18,7 +18,9 @@ import {
 import { basename, delimiter, join } from "node:path";
 import { HUB_VERSION } from "./config.ts";
 import type {
+  MediaControlResult,
   SystemApp,
+  SystemAudio,
   SystemBattery,
   SystemBrewPackage,
   SystemCPU,
@@ -28,6 +30,7 @@ import type {
   SystemHomebrew,
   SystemHost,
   SystemInfo,
+  SystemMedia,
   SystemMemory,
   SystemNetwork,
   SystemPort,
@@ -79,6 +82,27 @@ const DEFAULT_CACHE_TTL_MS = 2_000;
 const COMMAND_TIMEOUT_MS = 5_000;
 const LONG_COMMAND_TIMEOUT_MS = 20_000;
 
+export class MediaControlError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status = 400) {
+    super(message);
+    this.name = "MediaControlError";
+    this.status = status;
+  }
+}
+
+const MEDIA_COMMANDS: Record<string, number> = {
+  toggle: 2,
+  play: 0,
+  pause: 1,
+  stop: 3,
+  next: 4,
+  previous: 5,
+  back15: 12,
+  forward15: 13,
+};
+
 const APP_DIRECTORIES = [
   "/Applications",
   "/Applications/Utilities",
@@ -86,6 +110,98 @@ const APP_DIRECTORIES = [
   "/System/Applications/Utilities",
   "/System/Library/CoreServices/Applications",
 ];
+
+/**
+ * JXA reads the same MediaRemote item that macOS shows in Control Center. It
+ * returns the owning app and metadata for any player, including browsers.
+ */
+const NOW_PLAYING_SCRIPT = String.raw`function run() {
+  try {
+    const bundle = $.NSBundle.bundleWithPath('/System/Library/PrivateFrameworks/MediaRemote.framework/');
+    bundle.load;
+    const Request = $.NSClassFromString('MRNowPlayingRequest');
+    if (!Request) return JSON.stringify({ error: 'MediaRemote unavailable' });
+    const path = Request.localNowPlayingPlayerPath;
+    const info = Request.localNowPlayingItem.nowPlayingInfo;
+    const read = (key) => {
+      if (!info) return null;
+      const value = info.valueForKey(key);
+      if (!value) return null;
+      const converted = value.js;
+      return converted === undefined ? null : converted;
+    };
+    const appName = path && path.client && path.client.displayName ? path.client.displayName.js : null;
+    const bundleID = path && path.client && path.client.bundleIdentifier ? path.client.bundleIdentifier.js : null;
+    const title = read('kMRMediaRemoteNowPlayingInfoTitle');
+    if (!appName && !title) return JSON.stringify({ media: [] });
+    const rate = read('kMRMediaRemoteNowPlayingInfoPlaybackRate');
+    const supported = [];
+    const commands = Request.localSupportedCommands;
+    if (commands) {
+      for (let index = 0; index < commands.count; index += 1) {
+        try {
+          const info = commands.objectAtIndex(index);
+          const command = info.command;
+          if (command) supported.push(command.js);
+        } catch (_) {}
+      }
+    }
+    return JSON.stringify({ media: [{
+      app: appName || 'Unknown app',
+      bundleID: bundleID || null,
+      title: title || null,
+      artist: read('kMRMediaRemoteNowPlayingInfoArtist') || null,
+      album: read('kMRMediaRemoteNowPlayingInfoAlbum') || null,
+      elapsedSeconds: read('kMRMediaRemoteNowPlayingInfoElapsedTime'),
+      durationSeconds: read('kMRMediaRemoteNowPlayingInfoDuration'),
+      playbackRate: rate,
+      state: rate === 0 ? 'paused' : 'playing',
+      source: 'mediaremote',
+      supportedCommands: supported
+    }] });
+  } catch (error) {
+    return JSON.stringify({ error: String(error) });
+  }
+}`;
+
+/**
+ * Sends one MediaRemote command to the current player. The integer is passed as
+ * the first osascript argument by the hub.
+ */
+const MEDIA_CONTROL_SCRIPT = String.raw`function run(argv) {
+  try {
+    const command = parseInt(argv[0] || '-1', 10);
+    if (!Number.isFinite(command) || command < 0) return JSON.stringify({ ok: false, error: 'Invalid command' });
+    const bundle = $.NSBundle.bundleWithPath('/System/Library/PrivateFrameworks/MediaRemote.framework/');
+    bundle.load;
+    const Request = $.NSClassFromString('MRNowPlayingRequest');
+    if (!Request) return JSON.stringify({ ok: false, error: 'MediaRemote unavailable' });
+    const path = Request.localNowPlayingPlayerPath;
+    if (!path) return JSON.stringify({ ok: false, error: 'Nothing is playing' });
+    const request = Request.alloc.initWithPlayerPath(path);
+    request.sendCommandOptionsQueueCompletion(command, $.NSDictionary.dictionary, $.NSOperationQueue.mainQueue, null);
+    return JSON.stringify({ ok: true });
+  } catch (error) {
+    return JSON.stringify({ ok: false, error: String(error) });
+  }
+}`;
+
+const APPLESCRIPT_MEDIA_SCRIPT = String.raw`set output to ""
+if application "Music" is running then
+  tell application "Music"
+    if player state is not stopped then
+      set output to output & "Music" & tab & (player state as text) & tab & (name of current track) & tab & (artist of current track) & tab & (album of current track) & tab & (player position as text) & tab & (duration of current track as text) & linefeed
+    end if
+  end tell
+end if
+if application "Spotify" is running then
+  tell application "Spotify"
+    if player state is not stopped then
+      set output to output & "Spotify" & tab & (player state as text) & tab & (name of current track) & tab & (artist of current track) & tab & (album of current track) & tab & (player position as text) & tab & (duration of current track as text) & linefeed
+    end if
+  end tell
+end if
+return output`;
 
 const TOOL_COMMANDS: Array<{
   name: string;
@@ -211,7 +327,7 @@ export class SystemInfoService {
     const staticInfo = await this.staticInfo(force);
     const notes: string[] = [];
 
-    const [disks, processes, battery, thermal, listeningPorts, docker, network] =
+    const [disks, processes, battery, thermal, listeningPorts, docker, network, media, audio] =
       await Promise.all([
         this.collectDisks(),
         this.collectProcesses(),
@@ -220,6 +336,8 @@ export class SystemInfoService {
         this.collectListeningPorts(),
         this.collectDocker(),
         this.collectNetwork(),
+        this.collectMedia(),
+        this.collectAudio(),
       ]);
 
     const cpuUsage = this.sampleCPUUsage();
@@ -291,6 +409,8 @@ export class SystemInfoService {
       displays: staticInfo.displays,
       listeningPorts,
       docker,
+      media,
+      audio,
       notes,
     };
   }
@@ -1129,6 +1249,279 @@ export class SystemInfoService {
     };
   }
 
+  private async collectMedia(): Promise<SystemMedia[]> {
+    const os = platform();
+    let media: SystemMedia[] = [];
+
+    if (os === "darwin") {
+      const result = await this.run(
+        "osascript",
+        ["-l", "JavaScript", "-e", NOW_PLAYING_SCRIPT],
+        COMMAND_TIMEOUT_MS,
+      );
+      const payload = parseJSONRecord(firstLine(text(result)));
+      const entries = payload?.media;
+      if (Array.isArray(entries)) {
+        media = entries.flatMap((raw) => normalizeMedia(raw));
+      }
+      if (media.length === 0) {
+        media = await this.collectAppleScriptMedia();
+      }
+      media = mergeMedia(media, await this.collectMediaAssertions());
+      return media.sort(mediaSort);
+    }
+
+    if (os === "linux") {
+      const playerctl = findExecutable("playerctl");
+      if (!playerctl) return [];
+      const listed = await this.run(playerctl, ["-l"], COMMAND_TIMEOUT_MS);
+      const players = lines(text(listed));
+      const format = "{{playerName}}\t{{status}}\t{{title}}\t{{artist}}\t{{album}}\t{{position}}\t{{mpris:length}}";
+      const results = await Promise.all(
+        players.map(async (player) => {
+          const result = await this.run(
+            playerctl,
+            ["--player", player, "metadata", "--format", format],
+            COMMAND_TIMEOUT_MS,
+          );
+          return parsePlayerctlMedia(text(result));
+        }),
+      );
+      return results.flat().sort(mediaSort);
+    }
+
+    return [];
+  }
+
+  /**
+   * Applies a playback or output-volume command, then returns the fresh media
+   * and audio state so clients can update without a full system refresh.
+   */
+  /** Alias used by the HTTP layer. */
+  control(action: string, value?: number): Promise<MediaControlResult> {
+    return this.controlMedia(action, value);
+  }
+
+  async controlMedia(action: string, value?: number): Promise<MediaControlResult> {
+    const os = platform();
+
+    if (action === "volume") {
+      const percent = Math.round(Math.min(100, Math.max(0, value ?? 50)));
+      await this.setSystemVolume(percent);
+    } else if (action === "mute") {
+      await this.setSystemMuted((value ?? 0) !== 0);
+    } else {
+      const command = MEDIA_COMMANDS[action];
+      if (command === undefined) {
+        throw new MediaControlError(`Unknown media action: ${action}`, 400);
+      }
+      let controlled = false;
+      if (os === "darwin") {
+        const result = await this.run(
+          "osascript",
+          ["-l", "JavaScript", "-e", MEDIA_CONTROL_SCRIPT, String(command)],
+          COMMAND_TIMEOUT_MS,
+        );
+        const payload = parseJSONRecord(firstLine(text(result)));
+        controlled = payload?.ok === true;
+        if (!controlled) {
+          controlled = await this.controlAppleScriptMedia(action);
+        }
+      } else if (os === "linux") {
+        const playerctl = findExecutable("playerctl");
+        if (playerctl) {
+          const commandName = action === "toggle" ? "play-pause" : action === "back15" ? "previous" : action === "forward15" ? "next" : action;
+          const result = await this.run(playerctl, [commandName], COMMAND_TIMEOUT_MS);
+          controlled = result.ok;
+        }
+      }
+      if (!controlled) {
+        throw new MediaControlError("Nothing is playing", 409);
+      }
+    }
+
+    // Give the player a moment to publish the new state before reading it.
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    const [media, audio] = await Promise.all([this.collectMedia(), this.collectAudio()]);
+    if (this.snapshotCache) {
+      this.snapshotCache.value = {
+        ...this.snapshotCache.value,
+        media,
+        audio,
+        generatedAt: Date.now(),
+      };
+    }
+    return { media, audio };
+  }
+
+  /** Adds or removes media type controls for players without MediaRemote. */
+  private async controlAppleScriptMedia(action: string): Promise<boolean> {
+    const verb = action === "toggle"
+      ? "playpause"
+      : action === "play"
+        ? "play"
+        : action === "pause"
+          ? "pause"
+          : action === "next"
+            ? "next track"
+            : action === "previous"
+              ? "previous track"
+              : action === "stop"
+                ? "stop"
+                : null;
+    if (!verb) return false;
+
+    const script = String.raw`set did to false
+if application "Music" is running then
+  tell application "Music"
+    if player state is not stopped then
+      ${verb}
+      set did to true
+    end if
+  end tell
+end if
+if not did and application "Spotify" is running then
+  tell application "Spotify"
+    if player state is not stopped then
+      ${verb}
+      set did to true
+    end if
+  end tell
+end if
+return did`;
+    const result = await this.run("osascript", ["-e", script], COMMAND_TIMEOUT_MS);
+    return /true/i.test(firstLine(text(result)) ?? "");
+  }
+
+  private async collectAudio(): Promise<SystemAudio | null> {
+    const os = platform();
+    if (os === "darwin") {
+      const result = await this.run("osascript", ["-e", "get volume settings"], COMMAND_TIMEOUT_MS);
+      const textValue = text(result);
+      const volume = numberValue(/output volume:(\d+)/.exec(textValue)?.[1]);
+      const muted = /output muted:(true|false)/i.exec(textValue)?.[1];
+      if (volume === undefined) return null;
+      return {
+        volumePercent: volume,
+        muted: muted?.toLowerCase() === "true",
+        controllable: true,
+      };
+    }
+
+    if (os === "linux") {
+      const pactl = findExecutable("pactl");
+      if (!pactl) return null;
+      const [volumeResult, muteResult] = await Promise.all([
+        this.run(pactl, ["get-sink-volume", "@DEFAULT_SINK@"], COMMAND_TIMEOUT_MS),
+        this.run(pactl, ["get-sink-mute", "@DEFAULT_SINK@"], COMMAND_TIMEOUT_MS),
+      ]);
+      const volume = numberValue(/(\d+)%/.exec(text(volumeResult))?.[1]);
+      const muted = /\bMute:\s*(yes|no)/i.exec(text(muteResult))?.[1];
+      if (volume === undefined) return null;
+      return {
+        volumePercent: Math.min(100, volume),
+        muted: muted?.toLowerCase() === "yes",
+        controllable: true,
+      };
+    }
+
+    return null;
+  }
+
+  private async setSystemVolume(percent: number): Promise<void> {
+    const os = platform();
+    if (os === "darwin") {
+      await this.run("osascript", ["-e", `set volume output volume ${percent}`], COMMAND_TIMEOUT_MS);
+      return;
+    }
+    if (os === "linux") {
+      const pactl = findExecutable("pactl");
+      if (pactl) {
+        await this.run(pactl, ["set-sink-volume", "@DEFAULT_SINK@", `${percent}%`], COMMAND_TIMEOUT_MS);
+      }
+    }
+  }
+
+  private async setSystemMuted(muted: boolean): Promise<void> {
+    const os = platform();
+    if (os === "darwin") {
+      await this.run(
+        "osascript",
+        ["-e", `set volume output muted ${muted ? "true" : "false"}`],
+        COMMAND_TIMEOUT_MS,
+      );
+      return;
+    }
+    if (os === "linux") {
+      const pactl = findExecutable("pactl");
+      if (pactl) {
+        await this.run(
+          pactl,
+          ["set-sink-mute", "@DEFAULT_SINK@", muted ? "1" : "0"],
+          COMMAND_TIMEOUT_MS,
+        );
+      }
+    }
+  }
+
+  /** Older macOS versions without MediaRemote still expose the big players. */
+  private async collectAppleScriptMedia(): Promise<SystemMedia[]> {
+    const result = await this.run("osascript", ["-e", APPLESCRIPT_MEDIA_SCRIPT], COMMAND_TIMEOUT_MS);
+    const media: SystemMedia[] = [];
+    for (const line of lines(text(result))) {
+      const [app, state, title, artist, album, position, duration] = line.split("\t");
+      if (!app) continue;
+      const isSpotify = app.trim().toLowerCase() === "spotify";
+      const elapsed = numberValue(position);
+      const total = numberValue(duration);
+      media.push({
+        app: app.trim(),
+        title: title?.trim() || undefined,
+        artist: artist?.trim() || undefined,
+        album: album?.trim() || undefined,
+        state: state?.toLowerCase().includes("play") ? "playing" : "paused",
+        elapsedSeconds: elapsed,
+        durationSeconds: total === undefined ? undefined : isSpotify ? total / 1_000 : total,
+        source: "applescript",
+        supportedCommands: [0, 1, 2, 4, 5],
+      });
+    }
+    return media;
+  }
+
+  /**
+   * `pmset` lists media assertions for browsers and video apps that do not
+   * publish a MediaRemote item. It tells us the owning app and whether audio or
+   * video is active, even without track metadata.
+   */
+  private async collectMediaAssertions(): Promise<SystemMedia[]> {
+    const result = await this.run("pmset", ["-g", "assertions"], COMMAND_TIMEOUT_MS);
+    if (!result.ok) return [];
+    const byApp = new Map<string, SystemMedia>();
+    for (const line of text(result).split(/\r?\n/)) {
+      const match = line.match(/pid\s+\d+\(([^)]+)\):.*?(Playing audio|Video Wake Lock)/);
+      if (!match?.[1]) continue;
+      const app = match[1].trim();
+      if (!app) continue;
+      const key = app.toLowerCase();
+      const kind = /video wake lock/i.test(match[2] ?? "") ? "video" : "audio";
+      const existing = byApp.get(key);
+      if (existing) {
+        // An app can hold both audio and video assertions; video is the more
+        // useful label for a browser or player.
+        if (kind === "video") existing.kind = "video";
+        continue;
+      }
+      byApp.set(key, {
+        app,
+        state: "playing",
+        kind,
+        source: "assertion",
+      });
+    }
+    return [...byApp.values()];
+  }
+
   private async collectListeningPorts(): Promise<SystemPort[]> {
     const os = platform();
     if (os === "darwin") {
@@ -1474,6 +1867,87 @@ function parseSwapUsage(value: string): { total?: number; used?: number; free?: 
     used: used === undefined ? undefined : Math.round(used),
     free: free === undefined ? undefined : Math.round(free),
   };
+}
+
+function normalizeMedia(raw: unknown): SystemMedia[] {
+  const entry = asRecord(raw);
+  const app = stringValue(entry?.app);
+  if (!app) return [];
+
+  const stateValue = stringValue(entry?.state)?.toLowerCase();
+  const state = stateValue === "playing" || stateValue === "paused" || stateValue === "stopped"
+    ? stateValue
+    : undefined;
+  const playbackRate = numberValue(entry?.playbackRate);
+  const kindValue = stringValue(entry?.kind)?.toLowerCase();
+  const kind = kindValue === "audio" || kindValue === "video" ? kindValue : undefined;
+  const commands = Array.isArray(entry?.supportedCommands)
+    ? entry.supportedCommands
+        .map((command) => numberValue(command))
+        .filter((command): command is number => command !== undefined)
+    : [];
+  // Some players briefly report no command list while still accepting the
+  // basic transport commands MediaRemote exposes.
+  if (commands.length === 0) commands.push(0, 1, 2);
+
+  return [{
+    app,
+    bundleID: stringValue(entry?.bundleID),
+    title: stringValue(entry?.title),
+    artist: stringValue(entry?.artist),
+    album: stringValue(entry?.album),
+    state: state ?? (playbackRate === 0 ? "paused" : playbackRate === undefined ? undefined : "playing"),
+    elapsedSeconds: numberValue(entry?.elapsedSeconds),
+    durationSeconds: numberValue(entry?.durationSeconds),
+    playbackRate,
+    kind,
+    source: "mediaremote",
+    supportedCommands: commands,
+  }];
+}
+
+function parsePlayerctlMedia(value: string): SystemMedia[] {
+  const [app, status, title, artist, album, position, length] = value.split("\t");
+  if (!app?.trim() || /^stopped$/i.test(status?.trim() ?? "")) return [];
+  const positionMicros = numberValue(position);
+  const lengthMicros = numberValue(length);
+  return [{
+    app: app.trim(),
+    title: title?.trim() || undefined,
+    artist: artist?.trim() || undefined,
+    album: album?.trim() || undefined,
+    state: /^playing$/i.test(status?.trim() ?? "") ? "playing" : "paused",
+    elapsedSeconds: positionMicros === undefined ? undefined : round(positionMicros / 1_000_000, 1),
+    durationSeconds: lengthMicros === undefined ? undefined : round(lengthMicros / 1_000_000, 1),
+    source: "playerctl",
+    supportedCommands: [0, 1, 2, 4, 5],
+  }];
+}
+
+function mergeMedia(primary: SystemMedia[], extra: SystemMedia[]): SystemMedia[] {
+  const byApp = new Map<string, SystemMedia>();
+  for (const item of [...primary, ...extra]) {
+    const key = item.app.trim().toLowerCase();
+    if (!key) continue;
+    const existing = byApp.get(key);
+    if (!existing) {
+      byApp.set(key, item);
+      continue;
+    }
+    existing.state = item.state === "playing" ? "playing" : item.state ?? existing.state;
+    existing.kind = existing.kind ?? item.kind;
+    if (!existing.title && item.title) existing.title = item.title;
+    if (!existing.artist && item.artist) existing.artist = item.artist;
+    if (!existing.album && item.album) existing.album = item.album;
+  }
+  return [...byApp.values()];
+}
+
+function mediaSort(left: SystemMedia, right: SystemMedia): number {
+  const rank = (value: SystemMedia): number => value.state === "playing" ? 0 : value.state === "paused" ? 1 : 2;
+  const difference = rank(left) - rank(right);
+  if (difference !== 0) return difference;
+  return left.app.localeCompare(right.app);
 }
 
 export function parseDF(value: string): SystemDisk[] {

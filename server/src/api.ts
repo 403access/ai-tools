@@ -15,8 +15,8 @@ import {
 import type { Hub } from "./hub.ts";
 import { OpenCodeError } from "./opencode.ts";
 import { resolveProjectIcon } from "./projectIcon.ts";
-import type { ServerInfo, SystemInfo } from "./types.ts";
-import { SystemInfoService } from "./system.ts";
+import type { MediaControlResult, ServerInfo, SystemInfo } from "./types.ts";
+import { MediaControlError, SystemInfoService } from "./system.ts";
 import { eventStream } from "./api/event-stream.ts";
 import {
   CORS_HEADERS,
@@ -39,12 +39,15 @@ export interface ApiDeps {
   /** Persists settings changed over the API, so they survive a restart. */
   persistSettings?: (config: HubConfig) => void;
   /** Injectable system collector, used by tests to avoid touching the host. */
-  system?: { snapshot(force?: boolean): Promise<SystemInfo> };
+  system?: {
+    snapshot(force?: boolean): Promise<SystemInfo>;
+    control?(action: string, value?: number): Promise<MediaControlResult>;
+  };
 }
 
 export function createHandler(deps: ApiDeps): (request: Request) => Promise<Response> {
   const { db, hub, config, restart, persistSettings } = deps;
-  const system = deps.system ?? new SystemInfoService({
+  const system: NonNullable<ApiDeps["system"]> = deps.system ?? new SystemInfoService({
     hub: () => ({
       startedAt: hub.startedAt,
       port: config.port,
@@ -117,6 +120,23 @@ export function createHandler(deps: ApiDeps): (request: Request) => Promise<Resp
         // The collector caches its expensive sections; `refresh=1` is for the
         // system tab's manual refresh and bypasses both caches.
         return json({ data: await system.snapshot(url.searchParams.get("refresh") === "1") });
+      }
+
+      if (pathname === "/api/media" && request.method === "POST") {
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+        const action = typeof body.action === "string" ? body.action.trim() : "";
+        if (!action) return error("A media action is required", 400);
+        const value = typeof body.value === "number" && Number.isFinite(body.value)
+          ? body.value
+          : undefined;
+        if (!system.control) return error("Media control is unavailable", 501);
+        try {
+          return json({ data: await system.control(action, value) });
+        } catch (caught) {
+          if (caught instanceof MediaControlError) return error(caught.message, caught.status);
+          throw caught;
+        }
       }
 
       if (pathname === "/api/files" && request.method === "GET") {

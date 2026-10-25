@@ -113,6 +113,37 @@ extension AppState {
         }
     }
 
+    /// Sends a playback or volume action to the hub host and folds the returned
+    /// media/audio state into the current snapshot immediately.
+    func controlMedia(_ action: String, value: Double? = nil) async {
+        if api == nil { await bootstrap() }
+        guard let api else { return }
+        guard !isControllingMedia else { return }
+        isControllingMedia = true
+        defer { isControllingMedia = false }
+
+        let previous = systemInfo
+        var expectedState: String?
+        if var info = systemInfo {
+            expectedState = MediaControlOptimism.apply(to: &info, action: action, value: value)
+            systemInfo = info
+        }
+
+        do {
+            let result = try await api.controlMedia(action: action, value: value)
+            if var info = systemInfo {
+                info.media = result.media
+                info.audio = result.audio
+                MediaControlOptimism.reconcile(&info, expectedState: expectedState)
+                systemInfo = info
+            }
+            mediaControlError = nil
+        } catch {
+            if let previous { systemInfo = previous }
+            mediaControlError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
     /// Loads the Settings tab: connected client apps plus hub/server details.
     func refreshSettings(force: Bool = false) async {
         guard let api else {

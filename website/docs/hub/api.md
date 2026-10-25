@@ -108,6 +108,7 @@ response is wrapped in `{ "data": { … } }` and includes:
 | `cpu` / `memory` | Model, cores, clock, overall and per-core usage, load averages, RAM breakdown, swap |
 | `disks` / `network` | Mounted volumes, filesystem and capacity; interfaces, addresses, gateway, DNS |
 | `battery` / `thermal` / `security` | Battery health and cycles; thermal pressure; SIP, FileVault, firewall, Gatekeeper, SELinux, AppArmor, Defender |
+| `media` | Now-playing sessions: owning app, bundle id, title, artist, album, state, elapsed/duration, audio or video |
 | `processes` | Total process count and the top rows by CPU and by memory |
 | `apps` | Installed applications with path, version, bundle id, source, architecture |
 | `homebrew` | Version, prefix, formula/cask counts, outdated markers, full package list |
@@ -117,6 +118,39 @@ response is wrapped in `{ "data": { … } }` and includes:
 
 Every collector is optional: fields a platform cannot provide are omitted rather
 than reported as zero.
+
+### Media controls
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/api/media` | Playback or system-volume command |
+
+```json
+{ "action": "toggle" }
+{ "action": "next" }
+{ "action": "play" }
+{ "action": "pause" }
+{ "action": "previous" }
+{ "action": "back15" }
+{ "action": "forward15" }
+{ "action": "mute", "value": 1 }
+{ "action": "volume", "value": 65 }
+```
+
+The response carries the updated `media` and `audio` state:
+
+```json
+{
+  "data": {
+    "media": [{ "app": "Google Chrome", "state": "playing", "title": "…" }],
+    "audio": { "volumePercent": 65, "muted": false, "controllable": true }
+  }
+}
+```
+
+macOS sends MediaRemote commands to the current system player and falls back to
+AppleScript for Music and Spotify. Linux uses `playerctl` and `pactl`. Playback
+commands return `409` when nothing is playing; unknown actions return `400`.
 
 ### Host files
 

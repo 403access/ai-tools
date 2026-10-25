@@ -159,6 +159,25 @@ final class SystemInfoTests: XCTestCase {
         "running": 0,
         "containers": []
       },
+      "media": [
+        {
+          "app": "Google Chrome",
+          "bundleID": "com.google.Chrome",
+          "title": "Example video",
+          "state": "playing",
+          "elapsedSeconds": 120,
+          "durationSeconds": 300,
+          "playbackRate": 1,
+          "kind": "video",
+          "source": "mediaremote",
+          "supportedCommands": [24, 3, 2, 1, 0]
+        }
+      ],
+      "audio": {
+        "volumePercent": 65,
+        "muted": false,
+        "controllable": true
+      },
       "notes": []
     }
     """
@@ -179,5 +198,32 @@ final class SystemInfoTests: XCTestCase {
         XCTAssertEqual(info.homebrew?.packages.first?.outdated, true)
         XCTAssertEqual(info.apps.first?.bundleID, "com.apple.dt.Xcode")
         XCTAssertEqual(info.hub.port, 8787)
+        XCTAssertEqual(info.media.first?.app, "Google Chrome")
+        XCTAssertEqual(info.media.first?.isPlaying, true)
+        XCTAssertEqual(info.media.first?.progress ?? 0, 0.4, accuracy: 0.000_001)
+        XCTAssertEqual(info.media.first?.kindIcon, "play.rectangle.fill")
+        XCTAssertEqual(info.media.first?.supportsToggle, true)
+        XCTAssertEqual(info.media.first?.supportsNext, false)
+        XCTAssertEqual(info.media.first?.canControl, true)
+        XCTAssertEqual(info.audio?.volumePercent, 65)
+        XCTAssertEqual(info.audio?.controllable, true)
+    }
+
+    func testOptimisticMediaControlUpdates() throws {
+        var info = try JSONDecoder().decode(SystemInfo.self, from: Data(json.utf8))
+
+        let expected = MediaControlOptimism.apply(to: &info, action: "toggle", value: nil)
+        XCTAssertEqual(expected, "paused")
+        XCTAssertEqual(info.media.first?.isPlaying, false)
+        XCTAssertEqual(info.media.first?.playbackRate, 0)
+
+        MediaControlOptimism.reconcile(&info, expectedState: "paused")
+        XCTAssertEqual(info.media.first?.state, "paused")
+
+        MediaControlOptimism.apply(to: &info, action: "volume", value: 21)
+        XCTAssertEqual(info.audio?.volumePercent, 21)
+
+        MediaControlOptimism.apply(to: &info, action: "mute", value: 1)
+        XCTAssertEqual(info.audio?.muted, true)
     }
 }

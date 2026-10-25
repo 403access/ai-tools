@@ -51,6 +51,22 @@ extension HubAPI {
         _ = try await send("/api/server/restart", method: "POST")
     }
 
+    /// Sends a playback or output-volume action to the hub host. The response
+    /// carries the updated media and audio state.
+    func controlMedia(action: String, value: Double? = nil) async throws -> MediaControlResult {
+        struct Body: Encodable {
+            var action: String
+            var value: Double?
+        }
+        let body = try JSONEncoder().encode(Body(action: action, value: value))
+        let data = try await send("/api/media", method: "POST", body: body)
+        do {
+            return try Self.decoder.decode(MediaControlEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     // MARK: - Host files
 
     /// Lists one folder on the machine running the hub.
