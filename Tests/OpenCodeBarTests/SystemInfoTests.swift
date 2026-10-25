@@ -115,7 +115,8 @@ final class SystemInfoTests: XCTestCase {
           "version": "16.0",
           "bundleID": "com.apple.dt.Xcode",
           "source": "apple",
-          "architecture": "arm"
+          "architecture": "arm",
+          "hasIcon": true
         }
       ],
       "homebrew": {
@@ -197,6 +198,7 @@ final class SystemInfoTests: XCTestCase {
         XCTAssertEqual(info.security?.firewall?.isEnabled, false)
         XCTAssertEqual(info.homebrew?.packages.first?.outdated, true)
         XCTAssertEqual(info.apps.first?.bundleID, "com.apple.dt.Xcode")
+        XCTAssertEqual(info.apps.first?.hasIcon, true)
         XCTAssertEqual(info.hub.port, 8787)
         XCTAssertEqual(info.media.first?.app, "Google Chrome")
         XCTAssertEqual(info.media.first?.isPlaying, true)

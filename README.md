@@ -165,8 +165,9 @@ iOS app:
 - Battery percentage, state, health, cycle count, condition, and temperature;
   SIP, FileVault, firewall, Gatekeeper, SELinux/AppArmor, and Defender status.
 - Top processes by CPU or memory, with PID, user, and resident size.
-- Installed applications discovered from the OS (with versions, bundle ids,
-  sources, and paths) and a searchable filter.
+- Installed applications discovered from the OS (with real app icons where
+  available, plus versions, bundle ids, sources, and paths) and a searchable
+  filter.
 - Homebrew version, prefix, formula/cask counts, outdated markers, and the full
   package list with versions.
 - Developer runtimes and tools (Node, Bun, Python, Go, Rust, Java, Swift, Docker,
@@ -293,7 +294,7 @@ The hub:
    `/api/project/{id}/files`, `/api/project/{id}/icon`,
    `/api/experimental/session/stats` — plus
    `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`), `/api/usage`,
-   `/api/health`, `/api/system`, `/api/terminals` (`GET`/`POST`),
+   `/api/health`, `/api/system`, `/api/system/apps/icon`, `/api/terminals` (`GET`/`POST`),
    `/api/terminals/{id}` (`GET`/`PUT`/`DELETE`),
    `/api/terminals/{id}/socket` (WebSocket), `/api/host-terminals`,
    `/api/host-terminals/{id}`, `/api/host-terminals/{id}/command`,

@@ -268,6 +268,8 @@ struct SystemApp: Decodable, Equatable, Sendable, Identifiable {
     var source: String?
     var architecture: String?
     var lastModified: String?
+    /// Whether the hub found artwork that clients can fetch for this app.
+    var hasIcon: Bool?
 
     var id: String { path.isEmpty ? name : path }
 }

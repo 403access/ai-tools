@@ -1,5 +1,9 @@
 #if canImport(AppKit)
 import AppKit
+typealias AppIconImage = NSImage
+#elseif canImport(UIKit)
+import UIKit
+typealias AppIconImage = UIImage
 #endif
 import SwiftUI
 
@@ -187,6 +191,73 @@ struct ProjectIconView: View {
     }
 }
 #endif
+
+/// Loads one installed app's icon from the hub, keyed by its bundle path. The
+/// generic app glyph stays visible until the artwork arrives; hits and misses
+/// are cached so scrolling the apps list does not refetch them.
+struct AppIconView: View {
+    let api: HubAPI?
+    let path: String
+    var hasIcon = false
+    var size: CGFloat = 16
+
+    @State private var image: AppIconImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                #if canImport(AppKit)
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                #else
+                Image(uiImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                #endif
+            } else {
+                Image(systemName: "app")
+                    .font(.system(size: size * 0.58, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+            }
+        }
+        .frame(width: size, height: size)
+        .task(id: taskID) { await load() }
+        .accessibilityHidden(true)
+    }
+
+    private var taskID: String {
+        "\(api?.baseURL.absoluteString ?? "")|\(path)|\(hasIcon)"
+    }
+
+    private func load() async {
+        guard image == nil, hasIcon, !path.isEmpty, let api else { return }
+        let key = "\(api.baseURL.absoluteString)|\(path)"
+
+        if let cached = AppIconCache.images[key] {
+            image = cached
+            return
+        }
+        guard !AppIconCache.misses.contains(key) else { return }
+
+        guard let data = await api.systemAppIcon(path: path),
+              let loaded = AppIconImage(data: data)
+        else {
+            AppIconCache.misses.insert(key)
+            return
+        }
+        AppIconCache.images[key] = loaded
+        image = loaded
+    }
+}
+
+@MainActor
+private enum AppIconCache {
+    static var images: [String: AppIconImage] = [:]
+    static var misses: Set<String> = []
+}
 
 struct LoadingState: View {
     let message: String

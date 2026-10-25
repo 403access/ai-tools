@@ -332,8 +332,8 @@ async function candidatesFor(root: string): Promise<IconCandidate[]> {
   return candidates;
 }
 
-/** Runs `sips` to rasterise/resize artwork into a bounded PNG. */
-async function renderWithSips(path: string): Promise<Uint8Array | null> {
+/** Runs macOS's `sips` to rasterise/resize artwork into a bounded PNG. */
+export async function renderImageWithSips(path: string): Promise<Uint8Array | null> {
   const directory = await mkdtemp(join(tmpdir(), "opencodebar-icon-")).catch(() => null);
   if (!directory) return null;
   const output = join(directory, "icon.png");
@@ -360,13 +360,13 @@ async function renderCandidate(
   if (candidate.extension === ".icns") {
     // sips understands ICNS and picks the best representation; the manual
     // extractor keeps things working when the host is not macOS.
-    const rendered = await renderWithSips(candidate.path);
+    const rendered = await renderImageWithSips(candidate.path);
     const embedded = rendered ?? largestPngInIcns(await readFile(candidate.path));
     return embedded ? { bytes: embedded, contentType: "image/png" } : null;
   }
 
   if (candidate.extension === ".svg" || candidate.extension === ".ico") {
-    const rendered = await renderWithSips(candidate.path);
+    const rendered = await renderImageWithSips(candidate.path);
     return rendered ? { bytes: rendered, contentType: "image/png" } : null;
   }
 
@@ -377,11 +377,11 @@ async function renderCandidate(
     if (bytes.length <= MAX_ICON_BYTES && dimension <= MAX_ICON_DIMENSION) {
       return { bytes, contentType: "image/png" };
     }
-    return { bytes: (await renderWithSips(candidate.path)) ?? bytes, contentType: "image/png" };
+    return { bytes: (await renderImageWithSips(candidate.path)) ?? bytes, contentType: "image/png" };
   }
 
   const contentType = candidate.extension === ".webp" ? "image/webp" : "image/jpeg";
-  const rendered = await renderWithSips(candidate.path);
+  const rendered = await renderImageWithSips(candidate.path);
   return rendered ? { bytes: rendered, contentType: "image/png" } : { bytes, contentType };
 }
 

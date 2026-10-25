@@ -1,6 +1,7 @@
 import { basename, join } from "node:path";
 import { homedir, platform } from "node:os";
 import type { SystemApp } from "../types.ts";
+import { hasAppIcon } from "./appIcons.ts";
 import { APP_DIRECTORIES, LONG_COMMAND_TIMEOUT_MS } from "./constants.ts";
 import type { CommandRunner } from "./types.ts";
 import {
@@ -50,6 +51,7 @@ async function collectMacApps(run: CommandRunner): Promise<SystemApp[]> {
       source: stringValue(entry.obtained_from),
       architecture: stringValue(entry.arch_kind),
       lastModified: stringValue(entry.lastModified),
+      hasIcon: hasAppIcon(path),
     });
   }
   apps.sort((a, b) => a.name.localeCompare(b.name));
@@ -66,7 +68,7 @@ function scanAppDirectories(): SystemApp[] {
       const path = join(directory, entry);
       if (seen.has(path)) continue;
       seen.add(path);
-      apps.push({ name: basename(entry, ".app"), path });
+      apps.push({ name: basename(entry, ".app"), path, hasIcon: hasAppIcon(path) });
     }
   }
   apps.sort((a, b) => a.name.localeCompare(b.name));
@@ -99,6 +101,7 @@ function collectLinuxApps(): SystemApp[] {
         version: values.Version,
         bundleID: values.StartupWMClass,
         source: values.Exec ? "desktop entry" : undefined,
+        hasIcon: hasAppIcon(path),
       });
     }
   }

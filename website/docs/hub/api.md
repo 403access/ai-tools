@@ -78,6 +78,7 @@ CORS allows any origin, with `Authorization`, `Content-Type`, and
 | `GET` | `/api/hub/info` | Alias for health |
 | `GET` | `/api/info` | Server info, URLs, capabilities, and hub health |
 | `GET` | `/api/system` | Full snapshot of the machine running the hub |
+| `GET` | `/api/system/apps/icon?path=…` | Icon artwork for one installed app, when available |
 | `GET` | `/api/terminals` | Terminals across OpenCode locations |
 | `POST` | `/api/terminals` | Start a PTY |
 | `GET` | `/api/terminals/{id}` | One terminal |
@@ -127,7 +128,7 @@ response is wrapped in `{ "data": { … } }` and includes:
 | `battery` / `thermal` / `security` | Battery health and cycles; thermal pressure; SIP, FileVault, firewall, Gatekeeper, SELinux, AppArmor, Defender |
 | `media` | Now-playing sessions: owning app, bundle id, title, artist, album, state, elapsed/duration, audio or video |
 | `processes` | Total process count and the top rows by CPU and by memory |
-| `apps` | Installed applications with path, version, bundle id, source, architecture |
+| `apps` | Installed applications with path, version, bundle id, source, architecture, and whether icon artwork is available |
 | `homebrew` | Version, prefix, formula/cask counts, outdated markers, full package list |
 | `runtimes` | Installed developer runtimes and tools with versions and paths |
 | `listeningPorts` | Listening TCP ports with process names and PIDs |
@@ -135,6 +136,11 @@ response is wrapped in `{ "data": { … } }` and includes:
 
 Every collector is optional: fields a platform cannot provide are omitted rather
 than reported as zero.
+
+`GET /api/system/apps/icon` accepts the `path` of an app from that snapshot and
+returns its PNG artwork plus an `ETag`. Apps whose bundles have no usable
+artwork report `hasIcon: false` and return `404` here, so clients can keep the
+generic app glyph.
 
 ### Media controls
 

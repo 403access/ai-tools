@@ -15,6 +15,7 @@ import {
 import type { Hub } from "./hub.ts";
 import { OpenCodeError } from "./opencode.ts";
 import { resolveProjectIcon } from "./projectIcon.ts";
+import { resolveAppIcon } from "./system/appIcons.ts";
 import type {
   MediaControlResult,
   ServerInfo,
@@ -175,6 +176,46 @@ export function createHandler(
         // The collector caches its expensive sections; `refresh=1` is for the
         // system tab's manual refresh and bypasses both caches.
         return json({ data: await system.snapshot(url.searchParams.get("refresh") === "1") });
+      }
+
+      if (
+        parts[0] === "api" && parts[1] === "system" && parts[2] === "apps" &&
+        parts[3] === "icon" && parts.length === 4
+      ) {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+
+        const appPath = url.searchParams.get("path")?.trim();
+        if (!appPath) return error("An application path is required", 400);
+
+        // Only serve artwork for apps the collector actually enumerated, so
+        // the endpoint cannot be used to probe arbitrary files on the host.
+        const snapshot = await system.snapshot(false);
+        const app = snapshot.apps.find((entry) => entry.path === appPath);
+        if (!app) return error("Unknown application", 404);
+
+        const icon = await resolveAppIcon(app.path);
+        if (!icon) return error("No icon for this application", 404);
+
+        const etag = `"${icon.etag}"`;
+        if (request.headers.get("if-none-match") === etag) {
+          return new Response(null, {
+            status: 304,
+            headers: {
+              ETag: etag,
+              "Cache-Control": "public, max-age=3600",
+              ...CORS_HEADERS,
+            },
+          });
+        }
+
+        return new Response(icon.bytes, {
+          headers: {
+            "Content-Type": icon.contentType,
+            "Cache-Control": "public, max-age=3600",
+            ETag: etag,
+            ...CORS_HEADERS,
+          },
+        });
       }
 
       if (pathname === "/api/media" && request.method === "POST") {

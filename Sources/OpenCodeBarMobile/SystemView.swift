@@ -1057,10 +1057,12 @@ struct SystemView: View {
                     LazyVStack(alignment: .leading, spacing: 9) {
                         ForEach(visible) { app in
                             HStack(spacing: 9) {
-                                Image(systemName: "app")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(Theme.accent)
-                                    .frame(width: 16)
+                                AppIconView(
+                                    api: store.api,
+                                    path: app.path,
+                                    hasIcon: app.hasIcon == true,
+                                    size: 18
+                                )
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(app.name)
                                         .font(.caption.weight(.medium))

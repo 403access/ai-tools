@@ -589,6 +589,8 @@ export interface SystemApp {
   source?: string;
   architecture?: string;
   lastModified?: string;
+  /** Whether the hub found artwork clients can fetch for this app. */
+  hasIcon?: boolean;
 }
 
 export interface SystemBrewPackage {

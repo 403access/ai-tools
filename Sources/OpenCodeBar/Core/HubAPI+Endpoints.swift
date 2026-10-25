@@ -458,6 +458,14 @@ extension HubAPI {
         return response.data
     }
 
+    /// Fetches the icon for one installed app on the hub's machine. Missing
+    /// artwork and transport failures both return nil so rows can keep the
+    /// generic app glyph.
+    func systemAppIcon(path: String) async -> Data? {
+        let encoded = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? path
+        return await iconData("/api/system/apps/icon?path=\(encoded)")
+    }
+
     /// The project's own app icon, discovered by the hub from the files in the
     /// project folder. nil when the folder has no usable artwork.
     func projectIcon(id: String) async -> Data? {
