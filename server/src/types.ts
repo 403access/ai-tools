@@ -536,12 +536,21 @@ export interface SystemNetwork {
 
 export interface SystemProcess {
   pid: number;
+  /** Parent process, when the platform's process list exposes it. */
+  parentPID?: number;
   name: string;
   command?: string;
   user?: string;
+  /** Raw platform state flag, e.g. `S` (sleeping) or `R+` (running, foreground). */
+  state?: string;
   cpuPercent?: number;
   memoryPercent?: number;
+  /** Resident set size. */
   memoryBytes?: number;
+  /** Virtual address-space size, where reported. */
+  virtualMemoryBytes?: number;
+  /** How long the process has been running, in seconds. */
+  elapsedSeconds?: number;
 }
 
 export interface SystemProcesses {

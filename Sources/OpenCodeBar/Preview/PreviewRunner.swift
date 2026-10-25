@@ -7,6 +7,9 @@ import SwiftUI
 /// - `--preview --tab usage`     opens a specific tab
 /// - `--screenshot <path>`       renders the panel offscreen to a PNG and exits
 /// - `--screenshot <path> --scale 2 --tab usage`
+/// - `--memory`                  renders the memory monitor instead of the panel
+/// - `--memory --system-fixture <path>` feeds it a captured `/api/system` JSON
+/// - `--memory-process <pid>` / `--memory-group <name>` render a process or app
 enum PreviewRunner {
     @MainActor
     static func run() {
@@ -123,6 +126,20 @@ enum PreviewRunner {
         let state = AppState()
         state.start()
 
+        // `--system-fixture <path>` loads a previously captured `/api/system`
+        // envelope. Useful for iterating on the memory monitor when a live hub
+        // is slow to collect its static inventory.
+        if let fixture = value(after: "--system-fixture", in: CommandLine.arguments) {
+            do {
+                let data = try Data(contentsOf: URL(fileURLWithPath: fixture))
+                let envelope = try JSONDecoder().decode(SystemInfoEnvelope.self, from: data)
+                state.systemInfo = envelope.data
+                state.systemInfoFetchedAt = Date()
+            } catch {
+                FileHandle.standardError.write(Data("system fixture failed: \(error)\n".utf8))
+            }
+        }
+
         // Pump the run loop so the async fetches and event stream can populate.
         // Slow tabs (the first System fetch scans apps and Homebrew) can ask for
         // a longer settle window with `--wait <seconds>`.
@@ -200,9 +217,15 @@ enum PreviewRunner {
             }
         }
 
+        // `--memory` renders the memory monitor directly, for iterating on the
+        // breakdown and process list without opening the panel by hand.
+        let wantsMemory = CommandLine.arguments.contains("--memory")
+
         // The offscreen harness never runs SwiftUI's `.task`, so preload the
-        // System tab explicitly. Its first fetch scans apps and Homebrew.
-        if value(after: "--tab", in: CommandLine.arguments)?.lowercased() == "system" {
+        // System tab explicitly. Its first fetch scans apps and Homebrew. A
+        // fixture already provides the snapshot, so skip the live fetch.
+        let hasFixture = value(after: "--system-fixture", in: CommandLine.arguments) != nil
+        if !hasFixture && (value(after: "--tab", in: CommandLine.arguments)?.lowercased() == "system" || wantsMemory) {
             var finished = false
             Task { @MainActor in
                 await state.refreshSystemInfo(force: true)
@@ -233,10 +256,36 @@ enum PreviewRunner {
             }
         }
 
+        // `--memory-process <pid>` and `--memory-group <name>` render the
+        // drill-in pages so they can be inspected without clicking through.
+        let memoryPID = value(after: "--memory-process", in: CommandLine.arguments).flatMap(Int.init)
+        let memoryGroupName = value(after: "--memory-group", in: CommandLine.arguments)
+
         let root: AnyView
-        if wantsTerminal,
-           let terminal = state.terminals.first,
-           let api = state.api {
+        if wantsMemory,
+           let memoryPID,
+           let process = state.systemInfo?.processes.all.first(where: { $0.pid == memoryPID }) {
+            root = AnyView(
+                MemoryProcessDetailView(process: process)
+                    .environmentObject(state)
+            )
+        } else if wantsMemory,
+                  let memoryGroupName,
+                  let info = state.systemInfo,
+                  let group = SystemProcessGrouping.groups(for: info)
+                    .first(where: { $0.name.localizedCaseInsensitiveCompare(memoryGroupName) == .orderedSame }) {
+            root = AnyView(
+                MemoryProcessGroupDetailView(group: group)
+                    .environmentObject(state)
+            )
+        } else if wantsMemory {
+            root = AnyView(
+                MemoryMonitorView()
+                    .environmentObject(state)
+            )
+        } else if wantsTerminal,
+                  let terminal = state.terminals.first,
+                  let api = state.api {
             root = AnyView(
                 TerminalDetailView(terminal: terminal, api: api)
                     .environmentObject(state)
@@ -277,7 +326,8 @@ enum PreviewRunner {
             || wantsSettings
             || wantsFiles
             || wantsTerminal
-            || wantsHostTerminal {
+            || wantsHostTerminal
+            || wantsMemory {
             let detailDeadline = Date().addingTimeInterval(3)
             while Date() < detailDeadline {
                 RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))

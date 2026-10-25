@@ -162,12 +162,16 @@ struct SystemNetwork: Decodable, Equatable, Sendable {
 
 struct SystemProcess: Decodable, Equatable, Sendable, Identifiable {
     var pid: Int
+    var parentPID: Int?
     var name: String
     var command: String?
     var user: String?
+    var state: String?
     var cpuPercent: Double?
     var memoryPercent: Double?
     var memoryBytes: Int64?
+    var virtualMemoryBytes: Int64?
+    var elapsedSeconds: Int?
 
     var id: Int { pid }
 }
@@ -176,6 +180,14 @@ struct SystemProcesses: Decodable, Equatable, Sendable {
     var total: Int
     var topCPU: [SystemProcess]
     var topMemory: [SystemProcess]
+
+    /// Every process included in the snapshot, with the CPU and memory lists
+    /// merged and de-duplicated by PID. The server sends the same rows in both
+    /// lists, so this is normally just `topMemory + a few extra CPU rows`.
+    var all: [SystemProcess] {
+        var seen = Set<Int>()
+        return (topCPU + topMemory).filter { seen.insert($0.pid).inserted }
+    }
 }
 
 struct SystemBattery: Decodable, Equatable, Sendable {

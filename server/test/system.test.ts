@@ -3,7 +3,7 @@ import type { SystemInfo } from "../src/types.ts";
 import { createHandler } from "../src/api.ts";
 import { HubDB } from "../src/db.ts";
 import { Hub } from "../src/hub.ts";
-import { MediaControlError, parseBrewVersions, parseDF, summarizeProcesses } from "../src/system.ts";
+import { MediaControlError, parseBrewVersions, parseDF, parseElapsedSeconds, summarizeProcesses } from "../src/system.ts";
 import { body, config, request, setup } from "./helpers/api.ts";
 
 const sample: SystemInfo = {
@@ -157,26 +157,39 @@ describe("system parsers", () => {
   test("summarizes processes by CPU and memory", () => {
     const result = summarizeProcesses(
       [
-        "  12  45.0  1.5 204800 alice /usr/bin/alpha",
-        "  34   2.0  8.0 1048576 bob /usr/bin/beta",
-        "  56   3.0  2.0 409600 carol gamma",
+        "  12   1  45.0  1.5 204800 1048576 01:02:03 S alice /usr/bin/alpha",
+        "  34   1   2.0  8.0 1048576 2097152 2-03:04:05 R bob /usr/bin/beta",
+        "  56  12   3.0  2.0 409600 819200 00:42 Ss carol gamma",
       ].join("\n"),
     );
     expect(result.total).toBe(3);
     expect(result.topCPU[0]?.name).toBe("alpha");
     expect(result.topCPU[0]?.cpuPercent).toBe(45);
+    expect(result.topCPU[0]?.parentPID).toBe(1);
+    expect(result.topCPU[0]?.state).toBe("S");
+    expect(result.topCPU[0]?.elapsedSeconds).toBe(3_723);
+    expect(result.topCPU[0]?.virtualMemoryBytes).toBe(1_073_741_824);
     expect(result.topMemory[0]?.name).toBe("beta");
     expect(result.topMemory[0]?.memoryBytes).toBe(1_073_741_824);
+    expect(result.topMemory[0]?.elapsedSeconds).toBe(183_845);
+  });
+
+  test("parses ps elapsed times", () => {
+    expect(parseElapsedSeconds("42")).toBe(42);
+    expect(parseElapsedSeconds("03:04")).toBe(184);
+    expect(parseElapsedSeconds("02:03:04")).toBe(7_384);
+    expect(parseElapsedSeconds("2-03:04:05")).toBe(183_845);
+    expect(parseElapsedSeconds("")).toBeUndefined();
   });
 
   test("keeps a deeper memory list for the memory monitor", () => {
-    const lines = Array.from({ length: 60 }, (_, index) =>
-      `  ${index + 1}  1.0  1.0  ${(index + 1) * 1_024} user /usr/bin/process-${index}`,
+    const lines = Array.from({ length: 120 }, (_, index) =>
+      `  ${index + 1}  1  1.0  1.0  ${(index + 1) * 1_024}  ${(index + 1) * 2_048}  00:01 S user /usr/bin/process-${index}`,
     );
     const result = summarizeProcesses(lines.join("\n"));
-    expect(result.total).toBe(60);
+    expect(result.total).toBe(120);
     expect(result.topCPU).toHaveLength(12);
-    expect(result.topMemory).toHaveLength(50);
-    expect(result.topMemory[0]?.name).toBe("process-59");
+    expect(result.topMemory).toHaveLength(100);
+    expect(result.topMemory[0]?.name).toBe("process-119");
   });
 });

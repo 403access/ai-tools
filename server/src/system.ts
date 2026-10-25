@@ -8,7 +8,7 @@ export { MediaControlError } from "./system/media.ts";
 export { findExecutable } from "./system/commands.ts";
 export { parseBrewVersions } from "./system/homebrew.ts";
 export { parseDF } from "./system/storage.ts";
-export { summarizeProcesses } from "./system/processes.ts";
+export { parseElapsedSeconds, summarizeProcesses } from "./system/processes.ts";
 export { platformName } from "./system/util.ts";
 export type {
   CommandResult,
