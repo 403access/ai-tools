@@ -475,9 +475,11 @@ without replacing the credential OpenCode uses for inference.
   for the Nix daemon settings once. The VMs tab checks both prerequisites and
   can run the Nix installer or rebuild the helper with **Run**; the Nix step
   opens Terminal.app on the Mac and streams the log back to the app. The Linux
-  builder is copyable for Terminal because it must stay running. `make hub`
-  builds and ad-hoc signs the helper with
-  `com.apple.security.virtualization`; `make vz-helper` rebuilds it alone.
+  builder is copyable for Terminal because it must stay running; after it
+  starts, add the builders/SSH config from the Virtual machines guide (or use
+  nix-darwin's `nix.linux-builder.enable`). `make hub` builds and ad-hoc signs
+  the helper with `com.apple.security.virtualization`; `make vz-helper` rebuilds
+  it alone.
 
 ## Build and run
 

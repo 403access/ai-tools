@@ -185,7 +185,7 @@ struct VMSetupRunnerCard: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(Theme.accent)
             }
-            Text("Run this once in Terminal on the Mac. It starts a NixOS builder VM and needs to stay running for image builds.")
+            Text("Run this in Terminal on the Mac and leave it running. Then configure Nix to use it (builders + SSH config in the Virtual machines guide), or use nix-darwin's `nix.linux-builder.enable`.")
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

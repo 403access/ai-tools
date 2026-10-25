@@ -70,6 +70,38 @@ helper:
 The hub only exposes these fixed, allow-listed steps; clients cannot send
 arbitrary commands.
 
+#### Configure the builder
+
+`nix ... darwin.linux-builder` only starts the builder VM; Nix still needs to be
+told to use it. With the builder running in Terminal, add the builders entry and
+SSH config from another Terminal window:
+
+```sh
+sudo mkdir -p /etc/nix /etc/ssh/ssh_config.d
+sudo tee /etc/nix/machines >/dev/null <<'EOF'
+ssh-ng://builder@linux-builder aarch64-linux /etc/nix/builder_ed25519 4 1 big-parallel,kvm,nixos-test - - - c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUpCV2N4Yi9CbGFxdDFhdU90RStGOFFVV3JVb3RpQzVxQkorVXVFV2RWQ2Igcm9vdEBuaXhvcwo=
+EOF
+
+sudo tee /etc/ssh/ssh_config.d/100-linux-builder.conf >/dev/null <<'EOF'
+Host linux-builder
+  Hostname localhost
+  HostKeyAlias linux-builder
+  Port 31022
+  User builder
+  IdentityFile /etc/nix/builder_ed25519
+EOF
+
+sudo launchctl kickstart -k system/org.nixos.nix-daemon
+```
+
+The trailing base64 is the builder VM's publicly-known SSH host key. The Nix
+installer already created `/etc/nix/builder_ed25519`. After the daemon restarts,
+`nix config show` reports the builder and the VMs tab enables **Create**.
+
+If you use nix-darwin, the supported alternative is
+`nix.linux-builder.enable = true`, which starts the builder and writes these
+settings for you.
+
 ### Setup logs
 
 Installer and helper-build output is stored on the hub host:
