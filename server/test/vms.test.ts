@@ -22,7 +22,7 @@ import {
 } from "../src/vms/nixos.ts";
 import { VirtualMachineService } from "../src/vms/service.ts";
 import { readLogTail } from "../src/vms/logs.ts";
-import { defaultBuilderConfig } from "../src/vms/catalog.ts";
+import { defaultBuilderConfig } from "../src/vms/catalog/index.ts";
 import { VMStore, newMACAddress, newVMID } from "../src/vms/store.ts";
 import type { VirtualMachine } from "../src/vms/types.ts";
 

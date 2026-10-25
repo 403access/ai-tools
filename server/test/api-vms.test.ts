@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { VMValidationError } from "../src/vms/nixos.ts";
-import { defaultBuilderConfig } from "../src/vms/catalog.ts";
+import { defaultBuilderConfig } from "../src/vms/catalog/index.ts";
 import type {
   VMAction,
   VMCapabilities,

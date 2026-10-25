@@ -20,7 +20,7 @@ import {
   optionCount,
   resolveBuilderConfig,
   type ResolvedBuilderConfig,
-} from "./catalog.ts";
+} from "./catalog/index.ts";
 
 export { VMValidationError } from "./errors.ts";
 export {

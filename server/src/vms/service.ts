@@ -49,7 +49,7 @@ import {
   stateVersionFor,
   validateVMName,
 } from "./nixos.ts";
-import { normalizeBuilderConfig, resolveBuilderConfig } from "./catalog.ts";
+import { normalizeBuilderConfig, resolveBuilderConfig } from "./catalog/index.ts";
 import {
   clampCPU,
   clampDisk,

@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { dataDir } from "../config.ts";
-import { defaultBuilderConfig, normalizeBuilderConfig } from "./catalog.ts";
+import { defaultBuilderConfig, normalizeBuilderConfig } from "./catalog/index.ts";
 import type { VMPaths, VirtualMachine } from "./types.ts";
 
 /** Environment override used by tests and by users who keep VMs elsewhere. */

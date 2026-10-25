@@ -32,7 +32,7 @@ import type { HubSocketData } from "./api/socket.ts";
 import { VirtualMachineService } from "./vms/service.ts";
 import { VMHelperError } from "./vms/helper.ts";
 import { VMValidationError, previewConfiguration, previewDraftConfiguration } from "./vms/nixos.ts";
-import { catalogForClient } from "./vms/catalog.ts";
+import { catalogForClient } from "./vms/catalog/index.ts";
 import type {
   VMAction,
   VMLogType,

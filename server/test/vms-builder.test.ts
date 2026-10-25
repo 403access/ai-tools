@@ -6,7 +6,7 @@ import {
   defaultBuilderConfig,
   normalizeBuilderConfig,
   resolveBuilderConfig,
-} from "../src/vms/catalog.ts";
+} from "../src/vms/catalog/index.ts";
 import { VMValidationError } from "../src/vms/errors.ts";
 import { previewDraftConfiguration, renderConfiguration } from "../src/vms/nixos.ts";
 import type { NixOSBuilderConfig, VirtualMachine } from "../src/vms/types.ts";
