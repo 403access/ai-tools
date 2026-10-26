@@ -5,6 +5,7 @@ import SwiftUI
 ///
 /// - `--preview`                 renders the panel in a normal window
 /// - `--preview --tab usage`     opens a specific tab
+/// - `--usage-mode activity`     opens a page of the Usage tab
 /// - `--screenshot <path>`       renders the panel offscreen to a PNG and exits
 /// - `--screenshot <path> --scale 2 --tab usage`
 /// - `--memory`                  renders the memory monitor instead of the panel

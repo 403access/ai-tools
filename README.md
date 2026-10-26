@@ -186,21 +186,27 @@ iOS app:
   list.
 
 **Usage**
-- OpenCode Go plan limits: rolling (5h), weekly, and monthly consumption as
-  percentage bars with reset countdowns, read from the Go usage API. Hidden
-  when no Go key is configured.
+- OpenCode Go plan limits are pinned above the tab's pages: rolling (5h),
+  weekly, and monthly consumption as compact percentage gauges, read from the Go
+  usage API. Tapping the header expands the reset countdowns and any stale-data
+  note. Hidden when no Go key is configured.
 - Usage numbers and plan limits are cached on disk, so the tab keeps showing the
   last known values — flagged as stale — when the service or the API is
   unreachable.
-- Summary tiles: streak, active days, today's steps, prompts, sessions, total
-  cost, tokens, tool calls, and subagents.
-- An interactive daily trend chart for steps, cost, or tokens across the last
-  30 / 90 / 365 days or all time.
-- Top projects by cost, with the same selectable windows.
-- A GitHub-style activity heatmap of daily agent steps.
-- Token mix (input / output / reasoning / cache read / cache write).
-- Per-model breakdown with steps and cost.
-- Tool call success/failure summary.
+- A segmented picker splits the dashboard into four pages so the panel is not
+  one long scroll:
+  - **Overview** — streak, active days, today's steps, prompts, sessions, total
+    cost, tokens, tool calls, and subagents, followed by the daily trend chart
+    for steps, cost, or tokens across the last 30 / 90 / 365 days or all time.
+    The token and tool-call tiles jump to their pages.
+  - **Activity** — a GitHub-style heatmap of daily agent steps and top projects
+    by cost, with the same selectable windows.
+  - **Breakdown** — token mix (input / output / reasoning / cache read / cache
+    write) and the per-model breakdown with steps and cost.
+  - **Tools** — the tool call success/failure summary and the per-tool
+    breakdown.
+- The Go plan strip and section picker stay in place while a page scrolls, and
+  switching tabs keeps the Usage page you last viewed.
 
 **System**
 - A full inventory of the machine running the hub: macOS / Linux / Windows
@@ -967,7 +973,9 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
   Closing the window switches back to menu-bar-only mode.
 - `--preview` runs the panel in a regular window instead of the menu bar
   popover, which makes screenshots and layout iteration easy.
-  `--preview --tab usage` opens the Usage tab directly.
+  `--preview --tab usage` opens the Usage tab directly. Add
+  `--usage-mode overview|activity|breakdown|tools` to open a specific Usage
+  page.
 - `--screenshot <path>` renders the panel offscreen to a PNG and exits.
   `--screenshot out.png --scale 2 --tab usage` produces a 2x image for the
   website and README. Add `--detail` (optionally `--detail-mode prompts`,

@@ -1,128 +1,218 @@
 import SwiftUI
 
+/// Usage dashboard, split into pages so the panel does not become one long
+/// scroll. The section picker and the Go plan strip stay pinned above the
+/// scrolling page, since quota is the one number worth checking on every visit.
 struct UsageTab: View {
     @EnvironmentObject var state: AppState
 
+    /// Plan limits start as a compact gauge row and expand to the full bars
+    /// with reset countdowns on demand.
+    @State private var quotaExpanded = false
+
+    private let topAnchor = "usage-top"
+
     var body: some View {
         if let stats = state.stats {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
                 if state.statsStale { cachedStatsNotice }
+
+                modePicker
 
                 planLimits
 
-                SectionHeader("Trend")
-                UsageTrendCard(stats: stats, sessions: state.history)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Color.clear.frame(height: 1).id(topAnchor)
 
-                LazyVGrid(
-                    columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
-                    spacing: 10
-                ) {
-                    StatTile(
-                        icon: "flame.fill",
-                        tint: Theme.warn,
-                        label: "Streak",
-                        value: "\(stats.streak)",
-                        caption: "\(stats.activeDays) active days"
-                    )
-                    StatTile(
-                        icon: "bolt.fill",
-                        tint: Theme.running,
-                        label: "Today",
-                        value: Fmt.grouped(state.todaySteps),
-                        caption: "steps"
-                    )
-                    StatTile(
-                        icon: "bubble.left.and.bubble.right.fill",
-                        tint: Theme.input,
-                        label: "Prompts",
-                        value: Fmt.grouped(stats.prompts),
-                        caption: "\(Fmt.grouped(stats.sessions)) sessions"
-                    )
-                    StatTile(
-                        icon: "dollarsign.circle.fill",
-                        tint: Theme.accent,
-                        label: "Total cost",
-                        value: Fmt.usd(stats.cost),
-                        caption: "\(Fmt.compact(Double(stats.steps))) steps"
-                    )
-                    StatTile(
-                        icon: "cpu",
-                        tint: Theme.reasoning,
-                        label: "Tokens",
-                        value: Fmt.compact(stats.tokens.generated),
-                        caption: "\(Fmt.compact(stats.tokens.cache.read)) cache read"
-                    )
-                    StatTile(
-                        icon: "wrench.and.screwdriver.fill",
-                        tint: Theme.output,
-                        label: "Tool calls",
-                        value: Fmt.grouped(stats.tools.totals?.calls ?? 0),
-                        caption: "\(stats.subagents) subagents"
-                    )
-                }
-
-                if !state.history.isEmpty {
-                    SectionHeader("Project spend")
-                    ProjectUsageCard(sessions: state.history, projects: state.projects)
-                }
-
-                SectionHeader("Activity")
-                HeatmapView(activity: stats.activity)
-
-                SectionHeader("Token mix")
-                TokenBreakdown(tokens: stats.tokens)
-
-                if !stats.models.isEmpty {
-                    SectionHeader("Models")
-                    ModelBreakdown(models: stats.models)
-                }
-
-                if let totals = stats.tools.totals {
-                    SectionHeader("Tool calls")
-                    ToolSummary(totals: totals)
-
-                    if let usage = stats.tools.usage, !usage.isEmpty {
-                        SectionHeader("Tools") {
-                            Text("\(usage.count)")
-                                .font(.system(size: 10, weight: .bold))
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
+                            switch state.usageMode {
+                            case .overview:
+                                overview(stats)
+                            case .activity:
+                                activity(stats)
+                            case .breakdown:
+                                breakdown(stats)
+                            case .tools:
+                                tools(stats)
+                            }
                         }
-                        ToolUsageBreakdown(usage: usage)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.bottom, 4)
+                    }
+                    .frame(maxHeight: .infinity)
+                    .onChange(of: state.usageMode) { _, _ in
+                        proxy.scrollTo(topAnchor, anchor: .top)
                     }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .task { await state.refreshHistory() }
         } else {
-            if state.isInitialLoading {
-                UsageSkeleton()
-            } else {
-                LoadingState(message: state.connection.isConnected ? "Loading usage…" : state.connection.label)
+            ScrollView {
+                if state.isInitialLoading {
+                    UsageSkeleton()
+                } else {
+                    LoadingState(message: state.connection.isConnected ? "Loading usage…" : state.connection.label)
+                }
             }
         }
     }
 
+    private var modePicker: some View {
+        Picker("Usage section", selection: $state.usageMode) {
+            ForEach(AppState.UsageMode.allCases) { mode in
+                Label(mode.rawValue, systemImage: mode.icon)
+                    .labelStyle(.titleAndIcon)
+                    .tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .controlSize(.small)
+        .help("Switch between usage sections")
+    }
+
+    // MARK: - Pages
+
+    private func overview(_ stats: Stats) -> some View {
+        Group {
+            SectionHeader("At a glance")
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                spacing: 10
+            ) {
+                StatTile(
+                    icon: "flame.fill",
+                    tint: Theme.warn,
+                    label: "Streak",
+                    value: "\(stats.streak)",
+                    caption: "\(stats.activeDays) active days"
+                )
+                StatTile(
+                    icon: "bolt.fill",
+                    tint: Theme.running,
+                    label: "Today",
+                    value: Fmt.grouped(state.todaySteps),
+                    caption: "steps"
+                )
+                StatTile(
+                    icon: "bubble.left.and.bubble.right.fill",
+                    tint: Theme.input,
+                    label: "Prompts",
+                    value: Fmt.grouped(stats.prompts),
+                    caption: "\(Fmt.grouped(stats.sessions)) sessions"
+                )
+                StatTile(
+                    icon: "dollarsign.circle.fill",
+                    tint: Theme.accent,
+                    label: "Total cost",
+                    value: Fmt.usd(stats.cost),
+                    caption: "\(Fmt.compact(Double(stats.steps))) steps"
+                )
+                StatTile(
+                    icon: "cpu",
+                    tint: Theme.reasoning,
+                    label: "Tokens",
+                    value: Fmt.compact(stats.tokens.generated),
+                    caption: "\(Fmt.compact(stats.tokens.cache.read)) cache read",
+                    action: { state.usageMode = .breakdown },
+                    showsDisclosure: true
+                )
+                StatTile(
+                    icon: "wrench.and.screwdriver.fill",
+                    tint: Theme.output,
+                    label: "Tool calls",
+                    value: Fmt.grouped(stats.tools.totals?.calls ?? 0),
+                    caption: "\(stats.subagents) subagents",
+                    action: { state.usageMode = .tools },
+                    showsDisclosure: true
+                )
+            }
+
+            SectionHeader("Trend")
+            UsageTrendCard(stats: stats, sessions: state.history)
+        }
+    }
+
+    private func activity(_ stats: Stats) -> some View {
+        Group {
+            SectionHeader("Activity")
+            HeatmapView(activity: stats.activity)
+
+            if !state.history.isEmpty {
+                SectionHeader("Project spend")
+                ProjectUsageCard(sessions: state.history, projects: state.projects)
+            }
+        }
+    }
+
+    private func breakdown(_ stats: Stats) -> some View {
+        Group {
+            SectionHeader("Token mix")
+            TokenBreakdown(tokens: stats.tokens)
+
+            if stats.models.isEmpty {
+                SectionHeader("Models")
+                NoticeRow(icon: "cpu", message: "No model usage recorded yet.", tint: .secondary)
+            } else {
+                SectionHeader("Models") {
+                    Text("\(stats.models.count)")
+                        .font(.system(size: 10, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                ModelBreakdown(models: stats.models)
+            }
+        }
+    }
+
+    private func tools(_ stats: Stats) -> some View {
+        Group {
+            if let totals = stats.tools.totals {
+                SectionHeader("Tool calls")
+                ToolSummary(totals: totals)
+
+                if let usage = stats.tools.usage, !usage.isEmpty {
+                    SectionHeader("Tools") {
+                        Text("\(usage.count)")
+                            .font(.system(size: 10, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    ToolUsageBreakdown(usage: usage)
+                }
+            } else {
+                SectionHeader("Tool calls")
+                NoticeRow(
+                    icon: "wrench.and.screwdriver",
+                    message: "No tool calls recorded yet.",
+                    tint: .secondary
+                )
+            }
+        }
+    }
+
+    // MARK: - Plan limits
+
     /// Go plan quota, when a Go key is configured. Mirrors the console's
-    /// rolling / weekly / monthly allowances.
+    /// rolling / weekly / monthly allowances and stays visible on every page.
     @ViewBuilder
     private var planLimits: some View {
         switch state.goUsage {
         case .unavailable:
             EmptyView()
         case .loading:
-            SectionHeader("Plan limits")
             NoticeRow(icon: "gauge.with.dots.needle.33percent", message: "Loading Go limits…", tint: .secondary)
         case .ready(let usage):
-            SectionHeader("Plan limits")
-            PlanLimitsView(usage: usage)
+            PlanLimitsStrip(usage: usage, isExpanded: $quotaExpanded)
         case .stale(let usage, let reason):
-            SectionHeader("Plan limits")
-            PlanLimitsView(
+            PlanLimitsStrip(
                 usage: usage,
-                note: "\(clause(reason)) — showing limits from \(label(for: state.goUsageFetchedAt))"
+                note: "\(clause(reason)) — showing limits from \(label(for: state.goUsageFetchedAt))",
+                isExpanded: $quotaExpanded
             )
         case .failed(let message):
-            SectionHeader("Plan limits")
             NoticeRow(icon: "exclamationmark.triangle.fill", message: message, tint: Theme.warn)
         }
     }
@@ -153,37 +243,146 @@ struct UsageTab: View {
     }
 }
 
-/// Three progress rows for the Go subscription windows.
-struct PlanLimitsView: View {
+/// Pinned quota summary for the Go subscription. Collapsed, it shows one compact
+/// gauge per window; expanded, it adds the reset countdowns and any stale-data
+/// note. Tapping the header toggles the two presentations.
+struct PlanLimitsStrip: View {
     let usage: GoUsage
-    /// Optional caveat rendered inside the card, used when the numbers are
-    /// stale but still worth showing.
     var note: String?
+    @Binding var isExpanded: Bool
+
+    private var isLimited: Bool { usage.ordered.contains { $0.window.isLimited } }
+
+    /// Soonest reset across the configured windows, shown in the collapsed
+    /// header so the pinned strip still answers "when does this roll over?".
+    private var nextReset: Date? {
+        usage.ordered.compactMap(\.window.resetDate).min()
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(usage.ordered, id: \.label) { item in
-                PlanLimitRow(label: item.label, window: item.window)
-            }
+        VStack(alignment: .leading, spacing: 9) {
+            header
 
-            if let note {
-                Divider().opacity(0.5)
+            if usage.ordered.isEmpty {
                 HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Theme.warn)
-                    Text(note)
+                    Image(systemName: "hourglass")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                    Text("No Go limits reported yet.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
+                }
+
+                if let note { noteRow(note) }
+            } else if isExpanded {
+                VStack(spacing: 10) {
+                    ForEach(usage.ordered, id: \.label) { item in
+                        PlanLimitRow(label: item.label, window: item.window)
+                    }
+                }
+
+                if let note { noteRow(note) }
+            } else {
+                HStack(spacing: 12) {
+                    ForEach(usage.ordered, id: \.label) { item in
+                        compactGauge(item.label, window: item.window)
+                    }
                 }
             }
         }
-        .card()
+        .card(padding: 10)
+    }
+
+    private var header: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.16)) { isExpanded.toggle() }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "gauge.with.dots.needle.33percent")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Theme.accent)
+                Text("PLAN LIMITS")
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.6)
+                    .foregroundStyle(.secondary)
+
+                if isLimited {
+                    Chip(text: "rate limited", systemImage: "exclamationmark.triangle.fill", tint: Theme.danger)
+                } else if note != nil {
+                    Chip(text: "stale", systemImage: "clock.arrow.circlepath", tint: Theme.warn)
+                }
+
+                Spacer(minLength: 4)
+
+                if !isExpanded, let nextReset {
+                    Text("next reset in \(Fmt.countdown(to: nextReset))")
+                        .font(.system(size: 9))
+                        .monospacedDigit()
+                        .foregroundStyle(.tertiary)
+                }
+
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 8)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isExpanded ? "Hide reset times" : "Show reset times")
+    }
+
+    private func compactGauge(_ label: String, window: GoUsage.Window) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 3) {
+                Text(label)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 2)
+                Text("\(Int(window.used.rounded()))%")
+                    .font(.system(size: 10, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(tint(for: window))
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.07))
+                    Capsule()
+                        .fill(tint(for: window))
+                        .frame(width: max(geo.size.width * CGFloat(window.used / 100), 2))
+                }
+            }
+            .frame(height: 4)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label) \(Int(window.used.rounded())) percent used")
+    }
+
+    private func noteRow(_ note: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(Theme.warn)
+            Text(note)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func tint(for window: GoUsage.Window) -> Color {
+        if window.isLimited || window.used >= 90 { return Theme.danger }
+        if window.used >= 75 { return Theme.warn }
+        return Theme.accent
     }
 }
 
+/// One full quota row with reset countdown, used when the pinned strip is
+/// expanded.
 struct PlanLimitRow: View {
     let label: String
     let window: GoUsage.Window

@@ -41,6 +41,12 @@ final class AppState: ObservableObject {
             case .settings: return "gearshape"
             }
         }
+
+        /// Usage pins a section picker above its content, so it owns its
+        /// scroll view instead of sitting inside the panel's shared one.
+        var scrollsItself: Bool {
+            self == .usage
+        }
     }
 
     /// Everything a project detail page knows about one project, fetched on
@@ -158,6 +164,26 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Sections of the Usage tab. Each page owns one kind of content so the
+    /// tab reads as a dashboard instead of one long scroll.
+    enum UsageMode: String, CaseIterable, Identifiable {
+        case overview = "Overview"
+        case activity = "Activity"
+        case breakdown = "Breakdown"
+        case tools = "Tools"
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .overview: return "rectangle.grid.2x2"
+            case .activity: return "square.grid.3x3"
+            case .breakdown: return "chart.pie"
+            case .tools: return "wrench.and.screwdriver"
+            }
+        }
+    }
+
     @Published var connection: Connection = .connecting
     @Published var tab: Tab = .tasks
     @Published var sessions: [Session] = []
@@ -267,6 +293,9 @@ final class AppState: ObservableObject {
     /// Section the project detail view opens on. Kept while a session opened
     /// from the project is on screen, so Back returns to the same tab.
     var projectMode: ProjectDetailMode = .overview
+    /// Page of the Usage tab. The tab used to be one long scroll; the picker
+    /// keeps its last page while the user visits another tab.
+    @Published var usageMode: UsageMode = .overview
 
     /// Whether OpenCodeBar also runs as a desktop app. The menu bar item is
     /// always available; this controls the extra resizable window and the Dock
@@ -368,6 +397,11 @@ final class AppState: ObservableObject {
            index + 1 < CommandLine.arguments.count,
            let requested = DetailMode(rawValue: CommandLine.arguments[index + 1].capitalized) {
             detailMode = requested
+        }
+        if let index = CommandLine.arguments.firstIndex(of: "--usage-mode"),
+           index + 1 < CommandLine.arguments.count,
+           let requested = UsageMode(rawValue: CommandLine.arguments[index + 1].capitalized) {
+            usageMode = requested
         }
     }
 

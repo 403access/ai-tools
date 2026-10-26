@@ -39,28 +39,37 @@ struct PanelView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 6)
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        switch state.tab {
-                        case .tasks:
-                            TasksTab()
-                        case .live:
-                            LiveTab()
-                        case .usage:
-                            UsageTab()
-                        case .projects:
-                            ProjectsTab()
-                        case .system:
-                            SystemTab()
-                        case .vms:
-                            VirtualMachinesTab()
-                        case .settings:
-                            SettingsTab()
+                Group {
+                    if state.tab.scrollsItself {
+                        UsageTab()
+                            .padding(12)
+                            .frame(maxHeight: .infinity)
+                    } else {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 14) {
+                                switch state.tab {
+                                case .tasks:
+                                    TasksTab()
+                                case .live:
+                                    LiveTab()
+                                case .usage:
+                                    // Handled above; it owns its scroll view.
+                                    EmptyView()
+                                case .projects:
+                                    ProjectsTab()
+                                case .system:
+                                    SystemTab()
+                                case .vms:
+                                    VirtualMachinesTab()
+                                case .settings:
+                                    SettingsTab()
+                                }
+                            }
+                            .padding(12)
                         }
+                        .frame(maxHeight: .infinity)
                     }
-                    .padding(12)
                 }
-                .frame(maxHeight: .infinity)
                 .transition(.move(edge: .leading).combined(with: .opacity))
             }
 

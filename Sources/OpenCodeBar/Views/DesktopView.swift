@@ -127,11 +127,20 @@ struct DesktopView: View {
     }
 
     private func rootList(compact: Bool) -> some View {
-        ScrollView {
-            activeTab
-                .frame(maxWidth: compact ? .infinity : 1040, alignment: .leading)
-                .padding(compact ? 12 : 20)
-                .frame(maxWidth: .infinity, alignment: .top)
+        Group {
+            if state.tab.scrollsItself {
+                UsageTab()
+                    .frame(maxWidth: compact ? .infinity : 1040, alignment: .leading)
+                    .padding(compact ? 12 : 20)
+                    .frame(maxWidth: .infinity, alignment: .top)
+            } else {
+                ScrollView {
+                    activeTab
+                        .frame(maxWidth: compact ? .infinity : 1040, alignment: .leading)
+                        .padding(compact ? 12 : 20)
+                        .frame(maxWidth: .infinity, alignment: .top)
+                }
+            }
         }
     }
 
