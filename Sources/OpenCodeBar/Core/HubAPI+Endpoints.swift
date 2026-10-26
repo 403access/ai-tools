@@ -462,6 +462,41 @@ extension HubAPI {
         }
     }
 
+    /// Creates an isolated checkout for a project that a session can use.
+    func createWorktree(
+        projectID: String,
+        branch: String? = nil,
+        name: String? = nil
+    ) async throws -> CreatedWorktree {
+        struct Body: Encodable {
+            var projectID: String
+            var branch: String?
+            var name: String?
+        }
+
+        func trimmed(_ value: String?) -> String? {
+            let clean = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return clean.isEmpty ? nil : clean
+        }
+
+        let body = Body(
+            projectID: projectID,
+            branch: trimmed(branch),
+            name: trimmed(name)
+        )
+        let data = try await send(
+            "/api/worktree",
+            method: "POST",
+            body: try JSONEncoder().encode(body),
+            using: Self.worktreeSession
+        )
+        do {
+            return try Self.decoder.decode(CreateWorktreeResponse.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     /// Starts a new session in a project directory. The hub asks OpenCode to
     /// pick the default agent and model.
     func createSession(title: String?, directory: String) async throws -> Session {

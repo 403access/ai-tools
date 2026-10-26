@@ -3,11 +3,12 @@ import { OpenCodeClient } from "../src/opencode.ts";
 
 let server: ReturnType<typeof Bun.serve>;
 let calls: string[] = [];
+let bodies: unknown[] = [];
 
 beforeAll(() => {
   server = Bun.serve({
     port: 0,
-    fetch(request) {
+    fetch: async (request) => {
       const url = new URL(request.url);
       calls.push(`${request.method} ${url.pathname}`);
 
@@ -28,6 +29,11 @@ beforeAll(() => {
 
       if (request.method === "DELETE" && url.pathname === "/api/session/ses_1/inbox/msg_1") {
         return new Response(null, { status: 204 });
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/worktree") {
+        bodies.push(await request.json());
+        return Response.json({ directory: "/tmp/worktrees/tidy-harbor" });
       }
 
       return new Response("not found", { status: 404 });
@@ -63,5 +69,28 @@ describe("OpenCode pending inputs", () => {
 
     await client.cancelPending("ses_1", "msg_1");
     expect(calls).toEqual(["DELETE /api/session/ses_1/inbox/msg_1"]);
+  });
+});
+
+describe("OpenCode worktrees", () => {
+  test("creates a worktree for a project", async () => {
+    calls = [];
+    bodies = [];
+    const client = new OpenCodeClient({
+      url: `http://127.0.0.1:${server.port}`,
+      password: "secret",
+    });
+
+    const worktree = await client.createWorktree({
+      projectID: "prj_1",
+      branch: "main",
+      name: "fix-build",
+    });
+
+    expect(worktree).toEqual({ directory: "/tmp/worktrees/tidy-harbor" });
+    expect(calls).toEqual(["POST /api/worktree"]);
+    expect(bodies).toEqual([
+      { projectID: "prj_1", branch: "main", name: "fix-build" },
+    ]);
   });
 });

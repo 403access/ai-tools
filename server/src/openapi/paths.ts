@@ -673,6 +673,26 @@ export const PATHS = {
     },
   },
 
+  "/api/worktree": {
+    post: {
+      tags: ["Projects"],
+      summary: "Create a git worktree",
+      description:
+        "Asks OpenCode to create an isolated checkout for a known project, then runs the project's setup script. Use the returned directory as the location for a new session.",
+      operationId: "createWorktree",
+      requestBody: jsonBody(schemaRef("WorktreeCreateRequest")),
+      responses: {
+        200: ok(schemaRef("WorktreeInfoResponse")),
+        400: badRequest,
+        401: unauthorized,
+        404: notFound,
+        502: { description: "OpenCode could not create the worktree." },
+        504: { description: "Worktree creation or its setup script exceeded the time limit." },
+        default: failure,
+      },
+    },
+  },
+
   "/api/project": {
     get: {
       tags: ["Projects"],

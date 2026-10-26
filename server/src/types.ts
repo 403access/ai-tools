@@ -113,6 +113,23 @@ export interface Project {
   sandboxes: string[];
 }
 
+/** Request for a new isolated checkout of a project. */
+export interface WorktreeCreateInput {
+  projectID: string;
+  /** Source checkout to branch from; defaults to the project's canonical checkout. */
+  from?: string;
+  /** Ref to check out in the new worktree. */
+  branch?: string;
+  /** Parent directory for the worktree; defaults to the project's worktree config. */
+  directory?: string;
+  /** Worktree folder name; OpenCode generates one when omitted. */
+  name?: string;
+}
+
+export interface WorktreeInfo {
+  directory: string;
+}
+
 export interface ToolTotals {
   calls: number;
   succeeded: number;

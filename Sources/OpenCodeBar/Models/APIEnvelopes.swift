@@ -42,6 +42,16 @@ struct CloneRepositoryResponse: Decodable {
     var data: ClonedRepository
 }
 
+/// An isolated checkout created for a new session.
+struct CreatedWorktree: Decodable, Hashable, Sendable {
+    /// Absolute path of the worktree on the hub host.
+    var directory: String
+}
+
+struct CreateWorktreeResponse: Decodable {
+    var data: CreatedWorktree
+}
+
 struct ServerInfo: Decodable {
     var version: String?
     var pid: Int?

@@ -813,6 +813,37 @@ export function createHandler(
         }
       }
 
+      if (pathname === "/api/worktree") {
+        if (request.method !== "POST") return error("Method not allowed", 405);
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+
+        const projectID = typeof body.projectID === "string" ? body.projectID.trim() : "";
+        if (!projectID) return error("A projectID is required", 400);
+        const project = db.getProject(projectID);
+        if (!project) return error("Project not found", 404);
+        if (project.vcs !== "git") return error("Worktrees require a Git project", 400);
+
+        const optionalField = (name: string): string | undefined | null => {
+          const value = body[name];
+          if (value === undefined || value === null) return undefined;
+          if (typeof value !== "string") return null;
+          return value.trim() || undefined;
+        };
+        const from = optionalField("from");
+        const branch = optionalField("branch");
+        const directory = optionalField("directory");
+        const name = optionalField("name");
+        if (from === null) return error("from must be a string", 400);
+        if (branch === null) return error("branch must be a string", 400);
+        if (directory === null) return error("directory must be a string", 400);
+        if (name === null) return error("name must be a string", 400);
+
+        return json({
+          data: await hub.createWorktree({ projectID, from, branch, directory, name }),
+        });
+      }
+
       if (pathname === "/api/project" && request.method === "GET") {
         return json(db.getProjects());
       }

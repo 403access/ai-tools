@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { body, request, session, setup } from "./helpers/api.ts";
+import type { OpenCodeClient } from "../src/opencode.ts";
 
 describe("hub API writes", () => {
   test("validates session creation and prompt bodies", async () => {
@@ -33,6 +34,83 @@ describe("hub API writes", () => {
     expect(badDelivery.status).toBe(400);
 
     const wrongMethod = await handler(request("/api/session/ses_1/prompt"));
+    expect(wrongMethod.status).toBe(405);
+
+    db.close();
+  });
+
+  test("creates worktrees for known projects", async () => {
+    const { handler, db, hub } = setup();
+    const headers = { "Content-Type": "application/json" };
+    db.replaceProjects([
+      {
+        id: "prj_git",
+        canonical: "/tmp/project",
+        vcs: "git",
+        time: { created: 1, updated: 2 },
+        sandboxes: [],
+      },
+      {
+        id: "prj_plain",
+        canonical: "/tmp/plain",
+        time: { created: 1, updated: 2 },
+        sandboxes: [],
+      },
+    ]);
+
+    const calls: unknown[] = [];
+    hub.client = {
+      createWorktree: async (input: unknown) => {
+        calls.push(input);
+        return { directory: "/tmp/worktrees/tidy-harbor" };
+      },
+    } as unknown as OpenCodeClient;
+
+    const missingBody = await handler(request("/api/worktree", { method: "POST", headers }));
+    expect(missingBody.status).toBe(400);
+
+    const missingProject = await handler(
+      request("/api/worktree", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ projectID: "prj_missing" }),
+      }),
+    );
+    expect(missingProject.status).toBe(404);
+
+    const badName = await handler(
+      request("/api/worktree", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ projectID: "prj_git", name: 42 }),
+      }),
+    );
+    expect(badName.status).toBe(400);
+
+    const nonGit = await handler(
+      request("/api/worktree", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ projectID: "prj_plain" }),
+      }),
+    );
+    expect(nonGit.status).toBe(400);
+    expect((await body<{ error: { message: string } }>(nonGit)).error.message).toContain("Git");
+
+    const created = await handler(
+      request("/api/worktree", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ projectID: "prj_git", branch: " main ", name: "fix-build" }),
+      }),
+    );
+    expect(created.status).toBe(200);
+    expect(await body<{ data: { directory: string } }>(created)).toEqual({
+      data: { directory: "/tmp/worktrees/tidy-harbor" },
+    });
+    expect(calls).toEqual([{ projectID: "prj_git", branch: "main", name: "fix-build" }]);
+
+    const wrongMethod = await handler(request("/api/worktree"));
     expect(wrongMethod.status).toBe(405);
 
     db.close();

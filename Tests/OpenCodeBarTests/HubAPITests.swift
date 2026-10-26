@@ -95,6 +95,21 @@ final class HubAPITests: XCTestCase {
         XCTAssertEqual(response.data.url, "https://github.com/acme/widgets")
     }
 
+    func testCreatedWorktreeResponseDecodesDirectory() throws {
+        let json = """
+        {
+          "data": {
+            "directory": "/Users/example/.local/share/opencode/worktree/289685/tidy-harbor"
+          }
+        }
+        """
+        let response = try decode(CreateWorktreeResponse.self, json)
+        XCTAssertEqual(
+            response.data.directory,
+            "/Users/example/.local/share/opencode/worktree/289685/tidy-harbor"
+        )
+    }
+
     func testStatsResponseDecodesCachedPayloadWithFlags() throws {
         let json = """
         {

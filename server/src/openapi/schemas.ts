@@ -967,6 +967,49 @@ export const SCHEMAS = {
 
   CloneRepositoryResponse: data({ $ref: "#/components/schemas/ClonedRepository" }),
 
+  WorktreeCreateRequest: {
+    type: "object",
+    required: ["projectID"],
+    properties: {
+      projectID: {
+        type: "string",
+        description: "Project that owns the new worktree.",
+      },
+      from: {
+        type: "string",
+        description:
+          "Checkout to branch from. Defaults to the project's canonical checkout.",
+      },
+      branch: {
+        type: "string",
+        description: "Ref to check out in the new worktree.",
+      },
+      directory: {
+        type: "string",
+        description:
+          "Parent directory for the worktree. Defaults to the project's `worktree` configuration, then the OpenCode data directory.",
+      },
+      name: {
+        type: "string",
+        description: "Worktree folder name. OpenCode generates one when omitted.",
+      },
+    },
+    example: { projectID: "prj_01JABCDEF" },
+  },
+
+  WorktreeInfo: {
+    type: "object",
+    required: ["directory"],
+    properties: {
+      directory: {
+        type: "string",
+        description: "Absolute path of the new worktree. Use it as the session location.",
+      },
+    },
+  },
+
+  WorktreeInfoResponse: data({ $ref: "#/components/schemas/WorktreeInfo" }),
+
   PauseSessionRequest: {
     type: "object",
     description:

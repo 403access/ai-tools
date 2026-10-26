@@ -16,15 +16,26 @@ struct MobileNewSessionSheet: View {
         var label: String { self == .existing ? "Existing" : "Clone" }
     }
 
+    private enum Workspace: String, CaseIterable, Identifiable {
+        case folder
+        case worktree
+
+        var id: String { rawValue }
+        var label: String { self == .folder ? "Current folder" : "Worktree" }
+    }
+
     @State private var directory: String
     @State private var title = ""
     @State private var prompt = ""
     @State private var source: Source = .existing
+    @State private var workspace: Workspace = .folder
     @State private var repositoryURL = ""
     @State private var parentDirectory = ""
     @State private var folderName = ""
     @State private var clonedRepository: ClonedRepository?
+    @State private var createdWorktree: CreatedWorktree?
     @State private var isCloning = false
+    @State private var isCreatingWorktree = false
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var createdSession: Session?
@@ -56,11 +67,26 @@ struct MobileNewSessionSheet: View {
         store.orderedProjects.first { $0.canonical == trimmedDirectory }
     }
 
+    private var canUseWorktree: Bool {
+        selectedProject?.vcs == "git"
+    }
+
+    private var workspaceHint: String {
+        if !canUseWorktree {
+            return "Worktrees need a known Git project."
+        }
+        if workspace == .worktree {
+            return "Creates a fresh checkout so this session's changes stay out of the current folder."
+        }
+        return "Changes are written directly in this folder."
+    }
+
     private var canSubmit: Bool {
         guard !isWorking else { return false }
         switch source {
         case .existing:
-            return !trimmedDirectory.isEmpty
+            guard !trimmedDirectory.isEmpty else { return false }
+            return workspace == .folder || canUseWorktree
         case .clone:
             return !trimmedRepositoryURL.isEmpty && !trimmedParentDirectory.isEmpty
         }
@@ -69,11 +95,15 @@ struct MobileNewSessionSheet: View {
     private var actionTitle: String {
         if createdSession != nil { return "Send" }
         if source == .clone && clonedRepository == nil { return "Clone & start" }
+        if source == .existing && workspace == .worktree && createdWorktree == nil {
+            return "Worktree & start"
+        }
         return "Start"
     }
 
     private var progressLabel: String {
         if isCloning { return "Cloning repository…" }
+        if isCreatingWorktree { return "Creating worktree…" }
         return createdSession == nil ? "Creating session…" : "Sending…"
     }
 
@@ -153,7 +183,18 @@ struct MobileNewSessionSheet: View {
             }
             promptFocused = true
         }
-        .onChange(of: source) { _, _ in clonedRepository = nil }
+        .onChange(of: source) { _, _ in
+            clonedRepository = nil
+            createdWorktree = nil
+            workspace = .folder
+        }
+        .onChange(of: workspace) { _, _ in createdWorktree = nil }
+        .onChange(of: trimmedDirectory) { _, _ in
+            createdWorktree = nil
+            if workspace == .worktree && !canUseWorktree {
+                workspace = .folder
+            }
+        }
         .onChange(of: repositoryURL) { _, _ in clonedRepository = nil }
         .onChange(of: parentDirectory) { _, _ in clonedRepository = nil }
         .onChange(of: folderName) { _, _ in clonedRepository = nil }
@@ -220,6 +261,24 @@ struct MobileNewSessionSheet: View {
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
                     .truncationMode(.middle)
+
+                VStack(alignment: .leading, spacing: 7) {
+                    SectionHeader("Workspace")
+
+                    Picker("Workspace", selection: $workspace) {
+                        ForEach(Workspace.allCases) { workspace in
+                            Text(workspace.label).tag(workspace)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(isWorking || createdSession != nil || !canUseWorktree)
+
+                    Text(workspaceHint)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 2)
             } else {
                 Text("Repository URL")
                     .font(.caption2.weight(.semibold))
@@ -339,12 +398,31 @@ struct MobileNewSessionSheet: View {
             : (trimmedDirectory as NSString).abbreviatingWithTildeInPath
     }
 
+    private func resolveSessionDirectory() async throws -> String {
+        guard createdSession == nil, source == .existing, workspace == .worktree else {
+            return trimmedDirectory
+        }
+        guard let project = selectedProject, project.vcs == "git" else {
+            throw MobileNewSessionError.worktreeRequiresGitProject
+        }
+        if let createdWorktree {
+            return createdWorktree.directory
+        }
+
+        isCreatingWorktree = true
+        let worktree = try await store.createWorktree(projectID: project.id)
+        createdWorktree = worktree
+        isCreatingWorktree = false
+        return worktree.directory
+    }
+
     private func submit() async {
         dictation.cancel()
         guard canSubmit else { return }
 
         isWorking = true
         errorMessage = nil
+        defer { isCreatingWorktree = false }
         do {
             if source == .clone {
                 if let clonedRepository {
@@ -362,13 +440,14 @@ struct MobileNewSessionSheet: View {
                 }
             }
 
+            let sessionDirectory = try await resolveSessionDirectory()
             let session: Session
             if let createdSession {
                 session = createdSession
             } else {
                 session = try await store.createSession(
                     title: title,
-                    directory: trimmedDirectory
+                    directory: sessionDirectory
                 )
                 createdSession = session
             }
@@ -385,5 +464,16 @@ struct MobileNewSessionSheet: View {
         }
         isCloning = false
         isWorking = false
+    }
+}
+
+private enum MobileNewSessionError: LocalizedError {
+    case worktreeRequiresGitProject
+
+    var errorDescription: String? {
+        switch self {
+        case .worktreeRequiresGitProject:
+            return "Select a known Git project to create a worktree."
+        }
     }
 }

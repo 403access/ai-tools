@@ -116,9 +116,12 @@ iOS app:
   already typed, and the transcript stays editable before you send. Speech
   recognition runs on the device when the current language supports it.
 - **Start a new session** from the Live tab or a project page: choose a project
-  directory, or clone a GitHub/git repository into a new folder on the Mac,
-  then choose an optional title and an optional first message. The new session
-  opens immediately, and the first message is sent in the same step.
+  directory with **Current folder** or **Git worktree** for the workspace, or
+  clone a GitHub/git repository into a new folder on the Mac, then choose an
+  optional title and an optional first message. A worktree runs the project's
+  setup script before the session starts, keeping its changes out of the main
+  checkout. The new session opens immediately, and the first message is sent in
+  the same step.
 - **Stats** tab: prompts, steps, tool-call reliability, per-tool failure counts
   and median durations, the recent failures with their errors, file impact, and
   the token mix for that session.
@@ -416,7 +419,8 @@ The hub:
    `/api/session/{id}/stop` (`POST`), `/api/session/{id}/continue` (`POST`),
    `/api/session` (`POST`),
    `/api/task` (`GET`), `/api/task/{id}` (`PATCH`), `/api/usage`,
-   `/api/git/clone` (`POST`), `/api/health`, `/api/system`, `/api/system/apps/icon`,
+   `/api/git/clone` (`POST`), `/api/worktree` (`POST`), `/api/health`,
+   `/api/system`, `/api/system/apps/icon`,
    `/api/system/apps/detail`, `/api/system/apps/action` (`POST`),
    `/api/terminals` (`GET`/`POST`),
    `/api/terminals/{id}` (`GET`/`PUT`/`DELETE`),

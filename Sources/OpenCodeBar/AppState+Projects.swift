@@ -15,6 +15,17 @@ extension AppState {
         return try await api.cloneRepository(url: url, parent: parent, name: name)
     }
 
+    /// Creates an isolated checkout on the hub host for the New Session sheet.
+    /// The caller creates the session once the worktree exists.
+    func createWorktree(
+        projectID: String,
+        branch: String? = nil,
+        name: String? = nil
+    ) async throws -> CreatedWorktree {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+        return try await api.createWorktree(projectID: projectID, branch: branch, name: name)
+    }
+
     /// Opens the full detail page for a project, loading its scoped stats and
     /// recent sessions on demand.
     func open(_ project: Project) {

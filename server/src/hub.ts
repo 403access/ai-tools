@@ -19,6 +19,8 @@ import type {
   SessionStats,
   Stats,
   UsageResponse,
+  WorktreeCreateInput,
+  WorktreeInfo,
 } from "./types.ts";
 import { EventBus, sessionIDFromEvent, type EventSink } from "./hub/event-bus.ts";
 import {
@@ -27,6 +29,7 @@ import {
   changes,
   children,
   createSession,
+  createWorktree,
   defaultModel,
   devices,
   forkSession,
@@ -364,6 +367,10 @@ export class Hub {
 
   createSession(input: { title?: string; directory: string }): Promise<Session> {
     return createSession(this, input);
+  }
+
+  createWorktree(input: WorktreeCreateInput): Promise<WorktreeInfo> {
+    return createWorktree(this, input);
   }
 
   forkSession(id: string, before?: string | null): Promise<Session> {

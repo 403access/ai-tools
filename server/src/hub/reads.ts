@@ -12,6 +12,8 @@ import type {
   SessionPendingItem,
   SessionStats,
   Stats,
+  WorktreeCreateInput,
+  WorktreeInfo,
 } from "../types.ts";
 import type { Hub } from "../hub.ts";
 import { GLOBAL_STATS_SCOPE, STATS_FRESH_MS } from "./constants.ts";
@@ -86,6 +88,16 @@ export async function createSession(hub: Hub, input: { title?: string; directory
   hub.db.upsertSessions([created]);
   hub.broadcast({ type: "hub.sessions", data: { at: Date.now() } });
   return created;
+}
+
+/** Creates an isolated checkout that a new session can open. */
+export async function createWorktree(
+  hub: Hub,
+  input: WorktreeCreateInput,
+): Promise<WorktreeInfo> {
+  const client = hub.client ?? (await hub.ensureClient());
+  if (!client) throw new OpenCodeError("OpenCode is offline", 503);
+  return client.createWorktree(input);
 }
 
 /** Copies a session's history into a new child session. */

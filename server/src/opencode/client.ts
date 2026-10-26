@@ -12,6 +12,8 @@ import type {
   StatsResponse,
   TerminalCreateInput,
   TerminalUpdateInput,
+  WorktreeCreateInput,
+  WorktreeInfo,
 } from "../types.ts";
 import { OpenCodeError, type OpenCodeLocation } from "./errors.ts";
 
@@ -184,6 +186,15 @@ export class OpenCodeClient {
       location: { directory: input.directory },
     });
     return response.data;
+  }
+
+  /**
+   * Creates an isolated checkout for a project. OpenCode chooses the location
+   * and strategy from the project's configuration, then runs its setup script,
+   * which can legitimately take minutes on a fresh checkout.
+   */
+  async createWorktree(input: WorktreeCreateInput): Promise<WorktreeInfo> {
+    return this.post<WorktreeInfo>("/api/worktree", input, 300_000);
   }
 
   /**

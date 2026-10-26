@@ -35,6 +35,17 @@ struct HubAPI: Sendable {
         return URLSession(configuration: config)
     }()
 
+    /// Worktrees run the project's setup script after checking out, so they
+    /// share the clone budget rather than the default request timeout.
+    static let worktreeSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 315
+        config.timeoutIntervalForResource = 330
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.httpAdditionalHeaders = ["Accept": "application/json"]
+        return URLSession(configuration: config)
+    }()
+
     /// Project icons are immutable for long stretches and benefit from the
     /// normal HTTP cache, unlike the JSON endpoints which are always re-read.
     static let iconSession: URLSession = {
