@@ -108,7 +108,8 @@ iOS app:
   already typed, and the transcript stays editable before you send. Speech
   recognition runs on the device when the current language supports it.
 - **Start a new session** from the Live tab or a project page: choose a project
-  directory, an optional title, and an optional first message. The new session
+  directory, or clone a GitHub/git repository into a new folder on the Mac,
+  then choose an optional title and an optional first message. The new session
   opens immediately, and the first message is sent in the same step.
 - **Stats** tab: prompts, steps, tool-call reliability, per-tool failure counts
   and median durations, the recent failures with their errors, file impact, and
@@ -403,7 +404,7 @@ The hub:
    `/api/experimental/session/stats` — plus
    `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`),
    `/api/task` (`GET`), `/api/task/{id}` (`PATCH`), `/api/usage`,
-   `/api/health`, `/api/system`, `/api/system/apps/icon`,
+   `/api/git/clone` (`POST`), `/api/health`, `/api/system`, `/api/system/apps/icon`,
    `/api/system/apps/detail`, `/api/system/apps/action` (`POST`),
    `/api/terminals` (`GET`/`POST`),
    `/api/terminals/{id}` (`GET`/`PUT`/`DELETE`),

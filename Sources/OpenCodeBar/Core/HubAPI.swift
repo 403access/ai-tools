@@ -23,6 +23,18 @@ struct HubAPI: Sendable {
         return URLSession(configuration: config)
     }()
 
+    /// Repository clones run `git clone` on the hub and can legitimately take
+    /// minutes on a large project or a slow connection. The default session's
+    /// 30-second resource limit would cancel them, so clones get their own.
+    static let cloneSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 315
+        config.timeoutIntervalForResource = 330
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.httpAdditionalHeaders = ["Accept": "application/json"]
+        return URLSession(configuration: config)
+    }()
+
     /// Project icons are immutable for long stretches and benefit from the
     /// normal HTTP cache, unlike the JSON endpoints which are always re-read.
     static let iconSession: URLSession = {

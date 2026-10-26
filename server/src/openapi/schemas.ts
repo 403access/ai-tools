@@ -906,6 +906,51 @@ export const SCHEMAS = {
     example: { status: "done" },
   },
 
+  CloneRepositoryRequest: {
+    type: "object",
+    required: ["url"],
+    properties: {
+      url: {
+        type: "string",
+        description:
+          "Git URL, scp-style SSH remote, or GitHub `owner/repo` shorthand.",
+      },
+      parent: {
+        type: "string",
+        description:
+          "Folder that receives the clone. Absolute paths and `~` are supported; defaults to `~/Developer`.",
+      },
+      name: {
+        type: "string",
+        description: "Folder name to use instead of the repository's name.",
+      },
+      directory: {
+        type: "string",
+        description:
+          "Full destination path. When set, `parent` and `name` are ignored.",
+      },
+    },
+    example: {
+      url: "github.com/opencode-ai/opencode",
+      parent: "~/Developer",
+    },
+  },
+
+  ClonedRepository: {
+    type: "object",
+    required: ["directory", "name", "url"],
+    properties: {
+      directory: {
+        type: "string",
+        description: "Absolute path of the cloned working tree.",
+      },
+      name: { type: "string", description: "Folder name of the clone." },
+      url: { type: "string", description: "Normalized repository URL passed to git." },
+    },
+  },
+
+  CloneRepositoryResponse: data({ $ref: "#/components/schemas/ClonedRepository" }),
+
   PromptRequest: {
     type: "object",
     required: ["text"],

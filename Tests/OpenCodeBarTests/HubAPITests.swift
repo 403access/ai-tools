@@ -75,6 +75,22 @@ final class HubAPITests: XCTestCase {
         XCTAssertTrue(session.isSubagent)
     }
 
+    func testCloneRepositoryResponseDecodesDestination() throws {
+        let json = """
+        {
+          "data": {
+            "directory": "/Users/example/Developer/widgets",
+            "name": "widgets",
+            "url": "https://github.com/acme/widgets"
+          }
+        }
+        """
+        let response = try decode(CloneRepositoryResponse.self, json)
+        XCTAssertEqual(response.data.directory, "/Users/example/Developer/widgets")
+        XCTAssertEqual(response.data.name, "widgets")
+        XCTAssertEqual(response.data.url, "https://github.com/acme/widgets")
+    }
+
     func testStatsResponseDecodesCachedPayloadWithFlags() throws {
         let json = """
         {

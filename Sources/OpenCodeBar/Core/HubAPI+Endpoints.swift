@@ -423,6 +423,45 @@ extension HubAPI {
         return response.data
     }
 
+    /// Clones a git repository on the hub host. The new folder can then be used
+    /// as the directory for a session.
+    func cloneRepository(
+        url: String,
+        parent: String? = nil,
+        name: String? = nil,
+        directory: String? = nil
+    ) async throws -> ClonedRepository {
+        struct Body: Encodable {
+            var url: String
+            var parent: String?
+            var name: String?
+            var directory: String?
+        }
+
+        func trimmed(_ value: String?) -> String? {
+            let clean = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return clean.isEmpty ? nil : clean
+        }
+
+        let body = Body(
+            url: url.trimmingCharacters(in: .whitespacesAndNewlines),
+            parent: trimmed(parent),
+            name: trimmed(name),
+            directory: trimmed(directory)
+        )
+        let data = try await send(
+            "/api/git/clone",
+            method: "POST",
+            body: try JSONEncoder().encode(body),
+            using: Self.cloneSession
+        )
+        do {
+            return try Self.decoder.decode(CloneRepositoryResponse.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     /// Starts a new session in a project directory. The hub asks OpenCode to
     /// pick the default agent and model.
     func createSession(title: String?, directory: String) async throws -> Session {

@@ -20,6 +20,17 @@ extension MobileStore {
         return fetched
     }
 
+    /// Clones a repository on the hub host for the New Session sheet. The
+    /// caller creates the session once the folder exists.
+    func cloneRepository(
+        url: String,
+        parent: String,
+        name: String
+    ) async throws -> ClonedRepository {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+        return try await api.cloneRepository(url: url, parent: parent, name: name)
+    }
+
     func loadProject(_ id: String, force: Bool = false) async {
         guard let api else { return }
         if !force, projectDetails[id]?.isLoading == true { return }

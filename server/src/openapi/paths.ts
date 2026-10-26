@@ -597,6 +597,26 @@ export const PATHS = {
     },
   },
 
+  "/api/git/clone": {
+    post: {
+      tags: ["Projects"],
+      summary: "Clone a git repository",
+      description:
+        "Runs `git clone` on the hub host and returns the new project directory. The destination must not exist yet; use the returned path to start a session.",
+      operationId: "cloneRepository",
+      requestBody: jsonBody(schemaRef("CloneRepositoryRequest")),
+      responses: {
+        200: ok(schemaRef("CloneRepositoryResponse")),
+        400: badRequest,
+        401: unauthorized,
+        409: { description: "The destination folder already exists." },
+        422: { description: "git could not clone the repository." },
+        504: { description: "The clone exceeded the hub's time limit." },
+        default: failure,
+      },
+    },
+  },
+
   "/api/project": {
     get: {
       tags: ["Projects"],

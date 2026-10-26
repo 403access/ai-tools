@@ -38,6 +38,39 @@ describe("hub API writes", () => {
     db.close();
   });
 
+  test("validates repository clone requests", async () => {
+    const { handler, db } = setup();
+    const headers = { "Content-Type": "application/json" };
+
+    const missingBody = await handler(
+      request("/api/git/clone", { method: "POST", headers }),
+    );
+    expect(missingBody.status).toBe(400);
+
+    const missingURL = await handler(
+      request("/api/git/clone", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ parent: "/tmp" }),
+      }),
+    );
+    expect(missingURL.status).toBe(400);
+
+    const badURL = await handler(
+      request("/api/git/clone", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ url: "--upload-pack=evil" }),
+      }),
+    );
+    expect(badURL.status).toBe(400);
+
+    const wrongMethod = await handler(request("/api/git/clone"));
+    expect(wrongMethod.status).toBe(405);
+
+    db.close();
+  });
+
   test("reports an offline OpenCode service for create and prompt", async () => {
     const { handler, db } = setup();
 

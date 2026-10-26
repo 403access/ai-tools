@@ -34,7 +34,12 @@ extension HubAPI {
     }
 
     @discardableResult
-    func send(_ path: String, method: String = "GET", body: Data? = nil) async throws -> Data {
+    func send(
+        _ path: String,
+        method: String = "GET",
+        body: Data? = nil,
+        using customSession: URLSession? = nil
+    ) async throws -> Data {
         var request = try request(path, method: method)
         if let body {
             request.httpBody = body
@@ -45,7 +50,7 @@ extension HubAPI {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await Self.session.data(for: request)
+            (data, response) = try await (customSession ?? Self.session).data(for: request)
         } catch let error as URLError {
             Self.debugLog("[hub] url-error \(path) \(error)")
             DevLog.shared.api(

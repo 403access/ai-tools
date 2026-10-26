@@ -28,6 +28,20 @@ struct SessionEnvelope: Decodable {
     var data: Session
 }
 
+/// A repository the hub cloned for a new session.
+struct ClonedRepository: Decodable, Hashable, Sendable {
+    /// Absolute path of the cloned working tree on the hub host.
+    var directory: String
+    /// Folder name of the clone.
+    var name: String
+    /// Normalized repository URL passed to git.
+    var url: String
+}
+
+struct CloneRepositoryResponse: Decodable {
+    var data: ClonedRepository
+}
+
 struct ServerInfo: Decodable {
     var version: String?
     var pid: Int?

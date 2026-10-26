@@ -63,6 +63,23 @@ The new session opens immediately, and the first message is sent in the same
 step. You can fix a failed first message and retry without creating a second
 session.
 
+### Clone a repository
+
+Switch the source to **Clone repository** to start in a project that does not
+exist yet. The hub runs `git clone` on the Mac, so the folder is ready before
+the session starts.
+
+- Paste an HTTPS, SSH, `git://`, or `file://` URL, an scp-style SSH remote, or
+  GitHub `owner/repo` shorthand.
+- Choose the parent folder (defaults to `~/Developer`) and, optionally, a
+  folder name. The repository name is used when the name is blank.
+- **Clone & create** clones the repository and starts the session in it.
+
+The clone refuses to write over an existing folder. Private repositories use the
+git credentials and SSH agent already configured on the hub host; git never
+prompts for a password, so an unauthenticated private clone fails with git's
+error instead of hanging.
+
 :::note
 The apps can start sessions and send prompts, but they do not stop, interrupt,
 or delete them. Prompts sent to a running session are queued behind the current

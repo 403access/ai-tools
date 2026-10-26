@@ -5,6 +5,7 @@ import {
   type HubConfig,
 } from "./config.ts";
 import type { HubDB } from "./db.ts";
+import { CloneError, cloneRepository } from "./clone.ts";
 import { listProjectFiles, ProjectFilesError } from "./files.ts";
 import { readProjectGit, readSessionGit } from "./git.ts";
 import {
@@ -789,6 +790,26 @@ export function createHandler(
           hub: health,
         };
         return json(info);
+      }
+
+      if (pathname === "/api/git/clone") {
+        if (request.method !== "POST") return error("Method not allowed", 405);
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+
+        const url = typeof body.url === "string" ? body.url : "";
+        const parent = typeof body.parent === "string" ? body.parent : undefined;
+        const name = typeof body.name === "string" ? body.name : undefined;
+        const directory = typeof body.directory === "string" ? body.directory : undefined;
+
+        try {
+          return json({
+            data: await cloneRepository({ url, parent, name, directory }),
+          });
+        } catch (caught) {
+          if (caught instanceof CloneError) return error(caught.message, caught.status);
+          throw caught;
+        }
       }
 
       if (pathname === "/api/project" && request.method === "GET") {
