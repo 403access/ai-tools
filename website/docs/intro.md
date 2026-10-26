@@ -19,9 +19,10 @@ a small Bun + SQLite server that ingests your local OpenCode service and keeps
 one shared, cached history.
 
 <p className="lead">
-Watch running sessions, read and reply in any conversation, start new work,
-inspect the files a session changed, track usage, and run declarative NixOS
-virtual machines on the hub host — without leaving the window you are in.
+Watch running sessions, read and reply in any conversation, pause or stop work
+and continue it later, start new work, inspect the files a session changed,
+track usage, and run declarative NixOS virtual machines on the hub host —
+without leaving the window you are in.
 </p>
 
 <div className="featureGrid">
@@ -30,8 +31,8 @@ virtual machines on the hub host — without leaving the window you are in.
     <p>Current tool, command or path, streaming reasoning, todos, subagents, cost, elapsed time, and tokens.</p>
   </div>
   <div className="featureCard">
-    <h3>Prompt &amp; create</h3>
-    <p>Reply in an open conversation, dictate a prompt, or start a session with an optional first message.</p>
+    <h3>Prompt, pause &amp; create</h3>
+    <p>Reply in an open conversation, dictate a prompt, start a session with an optional first message, or hold one for later.</p>
   </div>
   <div className="featureCard">
     <h3>Stats &amp; changes</h3>

@@ -103,6 +103,14 @@ iOS app:
   of the conversation you are viewing. The header and **Session settings**
   disclosure also show the agent, model, provider, variant, directory, and
   outcome that were actually used.
+- **Pause or stop work.** The session header and each running/recent row offer
+  **Pause…** and **Stop**. Pausing interrupts the current turn and holds the
+  session for a duration or until a clock time you pick; the hub continues it
+  automatically at the deadline, even after a restart. Stopping holds it until
+  you press **Continue**. A held session leaves the Running list and shows a
+  **Paused** or **Stopped** badge with its continue time in the Recent list.
+  Continue sends `continue` into the conversation, which starts a fresh turn.
+  Typing a prompt also releases the hold.
 - **Speak your prompt.** The microphone in the conversation composer and the
   new-session sheet turns speech into text as you talk. It keeps whatever you
   already typed, and the transcript stays editable before you send. Speech
@@ -362,9 +370,10 @@ iOS app:
   configurable throttle folds rapid updates before sending them to the apps, so
   busy sessions do not flood the connection.
 
-Both apps can start sessions and send prompts; neither stops or deletes
-sessions. Both can also list and drive terminals on the hub host, and create,
-run, monitor, update, and delete NixOS virtual machines.
+Both apps can start sessions and send prompts, pause or stop a session, and
+continue held work. Neither deletes sessions. Both can also list and drive
+terminals on the hub host, and create, run, monitor, update, and delete NixOS
+virtual machines.
 
 ## How it works
 
@@ -393,8 +402,9 @@ The hub:
 2. Polls read endpoints on a 5s / 60s cadence, subscribes to `/api/event`,
    and writes sessions, projects, messages, stats, and Go plan usage into
    `~/.local/share/opencodebar/hub.sqlite`. The cache keeps serving when OpenCode
-   stops or restarts on a new port. Writes from the apps — creating a session
-   and prompting one — are forwarded to the same service.
+   stops or restarts on a new port. Writes from the apps — creating a session,
+   prompting one, and pausing, stopping, or continuing work — are forwarded to
+   the same service.
 3. Serves a stable API that mirrors OpenCode's shapes — `/api/session`,
    `/api/session/{id}`, `/api/session/{id}/message`, `/api/session/{id}/changes`,
    `/api/session/{id}/stats`, `/api/session/{id}/git`,
@@ -402,7 +412,9 @@ The hub:
    `/api/project/{id}/changes`, `/api/project/{id}/files`,
    `/api/project/{id}/git`, `/api/project/{id}/icon`,
    `/api/experimental/session/stats` — plus
-   `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`),
+   `/api/session/{id}/prompt` (`POST`), `/api/session/{id}/pause` (`POST`),
+   `/api/session/{id}/stop` (`POST`), `/api/session/{id}/continue` (`POST`),
+   `/api/session` (`POST`),
    `/api/task` (`GET`), `/api/task/{id}` (`PATCH`), `/api/usage`,
    `/api/git/clone` (`POST`), `/api/health`, `/api/system`, `/api/system/apps/icon`,
    `/api/system/apps/detail`, `/api/system/apps/action` (`POST`),
@@ -441,10 +453,10 @@ Endpoints the hub reads from OpenCode: `/api/info`, `/api/session`,
 `/api/session/active`, `/api/session/{id}`, `/api/session/{id}/message`,
 `/api/project`, `/api/experimental/session/stats`, `/api/pty`, and
 `/api/event`. It writes through `POST /api/session`,
-`POST /api/session/{id}/prompt`, and the PTY create/update/delete routes. Each
-terminal WebSocket is proxied to `/api/pty/{id}/connect`; the hub opens that
-upstream socket with OpenCode's Basic credentials so clients only need the hub
-token.
+`POST /api/session/{id}/prompt`, `POST /api/session/{id}/interrupt`, and the PTY
+create/update/delete routes. Each terminal WebSocket is proxied to
+`/api/pty/{id}/connect`; the hub opens that upstream socket with OpenCode's
+Basic credentials so clients only need the hub token.
 
 The VM backend is a small Swift helper, `OpenCodeBarVZ`, signed with
 `com.apple.security.virtualization`. The hub spawns one detached helper per
@@ -994,9 +1006,11 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
 
 - The Mac app needs macOS 14+; the mobile app needs iOS 17+. The hub is a Bun
   process that must be reachable over the network for the phone.
-- The apps can start sessions and send prompts, but not interrupt, stop, or
-  delete them. Prompts sent to a running session are queued behind the current
-  turn.
+- The apps can start sessions, send prompts, pause or stop work, and continue a
+  held session, but they cannot delete sessions. Pausing or stopping interrupts
+  the current turn; **Continue** sends a new `continue` prompt rather than
+  resuming the exact interrupted turn. An interrupted turn keeps its history and
+  outcome. Prompts sent to a running session are queued behind the current turn.
 - Terminal access runs commands as the same user as the hub and OpenCode. The
   hub token protects it, but anyone with the token can run anything that user
   can. Keep the token private and use a trusted network or a tunnel.

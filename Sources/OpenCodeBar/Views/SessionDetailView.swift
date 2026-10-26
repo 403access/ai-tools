@@ -36,6 +36,9 @@ struct SessionDetailView: View {
     @State var settingsExpanded = true
     @State var defaultModelInfo: ModelInfo?
     @State var forkParent: Session?
+    @State var showingPauseSheet = false
+    @State var isControlling = false
+    @State var controlError: String?
 
     let topAnchor = "session-detail-top"
 
@@ -176,9 +179,61 @@ struct SessionDetailView: View {
             }
             .environmentObject(state)
         }
+        .sheet(isPresented: $showingPauseSheet) {
+            PauseSessionSheet(sessionTitle: session.displayTitle) { until in
+                try await state.pauseSession(session, until: until)
+            }
+        }
     }
 
     // MARK: - Header
+
+    /// Continue plus the pause/stop menu for running and held sessions.
+    @ViewBuilder
+    var controlButtons: some View {
+        HStack(spacing: 5) {
+            if session.isHeld {
+                Button {
+                    Task { await continueHeldSession() }
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 8, weight: .bold))
+                        Text("Continue")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.accent)
+                .disabled(isControlling)
+                .help("Send continue into the session")
+            }
+
+            Menu {
+                Button {
+                    showingPauseSheet = true
+                } label: {
+                    Label(session.isPaused ? "Change pause…" : "Pause…", systemImage: "pause.circle")
+                }
+                Button(role: .destructive) {
+                    Task { await stopHeldSession() }
+                } label: {
+                    Label("Stop", systemImage: "stop.circle")
+                }
+            } label: {
+                Image(systemName: isControlling ? "hourglass" : "ellipsis.circle")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .disabled(isControlling)
+            .help("Pause or stop this session")
+        }
+    }
 
     var navigationBar: some View {
         HStack(spacing: 8) {
@@ -200,6 +255,10 @@ struct SessionDetailView: View {
             .help("Back to \(state.sessionBackTitle)")
 
             Spacer(minLength: 8)
+
+            if isRunning || session.isHeld {
+                controlButtons
+            }
 
             Button {
                 showingNewSession = true
@@ -252,6 +311,9 @@ struct SessionDetailView: View {
                 if let agent = effectiveAgent, !agent.isEmpty {
                     Chip(text: agent, systemImage: "person.fill", tint: Theme.reasoning)
                 }
+                if let control = session.control {
+                    SessionControlBadge(control: control)
+                }
             }
 
             HStack(spacing: 10) {
@@ -267,6 +329,13 @@ struct SessionDetailView: View {
 
             settingsRow
             forkRelationship
+
+            if let controlError {
+                Text(controlError)
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if isRunning, let activity = state.activity(for: session.id) {
                 Divider().opacity(0.4)
@@ -427,6 +496,30 @@ struct SessionDetailView: View {
             return Fmt.elapsed(since: session.time.createdDate)
         }
         return Fmt.elapsed(since: session.time.createdDate, now: session.time.updatedDate)
+    }
+
+    /// Resumes a held session and folds the response into the view.
+    func continueHeldSession() async {
+        isControlling = true
+        controlError = nil
+        do {
+            try await state.continueSession(session)
+        } catch {
+            controlError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        isControlling = false
+    }
+
+    /// Stops the session until the user continues it.
+    func stopHeldSession() async {
+        isControlling = true
+        controlError = nil
+        do {
+            try await state.stopSession(session)
+        } catch {
+            controlError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        isControlling = false
     }
 
 }

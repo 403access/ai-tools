@@ -45,6 +45,7 @@ import {
   HostTerminalService,
   type HostTerminalStore,
 } from "./host-terminals.ts";
+import { MAX_PAUSE_MS } from "./hub/control.ts";
 import { eventStream } from "./api/event-stream.ts";
 import { docsResponse, openApiResponse } from "./api/docs.ts";
 import {
@@ -1024,6 +1025,41 @@ export function createHandler(
           }
 
           return json(await hub.promptSession(id, text, delivery));
+        }
+
+        if (parts.length === 4 && parts[3] === "pause") {
+          if (request.method !== "POST") return error("Method not allowed", 405);
+          const body = await readJSONBody(request);
+          if (!body) return error("Expected a JSON body", 400);
+
+          const now = Date.now();
+          const rawUntil = body.until;
+          const rawFor = body.forMs;
+          let until: number;
+          if (typeof rawUntil === "number" && Number.isFinite(rawUntil)) {
+            until = rawUntil;
+          } else if (typeof rawFor === "number" && Number.isFinite(rawFor)) {
+            until = now + rawFor;
+          } else {
+            return error("until (epoch milliseconds) or forMs is required", 400);
+          }
+
+          if (until <= now) return error("Pause time must be in the future", 400);
+          if (until - now > MAX_PAUSE_MS) {
+            return error("Pause time must be within 30 days", 400);
+          }
+
+          return json({ data: await hub.pauseSession(id, Math.round(until)) });
+        }
+
+        if (parts.length === 4 && parts[3] === "stop") {
+          if (request.method !== "POST") return error("Method not allowed", 405);
+          return json({ data: await hub.stopSession(id) });
+        }
+
+        if (parts.length === 4 && parts[3] === "continue") {
+          if (request.method !== "POST") return error("Method not allowed", 405);
+          return json({ data: await hub.continueSession(id) });
         }
 
         if (parts.length === 4 && parts[3] === "fork") {

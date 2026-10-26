@@ -130,7 +130,8 @@ training](../using/session.md#models-and-data-training) and the
 
 ## What OpenCodeBar does not do
 
-- It does not stop, interrupt, or delete sessions.
+- It does not delete sessions. Pause, stop, and continue only interrupt or
+  restart work in an existing session.
 - It does not sandbox terminal commands: they run as the hub's macOS user.
 - It does not upload your data to an OpenCodeBar service.
 - It does not include analytics or telemetry.

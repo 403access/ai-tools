@@ -3,6 +3,35 @@ import SwiftUI
 extension SessionDetailView {
     // MARK: - Header
 
+    /// Pause/stop/continue actions for the detail toolbar.
+    @ViewBuilder
+    var controlMenu: some View {
+        Menu {
+            if session.isHeld {
+                Button {
+                    Task { await continueHeldSession() }
+                } label: {
+                    Label("Continue", systemImage: "play.fill")
+                }
+                Divider()
+            }
+            Button {
+                showingPauseSheet = true
+            } label: {
+                Label(session.isPaused ? "Change pause…" : "Pause…", systemImage: "pause.circle")
+            }
+            Button(role: .destructive) {
+                Task { await stopHeldSession() }
+            } label: {
+                Label("Stop", systemImage: "stop.circle")
+            }
+        } label: {
+            Image(systemName: isControlling ? "hourglass" : "ellipsis.circle")
+        }
+        .disabled(isControlling)
+        .accessibilityLabel("Session controls")
+    }
+
     var summary: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(session.displayTitle)
@@ -35,8 +64,32 @@ extension SessionDetailView {
             .font(.caption2)
             .foregroundStyle(.secondary)
 
+            if let control = session.control {
+                HStack(spacing: 8) {
+                    SessionControlBadge(control: control)
+                    if session.isHeld {
+                        Button {
+                            Task { await continueHeldSession() }
+                        } label: {
+                            Label("Continue", systemImage: "play.fill")
+                                .font(.caption2.weight(.semibold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(isControlling)
+                    }
+                }
+            }
+
             settingsRow
             forkRelationship
+
+            if let controlError {
+                Text(controlError)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if isRunning, let activity = store.activity(for: sessionID) {
                 Divider().opacity(0.4)

@@ -43,9 +43,15 @@ make a model work.
 
 ## Does it stop or delete sessions?
 
-No. OpenCodeBar can start sessions and send prompts. It cannot interrupt, stop,
-or delete them. A prompt sent to a running session is queued by default and
-appears in the pending queue above the composer until it starts.
+It can stop work but not delete it. Use **Pause…** to hold a session for a
+duration or until a clock time, or **Stop** to hold it until you press
+**Continue**. Either action interrupts the current turn and removes the session
+from the Running list. Paused and stopped sessions keep their history and show a
+badge in the Recent list. **Continue** sends a new `continue` prompt, and typing
+any prompt also releases the hold.
+
+OpenCodeBar cannot delete sessions. A prompt sent to a running session is queued
+by default and appears in the pending queue above the composer until it starts.
 
 ## Can I use it without a Mac?
 

@@ -563,6 +563,62 @@ export const PATHS = {
     },
   },
 
+  "/api/session/{id}/pause": {
+    post: {
+      tags: ["Sessions"],
+      summary: "Pause a session until a time",
+      description:
+        "Interrupts the active turn and holds the session until the given time. The hub sends `continue` when the deadline passes, even after a restart.",
+      operationId: "pauseSession",
+      parameters: [pathParam("id", "Session id.")],
+      requestBody: jsonBody(schemaRef("PauseSessionRequest")),
+      responses: {
+        200: ok(schemaRef("SessionResponse")),
+        400: badRequest,
+        401: unauthorized,
+        404: notFound,
+        503: unavailable,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/session/{id}/stop": {
+    post: {
+      tags: ["Sessions"],
+      summary: "Stop a session",
+      description:
+        "Interrupts the active turn and holds the session until the user continues it. A stop has no automatic deadline.",
+      operationId: "stopSession",
+      parameters: [pathParam("id", "Session id.")],
+      responses: {
+        200: ok(schemaRef("SessionResponse")),
+        401: unauthorized,
+        404: notFound,
+        503: unavailable,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/session/{id}/continue": {
+    post: {
+      tags: ["Sessions"],
+      summary: "Continue a paused or stopped session",
+      description:
+        "Clears the pause or stop and sends `continue` into the conversation to restart the agent loop.",
+      operationId: "continueSession",
+      parameters: [pathParam("id", "Session id.")],
+      responses: {
+        200: ok(schemaRef("SessionResponse")),
+        401: unauthorized,
+        404: notFound,
+        503: unavailable,
+        default: failure,
+      },
+    },
+  },
+
   "/api/experimental/session/stats": {
     get: {
       tags: ["Sessions", "Usage"],

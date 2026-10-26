@@ -13,6 +13,8 @@ struct LiveView: View {
     @State private var recentLimit = LiveView.recentPageSize
     @State private var scrollToTopTrigger = 0
     @State private var deepLinkAttempt = ""
+    @State private var pauseTarget: Session?
+    @State private var controlError: String?
 
     private let topAnchor = "live-top"
 
@@ -82,6 +84,18 @@ struct LiveView: View {
                     sessionToOpen = session
                 }
                 .environmentObject(store)
+            }
+            .sheet(item: $pauseTarget) { session in
+                PauseSessionSheet(sessionTitle: session.displayTitle) { until in
+                    try await store.pauseSession(session, until: until)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .alert("Session control failed", isPresented: controlErrorBinding) {
+                Button("OK") { controlError = nil }
+            } message: {
+                Text(controlError ?? "")
             }
         }
     }
@@ -202,6 +216,11 @@ struct LiveView: View {
                     }
                     .buttonStyle(.plain)
                     .transition(.recentInsertion)
+                    .contextMenu {
+                        if store.isRunning(session) || session.isHeld {
+                            controlMenu(for: session)
+                        }
+                    }
                 }
             }
         }
@@ -289,6 +308,50 @@ struct LiveView: View {
         }
         .buttonStyle(.plain)
         .transition(.recentInsertion)
+        .contextMenu {
+            if store.isRunning(session) || session.isHeld {
+                controlMenu(for: session)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func controlMenu(for session: Session) -> some View {
+        if session.isHeld {
+            Button {
+                runControl { try await store.continueSession(session) }
+            } label: {
+                Label("Continue", systemImage: "play.fill")
+            }
+            Divider()
+        }
+        Button {
+            pauseTarget = session
+        } label: {
+            Label(session.isPaused ? "Change pause…" : "Pause…", systemImage: "pause.circle")
+        }
+        Button(role: .destructive) {
+            runControl { try await store.stopSession(session) }
+        } label: {
+            Label("Stop", systemImage: "stop.circle")
+        }
+    }
+
+    private func runControl(_ action: @escaping () async throws -> Void) {
+        Task {
+            do {
+                try await action()
+            } catch {
+                controlError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+        }
+    }
+
+    private var controlErrorBinding: Binding<Bool> {
+        Binding(
+            get: { controlError != nil },
+            set: { if !$0 { controlError = nil } }
+        )
     }
 
     private func groupHeader(_ title: String) -> some View {

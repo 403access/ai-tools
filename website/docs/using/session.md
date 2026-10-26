@@ -44,6 +44,25 @@ The composer at the bottom sends the next prompt into this session.
 - The microphone button dictates into the composer. The transcript stays
   editable before you send it. See [Voice input](voice.md).
 
+### Pause and stop
+
+The session header has a **⋯** menu with **Pause…** and **Stop**. Running and
+recent rows also expose both actions in their context menu (long-press on iOS).
+
+- **Pause…** interrupts the current turn and holds the session for a preset
+  duration, a custom number of minutes, or until a date and time you choose. The
+  hub sends `continue` when the deadline passes, so the work resumes without the
+  apps staying open. The deadline survives a hub restart.
+- **Stop** interrupts the current turn and holds the session until you press
+  **Continue**. There is no timer.
+- **Continue** is in the header and context menu while a session is held. It
+  clears the pause or stop and sends `continue` into the conversation, which
+  starts a new turn. Typing any prompt also releases the hold.
+
+A held session leaves the **Running** list and appears under **Recent** with a
+**Paused** or **Stopped** badge. For a timed pause the badge shows the time it
+will continue.
+
 ### Failed turns and retries
 
 If a provider call fails, OpenCode records the error on the turn. The Chat tab

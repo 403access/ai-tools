@@ -55,6 +55,7 @@ final class HubAPITests: XCTestCase {
                 "sessionID": "ses_source",
                 "boundary": { "type": "before", "messageID": "msg_failed" }
               },
+              "control": { "state": "paused", "at": 1792595523652, "until": 1792599123652 },
               "location": { "directory": "/Users/example/ai-tools" }
             }
           ]
@@ -73,6 +74,9 @@ final class HubAPITests: XCTestCase {
         XCTAssertEqual(session.fork?.boundary?.messageID, "msg_failed")
         XCTAssertTrue(session.isFork)
         XCTAssertTrue(session.isSubagent)
+        XCTAssertTrue(session.isPaused)
+        XCTAssertTrue(session.isHeld)
+        XCTAssertNotNil(session.control?.untilDate)
     }
 
     func testCloneRepositoryResponseDecodesDestination() throws {

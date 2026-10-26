@@ -81,10 +81,10 @@ prompts for a password, so an unauthenticated private clone fails with git's
 error instead of hanging.
 
 :::note
-The apps can start sessions and send prompts, but they do not stop, interrupt,
-or delete them. Prompts sent to a running session are queued behind the current
-turn; the queue is listed above the composer, where a prompt can be withdrawn
-before the turn starts it.
+The apps can start sessions and send prompts, pause or stop a session, and
+continue held work. Neither app deletes sessions. Prompts sent to a running
+session are queued behind the current turn; the queue is listed above the
+composer, where a prompt can be withdrawn before the turn starts it.
 :::
 
 ## Menu bar count

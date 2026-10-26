@@ -45,6 +45,9 @@ struct SessionDetailView: View {
     @State var settingsExpanded = false
     @State var defaultModelInfo: ModelInfo?
     @State var forkParent: Session?
+    @State var showingPauseSheet = false
+    @State var isControlling = false
+    @State var controlError: String?
 
     let topAnchor = "session-mobile-top"
 
@@ -148,6 +151,11 @@ struct SessionDetailView: View {
                 .accessibilityHint("Scrolls the conversation to the top")
             }
             ToolbarItem(placement: .topBarTrailing) {
+                if running || session.isHeld {
+                    controlMenu
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 if running {
                     HStack(spacing: 5) {
                         PulsingDot(size: 7)
@@ -230,5 +238,48 @@ struct SessionDetailView: View {
             }
             .environmentObject(store)
         }
+        .sheet(isPresented: $showingPauseSheet) {
+            PauseSessionSheet(sessionTitle: session.displayTitle) { until in
+                try await store.pauseSession(session, until: until)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .alert("Session control failed", isPresented: controlErrorBinding) {
+            Button("OK") { controlError = nil }
+        } message: {
+            Text(controlError ?? "")
+        }
+    }
+
+    private var controlErrorBinding: Binding<Bool> {
+        Binding(
+            get: { controlError != nil },
+            set: { if !$0 { controlError = nil } }
+        )
+    }
+
+    /// Resumes a held session and folds the response into the view.
+    func continueHeldSession() async {
+        isControlling = true
+        controlError = nil
+        do {
+            try await store.continueSession(session)
+        } catch {
+            controlError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        isControlling = false
+    }
+
+    /// Stops the session until the user continues it.
+    func stopHeldSession() async {
+        isControlling = true
+        controlError = nil
+        do {
+            try await store.stopSession(session)
+        } catch {
+            controlError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        isControlling = false
     }
 }

@@ -159,14 +159,20 @@ use the same series scoped to one project.
 
 ## Writes
 
-The apps can create sessions and send prompts. The hub forwards both to
-OpenCode:
+The apps can create sessions, send prompts, and pause, stop, or continue work.
+The hub forwards these to OpenCode:
 
 - `POST /api/session` creates a session.
 - `POST /api/session/{id}/prompt` sends a prompt, optionally with
   `delivery: "steer" | "queue"`.
+- `POST /api/session/{id}/pause` interrupts the turn and holds the session until
+  a deadline.
+- `POST /api/session/{id}/stop` interrupts the turn and holds it indefinitely.
+- `POST /api/session/{id}/continue` clears the hold and sends `continue`.
 
-OpenCodeBar does not stop, interrupt, or delete sessions.
+Pause and stop state lives on the hub's session row, so it survives a hub
+restart. The hub continues timed pauses from its fast loop. OpenCodeBar does not
+delete sessions.
 
 ## Upstream endpoints
 
@@ -181,7 +187,7 @@ The hub reads from OpenCode:
 - `/api/experimental/session/stats`
 - `/api/event`
 
-It writes through `POST /api/session` and
-`POST /api/session/{id}/prompt`.
+It writes through `POST /api/session`, `POST /api/session/{id}/prompt`, and
+`POST /api/session/{id}/interrupt`.
 
 Next: [configuration](configuration.md) and the [API reference](api.md).

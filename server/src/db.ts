@@ -34,7 +34,21 @@ import {
   type ChangeLog,
 } from "./db/projects.ts";
 import { migrate } from "./db/schema.ts";
-import { getActiveSessionIDs, getForks as getSessionForks, getSession, getSessions, markActive, setActive, updateSessionUsage, upsertSessions, type SessionQuery } from "./db/sessions.ts";
+import {
+  clearSessionControl,
+  getActiveSessionIDs,
+  getDuePauses,
+  getForks as getSessionForks,
+  getSession,
+  getSessions,
+  markActive,
+  setActive,
+  setSessionPause,
+  setSessionStop,
+  updateSessionUsage,
+  upsertSessions,
+  type SessionQuery,
+} from "./db/sessions.ts";
 import { recordTaskPrompt, setTaskStatus } from "./db/tasks.ts";
 import { getSessionStats } from "./db/sessionStats.ts";
 import { counts, getStats, getUsage, putStats, putUsage, putUsageError, type CachedStats, type CachedUsage } from "./db/stats.ts";
@@ -130,6 +144,22 @@ export class HubDB implements ChangeLog {
 
   markActive(id: string, active: boolean, now = Date.now()): void {
     markActive(this.db, id, active, now);
+  }
+
+  setSessionPause(id: string, until: number, now = Date.now()): boolean {
+    return setSessionPause(this.db, this, id, until, now);
+  }
+
+  setSessionStop(id: string, now = Date.now()): boolean {
+    return setSessionStop(this.db, this, id, now);
+  }
+
+  clearSessionControl(id: string, now = Date.now()): boolean {
+    return clearSessionControl(this.db, this, id, now);
+  }
+
+  getDuePauses(now = Date.now()): Array<{ id: string; until: number }> {
+    return getDuePauses(this.db, now);
   }
 
   updateSessionUsage(id: string, cost: number | undefined, tokens: TokenUsage | undefined, now = Date.now()): void {

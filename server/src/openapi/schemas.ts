@@ -114,6 +114,21 @@ export const SCHEMAS = {
     },
   },
 
+  SessionControl: {
+    type: "object",
+    required: ["state", "at"],
+    description:
+      "User-held execution state. `paused` continues automatically at `until`; `stopped` waits for an explicit Continue.",
+    properties: {
+      state: { type: "string", enum: ["paused", "stopped"] },
+      at: { ...timestamp, description: "When the user paused or stopped the session." },
+      until: {
+        ...timestamp,
+        description: "When a timed pause continues by itself. Absent for a stop.",
+      },
+    },
+  },
+
   TaskLabel: {
     type: "object",
     required: ["id", "title", "kind"],
@@ -162,6 +177,7 @@ export const SCHEMAS = {
       subpath: string,
       fork: { $ref: "#/components/schemas/SessionFork" },
       task: { $ref: "#/components/schemas/SessionTask" },
+      control: { $ref: "#/components/schemas/SessionControl" },
       location: {
         type: "object",
         properties: { directory: string },
@@ -950,6 +966,22 @@ export const SCHEMAS = {
   },
 
   CloneRepositoryResponse: data({ $ref: "#/components/schemas/ClonedRepository" }),
+
+  PauseSessionRequest: {
+    type: "object",
+    description:
+      "When the session should continue by itself. Provide either an absolute epoch-millisecond time or a duration in milliseconds.",
+    properties: {
+      until: { ...timestamp, description: "Epoch milliseconds at which to continue." },
+      forMs: {
+        type: "integer",
+        minimum: 1,
+        maximum: 2_592_000_000,
+        description: "Duration from now in milliseconds, at most 30 days.",
+      },
+    },
+    example: { forMs: 1_800_000 },
+  },
 
   PromptRequest: {
     type: "object",

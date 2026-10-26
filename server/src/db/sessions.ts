@@ -106,14 +106,90 @@ export function upsertSessions(
 export function setActive(db: Database, ids: Set<string>, now = Date.now()): void {
   const run = db.transaction(() => {
     db.exec("UPDATE sessions SET active = 0 WHERE active = 1");
-    const mark = db.prepare("UPDATE sessions SET active = 1, synced_at = ? WHERE id = ?");
+    // A held session may still be winding down in OpenCode. Keep it out of the
+    // running list until the user continues it.
+    const mark = db.prepare(
+      `UPDATE sessions SET active = 1, synced_at = ?
+       WHERE id = ? AND paused_at IS NULL AND stopped_at IS NULL`,
+    );
     for (const id of ids) mark.run(now, id);
   });
   run();
 }
 
 export function markActive(db: Database, id: string, active: boolean, now = Date.now()): void {
-  db.prepare("UPDATE sessions SET active = ?, synced_at = ? WHERE id = ?").run(active ? 1 : 0, now, id);
+  if (!active) {
+    db.prepare("UPDATE sessions SET active = 0, synced_at = ? WHERE id = ?").run(now, id);
+    return;
+  }
+  db.prepare(
+    `UPDATE sessions SET active = 1, synced_at = ?
+     WHERE id = ? AND paused_at IS NULL AND stopped_at IS NULL`,
+  ).run(now, id);
+}
+
+/** Holds a session until `until`, or indefinitely for a stop. */
+export function setSessionPause(
+  db: Database,
+  log: ChangeLog,
+  id: string,
+  until: number,
+  now = Date.now(),
+): boolean {
+  const result = db.prepare(
+    `UPDATE sessions
+     SET paused_at = ?, paused_until = ?, stopped_at = NULL, active = 0, synced_at = ?
+     WHERE id = ?`,
+  ).run(now, until, now, id);
+  if (result.changes > 0) log.logChange("session", id);
+  return result.changes > 0;
+}
+
+/** Stops a session until the user continues it. */
+export function setSessionStop(
+  db: Database,
+  log: ChangeLog,
+  id: string,
+  now = Date.now(),
+): boolean {
+  const result = db.prepare(
+    `UPDATE sessions
+     SET paused_at = NULL, paused_until = NULL, stopped_at = ?, active = 0, synced_at = ?
+     WHERE id = ?`,
+  ).run(now, now, id);
+  if (result.changes > 0) log.logChange("session", id);
+  return result.changes > 0;
+}
+
+/** Clears a pause or stop, usually because the user continued the session. */
+export function clearSessionControl(
+  db: Database,
+  log: ChangeLog,
+  id: string,
+  now = Date.now(),
+): boolean {
+  const result = db.prepare(
+    `UPDATE sessions
+     SET paused_at = NULL, paused_until = NULL, stopped_at = NULL, synced_at = ?
+     WHERE id = ? AND (paused_at IS NOT NULL OR paused_until IS NOT NULL OR stopped_at IS NOT NULL)`,
+  ).run(now, id);
+  if (result.changes > 0) log.logChange("session", id);
+  return result.changes > 0;
+}
+
+/** Sessions whose timed pause is due to continue. */
+export function getDuePauses(
+  db: Database,
+  now = Date.now(),
+): Array<{ id: string; until: number }> {
+  const rows = db.query(
+    `SELECT id, paused_until FROM sessions
+     WHERE paused_until IS NOT NULL AND paused_until <= ?
+     ORDER BY paused_until ASC`,
+  ).all(now) as Row[];
+  return rows
+    .map((row) => ({ id: String(row.id), until: number(row.paused_until) }))
+    .filter((entry) => entry.until > 0);
 }
 
 export function updateSessionUsage(

@@ -18,9 +18,23 @@ the service. The app will never enable a training opt-in to make a model work.
 
 ## Session controls
 
-The apps can start sessions and send prompts, but they cannot interrupt, stop,
-or delete a session. Prompts sent while a session is running are queued behind
-the current turn (or steered if the client requests it).
+The apps can start sessions, send prompts, pause or stop work, and continue a
+held session. Pausing or stopping interrupts the current turn; it does not
+delete the session.
+
+- **Pause…** interrupts the turn and holds the session for a duration or until a
+  clock time. The hub continues it automatically at the deadline, including
+  after a hub restart.
+- **Stop** interrupts the turn and holds the session until you press
+  **Continue**. A stop has no automatic deadline.
+- **Continue** sends `continue` into the conversation. That starts a new turn
+  rather than resuming the exact interrupted one. Typing a prompt also releases
+  the hold.
+
+A held session leaves the Running list and shows a **Paused** or **Stopped**
+badge in the Recent list with its continue time. Prompts sent while a session is
+running are queued behind the current turn (or steered if the client requests
+it). Neither app deletes sessions.
 
 ## Remote desktop
 
@@ -144,7 +158,7 @@ each run and stops working when the process exits.
 ## Not implemented yet
 
 - Live Activities.
-- Interrupt/stop controls.
+- Deleting sessions from the apps.
 - A steer-versus-queue toggle in every client.
 - Opening a session in the TUI or a terminal.
 - A first-class project new-session action on iOS.

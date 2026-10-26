@@ -743,6 +743,9 @@ curl -X PATCH http://127.0.0.1:8787/api/settings \
 | `GET` | `/api/session/{id}/pending` | Prompts admitted but not delivered |
 | `DELETE` | `/api/session/{id}/pending/{inputID}` | Withdraw one queued prompt |
 | `POST` | `/api/session/{id}/prompt` | Send a prompt |
+| `POST` | `/api/session/{id}/pause` | Interrupt and hold until a time |
+| `POST` | `/api/session/{id}/stop` | Interrupt and hold until continued |
+| `POST` | `/api/session/{id}/continue` | Clear the hold and send `continue` |
 
 `GET /api/session` query parameters:
 
@@ -799,6 +802,31 @@ in the OpenCode service, so it is empty when the service is offline. Use
 `DELETE /api/session/{id}/pending/{inputID}` to remove an item that has not
 started; the hub answers `204`, and removes are a no-op once the turn has read
 the prompt.
+
+Pause a session until a time:
+
+```bash
+curl -X POST http://127.0.0.1:8787/api/session/$SESSION_ID/pause \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"forMs":1800000}'
+```
+
+Provide either `forMs` (a duration from now, at most 30 days) or `until` (epoch
+milliseconds). The hub interrupts the active turn and returns the session with a
+`control` object. `control.state` is `paused`; `control.at` is when the user
+paused it and `control.until` is when it will continue. A held session is
+excluded from `/api/session?active=true` and from the apps' Running list.
+
+`POST /api/session/{id}/stop` takes no body and returns the session with
+`control.state` set to `stopped` and no `until`. It waits indefinitely.
+`POST /api/session/{id}/continue` clears the control and sends the literal
+prompt `continue` into the conversation, then marks the session active. Sending
+any other prompt also clears the control.
+
+The hub checks timed pauses on every fast poll, so a pause fires even after a
+hub restart. If OpenCode is offline when the deadline passes, the pause stays
+and the hub retries on the next loop. A deleted session releases its control.
 
 ### Projects
 

@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { backfillToolCalls } from "./messages.ts";
 import { number, type Row } from "./rows.ts";
 
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 export function migrate(db: Database): void {
   const version = number((db.query("PRAGMA user_version").get() as Row | null)?.user_version);
@@ -246,5 +246,29 @@ export function migrate(db: Database): void {
          AND (active = 1 OR updated >= ?)`,
     ).run(now - 3 * 24 * 60 * 60 * 1000);
     db.exec("PRAGMA user_version = 8;");
+  }
+
+  if (version < 9) {
+    // Pause/stop are local to the hub: OpenCode can interrupt a turn, but it
+    // does not know that the user wants it held until a later time. Keeping
+    // the state on the session row lets it ride the existing sync feed and
+    // survive a hub restart.
+    for (const column of [
+      "paused_at REAL",
+      "paused_until REAL",
+      "stopped_at REAL",
+    ]) {
+      try {
+        db.exec(`ALTER TABLE sessions ADD COLUMN ${column};`);
+      } catch {
+        // A partially applied migration may already have added this column.
+      }
+    }
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS sessions_paused_until
+        ON sessions(paused_until)
+        WHERE paused_until IS NOT NULL;
+    `);
+    db.exec("PRAGMA user_version = 9;");
   }
 }

@@ -254,6 +254,19 @@ export class OpenCodeClient {
     });
   }
 
+  /**
+   * Interrupts the active turn. `resume` lets OpenCode pick up pending steering
+   * input and control items; queued prompts stay parked either way. An idle
+   * session is a no-op and reports `interrupted: false`.
+   */
+  async interruptSession(id: string, resume = false): Promise<{ interrupted: boolean }> {
+    const query = new URLSearchParams({ resume: resume ? "true" : "false" });
+    return this.request<{ interrupted: boolean }>(
+      `/api/session/${encodeURIComponent(id)}/interrupt?${query}`,
+      { method: "POST" },
+    );
+  }
+
   /** Prompt inputs admitted to the session but not yet delivered to a turn. */
   async pending(id: string): Promise<SessionPendingItem[]> {
     const response = await this.get<{ data: SessionPendingItem[] }>(

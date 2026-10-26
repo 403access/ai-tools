@@ -67,7 +67,9 @@ export async function session(hub: Hub, id: string): Promise<Session | null> {
       // though the hub already learned it when the fork was created.
       if (!fresh.fork && cached?.fork) fresh.fork = cached.fork;
       hub.db.upsertSessions([fresh]);
-      return fresh;
+      // Merge the service's fresh row with hub-only state such as the task
+      // board and pause/stop control, which OpenCode does not know about.
+      return hub.db.getSession(id) ?? fresh;
     } catch (error) {
       hub.noteError(error);
     }
@@ -183,6 +185,10 @@ export async function promptSession(
   if (!client) throw new OpenCodeError("OpenCode is offline", 503);
 
   const result = await client.promptSession(id, text, delivery);
+  // Any new prompt is an explicit decision to continue, so it releases a
+  // pause or stop even when the user typed into the composer instead of
+  // pressing the Continue button.
+  hub.db.clearSessionControl(id);
   hub.db.recordTaskPrompt(id, text);
   hub.db.markActive(id, true);
   hub.broadcast({ type: "hub.sessions", data: { at: Date.now() } });

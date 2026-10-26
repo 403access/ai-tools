@@ -82,6 +82,51 @@ extension AppState {
         await loadPending(id, force: true)
     }
 
+    /// Interrupts a session and holds it until `until`. The hub continues it
+    /// automatically at that time.
+    func pauseSession(_ session: Session, until: Date) async throws {
+        guard let api else { throw APIError.transport("Not connected to OpenCode") }
+        let updated = try await api.pauseSession(id: session.id, until: until)
+        applyControlUpdate(updated)
+        await refreshLive()
+    }
+
+    /// Interrupts a session and holds it until the user presses Continue.
+    func stopSession(_ session: Session) async throws {
+        guard let api else { throw APIError.transport("Not connected to OpenCode") }
+        let updated = try await api.stopSession(id: session.id)
+        applyControlUpdate(updated)
+        await refreshLive()
+    }
+
+    /// Clears a pause or stop and asks the session to continue.
+    func continueSession(_ session: Session) async throws {
+        guard let api else { throw APIError.transport("Not connected to OpenCode") }
+        let updated = try await api.continueSession(id: session.id)
+        applyControlUpdate(updated, running: true)
+        await refreshLive()
+    }
+
+    /// Folds a pause/stop/continue response into the lists without waiting for
+    /// the next poll, so the button state changes immediately.
+    private func applyControlUpdate(_ updated: Session, running: Bool = false) {
+        sessions.removeAll { $0.id == updated.id }
+        sessions.insert(updated, at: 0)
+        sessions = SessionOrdering.mostRecentFirst(sessions)
+        if running {
+            activeIDs.insert(updated.id)
+        } else {
+            activeIDs.remove(updated.id)
+            liveActivity.removeValue(forKey: updated.id)
+            seedAttempts.removeValue(forKey: updated.id)
+        }
+        if selectedSession?.id == updated.id {
+            selectedSession = updated
+        }
+        updateDerivedSession(updated)
+        rebuildDerived()
+    }
+
     /// Retries a failed prompt. `sameSession` resends it in the conversation so
     /// the turn can continue; `newSession` forks before the failed prompt first.
     /// The retry can optionally switch the model and agent.

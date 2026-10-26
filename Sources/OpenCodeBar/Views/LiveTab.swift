@@ -7,6 +7,8 @@ struct LiveTab: View {
     @State private var timeFilter: SessionTimeFilter = .all
     @State private var groupedByTime = false
     @State private var recentLimit = LiveTab.recentPageSize
+    @State private var pauseTarget: Session?
+    @State private var controlError: String?
 
     var body: some View {
         let running = state.runningSessions
@@ -57,20 +59,7 @@ struct LiveTab: View {
                     .transition(.opacity)
                 } else {
                     ForEach(running) { session in
-                        Button {
-                            state.open(session)
-                        } label: {
-                            RunningRow(
-                                session: session,
-                                project: state.projectName(for: session),
-                                activity: state.activity(for: session.id),
-                                subagents: state.activeSubagentCount(for: session.id)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .contentShape(Rectangle())
-                        .help("Show conversation and prompts")
-                        .transition(.recentInsertion)
+                        runningButton(session)
                     }
                 }
             }
@@ -126,11 +115,28 @@ struct LiveTab: View {
             NewSessionSheet()
                 .environmentObject(state)
         }
+        .sheet(item: $pauseTarget) { session in
+            PauseSessionSheet(sessionTitle: session.displayTitle) { until in
+                try await state.pauseSession(session, until: until)
+            }
+        }
+        .alert("Session control failed", isPresented: controlErrorBinding) {
+            Button("OK") { controlError = nil }
+        } message: {
+            Text(controlError ?? "")
+        }
         .onChange(of: activeProjectID) { _, _ in recentLimit = Self.recentPageSize }
         .onChange(of: timeFilter) { _, _ in recentLimit = Self.recentPageSize }
     }
 
     private static let recentPageSize = 20
+
+    private var controlErrorBinding: Binding<Bool> {
+        Binding(
+            get: { controlError != nil },
+            set: { if !$0 { controlError = nil } }
+        )
+    }
 
     /// Reveals the next page of recent rows. The data is already in memory; this
     /// keeps the initial render (and its view tree) small.
@@ -160,15 +166,75 @@ struct LiveTab: View {
     }
 
     private func recentButton(_ session: Session) -> some View {
+        rowButton(session) {
+            RecentRow(session: session, project: state.projectName(for: session))
+        }
+    }
+
+    private func runningButton(_ session: Session) -> some View {
+        rowButton(session) {
+            RunningRow(
+                session: session,
+                project: state.projectName(for: session),
+                activity: state.activity(for: session.id),
+                subagents: state.activeSubagentCount(for: session.id)
+            )
+        }
+    }
+
+    /// A row that opens the session and, when it is running or held, offers
+    /// pause, stop, and continue from the context menu.
+    @ViewBuilder
+    private func rowButton<Content: View>(
+        _ session: Session,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
         Button {
             state.open(session)
         } label: {
-            RecentRow(session: session, project: state.projectName(for: session))
+            content()
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
         .help("Show conversation and prompts")
         .transition(.recentInsertion)
+        .contextMenu {
+            if state.isRunning(session) || session.isHeld {
+                sessionControlMenu(for: session)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sessionControlMenu(for session: Session) -> some View {
+        if session.isHeld {
+            Button {
+                runControl { try await state.continueSession(session) }
+            } label: {
+                Label("Continue", systemImage: "play.fill")
+            }
+            Divider()
+        }
+        Button {
+            pauseTarget = session
+        } label: {
+            Label(session.isPaused ? "Change pause…" : "Pause…", systemImage: "pause.circle")
+        }
+        Button(role: .destructive) {
+            runControl { try await state.stopSession(session) }
+        } label: {
+            Label("Stop", systemImage: "stop.circle")
+        }
+    }
+
+    private func runControl(_ action: @escaping () async throws -> Void) {
+        Task {
+            do {
+                try await action()
+            } catch {
+                controlError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+        }
     }
 
     private func groupHeader(_ title: String) -> some View {

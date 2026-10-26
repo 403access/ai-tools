@@ -18,6 +18,8 @@ struct Session: Codable, Identifiable, Hashable, Sendable {
     var fork: Fork? = nil
     /// Present when this top-level session is managed on the task board.
     var task: SessionTask? = nil
+    /// Present while the user has paused or stopped the session.
+    var control: SessionControl? = nil
     var location: Location
 
     /// The source conversation a fork was copied from.
@@ -47,8 +49,30 @@ struct Session: Codable, Identifiable, Hashable, Sendable {
         var directory: String?
     }
 
+    /// User-held execution state, set by the hub's pause/stop controls.
+    struct SessionControl: Codable, Hashable, Sendable {
+        enum State: String, Codable, Sendable {
+            case paused
+            case stopped
+        }
+
+        var state: State
+        /// Milliseconds since the epoch when the user paused or stopped it.
+        var at: Double
+        /// When a timed pause continues by itself. Absent for a stop.
+        var until: Double?
+
+        var atDate: Date { Date(timeIntervalSince1970: at / 1000) }
+        var untilDate: Date? {
+            until.map { Date(timeIntervalSince1970: $0 / 1000) }
+        }
+    }
+
     var isSubagent: Bool { parentID != nil }
     var isFork: Bool { fork != nil }
+    var isPaused: Bool { control?.state == .paused }
+    var isStopped: Bool { control?.state == .stopped }
+    var isHeld: Bool { control != nil }
     var directory: String? { location.directory }
     var displayTitle: String {
         let t = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -205,6 +229,7 @@ extension SessionTask.Status {
         }
     }
 }
+
 
 // MARK: - Project
 

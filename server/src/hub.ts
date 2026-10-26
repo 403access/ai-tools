@@ -47,6 +47,12 @@ import {
 import { sleep, syncFast as runFastSync, syncMessagesForChanges as runMessageSync, syncNow as runSyncNow, syncSlow as runSlowSync } from "./hub/sync.ts";
 import { CaffeinateSleepGuard, type SleepGuard } from "./hub/sleep.ts";
 import { UsageService } from "./hub/usage.ts";
+import {
+  continueSession as runContinueSession,
+  pauseSession as runPauseSession,
+  resumeDueSessions as runResumeDueSessions,
+  stopSession as runStopSession,
+} from "./hub/control.ts";
 
 export type { EventSink } from "./hub/event-bus.ts";
 export type UsageFetcher = (key: string) => Promise<unknown>;
@@ -80,6 +86,8 @@ export class Hub {
   fastRunning = false;
   fastAgain = false;
   debounce: ReturnType<typeof setTimeout> | null = null;
+  /** Guards automatic and manual continues for the same session. */
+  readonly resuming = new Set<string>();
   lastSessionSignature = "";
   private lastConnectionSignature = "";
   statsInFlight = new Map<string, Promise<Stats | null>>();
@@ -134,8 +142,14 @@ export class Hub {
   private async fastLoop(): Promise<void> {
     while (!this.stopped) {
       await this.syncFast();
+      await this.resumeDueSessions();
       await sleep(this.config.fastPollMs);
     }
+  }
+
+  /** Fires timed pauses whose deadline has passed. */
+  async resumeDueSessions(): Promise<void> {
+    return runResumeDueSessions(this);
   }
 
   private async slowLoop(): Promise<void> {
@@ -385,6 +399,18 @@ export class Hub {
 
   promptSession(id: string, text: string, delivery?: "steer" | "queue"): Promise<unknown> {
     return promptSession(this, id, text, delivery);
+  }
+
+  pauseSession(id: string, until: number): Promise<Session> {
+    return runPauseSession(this, id, until);
+  }
+
+  stopSession(id: string): Promise<Session> {
+    return runStopSession(this, id);
+  }
+
+  continueSession(id: string): Promise<Session> {
+    return runContinueSession(this, id);
   }
 
   pendingInputs(id: string): Promise<SessionPendingItem[]> {

@@ -288,11 +288,12 @@ Follow-ups:
   balance is only retrievable from a console server function (upstream issue:
   "Zen API: expose credit balance in GET /zen/go/v1/usage"). Revisit if the
   endpoint grows a balance field.
-- **Controls: prompt and new sessions are in.** The Chat tab has a composer that
-  sends prompts into the open conversation, and the Live tab (plus a project
-  page on the Mac) can start a new session with an optional first message.
-  Running sessions queue prompts. Still open:
-  - Interrupt / stop a running session: `POST /api/session/{sessionID}/interrupt`.
+- **Controls: prompts, new sessions, and holds are in.** The Chat tab has a
+  composer that sends prompts into the open conversation, and the Live tab
+  (plus a project page on the Mac) can start a new session with an optional
+  first message. Running sessions queue prompts. Sessions can be paused for a
+  duration or a clock time, stopped, and continued from either app; timed
+  pauses fire from the hub and survive a restart. Still open:
   - A steer/queue toggle instead of always queueing while a session runs.
   - Open a session in the TUI or a Terminal window.
   - Add the new-session action to the iOS project detail page; it currently

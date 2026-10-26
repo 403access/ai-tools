@@ -531,3 +531,218 @@ struct ToolFailureList: View {
         .card()
     }
 }
+
+// MARK: - Session execution controls
+
+/// Compact pause/stop badge for session rows.
+struct SessionControlBadge: View {
+    let control: Session.SessionControl
+
+    var body: some View {
+        Chip(
+            text: label,
+            systemImage: control.state == .paused ? "pause.circle.fill" : "stop.circle.fill",
+            tint: control.state == .paused ? Theme.warn : Theme.danger
+        )
+        .help(help)
+    }
+
+    private var label: String {
+        switch control.state {
+        case .paused:
+            guard let until = control.untilDate else { return "Paused" }
+            return "Paused · \(SessionControlFormat.time(until))"
+        case .stopped:
+            return "Stopped"
+        }
+    }
+
+    private var help: String {
+        switch control.state {
+        case .paused:
+            guard let until = control.untilDate else { return "Paused until you continue" }
+            return "Continues automatically \(SessionControlFormat.relative(until))"
+        case .stopped:
+            return "Stopped until you continue"
+        }
+    }
+}
+
+enum SessionControlFormat {
+    /// Clock-style time: just the time today, otherwise a short date and time.
+    static func time(_ date: Date, now: Date = Date()) -> String {
+        if Calendar.current.isDate(date, inSameDayAs: now) {
+            return date.formatted(date: .omitted, time: .shortened)
+        }
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    static func relative(_ date: Date, now: Date = Date()) -> String {
+        let seconds = date.timeIntervalSince(now)
+        if seconds <= 0 { return "now" }
+        switch seconds {
+        case ..<60: return "in under a minute"
+        case ..<3_600: return "in \(Int(seconds / 60))m"
+        case ..<86_400: return "in \(Int(seconds / 3_600))h"
+        default: return "on \(date.formatted(date: .abbreviated, time: .shortened))"
+        }
+    }
+}
+
+/// Clock-style pause picker: continue after a duration, or at a concrete time.
+struct PauseSessionSheet: View {
+    enum Mode: String, CaseIterable, Identifiable {
+        case duration
+        case time
+
+        var id: String { rawValue }
+        var title: String { self == .duration ? "Duration" : "Time" }
+    }
+
+    let sessionTitle: String
+    let onPause: (Date) async throws -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var mode: Mode = .duration
+    @State private var duration: TimeInterval = 30 * 60
+    @State private var isCustomDuration = false
+    @State private var customMinutes = 45
+    @State private var continueAt = Date().addingTimeInterval(60 * 60)
+    @State private var isWorking = false
+    @State private var error: String?
+
+    private static let durations: [TimeInterval] = [
+        5 * 60, 10 * 60, 15 * 60, 30 * 60,
+        60 * 60, 2 * 60 * 60, 4 * 60 * 60, 8 * 60 * 60, 24 * 60 * 60,
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Pause session")
+                    .font(.headline)
+                Text(sessionTitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Picker("Until", selection: $mode) {
+                ForEach(Mode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            if mode == .duration {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 3), spacing: 7) {
+                    ForEach(Self.durations, id: \.self) { value in
+                        ChoiceChip(
+                            title: label(for: value),
+                            isSelected: !isCustomDuration && duration == value,
+                            fontSize: 11
+                        ) {
+                            isCustomDuration = false
+                            duration = value
+                        }
+                    }
+                    ChoiceChip(
+                        title: "Custom",
+                        isSelected: isCustomDuration,
+                        fontSize: 11
+                    ) {
+                        isCustomDuration = true
+                        duration = TimeInterval(customMinutes * 60)
+                    }
+                }
+
+                if isCustomDuration {
+                    Stepper(value: $customMinutes, in: 5...1440, step: 5) {
+                        HStack {
+                            Text("Duration")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(label(for: TimeInterval(customMinutes * 60)))
+                                .font(.caption.weight(.semibold))
+                                .monospacedDigit()
+                        }
+                    }
+                    .onChange(of: customMinutes) { _, minutes in
+                        duration = TimeInterval(minutes * 60)
+                    }
+                }
+            } else {
+                DatePicker(
+                    "Continue at",
+                    selection: $continueAt,
+                    in: Date()...,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .datePickerStyle(.compact)
+            }
+
+            Text("Continues \(summary)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let error {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack {
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button {
+                    Task { await pause() }
+                } label: {
+                    if isWorking {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("Pause")
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(isWorking)
+            }
+        }
+        .padding(16)
+        #if os(macOS)
+        .frame(width: 360)
+        #endif
+    }
+
+    private var until: Date {
+        mode == .duration ? Date().addingTimeInterval(duration) : continueAt
+    }
+
+    private var summary: String {
+        guard mode == .time else { return "+ \(label(for: duration))" }
+        return SessionControlFormat.relative(continueAt)
+    }
+
+    private func label(for value: TimeInterval) -> String {
+        let minutes = Int(value / 60)
+        guard minutes >= 60 else { return "\(minutes)m" }
+        let hours = minutes / 60
+        let rest = minutes % 60
+        return rest == 0 ? "\(hours)h" : "\(hours)h \(rest)m"
+    }
+
+    private func pause() async {
+        isWorking = true
+        error = nil
+        do {
+            try await onPause(until)
+            dismiss()
+        } catch {
+            self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            isWorking = false
+        }
+    }
+}

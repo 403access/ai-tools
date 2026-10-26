@@ -91,6 +91,19 @@ export function rowToSession(row: Row): Session {
     }
     session.fork = fork;
   }
+  const stoppedAt = optionalNumber(row.stopped_at);
+  const pausedAt = optionalNumber(row.paused_at);
+  if (stoppedAt !== undefined) {
+    session.control = { state: "stopped", at: stoppedAt };
+  } else if (pausedAt !== undefined) {
+    const control: NonNullable<Session["control"]> = {
+      state: "paused",
+      at: pausedAt,
+    };
+    const until = optionalNumber(row.paused_until);
+    if (until !== undefined) control.until = until;
+    session.control = control;
+  }
   const taskCreated = optionalNumber(row.task_created);
   if (taskCreated !== undefined) {
     session.task = buildSessionTask({

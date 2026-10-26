@@ -505,6 +505,45 @@ extension HubAPI {
         )
     }
 
+    /// Interrupts the session and holds it until `until`. The hub continues it
+    /// automatically at that time.
+    func pauseSession(id: String, until: Date) async throws -> Session {
+        struct Body: Encodable { var until: Double }
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let data = try await send(
+            "/api/session/\(encoded)/pause",
+            method: "POST",
+            body: try JSONEncoder().encode(Body(until: until.timeIntervalSince1970 * 1000))
+        )
+        do {
+            return try Self.decoder.decode(SessionEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    /// Interrupts the session and holds it until the user continues it.
+    func stopSession(id: String) async throws -> Session {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let data = try await send("/api/session/\(encoded)/stop", method: "POST")
+        do {
+            return try Self.decoder.decode(SessionEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    /// Clears a pause or stop and sends `continue` into the conversation.
+    func continueSession(id: String) async throws -> Session {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let data = try await send("/api/session/\(encoded)/continue", method: "POST")
+        do {
+            return try Self.decoder.decode(SessionEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     /// Copies history before `before` into a new child session. Omitting it
     /// copies the full history.
     func forkSession(id: String, before: String?) async throws -> Session {

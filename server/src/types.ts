@@ -39,6 +39,21 @@ export interface SessionFork {
   boundary?: SessionForkBoundary;
 }
 
+/**
+ * User-held execution state. `paused` continues automatically at `until`;
+ * `stopped` waits for the user to press Continue.
+ */
+export type SessionControlState = "paused" | "stopped";
+
+/** User control over a session's current execution. */
+export interface SessionControl {
+  state: SessionControlState;
+  /** Milliseconds since the epoch when the user paused or stopped it. */
+  at: number;
+  /** Milliseconds since the epoch when a timed pause continues by itself. */
+  until?: number;
+}
+
 /** Board state for a session that users manage as a task. */
 export type TaskStatus = "working" | "review" | "done" | "dismissed";
 
@@ -78,6 +93,8 @@ export interface Session {
   fork?: SessionFork;
   /** Present when this top-level session is managed on the task board. */
   task?: SessionTask;
+  /** Present while the user has paused or stopped the session. */
+  control?: SessionControl;
   location: { directory?: string };
 }
 
