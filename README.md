@@ -14,8 +14,8 @@ app — a resizable window with a persistent sidebar — or **right-click** (or
 control-click) for the compact panel with **live** activity, a full **session**
 view, per-project **analytics**, and a **usage** overview. The desktop window
 can also be turned on from **Settings → App → Desktop window** and is
-remembered across launches. The iOS app has the same areas — Live, Projects,
-Usage, Host, VMs, and Settings — adapted for touch, with the same dark panel
+remembered across launches. The iOS app has the same areas — Tasks, Live,
+Projects, Usage, Host, VMs, and Settings — adapted for touch, with the same dark panel
 design and a floating tab dock. **Host** switches between the System inventory
 and Remote desktop, so the phone can also watch and control the Mac's screen.
 Its Appearance setting can follow the system or stay dark/light. Both apps can
@@ -58,6 +58,22 @@ iOS app:
 - The window can also be toggled from **Settings → App → Desktop window** and
   is remembered across launches. Closing the window returns to menu-bar-only
   mode; left-clicking the icon opens it again.
+
+**Tasks**
+- The first tab is a project-management board built from sessions. Every new
+  top-level session becomes a task; running work shows as **In progress**, and
+  finishing, stopping, or failing it moves the task to **Needs review**.
+- Mark a task **done**, reopen it, dismiss it, or open the conversation and send
+  another prompt — which reopens the task automatically.
+- Tasks are labelled from the request with no model call: type (**Bug**,
+  **Feature**, **Refactor**, **Tests**, **Docs**, **Performance**, **Security**,
+  **Chore**, or **Question**), scope (**Product**, **Technical**, or
+  **Infrastructure**), and a risk hint such as **Security-sensitive**,
+  **Data loss**, or **Breaking change**. Filters switch between review, in
+  progress, done, and every task, and **New task** starts a session directly
+  from the board.
+- The board is stored on the hub and synced to both apps, so resolving a task on
+  the Mac updates the phone.
 
 **Live**
 - Running sessions update in real time via OpenCode's SSE event stream, with new
@@ -385,7 +401,8 @@ The hub:
    `/api/project/{id}/changes`, `/api/project/{id}/files`,
    `/api/project/{id}/git`, `/api/project/{id}/icon`,
    `/api/experimental/session/stats` — plus
-   `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`), `/api/usage`,
+   `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`),
+   `/api/task` (`GET`), `/api/task/{id}` (`PATCH`), `/api/usage`,
    `/api/health`, `/api/system`, `/api/system/apps/icon`,
    `/api/system/apps/detail`, `/api/system/apps/action` (`POST`),
    `/api/terminals` (`GET`/`POST`),

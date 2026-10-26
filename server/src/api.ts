@@ -897,6 +897,29 @@ export function createHandler(
         return json(activeResponse(db));
       }
 
+      if (pathname === "/api/task" && request.method === "GET") {
+        const data = db.getTasks(
+          intParam(url.searchParams.get("limit"), 500, 1, 5_000),
+          url.searchParams.get("project") ?? undefined,
+        );
+        return json({ data });
+      }
+
+      if (parts[0] === "api" && parts[1] === "task" && parts.length === 3) {
+        if (request.method !== "PATCH") return error("Method not allowed", 405);
+        const id = decodeURIComponent(parts[2]!);
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+        const status = body.status;
+        if (status !== "open" && status !== "done" && status !== "dismissed") {
+          return error("status must be one of open, done, or dismissed", 400);
+        }
+        const task = db.setTaskStatus(id, status);
+        if (!task) return error("Session not found", 404);
+        hub.broadcast({ type: "hub.sessions", data: { id, at: Date.now() } });
+        return json({ data: task });
+      }
+
       if (pathname === "/api/model" && request.method === "GET") {
         return json({ data: await hub.models(url.searchParams.get("directory") ?? undefined) });
       }

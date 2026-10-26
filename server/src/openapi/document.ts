@@ -18,6 +18,7 @@ import { SCHEMAS } from "./schemas.ts";
 const TAGS = [
   { name: "Health", description: "Liveness, version, and connection health." },
   { name: "Sessions", description: "Cached OpenCode sessions, messages, prompts, and stats." },
+  { name: "Tasks", description: "Session-backed task board with automatic labels and review state." },
   { name: "Projects", description: "Projects, aggregated changes, files, and icons." },
   { name: "Events & sync", description: "Live Server-Sent Events and the incremental sync feed." },
   { name: "Usage", description: "Go plan usage windows and global statistics." },

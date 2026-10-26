@@ -181,6 +181,12 @@ final class MobileStore: ObservableObject {
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
     @Published var hubError: String?
+    /// Top-level sessions the hub tracks on the task board. This is separate
+    /// from `sessions` because the board keeps resolved work that no longer
+    /// fits in the live window.
+    @Published var tasks: [Session] = []
+    @Published var tasksFetchedAt: Date?
+    @Published var tasksError: String?
     /// Derived feeds, rebuilt once per refresh instead of on every read.
     @Published var runningSessions: [Session] = []
     @Published var recentSessions: [Session] = []
@@ -213,6 +219,7 @@ final class MobileStore: ObservableObject {
     var eventStreamConnected = false
     var isRefreshingUsage = false
     var isRefreshingHealth = false
+    var isRefreshingTasks = false
     var isPaused = false
 
     init(settings: HubSettingsStore) {
@@ -338,6 +345,9 @@ final class MobileStore: ObservableObject {
         lastUpdated = nil
         statsFetchedAt = nil
         hubError = nil
+        tasks = []
+        tasksFetchedAt = nil
+        tasksError = nil
         eventStreamConnected = false
         seedAttempts = [:]
         seeding = []
@@ -362,6 +372,9 @@ final class MobileStore: ObservableObject {
         AppIconCache.persistence = nil
         refreshingProjectIcons = []
         cachedRevision = 0
+        tasks = []
+        tasksFetchedAt = nil
+        tasksError = nil
         connection = .disabled
         hubHealth = nil
         DevLog.shared.record("Hub configuration removed", category: .app)
@@ -403,6 +416,8 @@ final class MobileStore: ObservableObject {
         if !snapshot.sessions.isEmpty {
             let ordered = SessionOrdering.mostRecentFirst(snapshot.sessions)
             sessions = ordered
+            let cachedTasks = snapshot.sessions.filter { $0.task != nil }
+            if !cachedTasks.isEmpty { tasks = sortedTasks(cachedTasks) }
         }
         projects = Dictionary(
             snapshot.projects.map { ($0.id, $0) },

@@ -35,6 +35,7 @@ import {
 } from "./db/projects.ts";
 import { migrate } from "./db/schema.ts";
 import { getActiveSessionIDs, getForks as getSessionForks, getSession, getSessions, markActive, setActive, updateSessionUsage, upsertSessions, type SessionQuery } from "./db/sessions.ts";
+import { recordTaskPrompt, setTaskStatus } from "./db/tasks.ts";
 import { getSessionStats } from "./db/sessionStats.ts";
 import { counts, getStats, getUsage, putStats, putUsage, putUsageError, type CachedStats, type CachedUsage } from "./db/stats.ts";
 import { getSync } from "./db/sync.ts";
@@ -141,6 +142,18 @@ export class HubDB implements ChangeLog {
 
   getSession(id: string): Session | null {
     return getSession(this.db, id);
+  }
+
+  getTasks(limit = 500, project?: string): Session[] {
+    return getSessions(this.db, { tasksOnly: true, limit, project });
+  }
+
+  setTaskStatus(id: string, status: "open" | "done" | "dismissed", now = Date.now()): Session | null {
+    return setTaskStatus(this.db, this, id, status, now);
+  }
+
+  recordTaskPrompt(id: string, prompt: string, now = Date.now()): void {
+    recordTaskPrompt(this.db, this, id, prompt, now);
   }
 
   getForks(sessionID: string, limit = 50): Session[] {

@@ -233,6 +233,46 @@ export const PATHS = {
     },
   },
 
+  "/api/task": {
+    get: {
+      tags: ["Tasks"],
+      summary: "List board tasks",
+      description:
+        "Top-level sessions the hub tracks as tasks, newest first. Each carries a derived `task.status` and automatic labels.",
+      operationId: "listTasks",
+      parameters: [
+        queryParam("limit", "Maximum tasks to return (1–5000). Defaults to 500.", {
+          type: "integer", minimum: 1, maximum: 5000, default: 500,
+        }),
+        queryParam("project", "Filter by project id."),
+      ],
+      responses: {
+        200: ok(schemaRef("SessionsResponse")),
+        401: unauthorized,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/task/{id}": {
+    patch: {
+      tags: ["Tasks"],
+      summary: "Resolve a task",
+      description:
+        "Marks a task done, reopens it, or dismisses it. Sending another prompt into the session also reopens it.",
+      operationId: "updateTask",
+      parameters: [pathParam("id", "Session id of the task.")],
+      requestBody: jsonBody(schemaRef("TaskStatusUpdateRequest")),
+      responses: {
+        200: ok(schemaRef("SessionResponse")),
+        400: badRequest,
+        401: unauthorized,
+        404: notFound,
+        default: failure,
+      },
+    },
+  },
+
   "/api/model": {
     get: {
       tags: ["Sessions"],

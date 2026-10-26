@@ -12,7 +12,8 @@ extension AppState {
         async let stats: Void = refreshStats(force: true)
         async let history: Void = refreshHistory(force: true)
         async let usage: Void = refreshGoUsage()
-        _ = await (live, stats, history, usage)
+        async let tasks: Void = refreshTasks(force: true)
+        _ = await (live, stats, history, usage, tasks)
         DevLog.shared.sync(
             "Full refresh",
             detail: DevLog.durationText(Date().timeIntervalSince(started))
@@ -104,6 +105,9 @@ extension AppState {
         }
 
         seedActivities()
+        if tab == .tasks {
+            await refreshTasks()
+        }
     }
 
     /// Loads the System tab's snapshot. The hub caches expensive sections, so

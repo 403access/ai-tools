@@ -39,6 +39,29 @@ export interface SessionFork {
   boundary?: SessionForkBoundary;
 }
 
+/** Board state for a session that users manage as a task. */
+export type TaskStatus = "working" | "review" | "done" | "dismissed";
+
+/** What a label describes. The clients use this to group and colour chips. */
+export type TaskLabelKind = "type" | "scope" | "risk";
+
+/** One automatically derived label, such as Bug or Technical. */
+export interface TaskLabel {
+  id: string;
+  title: string;
+  kind: TaskLabelKind;
+}
+
+/** Task metadata attached to a session once it enters the task board. */
+export interface SessionTask {
+  status: TaskStatus;
+  labels: TaskLabel[];
+  /** Milliseconds since the epoch when the hub began tracking this task. */
+  createdAt: number;
+  /** Set after the user marked the task done or dismissed. */
+  doneAt?: number;
+}
+
 export interface Session {
   id: string;
   parentID?: string;
@@ -53,6 +76,8 @@ export interface Session {
   subpath?: string;
   /** Present when OpenCode created this session as a fork of another one. */
   fork?: SessionFork;
+  /** Present when this top-level session is managed on the task board. */
+  task?: SessionTask;
   location: { directory?: string };
 }
 

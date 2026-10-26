@@ -29,6 +29,7 @@ struct OpenCodeBarMobileApp: App {
 
 struct RootView: View {
     enum Tab: String, CaseIterable, Identifiable {
+        case tasks
         case live
         case projects
         case usage
@@ -40,6 +41,7 @@ struct RootView: View {
 
         var title: String {
             switch self {
+            case .tasks: return "Tasks"
             case .live: return "Live"
             case .projects: return "Projects"
             case .usage: return "Usage"
@@ -51,6 +53,7 @@ struct RootView: View {
 
         var icon: String {
             switch self {
+            case .tasks: return "checklist"
             case .live: return "dot.radiowaves.left.and.right"
             case .projects: return "folder.fill"
             case .usage: return "chart.bar.fill"
@@ -69,16 +72,21 @@ struct RootView: View {
     @EnvironmentObject private var store: MobileStore
     @EnvironmentObject private var router: MobileRouter
     @Environment(\.scenePhase) private var scenePhase
-    /// The custom dock's selection. It includes VMs, which sits outside the
-    /// five-item `TabView` so UIKit does not wrap the sixth item in “More”.
-    @State private var selection: Tab = .live
+    /// The custom dock's selection. It includes Usage and VMs, which sit
+    /// outside the five-item `TabView` so UIKit does not wrap the sixth item in
+    /// “More”. The system tab bar itself stays hidden.
+    @State private var selection: Tab = .tasks
     /// The five tabs owned by the system `TabView`.
-    @State private var tabSelection: Tab = .live
+    @State private var tabSelection: Tab = .tasks
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
                 TabView(selection: $tabSelection) {
+                    TasksView()
+                        .toolbar(.hidden, for: .tabBar)
+                        .tag(Tab.tasks)
+
                     LiveView()
                         .toolbar(.hidden, for: .tabBar)
                         .tag(Tab.live)
@@ -86,10 +94,6 @@ struct RootView: View {
                     ProjectsView()
                         .toolbar(.hidden, for: .tabBar)
                         .tag(Tab.projects)
-
-                    UsageView()
-                        .toolbar(.hidden, for: .tabBar)
-                        .tag(Tab.usage)
 
                     HostView()
                         .toolbar(.hidden, for: .tabBar)
@@ -99,8 +103,13 @@ struct RootView: View {
                         .toolbar(.hidden, for: .tabBar)
                         .tag(Tab.settings)
                 }
-                .opacity(selection == .vms ? 0 : 1)
-                .allowsHitTesting(selection != .vms)
+                .opacity(selection == .usage || selection == .vms ? 0 : 1)
+                .allowsHitTesting(selection != .usage && selection != .vms)
+
+                if selection == .usage {
+                    UsageView()
+                        .transition(.opacity)
+                }
 
                 if selection == .vms {
                     VirtualMachinesView()
@@ -115,9 +124,11 @@ struct RootView: View {
         }
         .background { MobileTheme.background.ignoresSafeArea() }
         .onChange(of: selection) { _, newValue in
-            // Keep the hidden TabView on the last non-VM tab so returning to
+            // Keep the hidden TabView on the last system tab so returning to
             // it preserves its navigation stack and scroll position.
-            if newValue != .vms { tabSelection = newValue }
+            if newValue != .usage && newValue != .vms {
+                tabSelection = newValue
+            }
         }
         .task { store.start() }
         .task {
@@ -133,7 +144,7 @@ struct RootView: View {
         .onOpenURL { url in
             if settings.applyPairingLink(url.absoluteString) {
                 store.reconnect()
-                selection = .live
+                selection = .tasks
                 return
             }
             if router.handle(url) {
@@ -164,7 +175,7 @@ struct MobileTabBar: View {
     /// to the tab selection itself also animated the whole destination tab
     /// (charts, materials, live rows) during every switch, which made tab
     /// changes feel slow on device.
-    @State private var highlighted: RootView.Tab = .live
+    @State private var highlighted: RootView.Tab = .tasks
 
     var body: some View {
         HStack(spacing: 3) {

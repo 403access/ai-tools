@@ -15,6 +15,10 @@ final class MobileRouter: ObservableObject {
         guard url.scheme?.lowercased() == "opencodebar" else { return false }
 
         switch url.host?.lowercased() {
+        case "tasks":
+            requestedTab = .tasks
+            return true
+
         case "live":
             requestedTab = .live
             return true

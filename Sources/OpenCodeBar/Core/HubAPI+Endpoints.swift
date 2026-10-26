@@ -364,6 +364,29 @@ extension HubAPI {
         return components.string ?? endpoint
     }
 
+    /// Top-level sessions the hub manages on the task board. Each one carries
+    /// `task.status` and automatically derived labels.
+    func tasks(limit: Int = 500) async throws -> [Session] {
+        let response: SessionsResponse = try await get("/api/task?limit=\(limit)")
+        return response.data
+    }
+
+    /// Marks a task done, reopens it, or dismisses it.
+    func updateTask(id: String, status: String) async throws -> Session {
+        struct Body: Encodable { var status: String }
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let data = try await send(
+            "/api/task/\(encoded)",
+            method: "PATCH",
+            body: try JSONEncoder().encode(Body(status: status))
+        )
+        do {
+            return try Self.decoder.decode(SessionEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     func activeSessionIDs() async throws -> [String] {
         let response: ActiveSessionsResponse = try await get("/api/session/active")
         return Array(response.data.keys)

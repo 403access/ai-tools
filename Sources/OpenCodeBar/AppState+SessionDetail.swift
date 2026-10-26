@@ -62,6 +62,7 @@ extension AppState {
         sessionStack.removeAll()
         selectedSession = session
         await refreshLive()
+        await refreshTasks(force: true)
         return session
     }
 
@@ -75,6 +76,7 @@ extension AppState {
         guard let api else { throw APIError.transport("Not connected to OpenCode") }
         try await api.promptSession(id: id, text: text, delivery: delivery)
         activeIDs.insert(id)
+        noteTaskPrompt(id: id)
         rebuildDerived()
         await refreshLive()
         await loadPending(id, force: true)
@@ -113,6 +115,7 @@ extension AppState {
         sessions.insert(target, at: 0)
         sessions = SessionOrdering.mostRecentFirst(sessions)
         activeIDs.insert(target.id)
+        noteTaskPrompt(id: target.id)
         if destination == .newSession, var list = forkLists[session.id] {
             list.sessions.removeAll { $0.id == target.id }
             list.sessions.insert(target, at: 0)

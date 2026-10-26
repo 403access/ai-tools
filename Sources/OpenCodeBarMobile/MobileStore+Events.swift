@@ -28,6 +28,15 @@ extension MobileStore {
         if event.type == "hub.stats" {
             Task { await refreshStats(force: true) }
         }
+        // Task resolutions and a session going idle both change the board's
+        // derived status, so refresh it only once the user has opened it.
+        if event.type == "hub.sessions"
+            || event.type == "session.idle"
+            || event.type == "session.deleted" {
+            if tasksFetchedAt != nil {
+                Task { await refreshTasks(force: true) }
+            }
+        }
 
         if let id = event.sessionID {
             switch event.type {

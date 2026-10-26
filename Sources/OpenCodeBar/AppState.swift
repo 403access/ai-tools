@@ -21,6 +21,7 @@ final class AppState: ObservableObject {
     }
 
     enum Tab: String, CaseIterable, Identifiable {
+        case tasks = "Tasks"
         case live = "Live"
         case usage = "Usage"
         case projects = "Projects"
@@ -31,6 +32,7 @@ final class AppState: ObservableObject {
         var id: String { rawValue }
         var icon: String {
             switch self {
+            case .tasks: return "checklist"
             case .live: return "dot.radiowaves.left.and.right"
             case .usage: return "chart.bar.xaxis"
             case .projects: return "folder"
@@ -157,11 +159,16 @@ final class AppState: ObservableObject {
     }
 
     @Published var connection: Connection = .connecting
-    @Published var tab: Tab = .live
+    @Published var tab: Tab = .tasks
     @Published var sessions: [Session] = []
     /// Full session history, refreshed on the slow cycle. The live list only
     /// holds the newest sessions; the trend charts need the older ones too.
     @Published var history: [Session] = []
+    /// Sessions the hub tracks on the task board, including older resolved work
+    /// that no longer fits in the live window.
+    @Published var tasks: [Session] = []
+    @Published var tasksFetchedAt: Date?
+    @Published var tasksError: String?
     @Published var activeIDs: Set<String> = []
     @Published var projects: [String: Project] = [:]
     /// The project's own app icon, discovered by the hub. Missing entries fall
@@ -331,6 +338,7 @@ final class AppState: ObservableObject {
     var discovering = false
     var started = false
     var isRefreshingUsage = false
+    var isRefreshingTasks = false
     var historyFetchedAt: Date?
     /// Sessions whose activity is currently being seeded from messages.
     var seeding: Set<String> = []

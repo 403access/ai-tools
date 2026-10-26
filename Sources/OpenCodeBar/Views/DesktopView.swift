@@ -104,7 +104,12 @@ struct DesktopView: View {
                 Text(state.tab.rawValue)
                     .font(.system(size: 13, weight: .semibold))
                 Spacer(minLength: 4)
-                if state.tab == .live, state.activeCount > 0 {
+                if state.tab == .tasks, state.reviewTaskCount > 0 {
+                    Text("\(state.reviewTaskCount) to review")
+                        .font(.system(size: 10, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.warn)
+                } else if state.tab == .live, state.activeCount > 0 {
                     Text("\(state.activeCount) active")
                         .font(.system(size: 10, weight: .semibold))
                         .monospacedDigit()
@@ -133,6 +138,8 @@ struct DesktopView: View {
     @ViewBuilder
     private var activeTab: some View {
         switch state.tab {
+        case .tasks:
+            TasksTab()
         case .live:
             LiveTab()
         case .usage:
@@ -250,7 +257,15 @@ private struct DesktopSidebar: View {
                         Text(tab.rawValue)
                             .font(.system(size: 12, weight: .medium))
                         Spacer(minLength: 4)
-                        if tab == .live, state.activeCount > 0 {
+                        if tab == .tasks, state.reviewTaskCount > 0 {
+                            Text("\(state.reviewTaskCount)")
+                                .font(.system(size: 10, weight: .bold))
+                                .monospacedDigit()
+                                .foregroundStyle(Theme.warn)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(Theme.warn.opacity(0.14)))
+                        } else if tab == .live, state.activeCount > 0 {
                             Text("\(state.activeCount)")
                                 .font(.system(size: 10, weight: .bold))
                                 .monospacedDigit()

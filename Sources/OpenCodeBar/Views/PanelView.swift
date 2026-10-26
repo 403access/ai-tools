@@ -42,6 +42,8 @@ struct PanelView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         switch state.tab {
+                        case .tasks:
+                            TasksTab()
                         case .live:
                             LiveTab()
                         case .usage:

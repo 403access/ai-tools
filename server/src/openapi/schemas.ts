@@ -114,6 +114,37 @@ export const SCHEMAS = {
     },
   },
 
+  TaskLabel: {
+    type: "object",
+    required: ["id", "title", "kind"],
+    properties: {
+      id: { type: "string", example: "bug" },
+      title: { type: "string", example: "Bug" },
+      kind: {
+        type: "string",
+        enum: ["type", "scope", "risk"],
+        description: "What the label describes. Clients group and colour chips by this.",
+      },
+    },
+  },
+
+  SessionTask: {
+    type: "object",
+    required: ["status", "labels", "createdAt"],
+    description:
+      "Task-board state for a top-level session. `status` is derived: running sessions are working, finished ones wait for review until resolved, and sending another prompt reopens a done task.",
+    properties: {
+      status: { type: "string", enum: ["working", "review", "done", "dismissed"] },
+      labels: {
+        type: "array",
+        items: { $ref: "#/components/schemas/TaskLabel" },
+        description: "Automatically derived hints such as Bug, Technical, or Breaking change.",
+      },
+      createdAt: timestamp,
+      doneAt: { ...timestamp, description: "Set when the task was marked done or dismissed." },
+    },
+  },
+
   Session: {
     type: "object",
     required: ["id", "projectID", "cost", "tokens", "time"],
@@ -130,6 +161,7 @@ export const SCHEMAS = {
       title: string,
       subpath: string,
       fork: { $ref: "#/components/schemas/SessionFork" },
+      task: { $ref: "#/components/schemas/SessionTask" },
       location: {
         type: "object",
         properties: { directory: string },
@@ -858,6 +890,20 @@ export const SCHEMAS = {
       title: "Fix the build",
       location: { directory: "/Users/you/src/app" },
     },
+  },
+
+  TaskStatusUpdateRequest: {
+    type: "object",
+    required: ["status"],
+    properties: {
+      status: {
+        type: "string",
+        enum: ["open", "done", "dismissed"],
+        description:
+          "`open` clears the resolution so the task waits for review again; `done` accepts the result; `dismissed` hides an unusable task without calling it done.",
+      },
+    },
+    example: { status: "done" },
   },
 
   PromptRequest: {

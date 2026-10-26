@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { backfillToolCalls } from "./messages.ts";
 import { number, type Row } from "./rows.ts";
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 export function migrate(db: Database): void {
   const version = number((db.query("PRAGMA user_version").get() as Row | null)?.user_version);
@@ -205,5 +205,46 @@ export function migrate(db: Database): void {
         ON sessions(fork_session_id, updated DESC);
     `);
     db.exec("PRAGMA user_version = 7;");
+  }
+
+  if (version < 8) {
+    // Task-board state lives on the session row so it rides the existing sync
+    // feed to every device. Labels are derived on read; only the raw signals
+    // (and the user's resolution) need to be stored.
+    for (const column of [
+      "task_created REAL",
+      "task_status TEXT",
+      "task_done_at REAL",
+      "task_context TEXT",
+    ]) {
+      try {
+        db.exec(`ALTER TABLE sessions ADD COLUMN ${column};`);
+      } catch {
+        // A partially applied migration may already have added this column.
+      }
+    }
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS sessions_task
+        ON sessions(task_created, updated DESC);
+    `);
+
+    const now = Date.now();
+    db.prepare("INSERT OR IGNORE INTO meta (key, value) VALUES ('task_epoch', ?)").run(String(now));
+    // Give the board sensible content on first launch instead of an empty
+    // tab: adopt running sessions and anything active in the last three days.
+    // Older history stays out of the board.
+    db.prepare(
+      `UPDATE sessions
+       SET task_created = updated, task_status = 'open'
+       WHERE task_created IS NULL
+         AND parent_id IS NULL
+         AND (active = 1 OR updated >= ?)`,
+    ).run(now - 3 * 24 * 60 * 60 * 1000);
+    db.exec("PRAGMA user_version = 8;");
   }
 }

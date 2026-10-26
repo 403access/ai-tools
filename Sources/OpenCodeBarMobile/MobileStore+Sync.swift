@@ -9,7 +9,8 @@ extension MobileStore {
         async let live: Void = refreshLive()
         async let stats: Void = refreshStats(force: true)
         async let usage: Void = refreshUsage(force: true)
-        _ = await (live, stats, usage)
+        async let tasks: Void = refreshTasks()
+        _ = await (live, stats, usage, tasks)
         DevLog.shared.sync(
             "Full refresh",
             detail: DevLog.durationText(Date().timeIntervalSince(started))
@@ -133,6 +134,9 @@ extension MobileStore {
         if activeChanged { database?.setActive(response.active) }
 
         pruneActivity()
+        if sessionsChanged {
+            mergeTaskUpdates(response.full ? sessions : response.sessions)
+        }
         if sessionsChanged || projectsChanged || activeChanged {
             rebuildDerived()
         }

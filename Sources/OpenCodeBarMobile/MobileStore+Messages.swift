@@ -54,6 +54,7 @@ extension MobileStore {
         database?.upsertSessions([session])
         rebuildDerived()
         await refreshLive()
+        await refreshTasks(force: true)
         return session
     }
 
@@ -67,6 +68,7 @@ extension MobileStore {
         guard let api else { throw APIError.transport("Not connected to the hub") }
         try await api.promptSession(id: id, text: text, delivery: delivery)
         activeIDs.insert(id)
+        noteTaskPrompt(id: id)
         rebuildDerived()
         await refreshLive()
         await loadPending(id, force: true)
@@ -105,6 +107,7 @@ extension MobileStore {
         sessions.insert(target, at: 0)
         sessions = SessionOrdering.mostRecentFirst(sessions)
         activeIDs.insert(target.id)
+        noteTaskPrompt(id: target.id)
         if destination == .newSession, var list = forkLists[session.id] {
             list.sessions.removeAll { $0.id == target.id }
             list.sessions.insert(target, at: 0)

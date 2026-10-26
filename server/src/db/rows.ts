@@ -1,4 +1,5 @@
 import { ZERO_TOKENS, type Project, type Session, type SessionMessage, type TokenUsage } from "../types.ts";
+import { buildSessionTask } from "./taskLabels.ts";
 
 export type Row = Record<string, unknown>;
 
@@ -89,6 +90,18 @@ export function rowToSession(row: Row): Session {
       }
     }
     session.fork = fork;
+  }
+  const taskCreated = optionalNumber(row.task_created);
+  if (taskCreated !== undefined) {
+    session.task = buildSessionTask({
+      active: number(row.active) === 1,
+      stored: text(row.task_status),
+      doneAt: optionalNumber(row.task_done_at),
+      createdAt: taskCreated,
+      updated: number(row.updated),
+      title,
+      context: text(row.task_context),
+    });
   }
   return session;
 }

@@ -183,6 +183,7 @@ export async function promptSession(
   if (!client) throw new OpenCodeError("OpenCode is offline", 503);
 
   const result = await client.promptSession(id, text, delivery);
+  hub.db.recordTaskPrompt(id, text);
   hub.db.markActive(id, true);
   hub.broadcast({ type: "hub.sessions", data: { at: Date.now() } });
   return result;

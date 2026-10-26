@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { ZERO_TOKENS, type Session, type TokenUsage } from "../types.ts";
+import { taskEpoch } from "./meta.ts";
 import type { ChangeLog } from "./projects.ts";
 import { number, optionalNumber, rowToSession, type Row } from "./rows.ts";
 
@@ -11,6 +12,8 @@ export interface SessionQuery {
   active?: boolean;
   order?: "asc" | "desc";
   q?: string;
+  /** Only sessions that the user manages on the task board. */
+  tasksOnly?: boolean;
 }
 
 export function upsertSessions(
@@ -23,8 +26,8 @@ export function upsertSessions(
     INSERT INTO sessions (
       id, parent_id, project_id, agent, model, cost, tokens, outcome,
       created, updated, idle, viewed, archived, title, subpath, directory,
-      fork_session_id, fork_boundary, active, synced_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+      fork_session_id, fork_boundary, active, task_created, task_status, synced_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       parent_id = excluded.parent_id,
       project_id = excluded.project_id,
@@ -63,7 +66,12 @@ export function upsertSessions(
        OR sessions.fork_boundary IS NOT COALESCE(excluded.fork_boundary, sessions.fork_boundary)
   `);
   const run = db.transaction((items: Session[]) => {
+    const epoch = taskEpoch(db);
     for (const session of items) {
+      // Only top-level sessions created after the task board was installed
+      // become tasks. Subagents are implementation detail, and older history
+      // stays out of the board unless the user prompts it through the hub.
+      const tracked = !session.parentID && number(session.time?.created) >= epoch;
       const result = insert.run(
         session.id,
         session.parentID ?? null,
@@ -83,6 +91,8 @@ export function upsertSessions(
         session.location?.directory ?? null,
         session.fork?.sessionID ?? null,
         session.fork?.boundary ? JSON.stringify(session.fork.boundary) : null,
+        tracked ? now : null,
+        tracked ? "open" : null,
         now,
       );
       // `changes` is zero when the WHERE clause skipped an identical row, so
@@ -141,6 +151,9 @@ export function getSessions(db: Database, query: SessionQuery = {}): Session[] {
   }
   if (query.active) {
     where.push("active = 1");
+  }
+  if (query.tasksOnly) {
+    where.push("task_created IS NOT NULL");
   }
   if (query.q?.trim()) {
     where.push("(title LIKE ? OR directory LIKE ?)");

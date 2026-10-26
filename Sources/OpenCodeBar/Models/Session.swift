@@ -16,6 +16,8 @@ struct Session: Codable, Identifiable, Hashable, Sendable {
     var subpath: String?
     /// Present when OpenCode created this session as a fork of another one.
     var fork: Fork? = nil
+    /// Present when this top-level session is managed on the task board.
+    var task: SessionTask? = nil
     var location: Location
 
     /// The source conversation a fork was copied from.
@@ -64,6 +66,143 @@ struct Session: Codable, Identifiable, Hashable, Sendable {
 
     var hasFailureOutcome: Bool {
         outcome == "failed" || outcome == "interrupted"
+    }
+}
+
+// MARK: - Task board
+
+/// One automatically derived hint such as Bug, Technical, or Breaking change.
+struct TaskLabel: Codable, Hashable, Identifiable, Sendable {
+    var id: String
+    var title: String
+    /// `type`, `scope`, or `risk`. Clients colour and group chips by this.
+    var kind: String
+}
+
+/// Task-board state attached to a top-level session by the hub. The status is
+/// derived: running sessions are working, finished ones wait for review, and a
+/// new prompt reopens a resolved task.
+struct SessionTask: Codable, Hashable, Sendable {
+    enum Status: String, Codable, CaseIterable, Sendable {
+        case working
+        case review
+        case done
+        case dismissed
+
+        init(from decoder: Decoder) throws {
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            self = Status(rawValue: raw) ?? .review
+        }
+    }
+
+    var status: Status
+    var labels: [TaskLabel] = []
+    /// Milliseconds since the epoch when the hub began tracking this task.
+    var createdAt: Double?
+    /// Set when the user marked the task done or dismissed.
+    var doneAt: Double?
+
+    var doneDate: Date? {
+        doneAt.map { Date(timeIntervalSince1970: $0 / 1000) }
+    }
+}
+
+/// Which slice of the task board a view is showing.
+enum TaskBoardFilter: String, CaseIterable, Identifiable, Sendable {
+    case review
+    case working
+    case done
+    case all
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .review: return "Needs review"
+        case .working: return "In progress"
+        case .done: return "Done"
+        case .all: return "All tasks"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .review: return "Review"
+        case .working: return "Working"
+        case .done: return "Done"
+        case .all: return "All"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .review: return "sparkle.magnifyingglass"
+        case .working: return "bolt.fill"
+        case .done: return "checkmark.circle.fill"
+        case .all: return "square.stack.3d.up"
+        }
+    }
+
+    func matches(_ status: SessionTask.Status) -> Bool {
+        switch self {
+        case .review: return status == .review
+        case .working: return status == .working
+        case .done: return status == .done
+        case .all: return true
+        }
+    }
+}
+
+extension Session {
+    var taskStatus: SessionTask.Status? { task?.status }
+
+    var isFinishedTask: Bool {
+        guard let status = task?.status else { return false }
+        return status == .review || status == .done
+    }
+}
+
+extension TaskLabel {
+    /// SF Symbol used by both clients for this automatic label.
+    var systemImage: String {
+        switch id {
+        case "bug": return "ladybug.fill"
+        case "feature": return "sparkles"
+        case "refactor": return "arrow.triangle.2.circlepath"
+        case "tests": return "testtube.2"
+        case "docs": return "doc.text"
+        case "performance": return "speedometer"
+        case "security": return "lock.shield.fill"
+        case "chore": return "wrench.and.screwdriver.fill"
+        case "question": return "questionmark.circle"
+        case "product": return "person.crop.rectangle"
+        case "technical": return "chevron.left.forwardslash.chevron.right"
+        case "infrastructure": return "server.rack"
+        case "security-sensitive": return "exclamationmark.shield.fill"
+        case "data-loss": return "externaldrive.badge.exclamationmark"
+        case "breaking-change": return "exclamationmark.triangle.fill"
+        default: return "tag"
+        }
+    }
+}
+
+extension SessionTask.Status {
+    var title: String {
+        switch self {
+        case .working: return "In progress"
+        case .review: return "Needs review"
+        case .done: return "Done"
+        case .dismissed: return "Dismissed"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .working: return "bolt.fill"
+        case .review: return "sparkle.magnifyingglass"
+        case .done: return "checkmark.circle.fill"
+        case .dismissed: return "eye.slash.fill"
+        }
     }
 }
 
