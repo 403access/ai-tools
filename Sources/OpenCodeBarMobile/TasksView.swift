@@ -3,16 +3,25 @@ import UIKit
 
 /// Project-management board for sessions. New top-level sessions become tasks,
 /// running ones are in progress, and finished ones wait in review until the
-/// user accepts them or sends another prompt.
+/// user accepts them or sends another prompt. Rotating a phone to landscape
+/// swaps the scrolling list for a three-column kanban so every status stays in
+/// view at once.
 struct TasksView: View {
     @EnvironmentObject private var settings: HubSettingsStore
     @EnvironmentObject private var store: MobileStore
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var path = NavigationPath()
     @State private var filter: TaskBoardFilter = .review
     @State private var showingNewSession = false
     @State private var sessionToOpen: Session?
 
     private let sectionOrder: [SessionTask.Status] = [.review, .working, .done, .dismissed]
+    /// Dismissed tasks stay out of the kanban. The board is for work that is
+    /// still on the user's plate; dismissed rows remain available in portrait's
+    /// All filter.
+    private let kanbanOrder: [SessionTask.Status] = [.review, .working, .done]
+
+    private var isLandscape: Bool { verticalSizeClass == .compact }
 
     var body: some View {
         let connection = store.connection
@@ -25,6 +34,8 @@ struct TasksView: View {
                         SetupPrompt()
                             .padding(16)
                     }
+                } else if isLandscape {
+                    kanban
                 } else {
                     content
                 }
@@ -122,6 +133,161 @@ struct TasksView: View {
         }
     }
 
+    // MARK: - Landscape kanban
+
+    private var kanban: some View {
+        Group {
+            if let error = store.tasksError, store.tasks.isEmpty {
+                VStack(spacing: 0) {
+                    NoticeRow(icon: "exclamationmark.triangle", message: error, tint: Theme.warn)
+                    Spacer(minLength: 0)
+                }
+                .padding(16)
+            } else if store.tasks.isEmpty {
+                if store.tasksFetchedAt == nil {
+                    ScrollView {
+                        SessionListSkeleton(count: 3, showsActivity: true)
+                            .shimmering()
+                            .padding(16)
+                    }
+                } else {
+                    VStack(spacing: 0) {
+                        EmptyState(
+                            icon: "checklist",
+                            title: "No tasks yet",
+                            subtitle: "New sessions become tasks. Finished work lands here for review."
+                        )
+                        Spacer(minLength: 0)
+                    }
+                    .padding(16)
+                }
+            } else {
+                board
+            }
+        }
+    }
+
+    private var board: some View {
+        GeometryReader { proxy in
+            let columnWidth = kanbanColumnWidth(available: proxy.size.width)
+            let columnHeight = max(140, proxy.size.height - 24)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(kanbanOrder, id: \.self) { status in
+                        kanbanColumn(
+                            status: status,
+                            width: columnWidth,
+                            height: columnHeight
+                        )
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+        }
+    }
+
+    private func kanbanColumnWidth(available: CGFloat) -> CGFloat {
+        let spacing: CGFloat = 12
+        let horizontalPadding: CGFloat = 16
+        // Aim to show review, working, and done side by side. Very narrow
+        // phones (or large text) fall back to horizontal scrolling.
+        let fitted = (available - horizontalPadding * 2 - spacing * 2) / 3
+        return min(max(fitted, 220), 340)
+    }
+
+    private func kanbanColumn(
+        status: SessionTask.Status,
+        width: CGFloat,
+        height: CGFloat
+    ) -> some View {
+        let sessions = store.tasks.filter { $0.taskStatus == status }
+        let ids = sessions.map(\.id)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: status.icon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(tint(for: status))
+                Text(status.title.uppercased())
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(0.7)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(sessions.count)")
+                    .font(.caption2.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(status == .review && !sessions.isEmpty ? Theme.warn : .secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+            }
+            .padding(.horizontal, 2)
+
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    if sessions.isEmpty {
+                        emptyColumn(status)
+                    } else {
+                        ForEach(sessions) { session in
+                            MobileTaskCard(
+                                session: session,
+                                project: store.projectName(for: session),
+                                compact: true,
+                                onOpen: { path.append(session) }
+                            )
+                            .transition(.recentInsertion)
+                        }
+                    }
+                }
+                .padding(.bottom, 2)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .padding(8)
+        .frame(width: width, height: height, alignment: .top)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.primary.opacity(0.035))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
+        )
+        .animateRecentInsertion(ids: ids)
+    }
+
+    private func emptyColumn(_ status: SessionTask.Status) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: status.icon)
+                .font(.system(size: 16, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text("No tasks")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 22)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(
+                    Color.primary.opacity(0.08),
+                    style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                )
+        )
+    }
+
+    private func tint(for status: SessionTask.Status) -> Color {
+        switch status {
+        case .review: return Theme.warn
+        case .working: return Theme.running
+        case .done: return Theme.accent
+        case .dismissed: return .secondary
+        }
+    }
+
     private var filters: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
@@ -199,26 +365,34 @@ private struct MobileTaskCard: View {
     @EnvironmentObject private var store: MobileStore
     let session: Session
     let project: String
+    /// Narrower card used inside the landscape kanban columns. The column
+    /// header already carries the status, so the card drops its icon and status
+    /// line to keep the title, metadata, and action from wrapping.
+    var compact = false
     let onOpen: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            HStack(alignment: .top, spacing: 10) {
-                statusIcon
+            HStack(alignment: .top, spacing: compact ? 6 : 10) {
+                if !compact {
+                    statusIcon
+                }
                 details
                 Spacer(minLength: 4)
                 menu
             }
 
             HStack(spacing: 8) {
-                Text(session.taskStatus?.title ?? "Task")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(statusTint)
+                if !compact {
+                    Text(session.taskStatus?.title ?? "Task")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(statusTint)
+                }
                 Spacer(minLength: 4)
                 primaryAction
             }
         }
-        .card(padding: 12)
+        .card(padding: compact ? 10 : 12)
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
         .accessibilityAction(named: Text("Open conversation"), onOpen)
@@ -241,23 +415,30 @@ private struct MobileTaskCard: View {
                 Text(relativeTime)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                if session.hasFailureOutcome {
-                    Chip(
-                        text: session.outcomeLabel,
-                        systemImage: "exclamationmark.triangle.fill",
-                        tint: Theme.danger
-                    )
+                    .lineLimit(1)
+                if !compact, session.hasFailureOutcome {
+                    failureChip
                 }
             }
 
+            // Narrow kanban cards put the failure badge on its own line so the
+            // project and relative time keep a full line.
+            if compact, session.hasFailureOutcome {
+                failureChip
+            }
+
             if let labels = session.task?.labels, !labels.isEmpty {
+                let visible = compact ? Array(labels.prefix(2)) : labels
                 HStack(spacing: 4) {
-                    ForEach(labels) { label in
+                    ForEach(visible) { label in
                         Chip(
                             text: label.title,
                             systemImage: label.systemImage,
                             tint: tint(for: label)
                         )
+                    }
+                    if compact, labels.count > visible.count {
+                        Chip(text: "+\(labels.count - visible.count)", tint: .secondary)
                     }
                 }
             }
@@ -348,6 +529,15 @@ private struct MobileTaskCard: View {
             return "Done \(Fmt.relative(from: done))"
         }
         return Fmt.relative(from: session.time.updatedDate)
+    }
+
+    private var failureChip: some View {
+        Chip(
+            text: session.outcomeLabel,
+            systemImage: "exclamationmark.triangle.fill",
+            tint: Theme.danger
+        )
+        .fixedSize()
     }
 
     private var statusTint: Color {
