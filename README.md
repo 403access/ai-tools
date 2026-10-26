@@ -82,8 +82,9 @@ iOS app:
   progress, and the number of running subagents — alongside a pulsing indicator,
   project, model, agent, live cost, elapsed time, and token count.
 - Recent sessions with project, model, relative time, cost, and tokens. Filter
-  the list by project and by date (all time, today, last 7 days, or last 30
-  days), or group it by day (today, yesterday, previous 7 days, and so on).
+  the list by project, by date (all time, today, last 7 days, or last 30 days),
+  or by status (finished, failed, or interrupted), or group it by day (today,
+  yesterday, previous 7 days, and so on).
 - Click any session to open its details: the full conversation with the newest
   message first, a prompts-only list with copy buttons, and expandable reasoning
   and tool calls. The view keeps updating while the session runs and pages back

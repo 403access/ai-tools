@@ -31,6 +31,7 @@ final class SessionFilterTests: XCTestCase {
     private func session(
         _ id: String,
         projectID: String = "project-a",
+        outcome: String? = nil,
         updated: Date
     ) -> Session {
         Session(
@@ -41,7 +42,7 @@ final class SessionFilterTests: XCTestCase {
             model: nil,
             cost: 0,
             tokens: .zero,
-            outcome: nil,
+            outcome: outcome,
             time: Session.Time(
                 created: updated.timeIntervalSince1970 * 1_000,
                 updated: updated.timeIntervalSince1970 * 1_000,
@@ -255,5 +256,52 @@ final class SessionFilterTests: XCTestCase {
         )
 
         XCTAssertEqual(filtered.map(\.id), ["ses_recent"])
+    }
+
+    func testStatusFilterMatchesTerminalOutcome() {
+        let finished = session("ses_finished", updated: now)
+        let failed = session("ses_failed", outcome: "failed", updated: now)
+        let interrupted = session("ses_interrupted", outcome: "interrupted", updated: now)
+        let sessions = [finished, failed, interrupted]
+
+        func ids(_ status: SessionStatusFilter) -> [String] {
+            SessionFiltering.apply(
+                to: sessions,
+                projectID: nil,
+                time: .all,
+                status: status,
+                projects: [:],
+                now: now,
+                calendar: calendar
+            ).map(\.id)
+        }
+
+        XCTAssertEqual(ids(.all), ["ses_finished", "ses_failed", "ses_interrupted"])
+        XCTAssertEqual(ids(.finished), ["ses_finished"])
+        XCTAssertEqual(ids(.failed), ["ses_failed"])
+        XCTAssertEqual(ids(.interrupted), ["ses_interrupted"])
+    }
+
+    func testStatusFilterCombinesWithProjectAndTime() {
+        let projects = ["project-a": project("project-a", canonical: "/repo/one")]
+        let failedRecent = session("ses_failed_recent", outcome: "failed", updated: now)
+        let failedOld = session(
+            "ses_failed_old",
+            outcome: "failed",
+            updated: date(year: 2026, month: 8, day: 1)
+        )
+        let finishedRecent = session("ses_finished_recent", updated: now)
+
+        let filtered = SessionFiltering.apply(
+            to: [failedRecent, failedOld, finishedRecent],
+            projectID: "project-a",
+            time: .week,
+            status: .failed,
+            projects: projects,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(filtered.map(\.id), ["ses_failed_recent"])
     }
 }

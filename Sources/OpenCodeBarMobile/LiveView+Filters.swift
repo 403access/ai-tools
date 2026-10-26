@@ -39,6 +39,7 @@ extension LiveView {
             to: store.recentSessions,
             projectID: activeProjectID,
             time: timeFilter,
+            status: statusFilter,
             projects: store.projects
         )
     }
@@ -65,7 +66,7 @@ extension LiveView {
     }
 
     var filtersActive: Bool {
-        activeProjectID != nil || timeFilter != .all
+        activeProjectID != nil || timeFilter != .all || statusFilter != .all
     }
 
     var projectFilterMenu: some View {
@@ -120,6 +121,26 @@ extension LiveView {
         }
         .accessibilityLabel("Filter by date")
         .accessibilityValue(timeFilter.title)
+    }
+
+    var statusFilterMenu: some View {
+        Menu {
+            ForEach(SessionStatusFilter.allCases) { option in
+                Button {
+                    statusFilter = option
+                } label: {
+                    if option == statusFilter {
+                        Label(option.title, systemImage: "checkmark")
+                    } else {
+                        Text(option.title)
+                    }
+                }
+            }
+        } label: {
+            filterChip(icon: "flag", title: statusFilter.shortTitle)
+        }
+        .accessibilityLabel("Filter by status")
+        .accessibilityValue(statusFilter.title)
     }
 
     func filterChip(icon: String, title: String) -> some View {

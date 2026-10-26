@@ -5,6 +5,7 @@ struct LiveTab: View {
     @State private var showingNewSession = false
     @State private var selectedProjectID: String?
     @State private var timeFilter: SessionTimeFilter = .all
+    @State private var statusFilter: SessionStatusFilter = .all
     @State private var groupedByTime = false
     @State private var recentLimit = LiveTab.recentPageSize
     @State private var pauseTarget: Session?
@@ -70,6 +71,7 @@ struct LiveTab: View {
                     HStack(spacing: 5) {
                         projectFilterMenu
                         timeFilterMenu
+                        statusFilterMenu
                         groupingToggle
                     }
                 }
@@ -82,7 +84,7 @@ struct LiveTab: View {
                         icon: filtersActive ? "line.3.horizontal.decrease.circle" : "clock",
                         title: filtersActive ? "No matching sessions" : "No recent sessions",
                         subtitle: filtersActive
-                            ? "Try another project or date range."
+                            ? "Try another project, date range, or status."
                             : "Your session history will show up here."
                     )
                     .transition(.opacity)
@@ -127,6 +129,7 @@ struct LiveTab: View {
         }
         .onChange(of: activeProjectID) { _, _ in recentLimit = Self.recentPageSize }
         .onChange(of: timeFilter) { _, _ in recentLimit = Self.recentPageSize }
+        .onChange(of: statusFilter) { _, _ in recentLimit = Self.recentPageSize }
     }
 
     private static let recentPageSize = 20
@@ -288,6 +291,7 @@ struct LiveTab: View {
             to: state.recentSessions,
             projectID: activeProjectID,
             time: timeFilter,
+            status: statusFilter,
             projects: state.projects
         )
     }
@@ -314,7 +318,7 @@ struct LiveTab: View {
     }
 
     private var filtersActive: Bool {
-        activeProjectID != nil || timeFilter != .all
+        activeProjectID != nil || timeFilter != .all || statusFilter != .all
     }
 
     private var projectFilterMenu: some View {
@@ -375,6 +379,29 @@ struct LiveTab: View {
         .help("Filter by date")
         .accessibilityLabel("Filter by date")
         .accessibilityValue(timeFilter.title)
+    }
+
+    private var statusFilterMenu: some View {
+        Menu {
+            ForEach(SessionStatusFilter.allCases) { option in
+                Button {
+                    statusFilter = option
+                } label: {
+                    if option == statusFilter {
+                        Label(option.title, systemImage: "checkmark")
+                    } else {
+                        Text(option.title)
+                    }
+                }
+            }
+        } label: {
+            filterChip(icon: "flag", title: statusFilter.shortTitle)
+        }
+        .fixedSize()
+        .controlSize(.small)
+        .help("Filter by status")
+        .accessibilityLabel("Filter by status")
+        .accessibilityValue(statusFilter.title)
     }
 
     private func filterChip(icon: String, title: String) -> some View {

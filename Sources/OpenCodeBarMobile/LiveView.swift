@@ -9,6 +9,7 @@ struct LiveView: View {
     @State private var sessionToOpen: Session?
     @State var selectedProjectID: String?
     @State var timeFilter: SessionTimeFilter = .all
+    @State var statusFilter: SessionStatusFilter = .all
     @State var groupedByTime = false
     @State private var recentLimit = LiveView.recentPageSize
     @State private var scrollToTopTrigger = 0
@@ -172,6 +173,7 @@ struct LiveView: View {
             }
             .onChange(of: activeProjectID) { _, _ in recentLimit = Self.recentPageSize }
             .onChange(of: timeFilter) { _, _ in recentLimit = Self.recentPageSize }
+            .onChange(of: statusFilter) { _, _ in recentLimit = Self.recentPageSize }
             .onChange(of: scrollToTopTrigger) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) {
                     proxy.scrollTo(topAnchor, anchor: .top)
@@ -237,6 +239,7 @@ struct LiveView: View {
                 HStack(spacing: 6) {
                     projectFilterMenu
                     timeFilterMenu
+                    statusFilterMenu
                     groupingToggle
                 }
             }
@@ -250,7 +253,7 @@ struct LiveView: View {
                         icon: filtersActive ? "line.3.horizontal.decrease.circle" : "clock",
                         title: filtersActive ? "No matching sessions" : "No recent sessions",
                         subtitle: filtersActive
-                            ? "Try another project or date range."
+                            ? "Try another project, date range, or status."
                             : "Your session history will show up here."
                     )
                     .transition(.opacity)

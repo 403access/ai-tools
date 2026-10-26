@@ -52,6 +52,45 @@ enum SessionTimeFilter: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Terminal-state filters for the recent session feed. Running sessions live in
+/// their own section, so these only describe how a session ended.
+enum SessionStatusFilter: String, CaseIterable, Identifiable, Sendable {
+    case all
+    case finished
+    case failed
+    case interrupted
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all: return "All statuses"
+        case .finished: return "Finished"
+        case .failed: return "Failed"
+        case .interrupted: return "Interrupted"
+        }
+    }
+
+    /// Compact label for the filter chip in a section header.
+    var shortTitle: String {
+        switch self {
+        case .all: return "Status"
+        case .finished: return "Finished"
+        case .failed: return "Failed"
+        case .interrupted: return "Interrupted"
+        }
+    }
+
+    func matches(_ session: Session) -> Bool {
+        switch self {
+        case .all: return true
+        case .finished: return !session.hasFailureOutcome
+        case .failed: return session.outcome == "failed"
+        case .interrupted: return session.outcome == "interrupted"
+        }
+    }
+}
+
 /// Day-based buckets for grouping the recent session feed. Boundaries are
 /// counted in whole calendar days so rows do not drift between groups while
 /// the clock moves through the day.
@@ -146,6 +185,7 @@ enum SessionFiltering {
         to sessions: [Session],
         projectID: String?,
         time: SessionTimeFilter,
+        status: SessionStatusFilter = .all,
         projects: [String: Project],
         now: Date = Date(),
         calendar: Calendar = .current
@@ -155,7 +195,10 @@ enum SessionFiltering {
                !matchesProject(session, projectID: projectID, projects: projects) {
                 return false
             }
-            return time.contains(session.time.updatedDate, now: now, calendar: calendar)
+            guard time.contains(session.time.updatedDate, now: now, calendar: calendar) else {
+                return false
+            }
+            return status.matches(session)
         }
     }
 
