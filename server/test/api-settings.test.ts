@@ -17,6 +17,36 @@ describe("hub settings API", () => {
     expect(settings.eventThrottleMs).toBe(250);
     expect(settings.preventSleep).toBe(true);
     expect(settings.preventSleepSupported).toBe(true);
+    expect(settings.maxConcurrentAgents).toBe(0);
+    expect(settings.maxConcurrentAgentsMax).toBe(16);
+    db.close();
+  });
+
+  test("clamps and persists the concurrent agent limit", async () => {
+    let persisted: HubConfig | null = null;
+    const { handler, db, hub } = setup({}, {
+      persistSettings: (config) => {
+        persisted = config;
+      },
+    });
+
+    const response = await handler(request("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ maxConcurrentAgents: 3 }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect((await body<SettingsResponse>(response)).data.maxConcurrentAgents).toBe(3);
+    expect(hub.config.maxConcurrentAgents).toBe(3);
+    expect(persisted!.maxConcurrentAgents).toBe(3);
+
+    const clamped = await handler(request("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ maxConcurrentAgents: 500 }),
+    }));
+    expect((await body<SettingsResponse>(clamped)).data.maxConcurrentAgents).toBe(16);
     db.close();
   });
 

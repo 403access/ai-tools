@@ -305,6 +305,39 @@ extension MobileStore {
         }
     }
 
+    /// Limits how many agent sessions the hub runs at once. Extra prompts wait
+    /// in the task board's queued column.
+    func updateMaxConcurrentAgents(_ count: Int) async {
+        guard let api else { return }
+        guard !isUpdatingSettings else { return }
+        let previous = serverSettings
+        if var optimistic = serverSettings {
+            optimistic.maxConcurrentAgents = count
+            serverSettings = optimistic
+        }
+        isUpdatingSettings = true
+        defer { isUpdatingSettings = false }
+        do {
+            serverSettings = try await api.updateSettings(maxConcurrentAgents: count)
+            settingsError = nil
+            DevLog.shared.record(
+                "Concurrency limit updated",
+                category: .app,
+                detail: count == 0 ? "Unlimited" : "\(count)"
+            )
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            serverSettings = previous
+            settingsError = message
+            DevLog.shared.record(
+                "Concurrency limit update failed",
+                category: .app,
+                level: .error,
+                detail: message
+            )
+        }
+    }
+
     /// Keeps the hub host awake so the phone's connection survives an idle Mac.
     func updatePreventSleep(_ enabled: Bool) async {
         guard let api else { return }

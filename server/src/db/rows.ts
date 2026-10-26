@@ -114,6 +114,9 @@ export function rowToSession(row: Row): Session {
       updated: number(row.updated),
       title,
       context: text(row.task_context),
+      queuedAt: optionalNumber(row.queued_at),
+      queuedUntil: optionalNumber(row.queued_until),
+      queuedPrompt: text(row.queued_prompt),
     });
   }
   return session;

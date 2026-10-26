@@ -79,14 +79,20 @@ extension HubAPI {
     /// are left unchanged.
     func updateSettings(
         eventThrottleMs: Int? = nil,
-        preventSleep: Bool? = nil
+        preventSleep: Bool? = nil,
+        maxConcurrentAgents: Int? = nil
     ) async throws -> ServerSettings {
         struct Body: Encodable {
             var eventThrottleMs: Int?
             var preventSleep: Bool?
+            var maxConcurrentAgents: Int?
         }
         let body = try JSONEncoder().encode(
-            Body(eventThrottleMs: eventThrottleMs, preventSleep: preventSleep)
+            Body(
+                eventThrottleMs: eventThrottleMs,
+                preventSleep: preventSleep,
+                maxConcurrentAgents: maxConcurrentAgents
+            )
         )
         let data = try await send("/api/settings", method: "PATCH", body: body)
         do {
@@ -525,14 +531,24 @@ extension HubAPI {
 
     /// Sends a prompt into an existing session. If the session is running,
     /// `delivery` decides whether the message waits or steers the current turn.
-    func promptSession(id: String, text: String, delivery: PromptDelivery? = nil) async throws {
+    func promptSession(
+        id: String,
+        text: String,
+        delivery: PromptDelivery? = nil,
+        startAt: Date? = nil
+    ) async throws {
         struct Body: Encodable {
             var text: String
             var delivery: PromptDelivery?
+            var startAt: Double?
         }
 
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
-        let body = Body(text: text, delivery: delivery)
+        let body = Body(
+            text: text,
+            delivery: delivery,
+            startAt: startAt.map { $0.timeIntervalSince1970 * 1000 }
+        )
         _ = try await send(
             "/api/session/\(encoded)/prompt",
             method: "POST",
@@ -572,6 +588,28 @@ extension HubAPI {
     func continueSession(id: String) async throws -> Session {
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         let data = try await send("/api/session/\(encoded)/continue", method: "POST")
+        do {
+            return try Self.decoder.decode(SessionEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    /// Sends a queued task's stored prompt immediately.
+    func startQueuedTask(id: String) async throws -> Session {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let data = try await send("/api/session/\(encoded)/queue/start", method: "POST")
+        do {
+            return try Self.decoder.decode(SessionEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    /// Removes a queued prompt without starting it.
+    func cancelQueuedTask(id: String) async throws -> Session {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let data = try await send("/api/session/\(encoded)/queue", method: "DELETE")
         do {
             return try Self.decoder.decode(SessionEnvelope.self, from: data).data
         } catch {

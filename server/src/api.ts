@@ -1,5 +1,6 @@
 import {
   clampEventThrottle,
+  clampMaxConcurrentAgents,
   HUB_VERSION,
   lanAddresses,
   type HubConfig,
@@ -45,7 +46,7 @@ import {
   HostTerminalService,
   type HostTerminalStore,
 } from "./host-terminals.ts";
-import { MAX_PAUSE_MS } from "./hub/control.ts";
+import { MAX_PAUSE_MS, MAX_QUEUE_MS } from "./hub/control.ts";
 import { eventStream } from "./api/event-stream.ts";
 import { docsResponse, openApiResponse } from "./api/docs.ts";
 import {
@@ -175,8 +176,12 @@ export function createHandler(
 
           const hasThrottle = body.eventThrottleMs !== undefined;
           const hasSleep = body.preventSleep !== undefined;
-          if (!hasThrottle && !hasSleep) {
-            return error("Provide eventThrottleMs or preventSleep", 400);
+          const hasConcurrency = body.maxConcurrentAgents !== undefined;
+          if (!hasThrottle && !hasSleep && !hasConcurrency) {
+            return error(
+              "Provide eventThrottleMs, preventSleep, or maxConcurrentAgents",
+              400,
+            );
           }
 
           if (hasThrottle) {
@@ -195,6 +200,14 @@ export function createHandler(
               return error("preventSleep must be a boolean", 400);
             }
             hub.setPreventSleep(value);
+          }
+
+          if (hasConcurrency) {
+            const value = body.maxConcurrentAgents;
+            if (typeof value !== "number" || !Number.isFinite(value)) {
+              return error("maxConcurrentAgents must be a number", 400);
+            }
+            hub.setMaxConcurrentAgents(clampMaxConcurrentAgents(value));
           }
 
           persistSettings?.(config);
@@ -1055,7 +1068,58 @@ export function createHandler(
             delivery = body.delivery;
           }
 
-          return json(await hub.promptSession(id, text, delivery));
+          const now = Date.now();
+          let startAt: number | undefined;
+          if (typeof body.startAt === "number" && Number.isFinite(body.startAt)) {
+            startAt = body.startAt;
+          } else if (typeof body.forMs === "number" && Number.isFinite(body.forMs)) {
+            if (body.forMs <= 0) return error("forMs must be positive", 400);
+            startAt = now + body.forMs;
+          }
+          if (startAt !== undefined) {
+            if (startAt - now > MAX_QUEUE_MS) {
+              return error("Start time must be within 30 days", 400);
+            }
+            // A start time in the past means "now".
+            if (startAt <= now) startAt = undefined;
+          }
+
+          return json(await hub.promptSession(id, text, delivery, { startAt }));
+        }
+
+        if (parts.length === 4 && parts[3] === "queue") {
+          if (request.method === "DELETE") {
+            return json({ data: await hub.cancelQueuedSession(id) });
+          }
+          if (request.method !== "POST") return error("Method not allowed", 405);
+          const body = await readJSONBody(request);
+          if (!body) return error("Expected a JSON body", 400);
+          const text = typeof body.prompt === "string" ? body.prompt.trim() : "";
+          if (!text) return error("prompt is required", 400);
+
+          const now = Date.now();
+          const rawStart = body.startAt;
+          const rawFor = body.forMs;
+          let startAt: number | undefined;
+          if (typeof rawStart === "number" && Number.isFinite(rawStart)) {
+            startAt = rawStart;
+          } else if (typeof rawFor === "number" && Number.isFinite(rawFor)) {
+            if (rawFor <= 0) return error("forMs must be positive", 400);
+            startAt = now + rawFor;
+          }
+          if (startAt !== undefined) {
+            if (startAt <= now) startAt = undefined;
+            else if (startAt - now > MAX_QUEUE_MS) {
+              return error("Start time must be within 30 days", 400);
+            }
+          }
+
+          return json({ data: await hub.queueSession(id, text, startAt) });
+        }
+
+        if (parts.length === 5 && parts[3] === "queue" && parts[4] === "start") {
+          if (request.method !== "POST") return error("Method not allowed", 405);
+          return json({ data: await hub.startQueuedSession(id) });
         }
 
         if (parts.length === 4 && parts[3] === "pause") {

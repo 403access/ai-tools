@@ -22,9 +22,28 @@ struct NewSessionSheet: View {
         var label: String { self == .folder ? "Current folder" : "Git worktree" }
     }
 
+    private enum StartMode: String, CaseIterable, Identifiable {
+        case now
+        case in15
+        case in60
+        case custom
+
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .now: return "Now"
+            case .in15: return "15m"
+            case .in60: return "1h"
+            case .custom: return "Time"
+            }
+        }
+    }
+
     @State private var directory: String
     @State private var title = ""
     @State private var prompt = ""
+    @State private var startMode: StartMode = .now
+    @State private var customStart = Date().addingTimeInterval(60 * 60)
     @State private var source: Source = .existing
     @State private var workspace: Workspace = .folder
     @State private var repositoryURL = ""
@@ -93,6 +112,7 @@ struct NewSessionSheet: View {
 
     private var canSubmit: Bool {
         guard !isWorking else { return false }
+        if scheduledStart != nil, trimmedPrompt.isEmpty { return false }
         switch source {
         case .existing:
             guard !trimmedDirectory.isEmpty else { return false }
@@ -100,6 +120,28 @@ struct NewSessionSheet: View {
         case .clone:
             return !trimmedRepositoryURL.isEmpty && !trimmedParentDirectory.isEmpty
         }
+    }
+
+    private var trimmedPrompt: String {
+        prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Non-nil when the first message should wait for a later start time. The
+    /// hub still queues it behind the concurrency limit when that is reached.
+    private var scheduledStart: Date? {
+        switch startMode {
+        case .now: return nil
+        case .in15: return Date().addingTimeInterval(15 * 60)
+        case .in60: return Date().addingTimeInterval(60 * 60)
+        case .custom: return max(customStart, Date().addingTimeInterval(60))
+        }
+    }
+
+    private var startHint: String {
+        guard let scheduledStart else {
+            return "The first message starts immediately unless the hub is already running its maximum number of agents."
+        }
+        return "Queued to start \(SessionControlFormat.relative(scheduledStart)). It starts sooner if a slot frees."
     }
 
     private var actionTitle: String {
@@ -344,6 +386,37 @@ struct NewSessionSheet: View {
                     .disabled(isWorking)
             }
 
+            VStack(alignment: .leading, spacing: 5) {
+                Text("START")
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.7)
+                    .foregroundStyle(.secondary)
+
+                Picker("Start", selection: $startMode) {
+                    ForEach(StartMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .disabled(isWorking)
+
+                if startMode == .custom {
+                    DatePicker(
+                        "Start at",
+                        selection: $customStart,
+                        in: Date()...,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                    .datePickerStyle(.compact)
+                }
+
+                Text(startHint)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if isCreatingWorktree {
                 HStack(spacing: 6) {
                     ProgressView()
@@ -497,9 +570,13 @@ struct NewSessionSheet: View {
                 createdSession = session
             }
 
-            let message = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = trimmedPrompt
             if !message.isEmpty {
-                try await state.promptSession(id: session.id, text: message)
+                try await state.promptSession(
+                    id: session.id,
+                    text: message,
+                    startAt: scheduledStart
+                )
             }
             dismiss()
         } catch {

@@ -28,6 +28,10 @@ extension AppState {
         }
     }
 
+    var queuedTasks: [Session] {
+        tasks.filter { $0.taskStatus == .queued }
+    }
+
     var reviewTasks: [Session] {
         tasks.filter { $0.taskStatus == .review }
     }
@@ -46,6 +50,8 @@ extension AppState {
         switch filter {
         case .all:
             return tasks
+        case .queued:
+            return queuedTasks
         case .review:
             return reviewTasks
         case .working:
@@ -65,6 +71,39 @@ extension AppState {
 
     func dismissTask(_ session: Session) async {
         await setTaskStatus(session, status: .dismissed)
+    }
+
+    /// Sends a queued task's stored prompt now, even when the hub is at its
+    /// concurrency limit.
+    func startQueuedTask(_ session: Session) async {
+        guard let api else {
+            tasksError = "Not connected to the hub"
+            return
+        }
+        do {
+            let updated = try await api.startQueuedTask(id: session.id)
+            storeTaskSession(updated)
+            tasksError = nil
+            await refreshLive()
+        } catch {
+            tasksError = message(for: error)
+        }
+    }
+
+    /// Drops a queued prompt. The task returns to review unless it was already
+    /// running.
+    func cancelQueuedTask(_ session: Session) async {
+        guard let api else {
+            tasksError = "Not connected to the hub"
+            return
+        }
+        do {
+            let updated = try await api.cancelQueuedTask(id: session.id)
+            storeTaskSession(updated)
+            tasksError = nil
+        } catch {
+            tasksError = message(for: error)
+        }
     }
 
     /// Updates a task immediately so the board responds without waiting for the
@@ -97,7 +136,7 @@ extension AppState {
         switch status {
         case .done: wireStatus = "done"
         case .dismissed: wireStatus = "dismissed"
-        case .working, .review: wireStatus = "open"
+        case .queued, .working, .review: wireStatus = "open"
         }
 
         do {
@@ -138,10 +177,11 @@ extension AppState {
 
     private func rank(_ status: SessionTask.Status) -> Int {
         switch status {
-        case .review: return 0
-        case .working: return 1
-        case .done: return 2
-        case .dismissed: return 3
+        case .queued: return 0
+        case .review: return 1
+        case .working: return 2
+        case .done: return 3
+        case .dismissed: return 4
         }
     }
 

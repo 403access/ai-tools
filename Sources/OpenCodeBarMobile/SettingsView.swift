@@ -26,6 +26,7 @@ struct SettingsView: View {
                 appearanceSection
                 statusSection
                 powerSection
+                agentsSection
                 connectionSection
                 pairingSection
                 howToSection

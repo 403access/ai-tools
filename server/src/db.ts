@@ -36,14 +36,19 @@ import {
 import { migrate } from "./db/schema.ts";
 import {
   clearSessionControl,
+  clearSessionQueue,
+  countActiveSessions,
   getActiveSessionIDs,
+  isSessionActive,
   getDuePauses,
+  getDueQueuedSessions,
   getForks as getSessionForks,
   getSession,
   getSessions,
   markActive,
   setActive,
   setSessionPause,
+  setSessionQueue,
   setSessionStop,
   updateSessionUsage,
   upsertSessions,
@@ -160,6 +165,26 @@ export class HubDB implements ChangeLog {
 
   getDuePauses(now = Date.now()): Array<{ id: string; until: number }> {
     return getDuePauses(this.db, now);
+  }
+
+  setSessionQueue(id: string, prompt: string, until?: number, now = Date.now()): boolean {
+    return setSessionQueue(this.db, this, id, prompt, until, now);
+  }
+
+  clearSessionQueue(id: string, now = Date.now()): boolean {
+    return clearSessionQueue(this.db, this, id, now);
+  }
+
+  getDueQueuedSessions(now = Date.now()): Array<{ id: string; prompt: string; until?: number }> {
+    return getDueQueuedSessions(this.db, now);
+  }
+
+  countActiveSessions(): number {
+    return countActiveSessions(this.db);
+  }
+
+  isSessionActive(id: string): boolean {
+    return isSessionActive(this.db, id);
   }
 
   updateSessionUsage(id: string, cost: number | undefined, tokens: TokenUsage | undefined, now = Date.now()): void {

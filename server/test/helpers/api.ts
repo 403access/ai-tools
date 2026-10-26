@@ -46,6 +46,7 @@ export function config(overrides: Partial<HubConfig> = {}): HubConfig {
     // Tests assert deliveries directly, so keep the default un-throttled.
     eventThrottleMs: 0,
     preventSleep: false,
+    maxConcurrentAgents: 0,
     logLevel: "warn",
     ...overrides,
   };

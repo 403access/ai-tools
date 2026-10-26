@@ -14,12 +14,24 @@ struct TasksView: View {
     @State private var filter: TaskBoardFilter = .review
     @State private var showingNewSession = false
     @State private var sessionToOpen: Session?
+    /// Done tasks are reference only, so they stay out of the board (and its
+    /// landscape columns) until the user asks for them.
+    @AppStorage("tasks.showDone") private var showDone = false
 
-    private let sectionOrder: [SessionTask.Status] = [.review, .working, .done, .dismissed]
+    private let sectionOrder: [SessionTask.Status] = [
+        .queued, .review, .working, .done, .dismissed,
+    ]
+
+    private var visibleSections: [SessionTask.Status] {
+        sectionOrder.filter { showDone || $0 != .done }
+    }
+
     /// Dismissed tasks stay out of the kanban. The board is for work that is
     /// still on the user's plate; dismissed rows remain available in portrait's
     /// All filter.
-    private let kanbanOrder: [SessionTask.Status] = [.review, .working, .done]
+    private var kanbanOrder: [SessionTask.Status] {
+        [.queued, .review, .working] + (showDone ? [.done] : [])
+    }
 
     private var isLandscape: Bool { verticalSizeClass == .compact }
 
@@ -65,6 +77,9 @@ struct TasksView: View {
             }
             .refreshable { await store.refreshAll() }
             .task { await store.refreshTasks() }
+            .onChange(of: showDone) { _, visible in
+                if !visible, filter == .done { filter = .review }
+            }
             .sheet(isPresented: $showingNewSession, onDismiss: openCreatedSession) {
                 MobileNewSessionSheet { session in
                     sessionToOpen = session
@@ -101,7 +116,7 @@ struct TasksView: View {
                         )
                     }
                 } else if filter == .all {
-                    ForEach(sectionOrder, id: \.self) { status in
+                    ForEach(visibleSections, id: \.self) { status in
                         let sessions = store.tasks.filter { $0.taskStatus == status }
                         if !sessions.isEmpty {
                             section(status: status, sessions: sessions)
@@ -191,9 +206,11 @@ struct TasksView: View {
     private func kanbanColumnWidth(available: CGFloat) -> CGFloat {
         let spacing: CGFloat = 12
         let horizontalPadding: CGFloat = 16
-        // Aim to show review, working, and done side by side. Very narrow
-        // phones (or large text) fall back to horizontal scrolling.
-        let fitted = (available - horizontalPadding * 2 - spacing * 2) / 3
+        // Aim to show every visible status side by side. Showing Done adds a
+        // fourth column, and very narrow phones (or large text) fall back to
+        // horizontal scrolling.
+        let columns = CGFloat(max(kanbanOrder.count, 1))
+        let fitted = (available - horizontalPadding * 2 - spacing * (columns - 1)) / columns
         return min(max(fitted, 220), 340)
     }
 
@@ -219,7 +236,11 @@ struct TasksView: View {
                 Text("\(sessions.count)")
                     .font(.caption2.weight(.bold))
                     .monospacedDigit()
-                    .foregroundStyle(status == .review && !sessions.isEmpty ? Theme.warn : .secondary)
+                    .foregroundStyle(
+                        status == .review && !sessions.isEmpty ? Theme.warn
+                            : status == .queued && !sessions.isEmpty ? Theme.reasoning
+                            : .secondary
+                    )
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Capsule().fill(Color.primary.opacity(0.06)))
@@ -281,6 +302,7 @@ struct TasksView: View {
 
     private func tint(for status: SessionTask.Status) -> Color {
         switch status {
+        case .queued: return Theme.reasoning
         case .review: return Theme.warn
         case .working: return Theme.running
         case .done: return Theme.accent
@@ -292,16 +314,33 @@ struct TasksView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(TaskBoardFilter.allCases) { option in
-                    ChoiceChip(
-                        title: "\(option.shortTitle) \(count(for: option))",
-                        isSelected: filter == option,
-                        fontSize: 11
-                    ) {
-                        withAnimation(.easeInOut(duration: 0.16)) {
-                            filter = option
+                    if option != .done || showDone {
+                        ChoiceChip(
+                            title: "\(option.shortTitle) \(count(for: option))",
+                            isSelected: filter == option,
+                            fontSize: 11
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.16)) {
+                                filter = option
+                            }
                         }
                     }
                 }
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.16)) {
+                        showDone.toggle()
+                    }
+                } label: {
+                    Image(systemName: showDone ? "eye.slash" : "eye")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 24)
+                        .background(Capsule().fill(Color.primary.opacity(0.06)))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(showDone ? "Hide done tasks" : "Show done tasks")
             }
             .padding(.vertical, 1)
         }
@@ -314,7 +353,11 @@ struct TasksView: View {
                 Text("\(sessions.count)")
                     .font(.caption.weight(.bold))
                     .monospacedDigit()
-                    .foregroundStyle(status == .review ? Theme.warn : Color.secondary)
+                    .foregroundStyle(
+                        status == .review ? Theme.warn
+                            : status == .queued ? Theme.reasoning
+                            : Color.secondary
+                    )
             }
 
             ForEach(sessions) { session in
@@ -330,11 +373,15 @@ struct TasksView: View {
     }
 
     private func count(for filter: TaskBoardFilter) -> Int {
-        store.tasks(matching: filter).count
+        if filter == .all, !showDone {
+            return store.tasks.filter { $0.taskStatus != .done }.count
+        }
+        return store.tasks(matching: filter).count
     }
 
     private func status(for filter: TaskBoardFilter) -> SessionTask.Status? {
         switch filter {
+        case .queued: return .queued
         case .review: return .review
         case .working: return .working
         case .done: return .done
@@ -344,6 +391,7 @@ struct TasksView: View {
 
     private var emptyTitle: String {
         switch filter {
+        case .queued: return "Nothing queued"
         case .review: return "Nothing to review"
         case .working: return "Nothing running"
         case .done: return "No completed tasks"
@@ -353,6 +401,7 @@ struct TasksView: View {
 
     private var emptySubtitle: String {
         switch filter {
+        case .queued: return "Tasks scheduled for later, or waiting for a free agent slot."
         case .review: return "Finished sessions wait here until you accept them."
         case .working: return "Start a task and its progress shows up here."
         case .done: return "Accepted tasks are kept here for reference."
@@ -456,6 +505,10 @@ private struct MobileTaskCard: View {
     @ViewBuilder
     private var primaryAction: some View {
         switch session.taskStatus {
+        case .queued?:
+            actionButton("Start now", icon: "play.fill", tint: Theme.running) {
+                Task { await store.startQueuedTask(session) }
+            }
         case .review?:
             actionButton("Mark done", icon: "checkmark", tint: Theme.accent) {
                 Task { await store.markTaskDone(session) }
@@ -478,7 +531,16 @@ private struct MobileTaskCard: View {
             Button("Open conversation", systemImage: "bubble.left.and.bubble.right") {
                 onOpen()
             }
-            if session.taskStatus == .done || session.taskStatus == .dismissed {
+            if session.taskStatus == .queued {
+                Button("Start now", systemImage: "play.fill") {
+                    Task { await store.startQueuedTask(session) }
+                }
+                Button(role: .destructive) {
+                    Task { await store.cancelQueuedTask(session) }
+                } label: {
+                    Label("Remove from queue", systemImage: "xmark.circle")
+                }
+            } else if session.taskStatus == .done || session.taskStatus == .dismissed {
                 Button("Reopen", systemImage: "arrow.uturn.backward") {
                     Task { await store.reopenTask(session) }
                 }
@@ -528,6 +590,12 @@ private struct MobileTaskCard: View {
         if session.taskStatus == .done, let done = session.task?.doneDate {
             return "Done \(Fmt.relative(from: done))"
         }
+        if session.taskStatus == .queued {
+            if let until = session.task?.queuedUntilDate, until > Date() {
+                return "Starts \(Fmt.relative(from: until))"
+            }
+            return "Waiting for a slot"
+        }
         return Fmt.relative(from: session.time.updatedDate)
     }
 
@@ -542,6 +610,7 @@ private struct MobileTaskCard: View {
 
     private var statusTint: Color {
         switch session.taskStatus {
+        case .queued: return Theme.reasoning
         case .review: return Theme.warn
         case .working: return Theme.running
         case .done: return Theme.accent

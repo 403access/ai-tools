@@ -63,14 +63,20 @@ iOS app:
 - The first tab is a project-management board built from sessions. Every new
   top-level session becomes a task; running work shows as **In progress**, and
   finishing, stopping, or failing it moves the task to **Needs review**.
+- **Queued** tasks start later or wait for capacity. Pick a start time in the
+  New Session sheet (like a timed pause), or set **Settings → Agents →
+  Concurrent agents** on the hub. Prompts beyond that limit stay queued and
+  start in order as running sessions finish. **Start now** overrides the limit
+  and **Remove from queue** drops the stored prompt.
 - Mark a task **done**, reopen it, dismiss it, or open the conversation and send
-  another prompt — which reopens the task automatically.
+  another prompt — which reopens the task automatically. Done tasks are hidden
+  by default; the eye button shows or hides them.
 - Tasks are labelled from the request with no model call: type (**Bug**,
   **Feature**, **Refactor**, **Tests**, **Docs**, **Performance**, **Security**,
   **Chore**, or **Question**), scope (**Product**, **Technical**, or
   **Infrastructure**), and a risk hint such as **Security-sensitive**,
-  **Data loss**, or **Breaking change**. Filters switch between review, in
-  progress, done, and every task, and **New task** starts a session directly
+  **Data loss**, or **Breaking change**. Filters switch between queued, review,
+  in progress, done, and every task, and **New task** starts a session directly
   from the board.
 - The board is stored on the hub and synced to both apps, so resolving a task on
   the Mac updates the phone.
@@ -337,6 +343,10 @@ iOS app:
   awake holds an idle-sleep assertion so phones and tablets keep their
   connection; the display can still turn off. The preference is stored by the
   hub and applied again after a restart.
+- **Agents**: cap how many sessions may run at once (`0` means unlimited).
+  Prompts beyond the cap wait in the task board's **Queued** column and start in
+  order as slots free up. The limit is stored by the hub and shared by every
+  connected app.
 - **Developer**: a live, in-memory activity log of hub requests, sync cycles,
   event-stream changes, and errors. Filter by type, pause the view while
   reading, copy the visible entries, or clear it. Entries never include the hub
@@ -1028,7 +1038,9 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
 - Hub environment: `OPENCODEBAR_HUB_PORT` (default 8787),
   `OPENCODEBAR_HUB_HOST`, `OPENCODEBAR_HUB_DB`, `OPENCODEBAR_HUB_TOKEN`,
   `OPENCODEBAR_HUB_URL` (clients), `OPENCODEBAR_PREVENT_SLEEP` (`1` holds an
-  idle-sleep assertion while the hub runs), `OPENCODEBAR_LOG_LEVEL`.
+  idle-sleep assertion while the hub runs),
+  `OPENCODEBAR_MAX_CONCURRENT_AGENTS` (`0` means unlimited; default `0`),
+  `OPENCODEBAR_LOG_LEVEL`.
 - VM environment: `OPENCODEBAR_VM_DIR` (default
   `~/.local/share/opencodebar/vms`), `OPENCODEBAR_VZ_HELPER`,
   `OPENCODEBAR_NIX`, and `OPENCODEBAR_NIXOS_CHANNEL` (default `nixos-26.05`).

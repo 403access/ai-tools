@@ -619,6 +619,56 @@ export const PATHS = {
     },
   },
 
+  "/api/session/{id}/queue": {
+    post: {
+      tags: ["Sessions", "Tasks"],
+      summary: "Queue a prompt",
+      description:
+        "Stores a prompt on the task board until its start time passes and a concurrency slot is free. The fast loop sends it automatically.",
+      operationId: "queueSession",
+      parameters: [pathParam("id", "Session id.")],
+      requestBody: jsonBody(schemaRef("QueueSessionRequest")),
+      responses: {
+        200: ok(schemaRef("SessionResponse")),
+        400: badRequest,
+        401: unauthorized,
+        404: notFound,
+        default: failure,
+      },
+    },
+    delete: {
+      tags: ["Sessions", "Tasks"],
+      summary: "Cancel a queued prompt",
+      description: "Removes the stored prompt. The task returns to review unless it is running.",
+      operationId: "cancelQueuedSession",
+      parameters: [pathParam("id", "Session id.")],
+      responses: {
+        200: ok(schemaRef("SessionResponse")),
+        401: unauthorized,
+        404: notFound,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/session/{id}/queue/start": {
+    post: {
+      tags: ["Sessions", "Tasks"],
+      summary: "Start a queued task now",
+      description:
+        "Sends the stored prompt immediately, even when the concurrency limit is already reached.",
+      operationId: "startQueuedSession",
+      parameters: [pathParam("id", "Session id.")],
+      responses: {
+        200: ok(schemaRef("SessionResponse")),
+        401: unauthorized,
+        404: notFound,
+        503: unavailable,
+        default: failure,
+      },
+    },
+  },
+
   "/api/experimental/session/stats": {
     get: {
       tags: ["Sessions", "Usage"],

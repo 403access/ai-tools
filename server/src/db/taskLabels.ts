@@ -402,14 +402,17 @@ export interface TaskStatusInput {
   stored?: string;
   doneAt?: number;
   updated: number;
+  queued?: boolean;
 }
 
 /**
- * The board state is derived, not stored. A running session is always working;
- * a finished one waits for review until the user resolves it. Sending another
+ * The board state is derived, not stored. A queued task waits for its start
+ * time and a free concurrency slot; a running session is always working; a
+ * finished one waits for review until the user resolves it. Sending another
  * prompt moves `updated` past `doneAt`, which deliberately reopens the task.
  */
 export function deriveTaskStatus(input: TaskStatusInput): TaskStatus {
+  if (input.queued) return "queued";
   if (input.active) return "working";
   if (input.stored === "dismissed") return "dismissed";
   if (input.stored === "done" && input.doneAt !== undefined && input.doneAt >= input.updated) {
@@ -426,12 +429,20 @@ export function buildSessionTask(input: {
   updated: number;
   title?: string;
   context?: string;
+  queuedAt?: number;
+  queuedUntil?: number;
+  queuedPrompt?: string;
 }): SessionTask {
+  const queued =
+    input.queuedAt !== undefined || input.queuedPrompt !== undefined;
   const task: SessionTask = {
-    status: deriveTaskStatus(input),
+    status: deriveTaskStatus({ ...input, queued }),
     labels: classifyTaskLabels(input.title, input.context),
     createdAt: input.createdAt,
   };
   if (input.doneAt !== undefined) task.doneAt = input.doneAt;
+  if (input.queuedAt !== undefined) task.queuedAt = input.queuedAt;
+  if (input.queuedUntil !== undefined) task.queuedUntil = input.queuedUntil;
+  if (input.queuedPrompt !== undefined) task.queuedPrompt = input.queuedPrompt;
   return task;
 }

@@ -63,14 +63,18 @@ extension MobileStore {
     func promptSession(
         id: String,
         text: String,
-        delivery: PromptDelivery? = nil
+        delivery: PromptDelivery? = nil,
+        startAt: Date? = nil
     ) async throws {
         guard let api else { throw APIError.transport("Not connected to the hub") }
-        try await api.promptSession(id: id, text: text, delivery: delivery)
-        activeIDs.insert(id)
-        noteTaskPrompt(id: id)
+        try await api.promptSession(id: id, text: text, delivery: delivery, startAt: startAt)
+        if startAt == nil {
+            activeIDs.insert(id)
+            noteTaskPrompt(id: id)
+        }
         rebuildDerived()
         await refreshLive()
+        await refreshTasks(force: true)
         await loadPending(id, force: true)
     }
 

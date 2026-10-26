@@ -23,14 +23,29 @@ export function setTaskStatus(
   if (!row) return null;
 
   const doneAt = status === "open" ? null : now;
+  // Accepting or dismissing a queued task also drops its pending prompt.
+  // Reopening leaves the queue alone so the user can keep waiting for a slot.
+  const clearQueue = status !== "open";
   db.prepare(
     `UPDATE sessions
      SET task_created = COALESCE(task_created, ?),
          task_status = ?,
          task_done_at = ?,
+         queued_at = CASE WHEN ? THEN NULL ELSE queued_at END,
+         queued_until = CASE WHEN ? THEN NULL ELSE queued_until END,
+         queued_prompt = CASE WHEN ? THEN NULL ELSE queued_prompt END,
          synced_at = ?
      WHERE id = ?`,
-  ).run(now, status, doneAt, now, id);
+  ).run(
+    now,
+    status,
+    doneAt,
+    clearQueue ? 1 : 0,
+    clearQueue ? 1 : 0,
+    clearQueue ? 1 : 0,
+    now,
+    id,
+  );
   log.logChange("session", id);
   return getSession(db, id);
 }

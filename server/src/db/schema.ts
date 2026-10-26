@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { backfillToolCalls } from "./messages.ts";
 import { number, type Row } from "./rows.ts";
 
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 export function migrate(db: Database): void {
   const version = number((db.query("PRAGMA user_version").get() as Row | null)?.user_version);
@@ -270,5 +270,28 @@ export function migrate(db: Database): void {
         WHERE paused_until IS NOT NULL;
     `);
     db.exec("PRAGMA user_version = 9;");
+  }
+
+  if (version < 10) {
+    // A queued task is a session the hub has not prompted yet. The first
+    // prompt is stored until a concurrency slot frees (or the requested start
+    // time passes), then sent by the fast loop.
+    for (const column of [
+      "queued_at REAL",
+      "queued_until REAL",
+      "queued_prompt TEXT",
+    ]) {
+      try {
+        db.exec(`ALTER TABLE sessions ADD COLUMN ${column};`);
+      } catch {
+        // A partially applied migration may already have added this column.
+      }
+    }
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS sessions_queued
+        ON sessions(queued_at)
+        WHERE queued_at IS NOT NULL;
+      PRAGMA user_version = 10;
+    `);
   }
 }

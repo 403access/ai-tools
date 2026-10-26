@@ -131,6 +131,70 @@ extension SettingsView {
         }
     }
 
+    // MARK: - Agents
+
+    /// Caps how many sessions the hub runs at once. Prompts that arrive while
+    /// every slot is busy wait in the task board's Queued column.
+    var agentsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Agents")
+
+            VStack(alignment: .leading, spacing: 10) {
+                if let settings = store.serverSettings {
+                    let minimum = settings.maxConcurrentAgentsMin ?? 0
+                    let maximum = settings.maxConcurrentAgentsMax ?? 16
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Concurrent agents")
+                                .font(.subheadline.weight(.medium))
+                            Text(settings.maxConcurrentAgents == 0
+                                 ? "No limit. Every prompt starts immediately."
+                                 : "New prompts wait in Queued until a slot frees.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 8)
+                        Stepper(
+                            value: Binding(
+                                get: { store.serverSettings?.maxConcurrentAgents ?? 0 },
+                                set: { value in
+                                    Task { await store.updateMaxConcurrentAgents(value) }
+                                }
+                            ),
+                            in: minimum...maximum
+                        ) {
+                            Text((settings.maxConcurrentAgents ?? 0) == 0
+                                 ? "Unlimited"
+                                 : "\(settings.maxConcurrentAgents ?? 0)")
+                                .font(.subheadline.weight(.semibold))
+                                .monospacedDigit()
+                        }
+                        .labelsHidden()
+                        .disabled(store.isUpdatingSettings)
+                    }
+
+                    if let error = store.settingsError {
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundStyle(Theme.warn)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    Text(store.isRefreshingSettings
+                         ? "Loading agent settings…"
+                         : "Agent settings are unavailable. Make sure the hub is running the latest version.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .card(padding: 12)
+
+            sectionNote("Applies to the Mac running the hub. Queued tasks start in order as slots free up.")
+        }
+    }
+
     // MARK: - Hub connection
 
     var connectionSection: some View {

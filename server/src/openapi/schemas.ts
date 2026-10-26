@@ -147,9 +147,9 @@ export const SCHEMAS = {
     type: "object",
     required: ["status", "labels", "createdAt"],
     description:
-      "Task-board state for a top-level session. `status` is derived: running sessions are working, finished ones wait for review until resolved, and sending another prompt reopens a done task.",
+      "Task-board state for a top-level session. `status` is derived: queued tasks wait for a start time and a free concurrency slot, running sessions are working, finished ones wait for review until resolved, and sending another prompt reopens a done task.",
     properties: {
-      status: { type: "string", enum: ["working", "review", "done", "dismissed"] },
+      status: { type: "string", enum: ["queued", "working", "review", "done", "dismissed"] },
       labels: {
         type: "array",
         items: { $ref: "#/components/schemas/TaskLabel" },
@@ -157,6 +157,15 @@ export const SCHEMAS = {
       },
       createdAt: timestamp,
       doneAt: { ...timestamp, description: "Set when the task was marked done or dismissed." },
+      queuedAt: { ...timestamp, description: "Set while the task is waiting to start." },
+      queuedUntil: {
+        ...timestamp,
+        description: "Earliest start time. Absent means the task starts when a slot frees.",
+      },
+      queuedPrompt: {
+        type: "string",
+        description: "The prompt the hub sends when the queued task starts.",
+      },
     },
   },
 
@@ -869,6 +878,7 @@ export const SCHEMAS = {
     required: [
       "eventThrottleMs", "eventThrottleMinMs", "eventThrottleMaxMs",
       "preventSleep", "preventSleepSupported",
+      "maxConcurrentAgents", "maxConcurrentAgentsMin", "maxConcurrentAgentsMax",
     ],
     properties: {
       eventThrottleMs: { type: "integer", minimum: 0, maximum: 5000 },
@@ -876,6 +886,14 @@ export const SCHEMAS = {
       eventThrottleMaxMs: integer,
       preventSleep: bool,
       preventSleepSupported: bool,
+      maxConcurrentAgents: {
+        type: "integer",
+        minimum: 0,
+        maximum: 16,
+        description: "Concurrent agent sessions the hub may run; `0` means no limit.",
+      },
+      maxConcurrentAgentsMin: integer,
+      maxConcurrentAgentsMax: integer,
     },
   },
 
@@ -887,8 +905,14 @@ export const SCHEMAS = {
     properties: {
       eventThrottleMs: { type: "integer", minimum: 0, maximum: 5000 },
       preventSleep: bool,
+      maxConcurrentAgents: {
+        type: "integer",
+        minimum: 0,
+        maximum: 16,
+        description: "Concurrent agent sessions the hub may run; `0` means no limit.",
+      },
     },
-    example: { eventThrottleMs: 500, preventSleep: true },
+    example: { eventThrottleMs: 500, preventSleep: true, maxConcurrentAgents: 2 },
   },
 
   CreateSessionRequest: {
@@ -1036,8 +1060,30 @@ export const SCHEMAS = {
         enum: ["steer", "queue"],
         description: "`queue` waits for the current turn; `steer` asks OpenCode to steer it.",
       },
+      startAt: {
+        ...timestamp,
+        description:
+          "Queue the prompt until this time. The task also waits for a free concurrency slot.",
+      },
+      forMs: {
+        type: "integer",
+        minimum: 1,
+        maximum: 2_592_000_000,
+        description: "Queue for this many milliseconds, at most 30 days.",
+      },
     },
-    example: { text: "Run the test suite", delivery: "queue" },
+    example: { text: "Run the test suite", delivery: "queue", forMs: 1_800_000 },
+  },
+
+  QueueSessionRequest: {
+    type: "object",
+    required: ["prompt"],
+    properties: {
+      prompt: { type: "string", description: "Prompt to send when the task starts." },
+      startAt: timestamp,
+      forMs: { type: "integer", minimum: 1, maximum: 2_592_000_000 },
+    },
+    example: { prompt: "Run the test suite", forMs: 1_800_000 },
   },
 
   SessionResponse: data(sessionRef),

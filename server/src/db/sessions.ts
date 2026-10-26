@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { ZERO_TOKENS, type Session, type TokenUsage } from "../types.ts";
 import { taskEpoch } from "./meta.ts";
 import type { ChangeLog } from "./projects.ts";
-import { number, optionalNumber, rowToSession, type Row } from "./rows.ts";
+import { number, optionalNumber, rowToSession, text, type Row } from "./rows.ts";
 
 export interface SessionQuery {
   limit?: number;
@@ -110,7 +110,8 @@ export function setActive(db: Database, ids: Set<string>, now = Date.now()): voi
     // running list until the user continues it.
     const mark = db.prepare(
       `UPDATE sessions SET active = 1, synced_at = ?
-       WHERE id = ? AND paused_at IS NULL AND stopped_at IS NULL`,
+       WHERE id = ? AND paused_at IS NULL AND stopped_at IS NULL
+         AND queued_at IS NULL`,
     );
     for (const id of ids) mark.run(now, id);
   });
@@ -124,7 +125,8 @@ export function markActive(db: Database, id: string, active: boolean, now = Date
   }
   db.prepare(
     `UPDATE sessions SET active = 1, synced_at = ?
-     WHERE id = ? AND paused_at IS NULL AND stopped_at IS NULL`,
+     WHERE id = ? AND paused_at IS NULL AND stopped_at IS NULL
+       AND queued_at IS NULL`,
   ).run(now, id);
 }
 
@@ -175,6 +177,87 @@ export function clearSessionControl(
   ).run(now, id);
   if (result.changes > 0) log.logChange("session", id);
   return result.changes > 0;
+}
+
+/**
+ * Holds a session's next prompt until `until` and/or a concurrency slot frees.
+ * The prompt is stored on the row so a hub restart does not lose it.
+ */
+export function setSessionQueue(
+  db: Database,
+  log: ChangeLog,
+  id: string,
+  prompt: string,
+  until?: number,
+  now = Date.now(),
+): boolean {
+  const result = db.prepare(
+    `UPDATE sessions
+     SET queued_at = COALESCE(queued_at, ?),
+         queued_until = ?,
+         queued_prompt = ?,
+         paused_at = NULL,
+         paused_until = NULL,
+         stopped_at = NULL,
+         active = 0,
+         task_created = COALESCE(task_created, ?),
+         task_status = 'open',
+         task_done_at = NULL,
+         synced_at = ?
+     WHERE id = ?`,
+  ).run(now, until ?? null, prompt, now, now, id);
+  if (result.changes > 0) log.logChange("session", id);
+  return result.changes > 0;
+}
+
+/** Removes a queued prompt without starting it. */
+export function clearSessionQueue(
+  db: Database,
+  log: ChangeLog,
+  id: string,
+  now = Date.now(),
+): boolean {
+  const result = db.prepare(
+    `UPDATE sessions
+     SET queued_at = NULL, queued_until = NULL, queued_prompt = NULL, synced_at = ?
+     WHERE id = ? AND queued_at IS NOT NULL`,
+  ).run(now, id);
+  if (result.changes > 0) log.logChange("session", id);
+  return result.changes > 0;
+}
+
+/** Queued sessions that are due, oldest first. */
+export function getDueQueuedSessions(
+  db: Database,
+  now = Date.now(),
+): Array<{ id: string; prompt: string; until?: number }> {
+  const rows = db
+    .query(
+      `SELECT id, queued_prompt, queued_until FROM sessions
+       WHERE queued_at IS NOT NULL
+         AND queued_prompt IS NOT NULL
+         AND (queued_until IS NULL OR queued_until <= ?)
+       ORDER BY queued_at ASC`,
+    )
+    .all(now) as Row[];
+  return rows
+    .map((row) => ({
+      id: String(row.id),
+      prompt: text(row.queued_prompt) ?? "",
+      until: optionalNumber(row.queued_until),
+    }))
+    .filter((entry) => entry.prompt.length > 0);
+}
+
+/** Sessions currently running an agent turn, including subagents. */
+export function countActiveSessions(db: Database): number {
+  const row = db.query("SELECT COUNT(*) AS count FROM sessions WHERE active = 1").get() as Row | null;
+  return number(row?.count);
+}
+
+export function isSessionActive(db: Database, id: string): boolean {
+  const row = db.query("SELECT active FROM sessions WHERE id = ?").get(id) as Row | null;
+  return number(row?.active) === 1;
 }
 
 /** Sessions whose timed pause is due to continue. */

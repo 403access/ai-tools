@@ -21,6 +21,7 @@ struct SettingsTab: View {
             appSection
             powerSection
             serverSection
+            agentsSection
             updatesSection
             devicesSection
             pairingSection
@@ -196,6 +197,64 @@ struct SettingsTab: View {
             }
             .card()
         }
+    }
+
+    // MARK: - Agents
+
+    /// Caps how many sessions can run an agent turn at once. Prompts that
+    /// arrive while every slot is busy wait in the task board's Queued column.
+    var agentsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Agents") {
+                if state.isUpdatingSettings {
+                    ProgressView().controlSize(.small).scaleEffect(0.65)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 9) {
+                if let settings = state.serverSettings {
+                    let minimum = settings.maxConcurrentAgentsMin ?? 0
+                    let maximum = settings.maxConcurrentAgentsMax ?? 16
+                    HStack(spacing: 8) {
+                        Text("Concurrent agents")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 8)
+                        Stepper(
+                            value: Binding(
+                                get: { state.serverSettings?.maxConcurrentAgents ?? 0 },
+                                set: { value in
+                                    Task { await state.updateMaxConcurrentAgents(value) }
+                                }
+                            ),
+                            in: minimum...maximum
+                        ) {
+                            Text(concurrencyLabel(settings.maxConcurrentAgents ?? 0))
+                                .font(.system(size: 11, weight: .semibold))
+                                .monospacedDigit()
+                                .frame(minWidth: 68, alignment: .trailing)
+                        }
+                        .disabled(state.isUpdatingSettings)
+                    }
+
+                    Text(settings.maxConcurrentAgents == 0
+                         ? "No limit. Every prompt starts immediately."
+                         : "New prompts wait in Queued until one of the \(settings.maxConcurrentAgents ?? 0) slots frees.")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("Agent settings load from the hub. Connect to the hub to manage them.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .card()
+        }
+    }
+
+    func concurrencyLabel(_ count: Int) -> String {
+        count == 0 ? "Unlimited" : "\(count)"
     }
 
     // MARK: - Updates

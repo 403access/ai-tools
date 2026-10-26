@@ -51,9 +51,13 @@ import { sleep, syncFast as runFastSync, syncMessagesForChanges as runMessageSyn
 import { CaffeinateSleepGuard, type SleepGuard } from "./hub/sleep.ts";
 import { UsageService } from "./hub/usage.ts";
 import {
+  cancelQueuedSession as runCancelQueuedSession,
   continueSession as runContinueSession,
   pauseSession as runPauseSession,
+  queueSession as runQueueSession,
   resumeDueSessions as runResumeDueSessions,
+  startQueuedSession as runStartQueuedSession,
+  startQueuedSessions as runStartQueuedSessions,
   stopSession as runStopSession,
 } from "./hub/control.ts";
 
@@ -146,6 +150,7 @@ export class Hub {
     while (!this.stopped) {
       await this.syncFast();
       await this.resumeDueSessions();
+      await this.startQueuedSessions();
       await sleep(this.config.fastPollMs);
     }
   }
@@ -153,6 +158,11 @@ export class Hub {
   /** Fires timed pauses whose deadline has passed. */
   async resumeDueSessions(): Promise<void> {
     return runResumeDueSessions(this);
+  }
+
+  /** Starts queued tasks whose time has come while a slot is free. */
+  async startQueuedSessions(): Promise<void> {
+    return runStartQueuedSessions(this);
   }
 
   private async slowLoop(): Promise<void> {
@@ -286,6 +296,8 @@ export class Hub {
     if (id) {
       if (event.type === "session.idle" || event.type === "session.deleted") {
         this.db.markActive(id, false);
+        // A deleted session cannot start; drop any prompt waiting for a slot.
+        if (event.type === "session.deleted") this.db.clearSessionQueue(id);
       } else if (
         event.type.startsWith("session.step.") ||
         event.type.startsWith("session.text.") ||
@@ -404,8 +416,13 @@ export class Hub {
     return agents(this, directory);
   }
 
-  promptSession(id: string, text: string, delivery?: "steer" | "queue"): Promise<unknown> {
-    return promptSession(this, id, text, delivery);
+  promptSession(
+    id: string,
+    text: string,
+    delivery?: "steer" | "queue",
+    options: { startAt?: number } = {},
+  ): Promise<unknown> {
+    return promptSession(this, id, text, delivery, options);
   }
 
   pauseSession(id: string, until: number): Promise<Session> {
@@ -418,6 +435,18 @@ export class Hub {
 
   continueSession(id: string): Promise<Session> {
     return runContinueSession(this, id);
+  }
+
+  queueSession(id: string, prompt: string, startAt?: number): Promise<Session> {
+    return runQueueSession(this, id, prompt, startAt);
+  }
+
+  cancelQueuedSession(id: string): Promise<Session> {
+    return runCancelQueuedSession(this, id);
+  }
+
+  startQueuedSession(id: string, force = true): Promise<Session> {
+    return runStartQueuedSession(this, id, force);
   }
 
   pendingInputs(id: string): Promise<SessionPendingItem[]> {
@@ -475,6 +504,13 @@ export class Hub {
     this.config.preventSleep = enabled;
     this.sleepGuard.setEnabled(enabled);
     return enabled;
+  }
+
+  /** Applies a new concurrency limit and starts waiting tasks when possible. */
+  setMaxConcurrentAgents(value: number): number {
+    this.config.maxConcurrentAgents = value;
+    void this.startQueuedSessions();
+    return value;
   }
 
   get preventSleepSupported(): boolean {

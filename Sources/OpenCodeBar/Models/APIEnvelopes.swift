@@ -106,6 +106,10 @@ struct ServerSettings: Decodable, Equatable {
     var preventSleep: Bool?
     /// False when the hub runs on a platform that cannot block sleep.
     var preventSleepSupported: Bool?
+    /// Agent sessions that may run at once; `0` means no limit.
+    var maxConcurrentAgents: Int?
+    var maxConcurrentAgentsMin: Int?
+    var maxConcurrentAgentsMax: Int?
 }
 
 struct ServerSettingsResponse: Decodable {

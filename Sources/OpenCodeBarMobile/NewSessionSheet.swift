@@ -24,9 +24,28 @@ struct MobileNewSessionSheet: View {
         var label: String { self == .folder ? "Current folder" : "Worktree" }
     }
 
+    private enum StartMode: String, CaseIterable, Identifiable {
+        case now
+        case in15
+        case in60
+        case custom
+
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .now: return "Now"
+            case .in15: return "15m"
+            case .in60: return "1h"
+            case .custom: return "Time"
+            }
+        }
+    }
+
     @State private var directory: String
     @State private var title = ""
     @State private var prompt = ""
+    @State private var startMode: StartMode = .now
+    @State private var customStart = Date().addingTimeInterval(60 * 60)
     @State private var source: Source = .existing
     @State private var workspace: Workspace = .folder
     @State private var repositoryURL = ""
@@ -87,6 +106,7 @@ struct MobileNewSessionSheet: View {
 
     private var canSubmit: Bool {
         guard !isWorking else { return false }
+        if scheduledStart != nil, trimmedPrompt.isEmpty { return false }
         switch source {
         case .existing:
             guard !trimmedDirectory.isEmpty else { return false }
@@ -94,6 +114,28 @@ struct MobileNewSessionSheet: View {
         case .clone:
             return !trimmedRepositoryURL.isEmpty && !trimmedParentDirectory.isEmpty
         }
+    }
+
+    private var trimmedPrompt: String {
+        prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Non-nil when the first message should wait for a later start time. The
+    /// hub still queues it behind the concurrency limit when that is reached.
+    private var scheduledStart: Date? {
+        switch startMode {
+        case .now: return nil
+        case .in15: return Date().addingTimeInterval(15 * 60)
+        case .in60: return Date().addingTimeInterval(60 * 60)
+        case .custom: return max(customStart, Date().addingTimeInterval(60))
+        }
+    }
+
+    private var startHint: String {
+        guard let scheduledStart else {
+            return "Starts immediately unless the hub is already running its maximum number of agents."
+        }
+        return "Queued \(SessionControlFormat.relative(scheduledStart)); starts sooner if a slot frees."
     }
 
     private var actionTitle: String {
@@ -135,6 +177,7 @@ struct MobileNewSessionSheet: View {
                     projectSection
                     titleSection
                     messageSection
+                    startSection
 
                     if let errorMessage {
                         NoticeRow(
@@ -445,6 +488,35 @@ struct MobileNewSessionSheet: View {
         }
     }
 
+    private var startSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            SectionHeader("Start")
+
+            Picker("Start", selection: $startMode) {
+                ForEach(StartMode.allCases) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .disabled(isWorking)
+
+            if startMode == .custom {
+                DatePicker(
+                    "Start at",
+                    selection: $customStart,
+                    in: Date()...,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .datePickerStyle(.compact)
+            }
+
+            Text(startHint)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private var shortPath: String {
         trimmedDirectory.isEmpty
             ? "Choose a folder on your Mac"
@@ -505,9 +577,13 @@ struct MobileNewSessionSheet: View {
                 createdSession = session
             }
 
-            let message = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = trimmedPrompt
             if !message.isEmpty {
-                try await store.promptSession(id: session.id, text: message)
+                try await store.promptSession(
+                    id: session.id,
+                    text: message,
+                    startAt: scheduledStart
+                )
             }
 
             onCreated(session)

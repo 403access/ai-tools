@@ -55,7 +55,7 @@ export interface SessionControl {
 }
 
 /** Board state for a session that users manage as a task. */
-export type TaskStatus = "working" | "review" | "done" | "dismissed";
+export type TaskStatus = "queued" | "working" | "review" | "done" | "dismissed";
 
 /** What a label describes. The clients use this to group and colour chips. */
 export type TaskLabelKind = "type" | "scope" | "risk";
@@ -75,6 +75,12 @@ export interface SessionTask {
   createdAt: number;
   /** Set after the user marked the task done or dismissed. */
   doneAt?: number;
+  /** Set while the task is waiting to start. */
+  queuedAt?: number;
+  /** Earliest time the queued task may start. Absent means "as soon as a slot frees". */
+  queuedUntil?: number;
+  /** The prompt the hub will send when the task starts. */
+  queuedPrompt?: string;
 }
 
 export interface Session {
@@ -586,6 +592,10 @@ export interface HubSettings {
   preventSleep: boolean;
   /** False on platforms where the hub cannot block sleep. */
   preventSleepSupported: boolean;
+  /** Concurrent agent sessions the hub may run; `0` means no limit. */
+  maxConcurrentAgents: number;
+  maxConcurrentAgentsMin: number;
+  maxConcurrentAgentsMax: number;
 }
 
 export interface HubSettingsResponse {

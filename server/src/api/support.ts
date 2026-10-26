@@ -1,7 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
 import {
   MAX_EVENT_THROTTLE_MS,
+  MAX_MAX_CONCURRENT_AGENTS,
   MIN_EVENT_THROTTLE_MS,
+  MIN_MAX_CONCURRENT_AGENTS,
   type HubConfig,
 } from "../config.ts";
 import type { HubDB } from "../db.ts";
@@ -103,6 +105,9 @@ export function settingsPayload(config: HubConfig, preventSleepSupported: boolea
     eventThrottleMaxMs: MAX_EVENT_THROTTLE_MS,
     preventSleep: config.preventSleep,
     preventSleepSupported,
+    maxConcurrentAgents: config.maxConcurrentAgents,
+    maxConcurrentAgentsMin: MIN_MAX_CONCURRENT_AGENTS,
+    maxConcurrentAgentsMax: MAX_MAX_CONCURRENT_AGENTS,
   };
 }
 

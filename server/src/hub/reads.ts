@@ -17,6 +17,7 @@ import type {
 } from "../types.ts";
 import type { Hub } from "../hub.ts";
 import { GLOBAL_STATS_SCOPE, STATS_FRESH_MS } from "./constants.ts";
+import { queueSession, shouldQueuePrompt } from "./control.ts";
 import { syncMessagesForChanges } from "./sync.ts";
 
 export function health(hub: Hub): HubHealth {
@@ -192,7 +193,15 @@ export async function promptSession(
   id: string,
   text: string,
   delivery?: "steer" | "queue",
+  options: { startAt?: number } = {},
 ): Promise<unknown> {
+  // A future start time or a full set of concurrency slots parks the prompt on
+  // the task board instead of starting another agent turn now.
+  if (shouldQueuePrompt(hub, id, options.startAt)) {
+    hub.db.clearSessionControl(id);
+    return queueSession(hub, id, text, options.startAt);
+  }
+
   const client = hub.client ?? (await hub.ensureClient());
   if (!client) throw new OpenCodeError("OpenCode is offline", 503);
 
@@ -201,6 +210,7 @@ export async function promptSession(
   // pause or stop even when the user typed into the composer instead of
   // pressing the Continue button.
   hub.db.clearSessionControl(id);
+  hub.db.clearSessionQueue(id);
   hub.db.recordTaskPrompt(id, text);
   hub.db.markActive(id, true);
   hub.broadcast({ type: "hub.sessions", data: { at: Date.now() } });

@@ -16,6 +16,19 @@ export function clampEventThrottle(value: number): number {
   return Math.min(Math.max(Math.round(value), MIN_EVENT_THROTTLE_MS), MAX_EVENT_THROTTLE_MS);
 }
 
+/** Concurrent agent sessions the hub may run. `0` means no limit. */
+export const DEFAULT_MAX_CONCURRENT_AGENTS = 0;
+export const MIN_MAX_CONCURRENT_AGENTS = 0;
+export const MAX_MAX_CONCURRENT_AGENTS = 16;
+
+export function clampMaxConcurrentAgents(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_MAX_CONCURRENT_AGENTS;
+  return Math.min(
+    Math.max(Math.round(value), MIN_MAX_CONCURRENT_AGENTS),
+    MAX_MAX_CONCURRENT_AGENTS,
+  );
+}
+
 export interface HubConfig {
   host: string;
   port: number;
@@ -39,6 +52,11 @@ export interface HubConfig {
    * their connection. Ignored on platforms without `caffeinate`.
    */
   preventSleep: boolean;
+  /**
+   * How many agent sessions may run at once. New prompts beyond the limit wait
+   * in the task board's queued column. `0` disables the limit.
+   */
+  maxConcurrentAgents: number;
   logLevel: "debug" | "info" | "warn";
 }
 
@@ -175,6 +193,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): HubConfig {
       bool(env.OPENCODEBAR_PREVENT_SLEEP) ??
       bool(saved?.preventSleep) ??
       false,
+    maxConcurrentAgents: clampMaxConcurrentAgents(
+      num(env.OPENCODEBAR_MAX_CONCURRENT_AGENTS) ??
+        num(saved?.maxConcurrentAgents) ??
+        DEFAULT_MAX_CONCURRENT_AGENTS,
+    ),
     logLevel: (str(env.OPENCODEBAR_LOG_LEVEL) as HubConfig["logLevel"]) ?? "info",
   };
 }
@@ -192,6 +215,7 @@ export function writeHubConfig(config: HubConfig, port = config.port): void {
     version: HUB_VERSION,
     eventThrottleMs: config.eventThrottleMs,
     preventSleep: config.preventSleep,
+    maxConcurrentAgents: config.maxConcurrentAgents,
     updatedAt: new Date().toISOString(),
   };
   writeFileSync(config.configPath, JSON.stringify(payload, null, 2) + "\n", {

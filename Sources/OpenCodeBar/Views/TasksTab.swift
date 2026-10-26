@@ -7,8 +7,17 @@ struct TasksTab: View {
     @EnvironmentObject private var state: AppState
     @State private var filter: TaskBoardFilter = .review
     @State private var showingNewSession = false
+    /// Done tasks are reference only, so they stay out of the board until the
+    /// user asks for them.
+    @AppStorage("tasks.showDone") private var showDone = false
 
-    private let sectionOrder: [SessionTask.Status] = [.review, .working, .done, .dismissed]
+    private let sectionOrder: [SessionTask.Status] = [
+        .queued, .review, .working, .done, .dismissed,
+    ]
+
+    private var visibleSections: [SessionTask.Status] {
+        sectionOrder.filter { showDone || $0 != .done }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -30,7 +39,7 @@ struct TasksTab: View {
                     )
                 }
             } else if filter == .all {
-                ForEach(sectionOrder, id: \.self) { status in
+                ForEach(visibleSections, id: \.self) { status in
                     let sessions = state.tasks.filter { $0.taskStatus == status }
                     if !sessions.isEmpty {
                         section(status: status, sessions: sessions)
@@ -54,18 +63,23 @@ struct TasksTab: View {
                 .environmentObject(state)
         }
         .task { await state.refreshTasks() }
+        .onChange(of: showDone) { _, visible in
+            if !visible, filter == .done { filter = .review }
+        }
     }
 
     private var filters: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 ForEach(TaskBoardFilter.allCases) { option in
-                    ChoiceChip(
-                        title: "\(option.shortTitle) \(count(for: option))",
-                        isSelected: filter == option
-                    ) {
-                        withAnimation(.easeInOut(duration: 0.16)) {
-                            filter = option
+                    if option != .done || showDone {
+                        ChoiceChip(
+                            title: "\(option.shortTitle) \(count(for: option))",
+                            isSelected: filter == option
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.16)) {
+                                filter = option
+                            }
                         }
                     }
                 }
@@ -76,6 +90,25 @@ struct TasksTab: View {
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
                 Spacer(minLength: 4)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.16)) {
+                        showDone.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: showDone ? "eye.slash" : "eye")
+                            .font(.system(size: 8, weight: .bold))
+                        Text(showDone ? "Hide done" : "Show done")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(showDone ? "Hide completed tasks" : "Show completed tasks")
                 Button {
                     showingNewSession = true
                 } label: {
@@ -104,7 +137,11 @@ struct TasksTab: View {
                 Text("\(sessions.count)")
                     .font(.system(size: 10, weight: .bold))
                     .monospacedDigit()
-                    .foregroundStyle(status == .review ? Theme.warn : .secondary)
+                    .foregroundStyle(
+                        status == .review ? Theme.warn
+                            : status == .queued ? Theme.reasoning
+                            : .secondary
+                    )
             }
 
             ForEach(sessions) { session in
@@ -116,11 +153,15 @@ struct TasksTab: View {
     }
 
     private func count(for filter: TaskBoardFilter) -> Int {
-        state.tasks(matching: filter).count
+        if filter == .all, !showDone {
+            return state.tasks.filter { $0.taskStatus != .done }.count
+        }
+        return state.tasks(matching: filter).count
     }
 
     private func status(for filter: TaskBoardFilter) -> SessionTask.Status? {
         switch filter {
+        case .queued: return .queued
         case .review: return .review
         case .working: return .working
         case .done: return .done
@@ -130,6 +171,7 @@ struct TasksTab: View {
 
     private var emptyTitle: String {
         switch filter {
+        case .queued: return "Nothing queued"
         case .review: return "Nothing to review"
         case .working: return "Nothing running"
         case .done: return "No completed tasks"
@@ -139,6 +181,7 @@ struct TasksTab: View {
 
     private var emptySubtitle: String {
         switch filter {
+        case .queued: return "Tasks scheduled for later, or waiting for a free agent slot."
         case .review: return "Finished sessions wait here until you accept them."
         case .working: return "Start a task and its progress shows up here."
         case .done: return "Accepted tasks are kept here for reference."
@@ -218,6 +261,10 @@ private struct TaskCard: View {
     private var actions: some View {
         HStack(spacing: 4) {
             switch session.taskStatus {
+            case .queued?:
+                iconButton("play.fill", help: "Start now", tint: Theme.running) {
+                    Task { await state.startQueuedTask(session) }
+                }
             case .review?:
                 iconButton("checkmark", help: "Mark done", tint: Theme.accent) {
                     Task { await state.markTaskDone(session) }
@@ -238,7 +285,12 @@ private struct TaskCard: View {
 
             Menu {
                 Button("Open conversation") { state.open(session) }
-                if session.taskStatus == .done {
+                if session.taskStatus == .queued {
+                    Button("Start now") { Task { await state.startQueuedTask(session) } }
+                    Button("Remove from queue", role: .destructive) {
+                        Task { await state.cancelQueuedTask(session) }
+                    }
+                } else if session.taskStatus == .done {
                     Button("Reopen") { Task { await state.reopenTask(session) } }
                 } else if session.taskStatus == .dismissed {
                     Button("Reopen") { Task { await state.reopenTask(session) } }
@@ -285,11 +337,18 @@ private struct TaskCard: View {
         if session.taskStatus == .done, let done = session.task?.doneDate {
             return "Done \(Fmt.relative(from: done))"
         }
+        if session.taskStatus == .queued {
+            if let until = session.task?.queuedUntilDate, until > Date() {
+                return "Starts \(Fmt.relative(from: until))"
+            }
+            return "Waiting for a slot"
+        }
         return Fmt.relative(from: session.time.updatedDate)
     }
 
     private var statusTint: Color {
         switch session.taskStatus {
+        case .queued: return Theme.reasoning
         case .review: return Theme.warn
         case .working: return Theme.running
         case .done: return Theme.accent

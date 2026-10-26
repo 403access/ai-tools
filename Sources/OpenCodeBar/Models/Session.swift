@@ -108,6 +108,7 @@ struct TaskLabel: Codable, Hashable, Identifiable, Sendable {
 /// new prompt reopens a resolved task.
 struct SessionTask: Codable, Hashable, Sendable {
     enum Status: String, Codable, CaseIterable, Sendable {
+        case queued
         case working
         case review
         case done
@@ -125,16 +126,31 @@ struct SessionTask: Codable, Hashable, Sendable {
     var createdAt: Double?
     /// Set when the user marked the task done or dismissed.
     var doneAt: Double?
+    /// Set while the task is waiting to start.
+    var queuedAt: Double?
+    /// Earliest start time. Absent means "as soon as a slot frees".
+    var queuedUntil: Double?
+    /// The prompt the hub sends when the queued task starts.
+    var queuedPrompt: String?
 
     var doneDate: Date? {
         doneAt.map { Date(timeIntervalSince1970: $0 / 1000) }
+    }
+
+    var queuedDate: Date? {
+        queuedAt.map { Date(timeIntervalSince1970: $0 / 1000) }
+    }
+
+    var queuedUntilDate: Date? {
+        queuedUntil.map { Date(timeIntervalSince1970: $0 / 1000) }
     }
 }
 
 /// Which slice of the task board a view is showing.
 enum TaskBoardFilter: String, CaseIterable, Identifiable, Sendable {
-    case review
+    case queued
     case working
+    case review
     case done
     case all
 
@@ -142,6 +158,7 @@ enum TaskBoardFilter: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
+        case .queued: return "Queued"
         case .review: return "Needs review"
         case .working: return "In progress"
         case .done: return "Done"
@@ -151,6 +168,7 @@ enum TaskBoardFilter: String, CaseIterable, Identifiable, Sendable {
 
     var shortTitle: String {
         switch self {
+        case .queued: return "Queued"
         case .review: return "Review"
         case .working: return "Working"
         case .done: return "Done"
@@ -160,6 +178,7 @@ enum TaskBoardFilter: String, CaseIterable, Identifiable, Sendable {
 
     var icon: String {
         switch self {
+        case .queued: return "hourglass"
         case .review: return "sparkle.magnifyingglass"
         case .working: return "bolt.fill"
         case .done: return "checkmark.circle.fill"
@@ -169,6 +188,7 @@ enum TaskBoardFilter: String, CaseIterable, Identifiable, Sendable {
 
     func matches(_ status: SessionTask.Status) -> Bool {
         switch self {
+        case .queued: return status == .queued
         case .review: return status == .review
         case .working: return status == .working
         case .done: return status == .done
@@ -213,6 +233,7 @@ extension TaskLabel {
 extension SessionTask.Status {
     var title: String {
         switch self {
+        case .queued: return "Queued"
         case .working: return "In progress"
         case .review: return "Needs review"
         case .done: return "Done"
@@ -222,6 +243,7 @@ extension SessionTask.Status {
 
     var icon: String {
         switch self {
+        case .queued: return "hourglass"
         case .working: return "bolt.fill"
         case .review: return "sparkle.magnifyingglass"
         case .done: return "checkmark.circle.fill"

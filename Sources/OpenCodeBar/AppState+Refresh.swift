@@ -290,6 +290,42 @@ extension AppState {
         }
     }
 
+    /// Limits how many agent sessions the hub runs at once. New prompts beyond
+    /// the limit wait in the task board's queued column.
+    func updateMaxConcurrentAgents(_ count: Int) async {
+        guard let api else {
+            await bootstrap()
+            return
+        }
+        guard !isUpdatingSettings else { return }
+        isUpdatingSettings = true
+        defer { isUpdatingSettings = false }
+
+        do {
+            let settings = try await api.updateSettings(maxConcurrentAgents: count)
+            self.serverSettings = settings
+            self.settingsError = nil
+            let value = settings.maxConcurrentAgents ?? count
+            self.settingsNotice = value == 0
+                ? "All agents can run at once"
+                : "At most \(value) agents run at once"
+            DevLog.shared.record(
+                "Concurrency limit updated",
+                category: .app,
+                detail: value == 0 ? "Unlimited" : "\(value)"
+            )
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            settingsError = message
+            DevLog.shared.record(
+                "Concurrency limit update failed",
+                category: .app,
+                level: .error,
+                detail: message
+            )
+        }
+    }
+
     /// Asks the hub to pull fresh OpenCode data, then refreshes the panel.
     func syncNow() async {
         guard let api else {
