@@ -36,6 +36,7 @@ struct NewSessionSheet: View {
     @State private var isCreatingWorktree = false
     @State private var errorMessage: String?
     @State private var createdSession: Session?
+    @State private var showingProjectPicker = false
     @StateObject private var dictation = SpeechDictation()
     @FocusState private var promptFocused: Bool
 
@@ -63,8 +64,17 @@ struct NewSessionSheet: View {
         state.orderedProjects.first(where: { $0.canonical == trimmedDirectory })
     }
 
-    private var projectLabel: String {
-        selectedProject?.displayName ?? "Custom directory"
+    private var selectedRunningCount: Int {
+        selectedProject.map { state.runningSessions(in: $0).count } ?? 0
+    }
+
+    private var runningCounts: [String: Int] {
+        state.runningByProject.mapValues(\.count)
+    }
+
+    private var shortDirectory: String {
+        let path = (trimmedDirectory as NSString).abbreviatingWithTildeInPath
+        return path.isEmpty ? "No folder selected" : path
     }
 
     private var canUseWorktree: Bool {
@@ -157,14 +167,66 @@ struct NewSessionSheet: View {
 
                 if source == .existing {
                     if !state.orderedProjects.isEmpty {
-                        Picker("Project", selection: $directory) {
-                            ForEach(state.orderedProjects) { project in
-                                Text(project.displayName).tag(project.canonical)
+                        Button {
+                            showingProjectPicker = true
+                        } label: {
+                            HStack(spacing: 8) {
+                                ProjectIconView(
+                                    image: selectedProject.flatMap { state.projectIcons[$0.id] },
+                                    running: selectedRunningCount > 0,
+                                    size: 26
+                                )
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(
+                                        selectedProject?.displayName
+                                            ?? (trimmedDirectory.isEmpty ? "Choose a project" : "Custom directory")
+                                    )
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+
+                                    Text(shortDirectory)
+                                        .font(.system(size: 8.5, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                }
+
+                                Spacer(minLength: 6)
+
+                                if selectedRunningCount > 0 {
+                                    HStack(spacing: 3) {
+                                        PulsingDot(size: 4)
+                                        Text("\(selectedRunningCount)")
+                                            .font(.system(size: 9, weight: .bold))
+                                            .monospacedDigit()
+                                    }
+                                    .foregroundStyle(Theme.running)
+                                }
+
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(.tertiary)
                             }
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(Color.primary.opacity(0.05))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                            )
+                            .contentShape(Rectangle())
                         }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
+                        .buttonStyle(.plain)
                         .disabled(createdSession != nil)
+                        .help("Browse projects by name, path, running work, Git, and sandboxes")
+                        .accessibilityLabel("Choose a project")
+                        .accessibilityValue(selectedProject?.displayName ?? "Custom directory")
                     }
 
                     TextField("Project directory", text: $directory)
@@ -173,12 +235,10 @@ struct NewSessionSheet: View {
                         .disabled(createdSession != nil)
                         .help("The folder OpenCode should work in")
 
-                    if !trimmedDirectory.isEmpty {
-                        Text(projectLabel == "Custom directory" ? trimmedDirectory : projectLabel)
+                    if trimmedDirectory.isEmpty {
+                        Text("Choose a project above, or type a custom folder path.")
                             .font(.system(size: 9))
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
                     }
 
                     VStack(alignment: .leading, spacing: 5) {
@@ -337,6 +397,16 @@ struct NewSessionSheet: View {
         }
         .padding(16)
         .frame(width: 370)
+        .sheet(isPresented: $showingProjectPicker) {
+            ProjectPickerSheet(
+                projects: state.orderedProjects,
+                icons: state.projectIcons,
+                runningCounts: runningCounts,
+                selection: trimmedDirectory
+            ) { project in
+                directory = project.canonical
+            }
+        }
         .onAppear {
             if trimmedDirectory.isEmpty {
                 directory = state.orderedProjects.first?.canonical ?? ""
@@ -344,6 +414,7 @@ struct NewSessionSheet: View {
             if trimmedParentDirectory.isEmpty {
                 parentDirectory = defaultParentDirectory
             }
+            state.loadProjectIcons(for: state.orderedProjects)
             promptFocused = true
         }
         .onChange(of: source) { _, _ in

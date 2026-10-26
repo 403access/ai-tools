@@ -67,6 +67,10 @@ struct MobileNewSessionSheet: View {
         store.orderedProjects.first { $0.canonical == trimmedDirectory }
     }
 
+    private var selectedRunningCount: Int {
+        selectedProject.map { store.runningSessions(in: $0).count } ?? 0
+    }
+
     private var canUseWorktree: Bool {
         selectedProject?.vcs == "git"
     }
@@ -181,6 +185,7 @@ struct MobileNewSessionSheet: View {
             if trimmedParentDirectory.isEmpty {
                 parentDirectory = defaultParentDirectory
             }
+            store.loadProjectIcons(for: store.orderedProjects)
             promptFocused = true
         }
         .onChange(of: source) { _, _ in
@@ -230,20 +235,68 @@ struct MobileNewSessionSheet: View {
 
             if source == .existing {
                 if !store.orderedProjects.isEmpty {
-                    Picker("Project", selection: $directory) {
-                        ForEach(store.orderedProjects) { project in
-                            Text(project.displayName).tag(project.canonical)
+                    NavigationLink {
+                        MobileProjectPickerView(
+                            selectedDirectory: trimmedDirectory,
+                            onSelect: { directory = $0.canonical }
+                        )
+                    } label: {
+                        HStack(spacing: 11) {
+                            ProjectIconTile(
+                                image: selectedProject.flatMap { store.projectIcons[$0.id] },
+                                running: selectedRunningCount > 0,
+                                size: 32
+                            )
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(
+                                    selectedProject?.displayName
+                                        ?? (trimmedDirectory.isEmpty ? "Choose a project" : "Custom directory")
+                                )
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+
+                                Text(shortPath)
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+
+                            Spacer(minLength: 4)
+
+                            if selectedRunningCount > 0 {
+                                HStack(spacing: 3) {
+                                    PulsingDot(size: 4)
+                                    Text("\(selectedRunningCount)")
+                                        .font(.caption2.weight(.bold))
+                                        .monospacedDigit()
+                                }
+                                .foregroundStyle(Theme.running)
+                            }
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.tertiary)
                         }
+                        .padding(11)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(MobileTheme.field)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(MobileTheme.border, lineWidth: 1)
+                        )
+                        .contentShape(Rectangle())
                     }
-                    .pickerStyle(.menu)
-                    .tint(Theme.accent)
+                    .buttonStyle(.plain)
                     .disabled(createdSession != nil)
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(MobileTheme.field)
-                    )
+                    .accessibilityLabel("Choose a project")
+                    .accessibilityValue(selectedProject?.displayName ?? "Custom directory")
+                    .accessibilityHint("Opens the searchable project browser")
                 }
 
                 TextField("Project directory", text: $directory)

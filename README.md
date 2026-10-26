@@ -116,13 +116,14 @@ iOS app:
   new-session sheet turns speech into text as you talk. It keeps whatever you
   already typed, and the transcript stays editable before you send. Speech
   recognition runs on the device when the current language supports it.
-- **Start a new session** from the Live tab or a project page: choose a project
-  directory with **Current folder** or **Git worktree** for the workspace, or
-  clone a GitHub/git repository into a new folder on the Mac, then choose an
-  optional title and an optional first message. A worktree runs the project's
-  setup script before the session starts, keeping its changes out of the main
-  checkout. The new session opens immediately, and the first message is sent in
-  the same step.
+- **Start a new session** from the Live tab or a project page: open the
+  searchable project browser to sort by recent, name, or running work and
+  filter to running, Git, or sandboxed projects, choose **Current folder** or
+  **Git worktree** for the workspace, or clone a GitHub/git repository into a
+  new folder on the Mac, then choose an optional title and first message. A
+  worktree runs the project's setup script before the session starts, keeping
+  its changes out of the main checkout. The new session opens immediately, and
+  the first message is sent in the same step.
 - **Stats** tab: prompts, steps, tool-call reliability, per-tool failure counts
   and median durations, the recent failures with their errors, file impact, and
   the token mix for that session.
@@ -769,6 +770,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     APIEnvelopes.swift      request/response envelopes
     OpenCodeEvent.swift     decoded event payloads (shared)
     ProjectOrdering.swift   project merge + ordering from running counts (shared)
+    ProjectFiltering.swift  project search, sort, filter, and grouping (shared)
     SessionActivity.swift   live "what is it doing" state (shared)
     SessionActivity+Events.swift  event folding
     SessionActivity+Derive.swift  rebuild from cached messages
@@ -786,6 +788,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     DesktopView.swift       full-window layout with a persistent sidebar
     ChangeViews.swift       patch cards and change summaries
     NewSessionSheet.swift   start a session with an optional first prompt
+    ProjectPickerSheet.swift  searchable, sortable, filterable project browser
     RetryTurnSheet.swift    retry in place or fork, with model/agent choices
     ModelPickerSheet.swift  searchable, filterable model browser
     PerformanceViews.swift  skeleton placeholders and shimmer (shared)
@@ -857,6 +860,7 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   SessionDetailView+Pieces.swift    shared loading/error views
   SessionDetailView+Loading.swift   message paging
   NewSessionSheet.swift       start a session from the phone
+  ProjectPickerView.swift     searchable, sortable, filterable project browser
   RetryTurnSheet.swift        retry in place or fork, with model/agent choices
   ModelPickerView.swift       searchable, filterable model browser
   MobileMessageViews.swift    message cards

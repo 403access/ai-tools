@@ -56,7 +56,9 @@ match, the empty state suggests trying another project, range, or status.
 
 Use **New** on the Live tab (or the plus button on a project page):
 
-1. Pick a project directory, or type a custom path.
+1. Pick a project from the searchable browser — sort by recent, name, or running
+   work, and filter to running, Git, or sandboxed projects — or type a custom
+   path.
 2. Optionally give the session a title.
 3. Optionally type or dictate a first message.
 4. Create the session.
