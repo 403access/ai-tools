@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 @main
 struct OpenCodeBarMobileApp: App {
@@ -73,6 +74,7 @@ struct RootView: View {
     @EnvironmentObject private var router: MobileRouter
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.colorScheme) private var colorScheme
     /// The custom dock's selection. It includes Usage and VMs, which sit
     /// outside the five-item `TabView` so UIKit does not wrap the sixth item in
     /// “More”. The system tab bar itself stays hidden.
@@ -80,11 +82,18 @@ struct RootView: View {
     /// The five tabs owned by the system `TabView`.
     @State private var tabSelection: Tab = .tasks
 
-    /// Landscape moves the tab strip to the left edge as a text-only rail so
-    /// the short side of the screen is not spent on a bottom bar.
+    /// Landscape moves the tab strip into the leading safe-area strip as an
+    /// icon-only rail. On edge-to-edge phones the sensor housing sits in that
+    /// strip, so the icons split into two groups above and below the notch
+    /// instead of running beside it.
     private var isLandscape: Bool { verticalSizeClass == .compact }
 
     var body: some View {
+        let metrics = windowMetrics
+        let rail = landscapeRailMetrics(
+            screenHeight: metrics.size.height,
+            insets: metrics.insets
+        )
         // The tab strip moves between the bottom edge (portrait) and the
         // leading edge (landscape) while staying the second child of the
         // layout, so the tab content keeps its identity — and with it the
@@ -95,10 +104,13 @@ struct RootView: View {
 
         layout {
             if isLandscape {
-                MobileTabBar(selection: $selection, axis: .vertical, showsIcons: false)
-                    .padding(.vertical, 18)
-                    .padding(.leading, 8)
-                    .padding(.trailing, 6)
+                if rail.gap > 0 {
+                    // Keep the leading slot so the tab content stays the
+                    // second child and keeps its identity across rotation.
+                    Color.clear.frame(width: 0)
+                } else {
+                    landscapeRail(rail)
+                }
             }
 
             content
@@ -108,6 +120,18 @@ struct RootView: View {
                     .padding(.horizontal, 18)
                     .padding(.top, 6)
                     .padding(.bottom, 4)
+            }
+        }
+        .overlay {
+            if isLandscape, rail.gap > 0 {
+                // The rail lives in the leading safe-area strip, in line with
+                // the notch. A full-screen geometry reader lets it use that
+                // strip without moving the content out of the safe area.
+                GeometryReader { _ in
+                    landscapeRail(rail)
+                        .position(x: rail.centerX, y: rail.centerY)
+                }
+                .ignoresSafeArea()
             }
         }
         .background { MobileTheme.background.ignoresSafeArea() }
@@ -152,6 +176,147 @@ struct RootView: View {
         }
     }
 
+    // MARK: - Landscape rail
+
+    private var windowMetrics: (size: CGSize, insets: EdgeInsets) {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive })
+            ?? UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first,
+            let window = scene.windows.first
+        else {
+            return (.zero, EdgeInsets())
+        }
+        let insets = window.safeAreaInsets
+        return (
+            window.bounds.size,
+            EdgeInsets(
+                top: insets.top,
+                leading: insets.left,
+                bottom: insets.bottom,
+                trailing: insets.right
+            )
+        )
+    }
+
+    private struct LandscapeRail {
+        var width: CGFloat = 44
+        var itemSize: CGFloat = 42
+        var itemWidth: CGFloat = 42
+        var iconSize: CGFloat = 19
+        var gap: CGFloat = 0
+        var centerX: CGFloat = 0
+        var centerY: CGFloat = 0
+    }
+
+    private func landscapeRailMetrics(
+        screenHeight: CGFloat,
+        insets: EdgeInsets
+    ) -> LandscapeRail {
+        // Edge-to-edge phones report a leading safe-area inset in landscape
+        // even though the notch itself only covers the middle of that edge.
+        guard insets.leading >= 40, screenHeight > 0 else {
+            return LandscapeRail()
+        }
+
+        let spacing: CGFloat = 2
+        let padding: CGFloat = 5
+        // The notch is a portrait-width cutout turned on its side. A 12 Pro
+        // notch is about 49% of the screen width; the Dynamic Island is
+        // narrower. Six points keep the capsule caps off the housing.
+        let gap = screenHeight * (insets.leading >= 55 ? 0.32 : 0.49) + 6
+        // Landscape hides the Live tab: six icons split three above and three
+        // below the notch, which keeps the rail symmetric and the icons
+        // legible on notched phones.
+        let topLimit = insets.top + 16
+        let bottomLimit = screenHeight - insets.bottom
+        let halfSpace = min(
+            screenHeight / 2 - gap / 2 - topLimit,
+            bottomLimit - screenHeight / 2 - gap / 2
+        )
+        let available = halfSpace - 2 * padding - 2 * spacing
+        let itemSize = max(14, min(42, floor(available / 3)))
+        let iconSize = min(19, itemSize * 0.95)
+
+        // The groups are symmetric, so centring the rail centres the gap on
+        // the sensor housing. The capsule is wider than the icons and right
+        // aligned with the safe-area edge, so it reads as a rail rather than a
+        // floating pill in the margin.
+        let centerY = screenHeight / 2
+        let itemWidth = itemSize + 10
+        let width = itemWidth + 2 * padding
+        let centerX = insets.leading - width / 2
+
+        return LandscapeRail(
+            width: width,
+            itemSize: itemSize,
+            itemWidth: itemWidth,
+            iconSize: iconSize,
+            gap: gap,
+            centerX: centerX,
+            centerY: centerY
+        )
+    }
+
+    @ViewBuilder
+    private func landscapeRail(_ rail: LandscapeRail) -> some View {
+        let tabs = RootView.Tab.allCases.filter { $0 != .live }
+        if rail.gap > 0 {
+            VStack(spacing: 0) {
+                MobileTabBar(
+                    selection: $selection,
+                    axis: .vertical,
+                    showsTitles: false,
+                    tabs: Array(tabs.prefix(3)),
+                    verticalItemSize: rail.itemSize,
+                    verticalItemWidth: rail.itemWidth,
+                    verticalIconSize: rail.iconSize,
+                    showsBackground: false
+                )
+                Color.clear
+                    .frame(height: rail.gap)
+                    .accessibilityHidden(true)
+                MobileTabBar(
+                    selection: $selection,
+                    axis: .vertical,
+                    showsTitles: false,
+                    tabs: Array(tabs.dropFirst(3)),
+                    verticalItemSize: rail.itemSize,
+                    verticalItemWidth: rail.itemWidth,
+                    verticalIconSize: rail.iconSize,
+                    showsBackground: false
+                )
+            }
+            .frame(width: rail.width)
+            .background {
+                // One rail behind both groups. The sensor housing cuts the
+                // leading edge, so the strip stays connected beside the notch
+                // instead of reading as two floating buttons.
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            }
+            .shadow(
+                color: .black.opacity(colorScheme == .dark ? 0.28 : 0.10),
+                radius: 14,
+                x: 6
+            )
+        } else {
+            MobileTabBar(
+                selection: $selection,
+                axis: .vertical,
+                showsTitles: false,
+                tabs: tabs
+            )
+            .padding(.vertical, 12)
+            .padding(.leading, 6)
+            .padding(.trailing, 4)
+        }
+    }
+
     private var content: some View {
         ZStack {
             TabView(selection: $tabSelection) {
@@ -193,11 +358,17 @@ struct RootView: View {
 
 /// Compact floating tab strip. Mirrors the segmented switcher at the top of the
 /// Mac panel, moved to the thumb reach on iPhone. In landscape it becomes a
-/// vertical text-only rail pinned to the leading edge.
+/// vertical icon-only rail pinned to the leading edge.
 struct MobileTabBar: View {
     @Binding var selection: RootView.Tab
     var axis: Axis = .horizontal
     var showsIcons = true
+    var showsTitles = true
+    var tabs: [RootView.Tab] = RootView.Tab.allCases
+    var verticalItemSize: CGFloat = 42
+    var verticalItemWidth: CGFloat?
+    var verticalIconSize: CGFloat = 19
+    var showsBackground = true
     @Environment(\.colorScheme) private var colorScheme
     @Namespace private var selectionNamespace
     /// The selection indicator animates on its own. Applying `withAnimation`
@@ -214,7 +385,7 @@ struct MobileTabBar: View {
 
     var body: some View {
         layout {
-            ForEach(RootView.Tab.allCases) { tab in
+            ForEach(tabs) { tab in
                 Button {
                     selection = tab
                     withAnimation(.easeInOut(duration: 0.18)) {
@@ -224,14 +395,24 @@ struct MobileTabBar: View {
                     VStack(spacing: 3) {
                         if showsIcons {
                             Image(systemName: tab.icon)
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(.system(
+                                    size: axis == .vertical ? verticalIconSize : 15,
+                                    weight: .semibold
+                                ))
                         }
-                        Text(tab.title)
-                            .font(.system(size: 9, weight: .semibold))
+                        if showsTitles {
+                            Text(tab.title)
+                                .font(.system(size: 9, weight: .semibold))
+                        }
                     }
                     .frame(maxWidth: axis == .horizontal ? CGFloat.infinity : nil)
-                    .padding(.vertical, 7)
-                    .padding(.horizontal, axis == .vertical ? 10 : 0)
+                    .frame(
+                        width: axis == .vertical
+                            ? (verticalItemWidth ?? verticalItemSize)
+                            : nil,
+                        height: axis == .vertical ? verticalItemSize : nil
+                    )
+                    .padding(.vertical, axis == .vertical ? 0 : 7)
                     .foregroundStyle(highlighted == tab ? Color.primary : Color.secondary)
                     .background {
                         if highlighted == tab {
@@ -264,17 +445,24 @@ struct MobileTabBar: View {
         }
         .padding(5)
         .background {
-            RoundedRectangle(cornerRadius: 19, style: .continuous)
-                .fill(.ultraThinMaterial)
+            if showsBackground {
+                RoundedRectangle(cornerRadius: axis == .vertical ? 26 : 19, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            }
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 19, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            if showsBackground {
+                RoundedRectangle(cornerRadius: axis == .vertical ? 26 : 19, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            }
         }
         .shadow(
-            color: .black.opacity(colorScheme == .dark ? 0.35 : 0.12),
+            color: showsBackground
+                ? .black.opacity(colorScheme == .dark ? 0.35 : 0.12)
+                : .clear,
             radius: 18,
-            y: 8
+            x: axis == .vertical ? 8 : 0,
+            y: axis == .vertical ? 0 : 8
         )
     }
 }
