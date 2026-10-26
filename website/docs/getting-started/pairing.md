@@ -49,9 +49,19 @@ a stable private address, use Tailscale on both devices and pair with the Mac's
 
 :::note
 USB tethering is one-way for app traffic: the Mac can use the phone's data, but
-iOS apps cannot connect back to the tethered Mac at `192.0.0.2`. Use the tunnel
-in that case.
+iOS apps cannot connect back to the tethered Mac at its `192.0.0.x` address.
+Use Wi-Fi, Tailscale, or the tunnel in that case.
 :::
+
+## After the hub restarts or changes networks
+
+The phone stores the hub URL from pairing, so it keeps pointing at the old
+address after the hub moves to another network. This includes switching the Mac
+to the phone's USB Personal Hotspot, where the Mac gets a `192.0.0.x` address
+that the phone cannot reach. Re-pair with a fresh QR code or
+`opencodebar://pair?…` link, or run `make mobile-device` while a
+`make hub-tunnel` tunnel is active. The Mac app needs no action: it reads the
+updated `~/.config/opencode/opencodebar-hub.json` on its next launch.
 
 ## Override order
 

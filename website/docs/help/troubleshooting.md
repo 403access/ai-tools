@@ -72,9 +72,10 @@ Instead:
   data-use policy you accept, or
 - set a non-training model as OpenCode's default for that directory.
 
-The failed session stays unchanged; retrying creates a forked session before
-the failed prompt. See [Session detail → Models and data
-training](../using/session.md#models-and-data-training).
+**Retry here** continues the failed conversation in place. Choosing **New fork**
+in **Retry options…** instead copies the history before the failed prompt into
+a separate session and leaves the original untouched. See [Session detail →
+Models and data training](../using/session.md#models-and-data-training).
 
 ## The phone cannot connect
 
@@ -84,7 +85,11 @@ training](../using/session.md#models-and-data-training).
   `make hub-tunnel` on the Mac and use the printed HTTPS URL (or rerun
   `make mobile-device`, which picks it up automatically).
 - USB tethering does not route back to the Mac. The Mac can use the phone's
-  data, but iOS apps cannot reach `192.0.0.2`, so use the tunnel there too.
+  data, but iOS apps cannot reach the Mac's `192.0.0.x` address, so use Wi-Fi,
+  Tailscale, or the tunnel there too.
+- After restarting the hub or moving the Mac to another network, the phone may
+  still be paired to the old URL. Re-pair with a fresh QR code/pairing link, or
+  rerun `make mobile-device` while a tunnel is running.
 - Allow **Local Network** access for OpenCodeBar on both devices.
 - Allow incoming connections for Bun/the hub port in the macOS firewall.
 - A sleeping Mac cannot answer. Open **Settings → Power** on the Mac and turn on

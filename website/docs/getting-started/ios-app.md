@@ -95,9 +95,14 @@ the process runs, but every request still requires the hub token.
 
 :::note
 USB tethering is not enough on its own. iOS does not route from an app back to
-the tethered Mac (`192.0.0.2`), even though the Mac can reach the internet
-through the phone. Use the tunnel in that case too.
+the tethered Mac at its `192.0.0.x` address, even though the Mac can reach the
+internet through the phone. Use Wi-Fi, Tailscale, or the tunnel in that case.
 :::
+
+If the hub restarts on a different address or port, the phone still has the old
+URL saved. Re-pair from the Mac app's QR code or pairing link, or rerun
+`make mobile-device` while `make hub-tunnel` is running. `make mobile-device`
+will not auto-pair to a USB-tether address because the phone cannot reach it.
 
 For a stable address, run [Tailscale](https://tailscale.com) on the Mac and the
 phone and pair with the Mac's `100.x.y.z` address instead; no public URL is

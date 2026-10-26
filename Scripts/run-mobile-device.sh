@@ -13,7 +13,7 @@
 # Pairing uses an address the phone can reach because 127.0.0.1 on the phone
 # means the phone itself. A running `make hub-tunnel` URL is preferred; Tailscale
 # and the Mac's Wi-Fi/Ethernet address also work. USB Personal Hotspot does not:
-# iOS apps cannot route back to the tethered Mac at 192.0.0.2.
+# iOS apps cannot route back to the tethered Mac at its 192.0.0.x address.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -322,8 +322,8 @@ fi
 #   2. Tailscale 100.64.0.0/10
 #   3. the default-route interface (Wi-Fi/Ethernet)
 #   4. any other private IPv4
-# Link-local 169.254.x.x is ignored. The iPhone USB hotspot address (192.0.0.2
-# with gateway 192.0.0.1) is skipped: the Mac can use the phone's data, but iOS
+# Link-local 169.254.x.x is ignored. A 192.0.0.x address on a gateway of
+# 192.0.0.1 is the iPhone USB hotspot: the Mac can use the phone's data, but iOS
 # apps cannot route back to the Mac. `make hub-tunnel` covers that case.
 default_iface="$(netstat -rn -f inet 2>/dev/null | awk '$1 == "default" { print $NF; exit }')"
 default_gateway="$(netstat -rn -f inet 2>/dev/null | awk '$1 == "default" { print $2; exit }')"
@@ -353,9 +353,14 @@ def score(item):
         return 99
     if address.is_loopback or address.is_link_local or address.is_unspecified:
         return 99
-    # USB Personal Hotspot: the Mac is 192.0.0.2 and the phone is the gateway.
-    # The phone cannot route to this address, so never pair with it.
-    if iface == default_iface and ip == "192.0.0.2" and default_gateway == "192.0.0.1":
+    # USB Personal Hotspot: the Mac receives a 192.0.0.x address and the phone
+    # is the gateway. The phone cannot route back to this address, so never
+    # auto-pair with it.
+    if (
+        iface == default_iface
+        and default_gateway == "192.0.0.1"
+        and address in ipaddress.ip_network("192.0.0.0/24")
+    ):
         return 99
     # Tailscale is reachable from any network that also runs Tailscale.
     if address in ipaddress.ip_network("100.64.0.0/10"):

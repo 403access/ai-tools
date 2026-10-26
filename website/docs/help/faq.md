@@ -25,9 +25,9 @@ request data**; do not enable it just to use OpenCodeBar. OpenCode CLI does not
 need it, and neither do the apps.
 
 Choose a model whose data-use policy you accept. After a failed turn, **Retry
-with settings…** lets you pick a different model, variant, and agent in a forked
-session. You can also set a non-training model as OpenCode's default for the
-directory.
+options…** lets you continue in the same session or fork it, and pick a
+different model, variant, and agent. You can also set a non-training model as
+OpenCode's default for the directory.
 
 ## Why did a phone-created session use a model I don't use in the CLI?
 
