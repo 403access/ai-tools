@@ -72,6 +72,7 @@ struct RootView: View {
     @EnvironmentObject private var store: MobileStore
     @EnvironmentObject private var router: MobileRouter
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     /// The custom dock's selection. It includes Usage and VMs, which sit
     /// outside the five-item `TabView` so UIKit does not wrap the sixth item in
     /// “More”. The system tab bar itself stays hidden.
@@ -79,48 +80,35 @@ struct RootView: View {
     /// The five tabs owned by the system `TabView`.
     @State private var tabSelection: Tab = .tasks
 
+    /// Landscape moves the tab strip to the left edge as a text-only rail so
+    /// the short side of the screen is not spent on a bottom bar.
+    private var isLandscape: Bool { verticalSizeClass == .compact }
+
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                TabView(selection: $tabSelection) {
-                    TasksView()
-                        .toolbar(.hidden, for: .tabBar)
-                        .tag(Tab.tasks)
+        // The tab strip moves between the bottom edge (portrait) and the
+        // leading edge (landscape) while staying the second child of the
+        // layout, so the tab content keeps its identity — and with it the
+        // navigation stacks and scroll positions — across rotation.
+        let layout = isLandscape
+            ? AnyLayout(HStackLayout(spacing: 0))
+            : AnyLayout(VStackLayout(spacing: 0))
 
-                    LiveView()
-                        .toolbar(.hidden, for: .tabBar)
-                        .tag(Tab.live)
-
-                    ProjectsView()
-                        .toolbar(.hidden, for: .tabBar)
-                        .tag(Tab.projects)
-
-                    HostView()
-                        .toolbar(.hidden, for: .tabBar)
-                        .tag(Tab.host)
-
-                    NavigationStack { SettingsView() }
-                        .toolbar(.hidden, for: .tabBar)
-                        .tag(Tab.settings)
-                }
-                .opacity(selection == .usage || selection == .vms ? 0 : 1)
-                .allowsHitTesting(selection != .usage && selection != .vms)
-
-                if selection == .usage {
-                    UsageView()
-                        .transition(.opacity)
-                }
-
-                if selection == .vms {
-                    VirtualMachinesView()
-                        .transition(.opacity)
-                }
+        layout {
+            if isLandscape {
+                MobileTabBar(selection: $selection, axis: .vertical, showsIcons: false)
+                    .padding(.vertical, 18)
+                    .padding(.leading, 8)
+                    .padding(.trailing, 6)
             }
 
-            MobileTabBar(selection: $selection)
-                .padding(.horizontal, 18)
-                .padding(.top, 6)
-                .padding(.bottom, 4)
+            content
+
+            if !isLandscape {
+                MobileTabBar(selection: $selection)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 6)
+                    .padding(.bottom, 4)
+            }
         }
         .background { MobileTheme.background.ignoresSafeArea() }
         .onChange(of: selection) { _, newValue in
@@ -163,12 +151,53 @@ struct RootView: View {
             }
         }
     }
+
+    private var content: some View {
+        ZStack {
+            TabView(selection: $tabSelection) {
+                TasksView()
+                    .toolbar(.hidden, for: .tabBar)
+                    .tag(Tab.tasks)
+
+                LiveView()
+                    .toolbar(.hidden, for: .tabBar)
+                    .tag(Tab.live)
+
+                ProjectsView()
+                    .toolbar(.hidden, for: .tabBar)
+                    .tag(Tab.projects)
+
+                HostView()
+                    .toolbar(.hidden, for: .tabBar)
+                    .tag(Tab.host)
+
+                NavigationStack { SettingsView() }
+                    .toolbar(.hidden, for: .tabBar)
+                    .tag(Tab.settings)
+            }
+            .opacity(selection == .usage || selection == .vms ? 0 : 1)
+            .allowsHitTesting(selection != .usage && selection != .vms)
+
+            if selection == .usage {
+                UsageView()
+                    .transition(.opacity)
+            }
+
+            if selection == .vms {
+                VirtualMachinesView()
+                    .transition(.opacity)
+            }
+        }
+    }
 }
 
 /// Compact floating tab strip. Mirrors the segmented switcher at the top of the
-/// Mac panel, moved to the thumb reach on iPhone.
+/// Mac panel, moved to the thumb reach on iPhone. In landscape it becomes a
+/// vertical text-only rail pinned to the leading edge.
 struct MobileTabBar: View {
     @Binding var selection: RootView.Tab
+    var axis: Axis = .horizontal
+    var showsIcons = true
     @Environment(\.colorScheme) private var colorScheme
     @Namespace private var selectionNamespace
     /// The selection indicator animates on its own. Applying `withAnimation`
@@ -177,8 +206,14 @@ struct MobileTabBar: View {
     /// changes feel slow on device.
     @State private var highlighted: RootView.Tab = .tasks
 
+    private var layout: AnyLayout {
+        axis == .vertical
+            ? AnyLayout(VStackLayout(spacing: 2))
+            : AnyLayout(HStackLayout(spacing: 3))
+    }
+
     var body: some View {
-        HStack(spacing: 3) {
+        layout {
             ForEach(RootView.Tab.allCases) { tab in
                 Button {
                     selection = tab
@@ -187,13 +222,16 @@ struct MobileTabBar: View {
                     }
                 } label: {
                     VStack(spacing: 3) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 15, weight: .semibold))
+                        if showsIcons {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: 15, weight: .semibold))
+                        }
                         Text(tab.title)
                             .font(.system(size: 9, weight: .semibold))
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: axis == .horizontal ? CGFloat.infinity : nil)
                     .padding(.vertical, 7)
+                    .padding(.horizontal, axis == .vertical ? 10 : 0)
                     .foregroundStyle(highlighted == tab ? Color.primary : Color.secondary)
                     .background {
                         if highlighted == tab {
