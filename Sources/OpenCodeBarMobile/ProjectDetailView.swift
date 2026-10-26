@@ -89,7 +89,9 @@ struct ProjectDetailView: View {
                         }
     
                         filesSection
-    
+
+                        gitSection
+
                         changesSection
     
                         if !detail.sessions.isEmpty {
@@ -148,13 +150,15 @@ struct ProjectDetailView: View {
             async let detail = store.loadProject(project.id)
             async let changes = store.loadProjectChanges(project.id)
             async let files = store.loadProjectFiles(project.id)
-            _ = await (detail, changes, files)
+            async let git = store.loadProjectGit(project.id)
+            _ = await (detail, changes, files, git)
         }
         .refreshable {
             async let detail = store.loadProject(project.id, force: true)
             async let changes = store.loadProjectChanges(project.id, force: true)
             async let files = store.loadProjectFiles(project.id, force: true)
-            _ = await (detail, changes, files)
+            async let git = store.loadProjectGit(project.id, force: true)
+            _ = await (detail, changes, files, git)
             await store.refreshLive()
         }
     }
@@ -209,6 +213,36 @@ struct ProjectDetailView: View {
             MobileProjectFilesView(files: files) {
                 Task { await store.loadProjectFiles(project.id, force: true) }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var gitSection: some View {
+        let state = store.projectGit[project.id]
+        if let state, state.isLoading && state.repository == nil {
+            SectionHeader("Git")
+            LoadingState(message: "Reading repository…")
+        } else if let state, let error = state.error, state.repository == nil {
+            SectionHeader("Git")
+            NoticeRow(
+                icon: "exclamationmark.triangle.fill",
+                message: error,
+                tint: Theme.warn
+            )
+        } else if let repository = state?.repository {
+            MobileGitRepositoryView(repository: repository) {
+                Task { await store.loadProjectGit(project.id, force: true) }
+            }
+        } else if state?.isLoading == false {
+            SectionHeader("Git")
+            EmptyState(
+                icon: "arrow.triangle.branch",
+                title: "Not a git repository",
+                subtitle: "This project folder has no git history to show."
+            )
+        } else {
+            SectionHeader("Git")
+            LoadingState(message: "Reading repository…")
         }
     }
 

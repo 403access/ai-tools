@@ -35,6 +35,7 @@ struct SessionDetailView: View {
     @State var retryError: String?
     @State var settingsExpanded = true
     @State var defaultModelInfo: ModelInfo?
+    @State var forkParent: Session?
 
     let topAnchor = "session-detail-top"
 
@@ -44,7 +45,7 @@ struct SessionDetailView: View {
     /// Subagents is offered when the session has child sessions, while they are
     /// loading, or when it was selected explicitly (CLI previews).
     var availableModes: [AppState.DetailMode] {
-        var modes: [AppState.DetailMode] = [.conversation, .stats, .changes, .prompts]
+        var modes: [AppState.DetailMode] = [.conversation, .stats, .changes, .git, .prompts]
         if mode == .subagents
             || state.hasSubagents(session.id)
             || state.isLoadingSubagents(session.id) {
@@ -85,6 +86,8 @@ struct SessionDetailView: View {
                             stats
                         case .changes:
                             changes
+                        case .git:
+                            git
                         case .prompts:
                             prompts
                         case .subagents:
@@ -124,13 +127,23 @@ struct SessionDetailView: View {
                 await state.loadChanges(session.id)
             } else if mode == .stats {
                 await state.loadSessionStats(session.id)
+            } else if mode == .git {
+                await state.loadSessionGit(session.id)
             }
         }
         .task(id: session.id) {
             await state.loadSubagents(session.id)
+            await state.loadForks(session.id)
         }
         .task(id: session.id) {
             await loadDefaultModelIfNeeded()
+        }
+        .task(id: session.fork?.sessionID) {
+            guard let sourceID = session.fork?.sessionID else {
+                forkParent = nil
+                return
+            }
+            forkParent = await state.fetchSession(id: sourceID)
         }
         .task(id: mode) {
             switch mode {
@@ -141,6 +154,8 @@ struct SessionDetailView: View {
                 await state.loadChanges(session.id)
             case .stats:
                 await state.loadSessionStats(session.id)
+            case .git:
+                await state.loadSessionGit(session.id)
             case .subagents:
                 break
             }
@@ -251,6 +266,7 @@ struct SessionDetailView: View {
             .foregroundStyle(.secondary)
 
             settingsRow
+            forkRelationship
 
             if isRunning, let activity = state.activity(for: session.id) {
                 Divider().opacity(0.4)
@@ -264,6 +280,59 @@ struct SessionDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 10)
+    }
+
+    /// Bidirectional fork information: the conversation this session was copied
+    /// from and any conversations forked from it.
+    @ViewBuilder
+    var forkRelationship: some View {
+        let loadedForks = state.forkList(for: session.id)?.sessions ?? []
+        let forks = loadedForks.isEmpty
+            ? state.sessions.filter { $0.fork?.sessionID == session.id }
+            : loadedForks
+        let parent = forkParent ?? session.fork.flatMap { state.knownSession(id: $0.sessionID) }
+        if session.isFork || !forks.isEmpty {
+            HStack(spacing: 8) {
+                if session.isFork {
+                    Button {
+                        if let parent {
+                            state.open(parent)
+                        }
+                    } label: {
+                        Label(
+                            parent.map { "Fork of \($0.displayTitle)" } ?? "Fork of another session",
+                            systemImage: "arrow.triangle.branch"
+                        )
+                        .font(.system(size: 9, weight: .medium))
+                        .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.accent)
+                    .disabled(parent == nil)
+                    .help(parent == nil ? "The source conversation is not available offline." : "Open the source conversation")
+                }
+
+                if !forks.isEmpty {
+                    Menu {
+                        ForEach(forks) { fork in
+                            Button(fork.displayTitle) {
+                                state.open(fork)
+                            }
+                        }
+                    } label: {
+                        Label(
+                            forks.count == 1 ? "1 fork" : "\(forks.count) forks",
+                            systemImage: "arrow.triangle.branch"
+                        )
+                        .font(.system(size: 9, weight: .medium))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help("Conversations forked from this one")
+                }
+            }
+            .padding(.top, 1)
+        }
     }
 
     /// Settings actually used by the newest turn. OpenCode does not always
@@ -319,6 +388,15 @@ struct SessionDetailView: View {
                     settingLine("Directory", session.directory ?? "—")
                     if let latestOutcome {
                         settingLine("Outcome", latestOutcome)
+                    }
+                    if let fork = session.fork {
+                        let parent = forkParent ?? state.knownSession(id: fork.sessionID)
+                        settingLine("Forked from", parent?.displayTitle ?? fork.sessionID)
+                    }
+                    let forkCount = state.forkList(for: session.id)?.sessions.count
+                        ?? state.sessions.filter { $0.fork?.sessionID == session.id }.count
+                    if forkCount > 0 {
+                        settingLine("Forks", "\(forkCount)")
                     }
                     if let error = currentFailure?.message.error {
                         settingLine("Failure", error.type ?? "failed")

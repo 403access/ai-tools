@@ -12,6 +12,8 @@ extension SessionDetailView {
             stats
         case .changes:
             changes
+        case .git:
+            git
         case .prompts:
             prompts
         case .subagents:
@@ -52,6 +54,22 @@ extension SessionDetailView {
                 title: "No file changes",
                 subtitle: "Edits and writes made by this session appear here."
             )
+        }
+    }
+
+    @ViewBuilder
+    var git: some View {
+        let state = store.sessionGit[sessionID]
+        if let state, state.isLoading && state.git == nil {
+            LoadingState(message: "Reading repository…")
+        } else if let state, let error = state.error, state.git == nil {
+            errorState(error, title: "Couldn't load commits")
+        } else if let git = state?.git {
+            MobileSessionGitView(git: git) {
+                Task { await store.loadSessionGit(sessionID, force: true) }
+            }
+        } else {
+            LoadingState(message: "Reading repository…")
         }
     }
 
@@ -127,7 +145,7 @@ extension SessionDetailView {
             }
             .foregroundStyle(Theme.danger)
 
-            Text("Retry in a new session with the same model and agent, or choose different settings.")
+            Text("Retry here with the same prompt, or open Retry options to send “continue”, change settings, or fork a copy.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -143,7 +161,7 @@ extension SessionDetailView {
                 Button {
                     Task { await retryFailure(failure) }
                 } label: {
-                    Text("Retry")
+                    Text("Retry here")
                         .font(.footnote.weight(.semibold))
                 }
                 .buttonStyle(.borderedProminent)
@@ -151,7 +169,7 @@ extension SessionDetailView {
                 .controlSize(.small)
                 .disabled(retryingFailure)
 
-                Button("Retry with settings…") {
+                Button("Retry options…") {
                     retryTarget = failure
                 }
                 .font(.footnote)
@@ -173,14 +191,14 @@ extension SessionDetailView {
         defer { retryingFailure = false }
 
         do {
-            let forked = try await store.retryTurn(
+            _ = try await store.retryTurn(
                 from: session,
                 before: failure.prompt.id,
                 prompt: prompt,
                 model: failure.model,
-                agent: failure.agent
+                agent: failure.agent,
+                destination: .sameSession
             )
-            onOpenSession?(forked)
         } catch {
             retryError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }

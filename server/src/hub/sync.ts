@@ -72,6 +72,7 @@ async function doFastSync(hub: Hub): Promise<void> {
           s.tokens?.input ?? 0,
           s.tokens?.output ?? 0,
           s.tokens?.reasoning ?? 0,
+          s.fork?.sessionID ?? null,
         ]),
         projects: projects.map((p) => [p.id, p.time?.updated ?? 0]),
       }),

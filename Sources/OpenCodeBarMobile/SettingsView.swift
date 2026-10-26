@@ -29,6 +29,7 @@ struct SettingsView: View {
                 connectionSection
                 pairingSection
                 howToSection
+                developerSection
                 removeSection
             }
             .padding(.horizontal, 16)
@@ -109,6 +110,43 @@ struct SettingsView: View {
                 helpRow("If the connection fails, allow OpenCodeBar in System Settings → Network → Local Network.", icon: "hand.raised")
             }
             .card(padding: 12)
+        }
+    }
+
+    // MARK: - Developer
+
+    var developerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Developer")
+
+            NavigationLink {
+                DeveloperView()
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "ladybug")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                        .frame(width: 20)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Activity log")
+                            .font(.subheadline.weight(.medium))
+                        Text("API requests, syncs, events, and errors")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 6)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .card(padding: 12)
+
+            sectionNote("Kept in memory on this device. Useful when the hub is slow or a request fails.")
         }
     }
 

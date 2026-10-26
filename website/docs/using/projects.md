@@ -14,7 +14,7 @@ come first, then the most recently active.
 
 ## Project detail
 
-<Figure src="/img/screenshots/project-detail.png" alt="Project detail with an Overview tab showing running sessions and at-a-glance stats" caption="Overview keeps running work and recent sessions together; Stats, Changes, Files, and Sessions have their own tabs." />
+<Figure src="/img/screenshots/project-detail.png" alt="Project detail with an Overview tab showing running sessions and at-a-glance stats" caption="Overview keeps running work and recent sessions together; Stats, Changes, Files, Git, and Sessions have their own tabs." />
 
 Select a project to open its detail page. The name, path, and quick actions
 stay pinned at the top, and the content is split into tabs so each kind of
@@ -26,19 +26,28 @@ information gets its own screen instead of one long scroll:
   over the last 30 / 90 / 365 days or all time, scoped to the project, plus
   tool reliability and model mix.
 - **Changes** — patches written by the project's newest sessions, grouped by
-  session and file.
+  session and file, revealed in pages of 20 files.
 - **Files** — every file in the project folder, including untracked files, with
   git working-tree status for added, modified, and deleted files. Switch
   between **All** and **Changed**, or filter by path. The layout button swaps
   the flat list for a collapsible folder tree; collapsed folders show how many
   changed files they contain. Folders that are not git work trees still list
   their files, without status.
+- **Git** — the repository's current branch, HEAD, working-tree state, local
+  branches, tags, and the full commit graph across every ref. Commits keep
+  their parent links, so merges and side branches are drawn as a lane graph
+  instead of a flat list. Non-repository folders show an empty state.
 - **Sessions** — every session in the project with its cost and time, revealed
   in pages of 50.
 
 Tool reliability shows total calls plus per-tool succeeded, failed, and
 unfinished counts with median durations. On iOS, the same sections appear on a
-single scrolling project page.
+single scrolling project page, including Git.
+
+The Git view is read directly from the project folder by the hub. It includes
+all reachable commits across local refs up to the response cap, plus each
+branch's upstream and ahead/behind offsets. A folder that is not a git work
+tree shows an empty state rather than an error.
 
 ## Quick actions
 

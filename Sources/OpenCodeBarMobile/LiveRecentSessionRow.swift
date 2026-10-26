@@ -18,6 +18,9 @@ struct RecentSessionRow: View {
                     if let model = session.model {
                         Chip(text: model.id)
                     }
+                    if session.isFork {
+                        Chip(text: "Fork", systemImage: "arrow.triangle.branch", tint: Theme.accent)
+                    }
                     if session.hasFailureOutcome {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 10, weight: .bold))

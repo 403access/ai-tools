@@ -80,35 +80,78 @@ extension AppState {
         await loadPending(id, force: true)
     }
 
-    /// Forks a session before the failed prompt, optionally switches its
-    /// model and agent, then sends the prompt again. Used by the failure
-    /// banner so a retry never duplicates messages in the original session.
+    /// Retries a failed prompt. `sameSession` resends it in the conversation so
+    /// the turn can continue; `newSession` forks before the failed prompt first.
+    /// The retry can optionally switch the model and agent.
     func retryTurn(
         from session: Session,
         before messageID: String?,
         prompt: String,
         model: ModelRef?,
-        agent: String?
+        agent: String?,
+        destination: RetryDestination
     ) async throws -> Session {
         guard let api else { throw APIError.transport("Not connected to OpenCode") }
 
-        var forked = try await api.forkSession(id: session.id, before: messageID)
+        var target: Session
+        if destination == .newSession {
+            target = try await api.forkSession(id: session.id, before: messageID)
+        } else {
+            target = session
+        }
+
         if let model {
-            try await api.switchModel(id: forked.id, model: model)
+            try await api.switchModel(id: target.id, model: model)
         }
         if let agent, !agent.isEmpty {
-            try await api.switchAgent(id: forked.id, agent: agent)
+            try await api.switchAgent(id: target.id, agent: agent)
         }
-        try await api.promptSession(id: forked.id, text: prompt)
-        forked = (try? await api.session(id: forked.id)) ?? forked
+        try await api.promptSession(id: target.id, text: prompt)
+        target = (try? await api.session(id: target.id)) ?? target
 
-        sessions.removeAll { $0.id == forked.id }
-        sessions.insert(forked, at: 0)
+        sessions.removeAll { $0.id == target.id }
+        sessions.insert(target, at: 0)
         sessions = SessionOrdering.mostRecentFirst(sessions)
-        activeIDs.insert(forked.id)
+        activeIDs.insert(target.id)
+        if destination == .newSession, var list = forkLists[session.id] {
+            list.sessions.removeAll { $0.id == target.id }
+            list.sessions.insert(target, at: 0)
+            forkLists[session.id] = list
+        }
         rebuildDerived()
         await refreshLive()
-        return forked
+        return target
+    }
+
+    /// Fetches the repository state around a session plus commits made while it
+    /// was active. Loaded when the Git tab opens.
+    func loadSessionGit(_ sessionID: String, force: Bool = false) async {
+        guard let api else { return }
+        if sessionGit[sessionID]?.isLoading == true { return }
+        if !force, let loaded = sessionGit[sessionID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+        defer { trimCache(&sessionGit, loadedAt: { $0.loadedAt }, pinning: sessionID) }
+
+        var state = sessionGit[sessionID] ?? SessionGitState()
+        state.isLoading = true
+        state.error = nil
+        sessionGit[sessionID] = state
+
+        do {
+            let git = try await api.sessionGit(id: sessionID)
+            sessionGit[sessionID] = SessionGitState(git: git, loadedAt: Date())
+        } catch {
+            var failed = sessionGit[sessionID] ?? SessionGitState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                sessionGit[sessionID] = failed
+                return
+            }
+            failed.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            sessionGit[sessionID] = failed
+        }
     }
 
     /// Models available for a session's directory.

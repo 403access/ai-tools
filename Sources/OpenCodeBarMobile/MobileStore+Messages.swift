@@ -72,35 +72,48 @@ extension MobileStore {
         await loadPending(id, force: true)
     }
 
-    /// Forks a session before the failed prompt, optionally switches its model
-    /// and agent, then sends the prompt again.
+    /// Retries a failed prompt. `sameSession` resends it in the conversation so
+    /// the turn can continue; `newSession` forks before the failed prompt first.
+    /// The retry can optionally switch the model and agent.
     func retryTurn(
         from session: Session,
         before messageID: String?,
         prompt: String,
         model: ModelRef?,
-        agent: String?
+        agent: String?,
+        destination: RetryDestination
     ) async throws -> Session {
         guard let api else { throw APIError.transport("Not connected to the hub") }
 
-        var forked = try await api.forkSession(id: session.id, before: messageID)
+        var target: Session
+        if destination == .newSession {
+            target = try await api.forkSession(id: session.id, before: messageID)
+        } else {
+            target = session
+        }
+
         if let model {
-            try await api.switchModel(id: forked.id, model: model)
+            try await api.switchModel(id: target.id, model: model)
         }
         if let agent, !agent.isEmpty {
-            try await api.switchAgent(id: forked.id, agent: agent)
+            try await api.switchAgent(id: target.id, agent: agent)
         }
-        try await api.promptSession(id: forked.id, text: prompt)
-        forked = (try? await api.session(id: forked.id)) ?? forked
+        try await api.promptSession(id: target.id, text: prompt)
+        target = (try? await api.session(id: target.id)) ?? target
 
-        sessions.removeAll { $0.id == forked.id }
-        sessions.insert(forked, at: 0)
+        sessions.removeAll { $0.id == target.id }
+        sessions.insert(target, at: 0)
         sessions = SessionOrdering.mostRecentFirst(sessions)
-        activeIDs.insert(forked.id)
-        database?.upsertSessions([forked])
+        activeIDs.insert(target.id)
+        if destination == .newSession, var list = forkLists[session.id] {
+            list.sessions.removeAll { $0.id == target.id }
+            list.sessions.insert(target, at: 0)
+            forkLists[session.id] = list
+        }
+        database?.upsertSessions([target])
         rebuildDerived()
         await refreshLive()
-        return forked
+        return target
     }
 
     /// Models available for a session's directory.

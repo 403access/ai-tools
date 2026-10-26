@@ -23,8 +23,8 @@ export function upsertSessions(
     INSERT INTO sessions (
       id, parent_id, project_id, agent, model, cost, tokens, outcome,
       created, updated, idle, viewed, archived, title, subpath, directory,
-      active, synced_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+      fork_session_id, fork_boundary, active, synced_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
     ON CONFLICT(id) DO UPDATE SET
       parent_id = excluded.parent_id,
       project_id = excluded.project_id,
@@ -41,6 +41,8 @@ export function upsertSessions(
       title = excluded.title,
       subpath = excluded.subpath,
       directory = excluded.directory,
+      fork_session_id = COALESCE(excluded.fork_session_id, sessions.fork_session_id),
+      fork_boundary = COALESCE(excluded.fork_boundary, sessions.fork_boundary),
       synced_at = excluded.synced_at
     WHERE sessions.parent_id IS NOT excluded.parent_id
        OR sessions.project_id IS NOT excluded.project_id
@@ -57,6 +59,8 @@ export function upsertSessions(
        OR sessions.title IS NOT excluded.title
        OR sessions.subpath IS NOT excluded.subpath
        OR sessions.directory IS NOT excluded.directory
+       OR sessions.fork_session_id IS NOT COALESCE(excluded.fork_session_id, sessions.fork_session_id)
+       OR sessions.fork_boundary IS NOT COALESCE(excluded.fork_boundary, sessions.fork_boundary)
   `);
   const run = db.transaction((items: Session[]) => {
     for (const session of items) {
@@ -77,6 +81,8 @@ export function upsertSessions(
         session.title ?? null,
         session.subpath ?? null,
         session.location?.directory ?? null,
+        session.fork?.sessionID ?? null,
+        session.fork?.boundary ? JSON.stringify(session.fork.boundary) : null,
         now,
       );
       // `changes` is zero when the WHERE clause skipped an identical row, so
@@ -157,6 +163,20 @@ export function getSessions(db: Database, query: SessionQuery = {}): Session[] {
 export function getSession(db: Database, id: string): Session | null {
   const row = db.query("SELECT * FROM sessions WHERE id = ?").get(id) as Row | null;
   return row ? rowToSession(row) : null;
+}
+
+/** Forks of one session, newest first. */
+export function getForks(db: Database, sessionID: string, limit = 50): Session[] {
+  const capped = Math.min(Math.max(Math.floor(limit), 1), 500);
+  const rows = db
+    .query(
+      `SELECT * FROM sessions
+       WHERE fork_session_id = ?
+       ORDER BY updated DESC
+       LIMIT ?`,
+    )
+    .all(sessionID, capped) as Row[];
+  return rows.map(rowToSession);
 }
 
 export function getActiveSessionIDs(db: Database): string[] {

@@ -37,6 +37,65 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+/// How the model picker orders its list.
+enum ModelSortOrder: String, CaseIterable, Identifiable, Hashable, Sendable {
+    /// One section per provider, models sorted by name inside it.
+    case provider = "Provider"
+    /// One flat A–Z list, ignoring providers.
+    case name = "Name"
+
+    var id: String { rawValue }
+}
+
+extension Array where Element == ModelInfo {
+    /// Providers present in the list, alphabetically, for filter chips.
+    var providerIDs: [String] {
+        Set(map(\.providerID)).sorted()
+    }
+
+    /// Case-insensitive filter across the display name, model id and provider,
+    /// optionally narrowed to one provider. The free-text query is ignored
+    /// when it is blank so clearing the search restores the full list.
+    func filteringModels(query: String, providerID: String?) -> [ModelInfo] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return filter { model in
+            if let providerID, model.providerID != providerID { return false }
+            guard !needle.isEmpty else { return true }
+            return model.displayName.lowercased().contains(needle)
+                || model.id.lowercased().contains(needle)
+                || (model.modelID ?? "").lowercased().contains(needle)
+                || model.providerID.lowercased().contains(needle)
+        }
+    }
+
+    /// Alphabetical order used by the flat "Name" sort and inside each
+    /// provider section.
+    func sortedByDisplayName() -> [ModelInfo] {
+        sorted {
+            let result = $0.displayName.localizedStandardCompare($1.displayName)
+            if result != .orderedSame { return result == .orderedAscending }
+            return $0.providerID < $1.providerID
+        }
+    }
+
+    /// Models folded into provider sections, preserving the display-name order
+    /// inside each section. Empty providers are dropped.
+    func groupedByProvider() -> [ModelProviderGroup] {
+        providerIDs.compactMap { provider in
+            let models = filter { $0.providerID == provider }.sortedByDisplayName()
+            return models.isEmpty ? nil : ModelProviderGroup(providerID: provider, models: models)
+        }
+    }
+}
+
+/// One provider's slice of the model list, used by the searchable pickers.
+struct ModelProviderGroup: Identifiable, Hashable, Sendable {
+    var providerID: String
+    var models: [ModelInfo]
+
+    var id: String { providerID }
+}
+
 /// Stable picker identity for a provider/model pair, without a variant.
 struct ModelChoice: Hashable, Identifiable {
     var providerID: String
@@ -89,7 +148,32 @@ struct AgentsCatalogResponse: Decodable {
 
 // MARK: - Failed turns
 
-/// The pieces needed to retry a failed turn in a forked session.
+/// Where a retried prompt is sent. Continuing keeps one conversation; forking
+/// copies the history up to the failed prompt into a new session first.
+enum RetryDestination: String, CaseIterable, Identifiable, Sendable {
+    case sameSession
+    case newSession
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .sameSession: return "This session"
+        case .newSession: return "New fork"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .sameSession:
+            return "Sends the prompt here. The failed turn stays in this conversation."
+        case .newSession:
+            return "Copies the history before this prompt into a new session. The original session is unchanged."
+        }
+    }
+}
+
+/// The pieces needed to retry a failed turn in the same or a forked session.
 struct FailedTurn: Identifiable {
     /// The assistant or idle message that carries the error.
     var message: SessionMessage

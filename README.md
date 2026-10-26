@@ -78,12 +78,15 @@ iOS app:
   Queued prompts stay visible above the composer, with an **×** to withdraw one
   before the turn claims it.
 - **Recover from a failed turn.** Provider failures are shown in the
-  conversation with the upstream message and HTTP status. **Retry** forks the
-  session before the failed prompt and resends it with the same settings;
-  **Retry with settings…** opens a model, variant, and agent picker first. The
-  original session is left untouched. The session header and **Session
-  settings** disclosure show the agent, model, provider, variant, directory,
-  and outcome that were actually used.
+  conversation with the upstream message and HTTP status. **Retry here** resends
+  the same prompt in the current conversation so the turn can continue.
+  **Retry options…** opens a sheet where you can send `continue` instead, pick a
+  model, variant, and agent, or fork the conversation before the failed prompt
+  into a new session. A fork leaves the original untouched. The session header
+  labels a fork with a link back to its source conversation and lists the forks
+  of the conversation you are viewing. The header and **Session settings**
+  disclosure also show the agent, model, provider, variant, directory, and
+  outcome that were actually used.
 - **Speak your prompt.** The microphone in the conversation composer and the
   new-session sheet turns speech into text as you talk. It keeps whatever you
   already typed, and the transcript stays editable before you send. Speech
@@ -99,6 +102,10 @@ iOS app:
   are grouped, and long patches collapse to a preview. The layout button swaps
   the diff cards for a collapsible file tree; tap a file to see its patch. Tool
   cards in the conversation show the same diff instead of raw edit JSON.
+- **Git** tab: the branch, HEAD commit, working-tree state, and every commit
+  made while the session was active. It uses the same repository data as the
+  project page, and sessions outside a work tree say so instead of showing an
+  empty list.
 - Subagent tree: a session's direct child sessions appear in a **Subagents** tab
   with their own live activity, outcome, cost, and time. Tap one to drill in;
   Back returns to the parent, and each level loads its own children.
@@ -132,10 +139,15 @@ iOS app:
   tokens over the last 30 / 90 / 365 days or all time, using only that project's
   data.
 - **Changes** aggregates the patches written by the project's newest sessions,
-  grouped by session and file. **Files** lists every file in the project folder,
+  grouped by session and file, revealed in pages of 20 files. **Files** lists
+  every file in the project folder,
   including untracked files, and marks git working-tree changes as added,
   modified, or deleted; filter it to changed files or search by path. The layout
   button swaps the flat list for a collapsible folder tree.
+- **Git** shows the repository's current branch, HEAD, working-tree state, local
+  branches, tags, and the full commit graph across every ref. Commits keep their
+  parent links, so merges and side branches are drawn as a lane graph instead
+  of a flat list. Non-repository folders show an empty state.
 - **Sessions** lists every session in the project with its cost and time,
   revealed in pages of 50. Quick actions open the project in Finder or Terminal
   and copy its path.
@@ -289,6 +301,10 @@ iOS app:
   awake holds an idle-sleep assertion so phones and tablets keep their
   connection; the display can still turn off. The preference is stored by the
   hub and applied again after a restart.
+- **Developer**: a live, in-memory activity log of hub requests, sync cycles,
+  event-stream changes, and errors. Filter by type, pause the view while
+  reading, copy the visible entries, or clear it. Entries never include the hub
+  token or request bodies.
 
 **iPhone & iPad**
 - The same Live, Projects, Usage, Host, VMs, and Settings areas as the Mac
@@ -308,7 +324,9 @@ iOS app:
   editor adapted for touch.
 - Search projects, pull to refresh any screen, and open a session from a deep
   link. Settings shows hub and OpenCode health, cached session/message counts,
-  uptime, last sync, and a **Keep Mac awake** switch for the host Mac.
+  uptime, last sync, and a **Keep Mac awake** switch for the host Mac. A
+  **Developer** page shows the same in-memory activity log of API requests,
+  syncs, events, and errors as the Mac app.
 - A local SQLite cache renders the last snapshot on launch, then asks the hub
   for changes only (`/api/sync?since=…`) instead of re-reading every session and
   project on each poll. Opened sessions keep their newest messages on device too.
@@ -362,8 +380,10 @@ The hub:
    and prompting one — are forwarded to the same service.
 3. Serves a stable API that mirrors OpenCode's shapes — `/api/session`,
    `/api/session/{id}`, `/api/session/{id}/message`, `/api/session/{id}/changes`,
-   `/api/session/{id}/stats`, `/api/project`, `/api/project/{id}/changes`,
-   `/api/project/{id}/files`, `/api/project/{id}/icon`,
+   `/api/session/{id}/stats`, `/api/session/{id}/git`,
+   `/api/session/{id}/forks`, `/api/project`,
+   `/api/project/{id}/changes`, `/api/project/{id}/files`,
+   `/api/project/{id}/git`, `/api/project/{id}/icon`,
    `/api/experimental/session/stats` — plus
    `/api/session/{id}/prompt` (`POST`), `/api/session` (`POST`), `/api/usage`,
    `/api/health`, `/api/system`, `/api/system/apps/icon`,
@@ -500,8 +520,8 @@ OpenCode Go models require the workspace option **Allow paid endpoints that
 train on request data**. OpenCode CLI does not need it, and neither do the apps.
 OpenCodeBar never changes OpenCode or workspace privacy settings, and it does
 not require that option. If a turn fails with the training error, choose a model
-whose policy you accept (the **Retry with settings…** action on a failed turn
-lets you pick one), or set a non-training model as OpenCode's default.
+whose policy you accept (the **Retry options…** action on a failed turn lets
+you pick one), or set a non-training model as OpenCode's default.
 
 New sessions inherit OpenCode's default model for the directory; they do not
 copy the model from your most recent CLI session. The session header and
@@ -686,6 +706,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     HubAPI.swift            async client for the hub (shared with iOS)
     HubAPI+Endpoints.swift  endpoint methods
     HubAPI+Transport.swift  requests, decoding and diagnostics
+    DevLog.swift            in-memory activity log for the Developer view (shared)
     HubModels.swift         hub transport/health models
     HubEventStream.swift    SSE subscription with reconnect (shared)
     RemoteDesktopModels.swift  remote status, frame header, modifiers (shared)
@@ -709,6 +730,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     Catalog.swift           OpenCode model/agent catalogs and failed-turn lookup
     Changes.swift           file patches and grouping
     ProjectFiles.swift      project file browser payloads
+    GitInfo.swift           commit, branch, and repository graph models (shared)
     APIEnvelopes.swift      request/response envelopes
     OpenCodeEvent.swift     decoded event payloads (shared)
     ProjectOrdering.swift   project merge + ordering from running counts (shared)
@@ -729,7 +751,8 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     DesktopView.swift       full-window layout with a persistent sidebar
     ChangeViews.swift       patch cards and change summaries
     NewSessionSheet.swift   start a session with an optional first prompt
-    RetryTurnSheet.swift    fork before a failure and pick model/agent
+    RetryTurnSheet.swift    retry in place or fork, with model/agent choices
+    ModelPickerSheet.swift  searchable, filterable model browser
     PerformanceViews.swift  skeleton placeholders and shimmer (shared)
     SessionDetailView.swift session header and tabs
     SessionDetailView+Composer.swift  pending queue and composer
@@ -739,6 +762,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     ProjectDetailView.swift           project header, tabs, and sections
     ProjectDetailAnalytics.swift      scoped at-a-glance stats
     ProjectSessions.swift             recent-session rows
+    GitViews.swift                    session commits and project commit graph
     SettingsTab.swift       connected devices and server controls
     SystemTab.swift         machine, resources, apps, Homebrew and tools
     SystemAppDetailView.swift  app bundle facts and Xcode simulator management
@@ -753,6 +777,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     SettingsTab+Support.swift         derived labels and actions
     SettingsDeviceRow.swift           device row in the connected list
     SettingsDeviceDetail.swift        status, timestamps and identity for one device
+    SettingsDeveloperSection.swift    live API/sync/event activity log
     SessionStatsView.swift  per-session reliability and failures
     SubagentViews.swift     tap-through child-session tree
   Preview/PreviewRunner.swift
@@ -789,14 +814,16 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   PairingScanner.swift        camera QR scanner for pairing
   LiveView.swift              running/recent sessions
   LiveView+Filters.swift      project/date filters
-  SessionDetailView.swift     conversation, stats, changes, prompts, subagents
+  SessionDetailView.swift     conversation, stats, changes, git, prompts, subagents
+  MobileGitViews.swift        session commits and project commit graph
   SessionDetailView+Header.swift    live summary
   SessionDetailView+Composer.swift  pending queue and composer
   SessionDetailView+Content.swift   tab content
   SessionDetailView+Pieces.swift    shared loading/error views
   SessionDetailView+Loading.swift   message paging
   NewSessionSheet.swift       start a session from the phone
-  RetryTurnSheet.swift        fork before a failure and pick model/agent
+  RetryTurnSheet.swift        retry in place or fork, with model/agent choices
+  ModelPickerView.swift       searchable, filterable model browser
   MobileMessageViews.swift    message cards
   MobileChangeViews.swift     patch cards and change summaries
   MobileSessionStatsView.swift  per-session reliability and failures
@@ -820,6 +847,7 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   MobileCharts.swift          Swift Charts trend cards
   SettingsView.swift          appearance, pairing, and status
   SettingsView+Connection.swift  status and hub connection controls
+  DeveloperView.swift         full-screen activity log for iPhone/iPad
   MobileComponents.swift      shared mobile views
   MobileTheme.swift           dark design tokens and shared backgrounds
 
@@ -848,6 +876,7 @@ server/                       Bun + TypeScript + SQLite hub
   src/hub.ts                  polling/event hub facade
   src/hub/                    event bus, sync, reads, usage cache
   src/files.ts                project file browser
+  src/git.ts                  session commits and project commit graph
   src/browser.ts              read-only host file browser and previews
   src/projectIcon.ts          project app icon discovery and rendering
   src/api.ts                  HTTP routes

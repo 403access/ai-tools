@@ -94,6 +94,88 @@ struct FileChangeGroup: Identifiable {
     }
 }
 
+/// One session's share of a project's changes, split into file groups so the
+/// project Changes tab can page complete files instead of stopping halfway
+/// through one file's edits.
+struct ProjectChangeSession: Identifiable {
+    var id: String
+    var title: String
+    var files: [FileChangeGroup]
+    /// Files the session wrote, including any beyond `files` after paging.
+    var totalFiles: Int
+
+    var changes: [FileChange] { files.flatMap(\.changes) }
+
+    static func grouped(_ changes: [FileChange]) -> [ProjectChangeSession] {
+        var order: [String] = []
+        var buckets: [String: [FileChange]] = [:]
+        for change in changes {
+            let id = change.sessionID ?? "unknown"
+            if buckets[id] == nil { order.append(id) }
+            buckets[id, default: []].append(change)
+        }
+        return order.map { id in
+            let items = (buckets[id] ?? []).sorted { lhs, rhs in
+                let left = lhs.created ?? 0
+                let right = rhs.created ?? 0
+                if left != right { return left > right }
+                return lhs.id < rhs.id
+            }
+            let files = FileChangeGroup.grouped(items)
+            return ProjectChangeSession(
+                id: id,
+                title: items.first?.sessionTitle ?? "Session",
+                files: files,
+                totalFiles: files.count
+            )
+        }
+        .sorted { lhs, rhs in
+            let left = lhs.files.first?.changes.first?.created ?? 0
+            let right = rhs.files.first?.changes.first?.created ?? 0
+            if left != right { return left > right }
+            return lhs.id < rhs.id
+        }
+    }
+}
+
+/// A page of project changes. Sessions are cut at file boundaries, so showing
+/// more only reveals complete files and never splits repeated edits.
+struct ProjectChangesPage {
+    var sessions: [ProjectChangeSession]
+    var totalFiles: Int
+    var shownFiles: Int
+
+    var hiddenFiles: Int { max(totalFiles - shownFiles, 0) }
+}
+
+enum ProjectChangesPaging {
+    static func page(_ sessions: [ProjectChangeSession], limit: Int) -> ProjectChangesPage {
+        let total = sessions.reduce(0) { $0 + $1.files.count }
+        var remaining = max(limit, 0)
+        var page: [ProjectChangeSession] = []
+
+        for session in sessions {
+            guard remaining > 0 else { break }
+            let files = Array(session.files.prefix(remaining))
+            remaining -= files.count
+            page.append(
+                ProjectChangeSession(
+                    id: session.id,
+                    title: session.title,
+                    files: files,
+                    totalFiles: session.totalFiles
+                )
+            )
+        }
+
+        return ProjectChangesPage(
+            sessions: page,
+            totalFiles: total,
+            shownFiles: min(max(limit, 0), total)
+        )
+    }
+}
+
 // MARK: - Tree
 
 /// One directory or file in the collapsible change tree. File rows map back to

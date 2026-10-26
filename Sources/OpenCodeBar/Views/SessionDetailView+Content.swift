@@ -73,7 +73,7 @@ extension SessionDetailView {
             }
             .foregroundStyle(Theme.danger)
 
-            Text("Retry in a new session with the same model and agent, or choose different settings.")
+            Text("Retry here with the same prompt, or open Retry options to send “continue”, change settings, or fork a copy.")
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -86,7 +86,7 @@ extension SessionDetailView {
             }
 
             HStack(spacing: 7) {
-                Button("Retry") {
+                Button("Retry here") {
                     Task { await retryFailure(failure) }
                 }
                 .buttonStyle(.borderedProminent)
@@ -94,7 +94,7 @@ extension SessionDetailView {
                 .controlSize(.small)
                 .disabled(retryingFailure)
 
-                Button("Retry with settings…") {
+                Button("Retry options…") {
                     retryTarget = failure
                 }
                 .buttonStyle(.bordered)
@@ -115,14 +115,14 @@ extension SessionDetailView {
         defer { retryingFailure = false }
 
         do {
-            let forked = try await state.retryTurn(
+            _ = try await state.retryTurn(
                 from: session,
                 before: failure.prompt.id,
                 prompt: prompt,
                 model: failure.model,
-                agent: failure.agent
+                agent: failure.agent,
+                destination: .sameSession
             )
-            state.open(forked)
         } catch {
             retryError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
@@ -164,6 +164,24 @@ extension SessionDetailView {
                 title: "No file changes",
                 subtitle: "Edits and writes made by this session appear here."
             )
+        }
+    }
+
+    // MARK: - Git
+
+    @ViewBuilder
+    var git: some View {
+        let gitState = state.sessionGit[session.id]
+        if let gitState, gitState.isLoading && gitState.git == nil {
+            LoadingState(message: "Reading repository…")
+        } else if let gitState, let error = gitState.error, gitState.git == nil {
+            errorState(error)
+        } else if let git = gitState?.git {
+            SessionGitView(git: git) {
+                Task { await state.loadSessionGit(session.id, force: true) }
+            }
+        } else {
+            LoadingState(message: "Reading repository…")
         }
     }
 

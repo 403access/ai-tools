@@ -49,6 +49,9 @@ struct RunningRow: View {
                         if let agent = session.agent, !agent.isEmpty {
                             Chip(text: agent, systemImage: "person.fill", tint: Theme.reasoning)
                         }
+                        if session.isFork {
+                            Chip(text: "Fork", systemImage: "arrow.triangle.branch", tint: Theme.accent)
+                        }
                         if subagents > 0 {
                             Chip(
                                 text: subagents == 1 ? "1 agent" : "\(subagents) agents",

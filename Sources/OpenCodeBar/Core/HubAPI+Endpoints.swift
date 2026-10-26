@@ -387,6 +387,13 @@ extension HubAPI {
         return response.data
     }
 
+    /// Sessions forked from a conversation, newest first.
+    func sessionForks(id: String) async throws -> [Session] {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: SessionsResponse = try await get("/api/session/\(encoded)/forks")
+        return response.data
+    }
+
     func session(id: String) async throws -> Session {
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         let response: SessionEnvelope = try await get("/api/session/\(encoded)")
@@ -559,6 +566,26 @@ extension HubAPI {
     func projectFiles(id: String) async throws -> ProjectFiles {
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         let response: ProjectFilesResponse = try await get("/api/project/\(encoded)/files")
+        return response.data
+    }
+
+    /// The project repository's full commit graph, branches, and tags. nil when
+    /// the project folder is not a git work tree.
+    func projectGit(id: String, limit: Int = 2_000) async throws -> GitRepository? {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: GitRepositoryResponse = try await get(
+            "/api/project/\(encoded)/git?limit=\(limit)"
+        )
+        return response.data
+    }
+
+    /// The current repository state for a session plus commits made while it
+    /// was active.
+    func sessionGit(id: String, limit: Int = 2_000) async throws -> SessionGit {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: SessionGitResponse = try await get(
+            "/api/session/\(encoded)/git?limit=\(limit)"
+        )
         return response.data
     }
 

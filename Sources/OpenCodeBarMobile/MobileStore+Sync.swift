@@ -5,10 +5,15 @@ extension MobileStore {
     // MARK: - Refresh
 
     func refreshAll() async {
+        let started = Date()
         async let live: Void = refreshLive()
         async let stats: Void = refreshStats(force: true)
         async let usage: Void = refreshUsage(force: true)
         _ = await (live, stats, usage)
+        DevLog.shared.sync(
+            "Full refresh",
+            detail: DevLog.durationText(Date().timeIntervalSince(started))
+        )
     }
 
     /// Catches up with the hub. The first request is a full snapshot; later
@@ -21,6 +26,8 @@ extension MobileStore {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
+        let started = Date()
+        let wasFull = cachedRevision == 0
 
         do {
             let response = try await api.sync(since: cachedRevision > 0 ? cachedRevision : nil)
@@ -36,11 +43,22 @@ extension MobileStore {
             if lastUpdated.map({ now.timeIntervalSince($0) >= 60 }) ?? true {
                 lastUpdated = now
             }
+
+            DevLog.shared.sync(
+                "Live sync",
+                detail: [
+                    wasFull ? "Full snapshot" : "Delta",
+                    "\(activeIDs.count) running",
+                    "\(sessions.count) sessions",
+                    DevLog.durationText(Date().timeIntervalSince(started)),
+                ].joined(separator: " · ")
+            )
         } catch {
             let text = message(for: error)
             if hubError != text { hubError = text }
             let offline = Connection.offline(text)
             if connection != offline { connection = offline }
+            DevLog.shared.sync("Live sync failed", detail: text, level: .error)
         }
 
         seedActivities()
@@ -72,6 +90,7 @@ extension MobileStore {
             let ordered = SessionOrdering.mostRecentFirst(Array(byID.values))
             if ordered != sessions { sessions = ordered }
             syncSubagentLists(with: response.sessions)
+            syncForkLists(with: response.sessions)
         }
 
         let projectsChanged = response.full
@@ -267,11 +286,18 @@ extension MobileStore {
         guard !isRefreshingSettings else { return }
         isRefreshingSettings = true
         defer { isRefreshingSettings = false }
+        let started = Date()
         do {
             serverSettings = try await api.settings()
             settingsError = nil
+            DevLog.shared.sync(
+                "Settings sync",
+                detail: DevLog.durationText(Date().timeIntervalSince(started))
+            )
         } catch {
-            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            settingsError = message
+            DevLog.shared.sync("Settings sync failed", detail: message, level: .error)
         }
     }
 
@@ -291,9 +317,21 @@ extension MobileStore {
         do {
             serverSettings = try await api.updateSettings(preventSleep: enabled)
             settingsError = nil
+            DevLog.shared.record(
+                "Sleep policy updated",
+                category: .app,
+                detail: enabled ? "Keep Mac awake" : "Allow idle sleep"
+            )
         } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             serverSettings = previous
-            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            settingsError = message
+            DevLog.shared.record(
+                "Sleep policy update failed",
+                category: .app,
+                level: .error,
+                detail: message
+            )
         }
     }
 }

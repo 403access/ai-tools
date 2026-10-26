@@ -36,6 +36,7 @@ extension SessionDetailView {
             .foregroundStyle(.secondary)
 
             settingsRow
+            forkRelationship
 
             if isRunning, let activity = store.activity(for: sessionID) {
                 Divider().opacity(0.4)
@@ -49,6 +50,56 @@ extension SessionDetailView {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 13)
+    }
+
+    /// Bidirectional fork information: the conversation this session was copied
+    /// from and any conversations forked from it.
+    @ViewBuilder
+    var forkRelationship: some View {
+        let loadedForks = store.forkList(for: sessionID)?.sessions ?? []
+        let forks = loadedForks.isEmpty
+            ? store.sessions.filter { $0.fork?.sessionID == sessionID }
+            : loadedForks
+        let parent = forkParent ?? session.fork.flatMap { store.session(id: $0.sessionID) }
+        if session.isFork || !forks.isEmpty {
+            HStack(spacing: 14) {
+                if session.isFork {
+                    Button {
+                        if let parent { onOpenSession?(parent) }
+                    } label: {
+                        Label(
+                            parent.map { "Fork of \($0.displayTitle)" } ?? "Fork of another session",
+                            systemImage: "arrow.triangle.branch"
+                        )
+                        .font(.caption2.weight(.medium))
+                        .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.accent)
+                    .disabled(parent == nil)
+                    .accessibilityHint("Opens the source conversation")
+                }
+
+                if !forks.isEmpty {
+                    Menu {
+                        ForEach(forks) { fork in
+                            Button(fork.displayTitle) {
+                                onOpenSession?(fork)
+                            }
+                        }
+                    } label: {
+                        Label(
+                            forks.count == 1 ? "1 fork" : "\(forks.count) forks",
+                            systemImage: "arrow.triangle.branch"
+                        )
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    }
+                    .fixedSize()
+                    .accessibilityHint("Lists conversations forked from this one")
+                }
+            }
+        }
     }
 
     /// Settings actually used by the newest turn. OpenCode does not always
@@ -104,6 +155,15 @@ extension SessionDetailView {
                     settingLine("Directory", session.directory ?? "—")
                     if let latestOutcome {
                         settingLine("Outcome", latestOutcome)
+                    }
+                    if let fork = session.fork {
+                        let parent = forkParent ?? store.session(id: fork.sessionID)
+                        settingLine("Forked from", parent?.displayTitle ?? fork.sessionID)
+                    }
+                    let forkCount = store.forkList(for: sessionID)?.sessions.count
+                        ?? store.sessions.filter { $0.fork?.sessionID == sessionID }.count
+                    if forkCount > 0 {
+                        settingLine("Forks", "\(forkCount)")
                     }
                     if let error = currentFailure?.message.error {
                         settingLine("Failure", error.type ?? "failed")

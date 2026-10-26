@@ -421,65 +421,40 @@ struct SessionChangesView: View, Equatable {
 struct ProjectChangesView: View, Equatable {
     let changes: [FileChange]
 
-    private struct SessionGroup: Identifiable {
-        var id: String
-        var title: String
-        var changes: [FileChange]
-    }
+    @State private var visibleLimit = Self.pageSize
 
-    private var groups: [SessionGroup] {
-        var order: [String] = []
-        var buckets: [String: [FileChange]] = [:]
-        for change in changes {
-            let id = change.sessionID ?? "unknown"
-            if buckets[id] == nil { order.append(id) }
-            buckets[id, default: []].append(change)
-        }
-        return order.map { id in
-            let items = (buckets[id] ?? []).sorted { lhs, rhs in
-                let left = lhs.created ?? 0
-                let right = rhs.created ?? 0
-                if left != right { return left > right }
-                return lhs.id < rhs.id
-            }
-            return SessionGroup(
-                id: id,
-                title: items.first?.sessionTitle ?? "Session",
-                changes: items
-            )
-        }
-        .sorted { lhs, rhs in
-            let left = lhs.changes.first?.created ?? 0
-            let right = rhs.changes.first?.created ?? 0
-            if left != right { return left > right }
-            return lhs.id < rhs.id
-        }
+    private static let pageSize = 20
+
+    /// Paging is view-local; parent equality only depends on the changes.
+    static func == (lhs: ProjectChangesView, rhs: ProjectChangesView) -> Bool {
+        lhs.changes == rhs.changes
     }
 
     var body: some View {
-        let groups = self.groups
+        let sessions = ProjectChangeSession.grouped(changes)
+        let page = ProjectChangesPaging.page(sessions, limit: visibleLimit)
         return VStack(alignment: .leading, spacing: 10) {
             ChangeSummaryBar(changes: changes)
 
             LazyVStack(alignment: .leading, spacing: 10) {
-                ForEach(groups) { group in
+                ForEach(page.sessions) { session in
                     VStack(alignment: .leading, spacing: 7) {
                         HStack(spacing: 6) {
                             Image(systemName: "bubble.left.fill")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(Theme.running)
-                            Text(group.title)
+                            Text(session.title)
                                 .font(.caption.weight(.semibold))
                                 .lineLimit(2)
                             Spacer(minLength: 4)
-                            Text("\(Set(group.changes.map(\.displayPath)).count)")
+                            Text("\(session.totalFiles)")
                                 .font(.caption2.weight(.bold))
                                 .monospacedDigit()
                                 .foregroundStyle(.secondary)
                         }
 
                         SessionChangesView(
-                            changes: group.changes,
+                            changes: session.changes,
                             showsSummary: false,
                             expandFirst: false,
                             collapsedLines: 0
@@ -489,6 +464,33 @@ struct ProjectChangesView: View, Equatable {
                     .card(padding: 11)
                 }
             }
+
+            if page.hiddenFiles > 0 {
+                showMoreButton(hidden: page.hiddenFiles)
+            }
         }
+        .onChange(of: changes) { _, _ in
+            visibleLimit = Self.pageSize
+        }
+    }
+
+    private func showMoreButton(hidden: Int) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.16)) {
+                visibleLimit += Self.pageSize
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.bold))
+                Text("Show \(min(hidden, Self.pageSize)) more files")
+                    .font(.caption.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.accent)
+        .accessibilityLabel("Show more changed files")
     }
 }

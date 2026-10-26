@@ -60,6 +60,15 @@ final class AppState: ObservableObject {
         var loadedAt: Date?
     }
 
+    /// Sessions forked from one conversation, fetched on demand for the fork
+    /// link in the session header.
+    struct ForkList: Equatable {
+        var sessions: [Session] = []
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     struct ChangesState: Equatable {
         var changes: [FileChange] = []
         var isLoading = false
@@ -81,6 +90,20 @@ final class AppState: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct ProjectGitState: Equatable {
+        var repository: GitRepository?
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
+    struct SessionGitState: Equatable {
+        var git: SessionGit?
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     struct SessionStatsState: Equatable {
         var stats: SessionStats?
         var isLoading = false
@@ -93,6 +116,7 @@ final class AppState: ObservableObject {
         case conversation = "Conversation"
         case stats = "Stats"
         case changes = "Changes"
+        case git = "Git"
         case prompts = "Prompts"
         case subagents = "Subagents"
 
@@ -102,6 +126,7 @@ final class AppState: ObservableObject {
             case .conversation: return "bubble.left.and.bubble.right"
             case .stats: return "wrench.and.screwdriver"
             case .changes: return "plus.forwardslash.minus"
+            case .git: return "arrow.triangle.branch"
             case .prompts: return "text.quote"
             case .subagents: return "person.2"
             }
@@ -114,6 +139,7 @@ final class AppState: ObservableObject {
         case stats = "Stats"
         case changes = "Changes"
         case files = "Files"
+        case git = "Git"
         case sessions = "Sessions"
 
         var id: String { rawValue }
@@ -124,6 +150,7 @@ final class AppState: ObservableObject {
             case .stats: return "chart.bar.xaxis"
             case .changes: return "plus.forwardslash.minus"
             case .files: return "doc.text"
+            case .git: return "arrow.triangle.branch"
             case .sessions: return "bubble.left.and.bubble.right"
             }
         }
@@ -156,12 +183,19 @@ final class AppState: ObservableObject {
     @Published var projectChanges: [String: ChangesState] = [:]
     /// Files inside each project folder, with git working-tree status.
     @Published var projectFiles: [String: ProjectFilesState] = [:]
+    /// Full repository graph for a project, loaded when its Git tab opens.
+    @Published var projectGit: [String: ProjectGitState] = [:]
+    /// Commit information for one session, loaded when its Git tab opens.
+    @Published var sessionGit: [String: SessionGitState] = [:]
     /// Per-session stats (prompts, tool reliability, failures), loaded when the
     /// Stats tab opens.
     @Published var sessionStats: [String: SessionStatsState] = [:]
     /// Child sessions per parent, loaded when a session's Subagents tab is
     /// opened and kept in sync with the live session list.
     @Published var subagentLists: [String: SubagentList] = [:]
+    /// Forks per source conversation, loaded when a session's header needs the
+    /// reverse relationship.
+    @Published var forkLists: [String: ForkList] = [:]
     /// Mac and iOS apps known to the hub, with their live state.
     @Published var devices: [ConnectedDevice] = []
     /// Server information shown on the Settings tab.
@@ -335,6 +369,11 @@ final class AppState: ObservableObject {
         guard !started else { return }
         started = true
 
+        DevLog.shared.record(
+            "OpenCodeBar started",
+            category: .app,
+            detail: usesDesktopWindow ? "Desktop window" : "Menu bar"
+        )
         restoreCachedUsage()
         Task { await bootstrap() }
 
@@ -376,14 +415,22 @@ final class AppState: ObservableObject {
         discovering = true
         defer { discovering = false }
 
+        DevLog.shared.record("Finding hub", category: .app)
         guard let location = await discover() else {
             connection = .offline("Hub not found")
             settingsError = "Hub not found. Run `make hub` or check ~/.config/opencode/opencodebar-hub.json."
             if stats != nil { statsStale = true }
+            DevLog.shared.record(
+                "Hub not found",
+                category: .app,
+                level: .error,
+                detail: "Checked the local hub config"
+            )
             return
         }
         self.location = location
         self.api = HubAPI(location: location)
+        DevLog.shared.record("Hub found", category: .app, detail: location.url.absoluteString)
         // Connect before the slower history/stats fetches so live events from
         // the first seconds after launch are not missed.
         startEvents()

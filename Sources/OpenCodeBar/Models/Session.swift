@@ -14,7 +14,21 @@ struct Session: Codable, Identifiable, Hashable, Sendable {
     var time: Time
     var title: String?
     var subpath: String?
+    /// Present when OpenCode created this session as a fork of another one.
+    var fork: Fork? = nil
     var location: Location
+
+    /// The source conversation a fork was copied from.
+    struct Fork: Codable, Hashable, Sendable {
+        var sessionID: String
+        var boundary: Boundary?
+
+        /// Where the fork was cut in the source conversation.
+        struct Boundary: Codable, Hashable, Sendable {
+            var type: String?
+            var messageID: String?
+        }
+    }
 
     struct Time: Codable, Hashable, Sendable {
         var created: Double
@@ -32,6 +46,7 @@ struct Session: Codable, Identifiable, Hashable, Sendable {
     }
 
     var isSubagent: Bool { parentID != nil }
+    var isFork: Bool { fork != nil }
     var directory: String? { location.directory }
     var displayTitle: String {
         let t = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)

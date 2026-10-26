@@ -30,6 +30,7 @@ import {
   defaultModel,
   devices,
   forkSession,
+  forks,
   health,
   messages,
   models,
@@ -353,6 +354,10 @@ export class Hub {
 
   forkSession(id: string, before?: string | null): Promise<Session> {
     return forkSession(this, id, before);
+  }
+
+  forks(id: string): Promise<Session[]> {
+    return forks(this, id);
   }
 
   switchModel(

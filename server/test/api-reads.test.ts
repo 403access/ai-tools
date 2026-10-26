@@ -27,6 +27,28 @@ describe("hub API reads", () => {  test("serves cached sessions, active ids and 
     db.close();
   });
 
+  test("serves the sessions forked from a conversation", async () => {
+    const { db, handler } = setup();
+    db.upsertSessions([
+      session("ses_source", 1_000),
+      session("ses_fork", 2_000, {
+        title: "Retry",
+        fork: { sessionID: "ses_source", boundary: { type: "before", messageID: "msg_2" } },
+      }),
+      session("ses_other", 3_000),
+    ]);
+
+    const response = await handler(request("/api/session/ses_source/forks"));
+    const forks = await body<{ data: Session[] }>(response);
+    expect(response.status).toBe(200);
+    expect(forks.data.map((item) => item.id)).toEqual(["ses_fork"]);
+    expect(forks.data[0]?.fork?.boundary?.messageID).toBe("msg_2");
+
+    const wrongMethod = await handler(request("/api/session/ses_source/forks", { method: "POST" }));
+    expect(wrongMethod.status).toBe(405);
+    db.close();
+  });
+
   test("serves projects in the OpenCode array shape", async () => {
     const { db, handler } = setup();
     db.replaceProjects([

@@ -74,7 +74,7 @@ function normalizePath(path: string): string {
   return sep === "/" ? path : path.split(sep).join("/");
 }
 
-async function runGit(
+export async function runGit(
   directory: string,
   args: string[],
   timeoutMs = 6_000,

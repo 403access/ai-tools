@@ -55,6 +55,15 @@ final class MobileStore: ObservableObject {
         var loadedAt: Date?
     }
 
+    /// Sessions forked from one conversation, fetched on demand for the fork
+    /// link in the session header.
+    struct ForkList: Equatable {
+        var sessions: [Session] = []
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     struct ChangesState: Equatable {
         var changes: [FileChange] = []
         var isLoading = false
@@ -83,10 +92,25 @@ final class MobileStore: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct ProjectGitState: Equatable {
+        var repository: GitRepository?
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
+    struct SessionGitState: Equatable {
+        var git: SessionGit?
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     enum DetailMode: String, CaseIterable, Identifiable {
         case conversation = "Conversation"
         case stats = "Stats"
         case changes = "Changes"
+        case git = "Git"
         case prompts = "Prompts"
         case subagents = "Subagents"
 
@@ -97,6 +121,7 @@ final class MobileStore: ObservableObject {
             case .conversation: return "bubble.left.and.bubble.right"
             case .stats: return "wrench.and.screwdriver"
             case .changes: return "plus.forwardslash.minus"
+            case .git: return "arrow.triangle.branch"
             case .prompts: return "text.quote"
             case .subagents: return "person.2"
             }
@@ -146,8 +171,13 @@ final class MobileStore: ObservableObject {
     @Published var sessionPending: [String: PendingState] = [:]
     @Published var projectChanges: [String: ChangesState] = [:]
     @Published var projectFiles: [String: ProjectFilesState] = [:]
+    @Published var projectGit: [String: ProjectGitState] = [:]
+    @Published var sessionGit: [String: SessionGitState] = [:]
     @Published var sessionStats: [String: SessionStatsState] = [:]
     @Published var subagentLists: [String: SubagentList] = [:]
+    /// Forks per source conversation, loaded when a session header needs the
+    /// reverse relationship.
+    @Published var forkLists: [String: ForkList] = [:]
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
     @Published var hubError: String?
@@ -196,9 +226,11 @@ final class MobileStore: ObservableObject {
         guard !started else { return }
         started = true
         isPaused = false
+        DevLog.shared.record("OpenCodeBar started", category: .app, detail: "iPhone/iPad")
 
         guard let location = settingsStore.settings.location else {
             connection = .disabled
+            DevLog.shared.record("No hub configured", category: .app)
             return
         }
 
@@ -280,6 +312,7 @@ final class MobileStore: ObservableObject {
     /// Applies saved settings and starts over. Used after the setup screen saves.
     func reconnect() {
         WidgetPublisher.shared.clear()
+        DevLog.shared.record("Reconnecting with saved settings", category: .app)
         stop()
         database?.clear()
         AppIconCache.reset()
@@ -296,8 +329,11 @@ final class MobileStore: ObservableObject {
         sessionChanges = [:]
         projectChanges = [:]
         projectFiles = [:]
+        projectGit = [:]
+        sessionGit = [:]
         sessionStats = [:]
         subagentLists = [:]
+        forkLists = [:]
         refreshingProjectIcons = []
         lastUpdated = nil
         statsFetchedAt = nil
@@ -328,19 +364,33 @@ final class MobileStore: ObservableObject {
         cachedRevision = 0
         connection = .disabled
         hubHealth = nil
+        DevLog.shared.record("Hub configuration removed", category: .app)
     }
 
     func bootstrap() async {
         guard let api else { return }
+        let started = Date()
         do {
             let health = try await api.health()
             hubHealth = health
             hubVersion = health.opencode?.version ?? health.hub?.version
             connection = .connected(version: displayVersion)
             hubError = nil
+            DevLog.shared.record(
+                "Hub connected",
+                category: .app,
+                detail: "\(displayVersion) · \(DevLog.durationText(Date().timeIntervalSince(started)))"
+            )
         } catch {
-            connection = .offline(message(for: error))
-            hubError = message(for: error)
+            let message = message(for: error)
+            connection = .offline(message)
+            hubError = message
+            DevLog.shared.record(
+                "Hub unreachable",
+                category: .app,
+                level: .error,
+                detail: message
+            )
         }
         await refreshAll()
     }

@@ -68,7 +68,7 @@ and OpenCodeBar never changes that setting for you.
 
 Instead:
 
-- open **Retry with settings…** on the failed turn and choose a model whose
+- open **Retry options…** on the failed turn and choose a model whose
   data-use policy you accept, or
 - set a non-training model as OpenCode's default for that directory.
 

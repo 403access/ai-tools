@@ -6,6 +6,7 @@ import {
 } from "./config.ts";
 import type { HubDB } from "./db.ts";
 import { listProjectFiles, ProjectFilesError } from "./files.ts";
+import { readProjectGit, readSessionGit } from "./git.ts";
 import {
   FileBrowserError,
   listDirectory,
@@ -818,6 +819,15 @@ export function createHandler(
         }
       }
 
+      if (parts[0] === "api" && parts[1] === "project" && parts[3] === "git" && parts.length === 4) {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+        const id = decodeURIComponent(parts[2]!);
+        const project = db.getProject(id);
+        if (!project) return error("Project not found", 404);
+        const limit = intParam(url.searchParams.get("limit"), 2_000, 1, 20_000);
+        return json({ data: await readProjectGit(project.canonical, limit) });
+      }
+
       if (parts[0] === "api" && parts[1] === "project" && parts[3] === "icon" && parts.length === 4) {
         if (request.method !== "GET") return error("Method not allowed", 405);
         const id = decodeURIComponent(parts[2]!);
@@ -921,8 +931,30 @@ export function createHandler(
           return json({ data: await hub.children(id) });
         }
 
+        if (parts.length === 4 && parts[3] === "forks") {
+          if (request.method !== "GET") return error("Method not allowed", 405);
+          return json({ data: await hub.forks(id) });
+        }
+
         if (parts.length === 4 && parts[3] === "changes") {
           return json({ data: await hub.changes(id) });
+        }
+
+        if (parts.length === 4 && parts[3] === "git") {
+          if (request.method !== "GET") return error("Method not allowed", 405);
+          const session = db.getSession(id);
+          if (!session) return error("Session not found", 404);
+          const directory =
+            session.location?.directory ?? db.getProject(session.projectID)?.canonical ?? null;
+          const limit = intParam(url.searchParams.get("limit"), 2_000, 1, 20_000);
+          return json({
+            data: await readSessionGit(
+              directory,
+              session.time?.created,
+              session.time?.updated,
+              limit,
+            ),
+          });
         }
 
         if (parts.length === 4 && parts[3] === "stats") {

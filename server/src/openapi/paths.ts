@@ -406,6 +406,22 @@ export const PATHS = {
     },
   },
 
+  "/api/session/{id}/forks": {
+    get: {
+      tags: ["Sessions"],
+      summary: "Forked sessions",
+      description:
+        "Sessions forked from this conversation, newest first. Each fork carries `fork.sessionID` pointing back to this session.",
+      operationId: "listSessionForks",
+      parameters: [pathParam("id", "Source session id.")],
+      responses: {
+        200: ok(schemaRef("SessionForksResponse")),
+        401: unauthorized,
+        default: failure,
+      },
+    },
+  },
+
   "/api/session/{id}/changes": {
     get: {
       tags: ["Sessions"],
@@ -415,6 +431,28 @@ export const PATHS = {
       responses: {
         200: ok(schemaRef("ChangesResponse")),
         401: unauthorized,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/session/{id}/git": {
+    get: {
+      tags: ["Sessions"],
+      summary: "Commit information for a session",
+      description:
+        "Reads the session's work tree and lists commits authored while the session was active, plus the current branch and HEAD.",
+      operationId: "getSessionGit",
+      parameters: [
+        pathParam("id", "Session id."),
+        queryParam("limit", "Maximum commits (1–20000). Defaults to 2000.", {
+          type: "integer", minimum: 1, maximum: 20_000, default: 2_000,
+        }),
+      ],
+      responses: {
+        200: ok(schemaRef("SessionGitResponse")),
+        401: unauthorized,
+        404: notFound,
         default: failure,
       },
     },
@@ -575,6 +613,28 @@ export const PATHS = {
       parameters: [pathParam("id", "Project id.")],
       responses: {
         200: ok(schemaRef("ProjectFilesResponse")),
+        401: unauthorized,
+        404: notFound,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/project/{id}/git": {
+    get: {
+      tags: ["Projects"],
+      summary: "Project repository graph",
+      description:
+        "Returns every reachable commit across all refs, plus branches, tags, and the current working-tree state. `data` is null when the folder is not a git work tree.",
+      operationId: "getProjectGit",
+      parameters: [
+        pathParam("id", "Project id."),
+        queryParam("limit", "Maximum commits (1–20000). Defaults to 2000.", {
+          type: "integer", minimum: 1, maximum: 20_000, default: 2_000,
+        }),
+      ],
+      responses: {
+        200: ok(schemaRef("GitRepositoryResponse")),
         401: unauthorized,
         404: notFound,
         default: failure,

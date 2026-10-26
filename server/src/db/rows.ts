@@ -77,6 +77,19 @@ export function rowToSession(row: Row): Session {
   if (subpath) session.subpath = subpath;
   const directory = text(row.directory);
   if (directory) session.location.directory = directory;
+  const forkSessionID = text(row.fork_session_id);
+  if (forkSessionID) {
+    const fork: NonNullable<Session["fork"]> = { sessionID: forkSessionID };
+    if (typeof row.fork_boundary === "string" && row.fork_boundary) {
+      try {
+        const boundary = JSON.parse(row.fork_boundary);
+        if (boundary && typeof boundary === "object") fork.boundary = boundary;
+      } catch {
+        // Ignore a malformed cached fork boundary.
+      }
+    }
+    session.fork = fork;
+  }
   return session;
 }
 

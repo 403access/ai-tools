@@ -7,12 +7,6 @@ extension AppState {
         liveActivity[sessionID]
     }
 
-    /// Fetches a single session by ID, for deep links and preview tooling.
-    func fetchSession(id: String) async -> Session? {
-        guard let api else { return nil }
-        return try? await api.session(id: id)
-    }
-
     /// Folds an event into the matching session's activity, updates live
     /// cost/tokens, and refreshes the list (debounced) as before.
     func handle(_ event: OpenCodeEvent) {
@@ -93,10 +87,12 @@ extension AppState {
     /// that the poll already reflects the change.
     func pruneActivity() {
         let cutoff = Date().addingTimeInterval(-10)
-        liveActivity = liveActivity.filter { id, activity in
+        let keptActivity = liveActivity.filter { id, activity in
             activeIDs.contains(id) || activity.updatedAt > cutoff
         }
-        seedAttempts = seedAttempts.filter { activeIDs.contains($0.key) }
+        if keptActivity != liveActivity { liveActivity = keptActivity }
+        let keptSeeds = seedAttempts.filter { activeIDs.contains($0.key) }
+        if keptSeeds != seedAttempts { seedAttempts = keptSeeds }
     }
 
     /// Rebuilds activity from the newest messages when the panel starts, when
@@ -135,6 +131,13 @@ extension AppState {
     }
 
     func handle(_ error: Error) {
+        let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        DevLog.shared.record(
+            "Connection error",
+            category: .app,
+            level: .error,
+            detail: message
+        )
         if let apiError = error as? APIError, apiError.shouldRediscover {
             // Port or credentials likely changed; rediscover on the next poll.
             api = nil
@@ -144,6 +147,6 @@ extension AppState {
             connection = .offline("Reconnecting…")
             return
         }
-        connection = .offline((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+        connection = .offline(message)
     }
 }

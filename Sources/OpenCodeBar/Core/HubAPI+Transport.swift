@@ -23,6 +23,12 @@ extension HubAPI {
         do {
             return try Self.decoder.decode(T.self, from: data)
         } catch {
+            DevLog.shared.record(
+                "Decode failed",
+                category: .api,
+                level: .error,
+                detail: "\(path) · \(String(describing: error))"
+            )
             throw APIError.decoding(String(describing: error))
         }
     }
@@ -42,20 +48,63 @@ extension HubAPI {
             (data, response) = try await Self.session.data(for: request)
         } catch let error as URLError {
             Self.debugLog("[hub] url-error \(path) \(error)")
+            DevLog.shared.api(
+                method: method,
+                path: path,
+                duration: Date().timeIntervalSince(started),
+                error: error.localizedDescription
+            )
             throw APIError.transport(error.localizedDescription)
         } catch {
             Self.debugLog("[hub] error \(path) \(error)")
+            DevLog.shared.api(
+                method: method,
+                path: path,
+                duration: Date().timeIntervalSince(started),
+                error: error.localizedDescription
+            )
             throw APIError.transport(error.localizedDescription)
         }
-        guard let http = response as? HTTPURLResponse else { throw APIError.badResponse }
-        Self.debugLog("[hub] done \(method) \(path) \(http.statusCode) \(String(format: "%.2fs", Date().timeIntervalSince(started)))")
+        guard let http = response as? HTTPURLResponse else {
+            DevLog.shared.api(
+                method: method,
+                path: path,
+                duration: Date().timeIntervalSince(started),
+                error: "Not an HTTP response"
+            )
+            throw APIError.badResponse
+        }
+        let elapsed = Date().timeIntervalSince(started)
+        Self.debugLog("[hub] done \(method) \(path) \(http.statusCode) \(String(format: "%.2fs", elapsed))")
         switch http.statusCode {
         case 200..<300:
-            break
+            DevLog.shared.api(
+                method: method,
+                path: path,
+                status: http.statusCode,
+                duration: elapsed,
+                bytes: data.count
+            )
         case 401, 403:
+            DevLog.shared.api(
+                method: method,
+                path: path,
+                status: http.statusCode,
+                duration: elapsed,
+                error: "Unauthorized"
+            )
             throw APIError.unauthorized
         default:
-            throw APIError.request(http.statusCode, Self.serverMessage(from: data))
+            let message = Self.serverMessage(from: data)
+            DevLog.shared.api(
+                method: method,
+                path: path,
+                status: http.statusCode,
+                duration: elapsed,
+                bytes: data.count,
+                error: message
+            )
+            throw APIError.request(http.statusCode, message)
         }
         return data
     }

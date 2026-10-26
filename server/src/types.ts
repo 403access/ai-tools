@@ -26,6 +26,19 @@ export interface SessionTime {
   archived?: number;
 }
 
+/** Where a fork was cut in the source conversation. */
+export interface SessionForkBoundary {
+  type?: "before" | "through" | string;
+  messageID?: string;
+  [key: string]: unknown;
+}
+
+/** The source conversation this session was forked from. */
+export interface SessionFork {
+  sessionID: string;
+  boundary?: SessionForkBoundary;
+}
+
 export interface Session {
   id: string;
   parentID?: string;
@@ -38,6 +51,8 @@ export interface Session {
   time: SessionTime;
   title?: string;
   subpath?: string;
+  /** Present when OpenCode created this session as a fork of another one. */
+  fork?: SessionFork;
   location: { directory?: string };
 }
 
@@ -246,6 +261,78 @@ export interface ProjectFiles {
 
 export interface ProjectFilesResponse {
   data: ProjectFiles;
+}
+
+/** A person and timestamp attached to a commit. Times are milliseconds. */
+export interface GitPerson {
+  name: string;
+  email: string;
+  time: number;
+}
+
+/** One commit in a repository's history. */
+export interface GitCommit {
+  hash: string;
+  shortHash: string;
+  /** Parent hashes, newest first. Merge commits have more than one. */
+  parents: string[];
+  author: GitPerson;
+  committer: GitPerson;
+  subject: string;
+  /** Decorations such as `HEAD -> main`, `origin/main`, or `tag: v1.0`. */
+  refs: string[];
+}
+
+/** One local branch and how it tracks its upstream. */
+export interface GitBranch {
+  name: string;
+  hash: string;
+  current: boolean;
+  upstream?: string;
+  ahead: number;
+  behind: number;
+}
+
+/** The cheap, at-a-glance state of a repository. */
+export interface GitRepositorySummary {
+  /** Absolute path to the top of the work tree. */
+  root: string;
+  /** Current branch, or null when HEAD is detached. */
+  branch: string | null;
+  head: GitCommit | null;
+  /** Number of files with uncommitted changes. */
+  dirty: number;
+  ahead: number;
+  behind: number;
+}
+
+/** A repository plus the full commit graph shown on the project page. */
+export interface GitRepository extends GitRepositorySummary {
+  branches: GitBranch[];
+  tags: string[];
+  /** Every reachable commit, newest first, across all refs. */
+  commits: GitCommit[];
+  /** Number of commits before the response was capped. */
+  total: number;
+  truncated: boolean;
+}
+
+/** Commit information for one session. */
+export interface SessionGit {
+  /** Directory the session ran in, or null when it has no location. */
+  directory: string | null;
+  repository: GitRepositorySummary | null;
+  /** Commits made while the session was active. */
+  commits: GitCommit[];
+  total: number;
+}
+
+export interface GitRepositoryResponse {
+  data: GitRepository | null;
+}
+
+export interface SessionGitResponse {
+  data: SessionGit;
 }
 
 export interface MessageCursor {

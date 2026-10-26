@@ -64,6 +64,7 @@ struct ProjectDetailView: View {
                         case .stats: statsTab
                         case .changes: changesTab
                         case .files: filesTab
+                        case .git: gitTab
                         case .sessions: sessionsTab
                         }
                     }
@@ -86,6 +87,11 @@ struct ProjectDetailView: View {
             async let changes: Void = state.loadProjectChanges(project.id)
             async let files: Void = state.loadProjectFiles(project.id)
             _ = await (detail, changes, files)
+        }
+        .task(id: "\(project.id)-\(mode.rawValue)") {
+            if mode == .git {
+                await state.loadProjectGit(project.id)
+            }
         }
         .onChange(of: project.id) { _, _ in
             sessionLimit = Self.sessionPageSize
@@ -575,6 +581,39 @@ struct ProjectDetailView: View {
         } else {
             SectionHeader("Files")
             LoadingState(message: "Reading project folder…")
+        }
+    }
+
+    // MARK: - Git
+
+    @ViewBuilder
+    private var gitTab: some View {
+        let gitState = state.projectGit[project.id]
+
+        if let gitState, gitState.isLoading && gitState.repository == nil {
+            SectionHeader("Git")
+            LoadingState(message: "Reading repository…")
+        } else if let gitState, let error = gitState.error, gitState.repository == nil {
+            SectionHeader("Git")
+            NoticeRow(
+                icon: "exclamationmark.triangle.fill",
+                message: error,
+                tint: Theme.warn
+            )
+        } else if let repository = gitState?.repository {
+            GitRepositoryView(repository: repository) {
+                Task { await state.loadProjectGit(project.id, force: true) }
+            }
+        } else if gitState?.isLoading == false {
+            SectionHeader("Git")
+            EmptyState(
+                icon: "arrow.triangle.branch",
+                title: "Not a git repository",
+                subtitle: "This project folder has no git history to show."
+            )
+        } else {
+            SectionHeader("Git")
+            LoadingState(message: "Reading repository…")
         }
     }
 

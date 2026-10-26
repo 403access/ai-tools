@@ -34,7 +34,7 @@ import {
   type ChangeLog,
 } from "./db/projects.ts";
 import { migrate } from "./db/schema.ts";
-import { getActiveSessionIDs, getSession, getSessions, markActive, setActive, updateSessionUsage, upsertSessions, type SessionQuery } from "./db/sessions.ts";
+import { getActiveSessionIDs, getForks as getSessionForks, getSession, getSessions, markActive, setActive, updateSessionUsage, upsertSessions, type SessionQuery } from "./db/sessions.ts";
 import { getSessionStats } from "./db/sessionStats.ts";
 import { counts, getStats, getUsage, putStats, putUsage, putUsageError, type CachedStats, type CachedUsage } from "./db/stats.ts";
 import { getSync } from "./db/sync.ts";
@@ -141,6 +141,10 @@ export class HubDB implements ChangeLog {
 
   getSession(id: string): Session | null {
     return getSession(this.db, id);
+  }
+
+  getForks(sessionID: string, limit = 50): Session[] {
+    return getSessionForks(this.db, sessionID, limit);
   }
 
   getActiveSessionIDs(): string[] {

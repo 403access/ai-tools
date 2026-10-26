@@ -25,6 +25,7 @@ struct SettingsTab: View {
             devicesSection
             pairingSection
             connectionSection
+            SettingsDeveloperSection()
         }
         .task { await state.refreshSettings() }
         .alert("Restart the hub?", isPresented: $showRestartConfirmation) {

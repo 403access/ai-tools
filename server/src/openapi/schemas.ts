@@ -96,6 +96,24 @@ export const SCHEMAS = {
     },
   },
 
+  SessionForkBoundary: {
+    type: "object",
+    description: "Where the fork was cut in the source conversation.",
+    properties: {
+      type: { type: "string", enum: ["before", "through"] },
+      messageID: string,
+    },
+  },
+
+  SessionFork: {
+    type: "object",
+    required: ["sessionID"],
+    properties: {
+      sessionID: { type: "string", description: "Source conversation the fork was copied from." },
+      boundary: { $ref: "#/components/schemas/SessionForkBoundary" },
+    },
+  },
+
   Session: {
     type: "object",
     required: ["id", "projectID", "cost", "tokens", "time"],
@@ -111,6 +129,7 @@ export const SCHEMAS = {
       time: { $ref: "#/components/schemas/SessionTime" },
       title: string,
       subpath: string,
+      fork: { $ref: "#/components/schemas/SessionFork" },
       location: {
         type: "object",
         properties: { directory: string },
@@ -458,6 +477,104 @@ export const SCHEMAS = {
     },
   },
 
+  GitPerson: {
+    type: "object",
+    required: ["name", "email", "time"],
+    properties: {
+      name: string,
+      email: string,
+      time: timestamp,
+    },
+  },
+
+  GitCommitRef: {
+    type: "object",
+    required: ["hash", "shortHash", "parents", "author", "committer", "subject", "refs"],
+    properties: {
+      hash: { type: "string", example: "4a45e54be9b24eabc76375699ab27309f901cce5" },
+      shortHash: { type: "string", example: "4a45e54" },
+      parents: stringArray,
+      author: { $ref: "#/components/schemas/GitPerson" },
+      committer: { $ref: "#/components/schemas/GitPerson" },
+      subject: string,
+      refs: {
+        ...stringArray,
+        example: ["HEAD -> main", "origin/main", "tag: v1.0"],
+      },
+    },
+  },
+
+  GitBranch: {
+    type: "object",
+    required: ["name", "hash", "current", "ahead", "behind"],
+    properties: {
+      name: string,
+      hash: string,
+      current: bool,
+      upstream: string,
+      ahead: integer,
+      behind: integer,
+    },
+  },
+
+  GitRepositorySummary: {
+    type: "object",
+    required: ["root", "branch", "head", "dirty", "ahead", "behind"],
+    properties: {
+      root: { type: "string", description: "Absolute path to the work-tree root." },
+      branch: { type: "string", nullable: true, description: "Null when HEAD is detached." },
+      head: { allOf: [{ $ref: "#/components/schemas/GitCommitRef" }], nullable: true },
+      dirty: integer,
+      ahead: integer,
+      behind: integer,
+    },
+  },
+
+  GitRepository: {
+    allOf: [
+      { $ref: "#/components/schemas/GitRepositorySummary" },
+      {
+        type: "object",
+        required: ["branches", "tags", "commits", "total", "truncated"],
+        properties: {
+          branches: { type: "array", items: { $ref: "#/components/schemas/GitBranch" } },
+          tags: stringArray,
+          commits: { type: "array", items: { $ref: "#/components/schemas/GitCommitRef" } },
+          total: integer,
+          truncated: bool,
+        },
+      },
+    ],
+  },
+
+  GitRepositoryResponse: {
+    type: "object",
+    required: ["data"],
+    properties: {
+      data: { allOf: [{ $ref: "#/components/schemas/GitRepository" }], nullable: true },
+    },
+  },
+
+  SessionGit: {
+    type: "object",
+    required: ["directory", "repository", "commits", "total"],
+    properties: {
+      directory: { type: "string", nullable: true },
+      repository: {
+        allOf: [{ $ref: "#/components/schemas/GitRepositorySummary" }],
+        nullable: true,
+      },
+      commits: { type: "array", items: { $ref: "#/components/schemas/GitCommitRef" } },
+      total: integer,
+    },
+  },
+
+  SessionGitResponse: {
+    type: "object",
+    required: ["data"],
+    properties: { data: { $ref: "#/components/schemas/SessionGit" } },
+  },
+
   SessionPendingItem: {
     type: "object",
     required: ["id", "sessionID", "type", "time"],
@@ -759,6 +876,7 @@ export const SCHEMAS = {
 
   SessionResponse: data(sessionRef),
   SessionChildrenResponse: data({ type: "array", items: sessionRef }),
+  SessionForksResponse: data({ type: "array", items: sessionRef }),
   ModelsResponse: data({ type: "array", items: { $ref: "#/components/schemas/ModelInfo" } }),
   ModelResponse: data({ $ref: "#/components/schemas/ModelInfo" }),
   AgentsResponse: data({ type: "array", items: { $ref: "#/components/schemas/AgentInfo" } }),

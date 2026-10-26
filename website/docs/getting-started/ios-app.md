@@ -14,7 +14,7 @@ the app needs it for every read and write.
 New sessions use OpenCode's default model for the directory. OpenCodeBar never
 enables **Allow paid endpoints that train on request data**, and you do not need
 to enable it to use the phone. If your default is a training model, set a
-non-training default in OpenCode, or use **Retry with settings…** after a failed
+non-training default in OpenCode, or use **Retry options…** after a failed
 turn. See [Session detail → Models and data
 training](../using/session.md#models-and-data-training).
 :::

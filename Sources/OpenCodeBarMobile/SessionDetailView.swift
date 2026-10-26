@@ -44,6 +44,7 @@ struct SessionDetailView: View {
     @State var retryError: String?
     @State var settingsExpanded = false
     @State var defaultModelInfo: ModelInfo?
+    @State var forkParent: Session?
 
     let topAnchor = "session-mobile-top"
 
@@ -55,7 +56,7 @@ struct SessionDetailView: View {
     var project: String { store.projectName(for: session) }
 
     var availableModes: [MobileStore.DetailMode] {
-        var modes: [MobileStore.DetailMode] = [.conversation, .stats, .changes, .prompts]
+        var modes: [MobileStore.DetailMode] = [.conversation, .stats, .changes, .git, .prompts]
         if mode == .subagents
             || store.hasSubagents(sessionID)
             || store.isLoadingSubagents(sessionID) {
@@ -174,13 +175,23 @@ struct SessionDetailView: View {
                 await store.loadChanges(sessionID)
             } else if mode == .stats {
                 await store.loadSessionStats(sessionID)
+            } else if mode == .git {
+                await store.loadSessionGit(sessionID)
             }
         }
         .task(id: sessionID) {
             await store.loadSubagents(sessionID)
+            await store.loadForks(sessionID)
         }
         .task(id: sessionID) {
             await loadDefaultModelIfNeeded()
+        }
+        .task(id: session.fork?.sessionID) {
+            guard let sourceID = session.fork?.sessionID else {
+                forkParent = nil
+                return
+            }
+            forkParent = await store.fetchSession(id: sourceID)
         }
         .task(id: mode) {
             switch mode {
@@ -191,6 +202,8 @@ struct SessionDetailView: View {
                 await store.loadChanges(sessionID)
             case .stats:
                 await store.loadSessionStats(sessionID)
+            case .git:
+                await store.loadSessionGit(sessionID)
             case .subagents:
                 break
             }
@@ -198,10 +211,13 @@ struct SessionDetailView: View {
         .refreshable {
             await loadLatest()
             await store.loadSubagents(sessionID, force: true)
+            await store.loadForks(sessionID, force: true)
             if mode == .changes {
                 await store.loadChanges(sessionID, force: true)
             } else if mode == .stats {
                 await store.loadSessionStats(sessionID, force: true)
+            } else if mode == .git {
+                await store.loadSessionGit(sessionID, force: true)
             }
             await store.refreshLive()
         }

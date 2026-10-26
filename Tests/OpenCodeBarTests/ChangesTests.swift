@@ -76,4 +76,44 @@ final class ChangesTests: XCTestCase {
 
         XCTAssertEqual(FileChangeTree.topLevelDirectories(from: groups), ["a", "b"])
     }
+
+    func testProjectChangesPageCutsBetweenFilesNotInsideThem() {
+        let changes = [
+            change("a/one.swift", session: "one", created: 30),
+            change("a/two.swift", session: "one", created: 20),
+            change("a/one.swift", session: "one", created: 10),
+            change("b/three.swift", session: "two", created: 40),
+        ]
+
+        let sessions = ProjectChangeSession.grouped(changes)
+        XCTAssertEqual(sessions.map(\.id), ["two", "one"])
+        XCTAssertEqual(sessions[1].files.map(\.path), ["a/one.swift", "a/two.swift"])
+        XCTAssertEqual(sessions[1].files[0].edits, 2)
+
+        let page = ProjectChangesPaging.page(sessions, limit: 2)
+        XCTAssertEqual(page.sessions.map(\.id), ["two", "one"])
+        XCTAssertEqual(page.sessions[1].files.map(\.path), ["a/one.swift"])
+        XCTAssertEqual(page.sessions[1].totalFiles, 2)
+        XCTAssertEqual(page.totalFiles, 3)
+        XCTAssertEqual(page.shownFiles, 2)
+        XCTAssertEqual(page.hiddenFiles, 1)
+    }
+
+    private func change(
+        _ path: String,
+        session: String,
+        created: Double
+    ) -> FileChange {
+        FileChange(
+            file: path,
+            patch: "+line\n",
+            additions: 1,
+            deletions: 0,
+            status: "modified",
+            sessionID: session,
+            sessionTitle: session.capitalized,
+            messageID: "message-\(created)",
+            created: created
+        )
+    }
 }

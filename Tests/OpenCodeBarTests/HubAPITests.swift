@@ -51,6 +51,10 @@ final class HubAPITests: XCTestCase {
               "tokens": { "input": 10, "output": 20, "reasoning": 3, "cache": { "read": 4, "write": 5 } },
               "time": { "created": 1792592046011, "updated": 1792595523652, "idle": 1792595414457 },
               "title": "Mobile app with shared server",
+              "fork": {
+                "sessionID": "ses_source",
+                "boundary": { "type": "before", "messageID": "msg_failed" }
+              },
               "location": { "directory": "/Users/example/ai-tools" }
             }
           ]
@@ -65,6 +69,9 @@ final class HubAPITests: XCTestCase {
         XCTAssertEqual(session.model?.id, "deepseek-v4.1-flash")
         XCTAssertEqual(session.tokens.total, 42)
         XCTAssertEqual(session.directory, "/Users/example/ai-tools")
+        XCTAssertEqual(session.fork?.sessionID, "ses_source")
+        XCTAssertEqual(session.fork?.boundary?.messageID, "msg_failed")
+        XCTAssertTrue(session.isFork)
         XCTAssertTrue(session.isSubagent)
     }
 

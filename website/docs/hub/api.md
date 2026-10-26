@@ -736,8 +736,10 @@ curl -X PATCH http://127.0.0.1:8787/api/settings \
 | `GET` | `/api/session/{id}` | One session |
 | `GET` | `/api/session/{id}/message` | Paged messages |
 | `GET` | `/api/session/{id}/children` | Child sessions |
+| `GET` | `/api/session/{id}/forks` | Sessions forked from this conversation |
 | `GET` | `/api/session/{id}/changes` | File patches |
 | `GET` | `/api/session/{id}/stats` | Derived session stats |
+| `GET` | `/api/session/{id}/git` | Repository state and commits made during the session |
 | `GET` | `/api/session/{id}/pending` | Prompts admitted but not delivered |
 | `DELETE` | `/api/session/{id}/pending/{inputID}` | Withdraw one queued prompt |
 | `POST` | `/api/session/{id}/prompt` | Send a prompt |
@@ -753,6 +755,13 @@ curl -X PATCH http://127.0.0.1:8787/api/settings \
 | `active` | `false` | `true` |
 | `order` | `desc` | `asc` / `desc` |
 | `q` | — | Search text |
+
+A session forked with `POST /api/session/{id}/fork` carries a `fork` object:
+`fork.sessionID` is the source conversation and `fork.boundary` describes where
+the history was cut (`type` is `before` or `through`, plus `messageID`). The
+source session lists its forks through `GET /api/session/{id}/forks`, newest
+first. The relationship is cached, so it survives restarts and service
+restarts.
 
 `GET /api/session/{id}/message` supports `limit` (default 100, max 500) and
 `cursor` from the previous response. Pass `since=<milliseconds>` to ask for only
@@ -799,6 +808,7 @@ the prompt.
 | `GET` | `/api/project/{id}` | One project |
 | `GET` | `/api/project/{id}/changes` | Aggregated project changes |
 | `GET` | `/api/project/{id}/files` | Project files with git status |
+| `GET` | `/api/project/{id}/git` | Full repository graph, branches, and tags |
 | `GET` | `/api/project/{id}/icon` | The project's own app icon |
 
 `/api/project/{id}/changes` accepts `sessions` (default 10, max 100) for how
@@ -828,6 +838,44 @@ listed and working-tree changes are marked:
 `status` is one of `added`, `modified`, `deleted`, or `renamed`. Without git,
 `vcs` is `null` and no statuses are returned. Responses are capped at 20,000
 entries; `truncated` marks a shortened list.
+
+`/api/project/{id}/git` returns the full graph the project's Git tab draws.
+`data` is `null` when the folder is not a work tree. Each commit carries its
+parents and ref decorations, so clients can reconstruct merges and side
+branches. `limit` defaults to 2,000 and accepts up to 20,000 commits; `total`
+reports the full reachable count and `truncated` marks a shortened response.
+
+```json
+{
+  "data": {
+    "root": "/Users/me/project",
+    "branch": "main",
+    "head": {
+      "hash": "4a45e54b…",
+      "shortHash": "4a45e54",
+      "parents": ["f1830e3…"],
+      "author": { "name": "Ada", "email": "ada@example.com", "time": 1790000000000 },
+      "committer": { "name": "Ada", "email": "ada@example.com", "time": 1790000000000 },
+      "subject": "Add repository graph",
+      "refs": ["HEAD -> main", "origin/main"]
+    },
+    "dirty": 2,
+    "ahead": 1,
+    "behind": 0,
+    "branches": [
+      { "name": "main", "hash": "4a45e54…", "current": true, "upstream": "origin/main", "ahead": 1, "behind": 0 }
+    ],
+    "tags": ["v1.0"],
+    "commits": [],
+    "total": 128,
+    "truncated": false
+  }
+}
+```
+
+`/api/session/{id}/git` uses the same repository summary and adds the commits
+made while the session was active. It never fails for a non-repository
+directory; `repository` is `null` and `commits` is empty.
 
 ### Stats and usage
 

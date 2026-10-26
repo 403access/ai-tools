@@ -72,6 +72,25 @@ with your own devices.
 Shows the current connection state, this device's name, and whether the hub came
 from the environment override or the generated local config.
 
+### Developer
+
+The Developer section keeps a live, in-memory activity log of what the app is
+doing:
+
+- hub API requests, with status, latency, and response size,
+- full and live sync cycles, with session and project counts,
+- event-stream connect, disconnect, and reconnect transitions,
+- app-level errors and connection changes.
+
+Use the filter menu and search field to narrow the list. **Pause** freezes the
+visible entries while new activity keeps accumulating in the background,
+**Copy** puts the visible entries on the clipboard in chronological order, and
+**Clear** empties the buffer.
+
+The log is capped at the newest 500 entries and disappears when the app quits.
+It never records the hub token, request bodies, or response payloads, so it is
+safe to paste into a bug report after checking any host paths that appear in URLs.
+
 ## iPhone/iPad
 
 The iOS Settings screen includes:
@@ -83,6 +102,9 @@ The iOS Settings screen includes:
   phone keeps its connection while the Mac is idle.
 - **Hub connection** — URL, token, test, and save/reconnect.
 - **Pairing link** — paste a link and apply it.
+- **Developer** — the same in-memory activity log as the Mac app, covering API
+  requests, syncs, event-stream changes, and errors, with filters and a copy
+  action.
 - **Remove hub configuration** — clears the URL and token from the device.
 
 The iOS app does not expose the Mac's server restart or reveal-file controls.

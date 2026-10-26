@@ -42,6 +42,32 @@ describe("HubDB sessions", () => {
     db.close();
   });
 
+  test("keeps fork metadata and lists the forks of a session", () => {
+    const db = new HubDB(":memory:");
+    db.upsertSessions([
+      session({ id: "ses_source", title: "Original" }),
+      session({
+        id: "ses_fork",
+        title: "Retry",
+        time: { created: 3_000, updated: 4_000 },
+        fork: { sessionID: "ses_source", boundary: { type: "before", messageID: "msg_2" } },
+      }),
+    ]);
+
+    expect(db.getSession("ses_fork")?.fork).toEqual({
+      sessionID: "ses_source",
+      boundary: { type: "before", messageID: "msg_2" },
+    });
+    expect(db.getForks("ses_source").map((item) => item.id)).toEqual(["ses_fork"]);
+
+    // A later sync of the same session may omit fork metadata. The cached
+    // relationship must survive that partial update.
+    db.upsertSessions([session({ id: "ses_fork", title: "Renamed" })]);
+    expect(db.getSession("ses_fork")?.fork?.sessionID).toBe("ses_source");
+    expect(db.getForks("ses_source").map((item) => item.id)).toEqual(["ses_fork"]);
+    db.close();
+  });
+
   test("updates live cost and tokens without losing the session", () => {
     const db = new HubDB(":memory:");
     db.upsertSessions([session()]);

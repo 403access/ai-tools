@@ -58,17 +58,21 @@ export function devices(hub: Hub): ConnectedDevice[] {
 }
 
 export async function session(hub: Hub, id: string): Promise<Session | null> {
+  const cached = hub.db.getSession(id);
   const client = hub.client ?? (await hub.ensureClient());
   if (client) {
     try {
       const fresh = await client.session(id);
+      // Fork metadata is immutable. Older service responses may omit it even
+      // though the hub already learned it when the fork was created.
+      if (!fresh.fork && cached?.fork) fresh.fork = cached.fork;
       hub.db.upsertSessions([fresh]);
       return fresh;
     } catch (error) {
       hub.noteError(error);
     }
   }
-  return hub.db.getSession(id);
+  return cached;
 }
 
 /** Starts a new OpenCode session in a project directory. */
@@ -92,9 +96,21 @@ export async function forkSession(
   if (!client) throw new OpenCodeError("OpenCode is offline", 503);
 
   const forked = await client.forkSession(id, before);
+  // OpenCode includes the source conversation on newer versions. Keep the
+  // relationship even when the service omits it so the apps can still label
+  // the fork and link back to the original session.
+  if (!forked.fork) {
+    forked.fork = { sessionID: id };
+    if (before) forked.fork.boundary = { type: "before", messageID: before };
+  }
   hub.db.upsertSessions([forked]);
   hub.broadcast({ type: "hub.sessions", data: { at: Date.now() } });
   return forked;
+}
+
+/** Sessions forked from one conversation, newest first. */
+export async function forks(hub: Hub, id: string): Promise<Session[]> {
+  return hub.db.getForks(id);
 }
 
 /** Switches the model used by later turns, then refreshes the cached row. */

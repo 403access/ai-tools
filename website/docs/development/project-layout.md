@@ -18,6 +18,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     HubAPI.swift                  async client for the hub (shared)
     HubAPI+Endpoints.swift        endpoint methods
     HubAPI+Transport.swift        requests, decoding and diagnostics
+    DevLog.swift                  in-memory activity log for Settings (shared)
     HubModels.swift               hub transport/health models
     HubEventStream.swift          SSE subscription with reconnect (shared)
     HubDiscovery.swift            hub URL + token discovery (macOS)
@@ -37,6 +38,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     Messages.swift                messages, parts and pending prompts
     Changes.swift                 file patches and grouping
     ProjectFiles.swift            project file browser payloads
+    GitInfo.swift                 commits, branches and graph layout (shared)
     APIEnvelopes.swift            request/response envelopes
     SessionFilter.swift           project/date filters for recent feeds
     WidgetSnapshot.swift          compact widget payload (shared)
@@ -52,7 +54,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     PanelView.swift               panel shell and tabs
     DesktopView.swift             desktop window: sidebar + content
     LiveTab.swift                 running and recent sessions
-    SessionDetailView.swift       chat, stats, changes, prompts, subagents
+    SessionDetailView.swift       chat, stats, changes, git, prompts, subagents
     SessionDetailView+Composer.swift  pending queue and composer
     SessionDetailView+Content.swift   tab content
     SessionDetailView+Loading.swift   message paging
@@ -60,8 +62,10 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     ProjectDetailView.swift       project page: header, tabs, sections
     ProjectDetailAnalytics.swift  scoped at-a-glance stats
     ProjectSessions.swift         recent-session rows
+    GitViews.swift                session commits and project commit graph
     SettingsTab.swift             devices, server controls, pairing
     SettingsTab+Support.swift     derived labels and actions
+    SettingsDeveloperSection.swift  live API/sync/event activity log
     NewSessionSheet.swift         create a session with a first prompt
     SessionStatsView.swift        per-session reliability and failures
     ChangeViews.swift             patch cards and diffs
@@ -108,7 +112,8 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   PairingScanner.swift            camera QR scanner for pairing
   LiveView.swift                  running/recent sessions
   LiveView+Filters.swift          project/date filters
-  SessionDetailView.swift         chat, stats, changes, prompts, subagents
+  SessionDetailView.swift         chat, stats, changes, git, prompts, subagents
+  MobileGitViews.swift            session commits and project commit graph
   SessionDetailView+Composer.swift  pending queue and composer
   SessionDetailView+Content.swift   tab content
   SessionDetailView+Loading.swift   message paging
@@ -128,6 +133,7 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   RemoteDesktopConnection.swift   frame WebSocket, decoding, pointer/key input
   SettingsView.swift              appearance, pairing, status
   SettingsView+Connection.swift   status and hub connection controls
+  DeveloperView.swift             full-screen activity log
   MobileTerminalViews.swift       terminal list, new-terminal and terminal sheets
   MobileCharts.swift              Swift Charts
   MobileMessageViews.swift        message cards
@@ -160,6 +166,7 @@ server/                           Bun + TypeScript + SQLite hub
   src/hub.ts                      polling/event hub facade
   src/hub/                        event bus, sync, reads, usage cache
   src/files.ts                    project file browser
+  src/git.ts                      session commits and project commit graph
   src/projectIcon.ts              project app icon discovery
   src/api.ts                      HTTP routes
   src/api/                        request helpers and SSE clients

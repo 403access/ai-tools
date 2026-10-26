@@ -4,6 +4,7 @@ extension AppState {
     // MARK: - Refresh
 
     func refreshAll() async {
+        let started = Date()
         // These endpoints are independent; issuing them together keeps the
         // initial panel load roughly as fast as the slowest one instead of
         // adding their latencies.
@@ -12,6 +13,10 @@ extension AppState {
         async let history: Void = refreshHistory(force: true)
         async let usage: Void = refreshGoUsage()
         _ = await (live, stats, history, usage)
+        DevLog.shared.sync(
+            "Full refresh",
+            detail: DevLog.durationText(Date().timeIntervalSince(started))
+        )
         if let project = selectedProject { await loadProject(project.id, force: true) }
     }
 
@@ -23,6 +28,7 @@ extension AppState {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
+        let started = Date()
 
         do {
             async let active = api.activeSessionIDs()
@@ -60,14 +66,18 @@ extension AppState {
             self.pruneActivity()
             self.rebuildDerived()
             self.syncSubagentLists(with: newSessions)
+            self.syncForkLists(with: newSessions)
 
             if let selected = selectedSession,
-               let updated = newSessions.first(where: { $0.id == selected.id }) {
+               let updated = newSessions.first(where: { $0.id == selected.id }),
+               updated != selected {
                 selectedSession = updated
             }
 
             if let selected = selectedProject, let updated = self.projects[selected.id] {
-                selectedProject = updated
+                if updated != selected {
+                    selectedProject = updated
+                }
             }
 
             if case .connected = connection {
@@ -76,7 +86,19 @@ extension AppState {
                 let info = try? await api.serverInfo()
                 connection = .connected(version: info?.version ?? "?")
             }
-            lastUpdated = Date()
+            // The footer only shows minute-level relative times. Republishing a
+            // new Date on every poll invalidated every observing view (and any
+            // open menu or picker) for no visible change, so update it at most
+            // once a minute.
+            let now = Date()
+            if lastUpdated.map({ now.timeIntervalSince($0) >= 60 }) ?? true {
+                lastUpdated = now
+            }
+
+            DevLog.shared.sync(
+                "Live sync",
+                detail: "\(newActiveIDs.count) running · \(newSessions.count) sessions · \(newProjects.count) projects · \(DevLog.durationText(Date().timeIntervalSince(started)))"
+            )
         } catch {
             handle(error)
         }
@@ -157,6 +179,7 @@ extension AppState {
 
         isRefreshingSettings = true
         defer { isRefreshingSettings = false }
+        let started = Date()
 
         do {
             async let devices = api.devices()
@@ -173,8 +196,19 @@ extension AppState {
             }
             self.settingsUpdatedAt = Date()
             self.settingsError = nil
+
+            DevLog.shared.sync(
+                "Settings sync",
+                detail: "\(deviceList.count) devices · \(DevLog.durationText(Date().timeIntervalSince(started)))"
+            )
         } catch {
-            self.settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            self.settingsError = message
+            DevLog.shared.sync(
+                "Settings sync failed",
+                detail: message,
+                level: .error
+            )
         }
     }
 
@@ -197,8 +231,22 @@ extension AppState {
             self.settingsNotice = settings.eventThrottleMs == 0
                 ? "Live updates are sent immediately"
                 : "Updates throttled to \(settings.eventThrottleMs) ms"
+            DevLog.shared.record(
+                "Event throttle updated",
+                category: .app,
+                detail: settings.eventThrottleMs == 0
+                    ? "Disabled"
+                    : "\(settings.eventThrottleMs) ms"
+            )
         } catch {
-            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            settingsError = message
+            DevLog.shared.record(
+                "Event throttle update failed",
+                category: .app,
+                level: .error,
+                detail: message
+            )
         }
     }
 
@@ -221,8 +269,20 @@ extension AppState {
             self.settingsNotice = settings.preventSleep == true
                 ? "The Mac will stay awake while the hub runs"
                 : "The Mac can sleep normally"
+            DevLog.shared.record(
+                "Sleep policy updated",
+                category: .app,
+                detail: settings.preventSleep == true ? "Keep Mac awake" : "Allow idle sleep"
+            )
         } catch {
-            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            settingsError = message
+            DevLog.shared.record(
+                "Sleep policy update failed",
+                category: .app,
+                level: .error,
+                detail: message
+            )
         }
     }
 
@@ -235,14 +295,26 @@ extension AppState {
         guard !isSyncing else { return }
         isSyncing = true
         defer { isSyncing = false }
+        let started = Date()
+        DevLog.shared.sync("Manual sync started")
 
         do {
             try await api.sync()
             settingsNotice = "Synced with OpenCode"
             await refreshAll()
             await refreshSettings(force: true)
+            DevLog.shared.sync(
+                "Manual sync finished",
+                detail: DevLog.durationText(Date().timeIntervalSince(started))
+            )
         } catch {
-            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            settingsError = message
+            DevLog.shared.sync(
+                "Manual sync failed",
+                detail: message,
+                level: .error
+            )
         }
     }
 
@@ -257,6 +329,7 @@ extension AppState {
         isRestartingServer = true
         settingsError = nil
         settingsNotice = "Restarting hub…"
+        DevLog.shared.record("Hub restart requested", category: .app)
         defer { isRestartingServer = false }
 
         do {
@@ -278,8 +351,15 @@ extension AppState {
 
         if case .offline(let reason) = connection {
             settingsError = "Hub did not come back: \(reason)"
+            DevLog.shared.record(
+                "Hub did not come back",
+                category: .app,
+                level: .error,
+                detail: reason
+            )
         } else {
             settingsNotice = "Hub restarted"
+            DevLog.shared.record("Hub restarted", category: .app)
         }
     }
 

@@ -81,6 +81,36 @@ extension MobileStore {
         }
     }
 
+    /// Loads the repository around a session and the commits made while it ran.
+    func loadSessionGit(_ sessionID: String, force: Bool = false) async {
+        guard let api else { return }
+        if sessionGit[sessionID]?.isLoading == true { return }
+        if !force, let loaded = sessionGit[sessionID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+        defer { trimCache(&sessionGit, loadedAt: { $0.loadedAt }, pinning: sessionID) }
+
+        var state = sessionGit[sessionID] ?? SessionGitState()
+        state.isLoading = true
+        state.error = nil
+        sessionGit[sessionID] = state
+
+        do {
+            let git = try await api.sessionGit(id: sessionID)
+            sessionGit[sessionID] = SessionGitState(git: git, loadedAt: Date())
+        } catch {
+            var failed = sessionGit[sessionID] ?? SessionGitState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                sessionGit[sessionID] = failed
+                return
+            }
+            failed.error = message(for: error)
+            sessionGit[sessionID] = failed
+        }
+    }
+
     /// Loads a session's prompts, tool reliability, failures and file totals.
     func loadSessionStats(_ sessionID: String, force: Bool = false) async {
         guard let api else { return }
@@ -171,6 +201,36 @@ extension MobileStore {
             }
             failed.error = message(for: error)
             projectFiles[projectID] = failed
+        }
+    }
+
+    /// Loads the project repository's branches, tags, and full commit graph.
+    func loadProjectGit(_ projectID: String, force: Bool = false) async {
+        guard let api else { return }
+        if projectGit[projectID]?.isLoading == true { return }
+        if !force, let loaded = projectGit[projectID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+        defer { trimCache(&projectGit, loadedAt: { $0.loadedAt }, pinning: projectID) }
+
+        var state = projectGit[projectID] ?? ProjectGitState()
+        state.isLoading = true
+        state.error = nil
+        projectGit[projectID] = state
+
+        do {
+            let repository = try await api.projectGit(id: projectID)
+            projectGit[projectID] = ProjectGitState(repository: repository, loadedAt: Date())
+        } catch {
+            var failed = projectGit[projectID] ?? ProjectGitState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                projectGit[projectID] = failed
+                return
+            }
+            failed.error = message(for: error)
+            projectGit[projectID] = failed
         }
     }
 

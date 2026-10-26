@@ -103,6 +103,41 @@ struct Chip: View {
     }
 }
 
+/// Selectable pill for compact option lists. Uses plain buttons instead of a
+/// menu picker so a background data refresh cannot dismiss a half-made choice.
+struct ChoiceChip: View {
+    let title: String
+    var isSelected: Bool
+    var fontSize: CGFloat = 10
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: fontSize, weight: isSelected ? .semibold : .regular))
+                .lineLimit(1)
+                .padding(.horizontal, fontSize > 11 ? 10 : 7)
+                .padding(.vertical, fontSize > 11 ? 6 : 3.5)
+                .frame(maxWidth: .infinity)
+                .foregroundStyle(isSelected ? Theme.accent : Color.secondary)
+                .background(
+                    Capsule().fill(
+                        isSelected ? Theme.accent.opacity(0.18) : Color.primary.opacity(0.06)
+                    )
+                )
+                .overlay(
+                    Capsule().strokeBorder(
+                        isSelected ? Theme.accent.opacity(0.45) : Color.primary.opacity(0.08),
+                        lineWidth: 1
+                    )
+                )
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
 /// Section header with an optional trailing detail view.
 struct SectionHeader<Trailing: View>: View {
     let title: String

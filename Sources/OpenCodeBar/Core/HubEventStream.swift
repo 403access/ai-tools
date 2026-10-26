@@ -19,8 +19,21 @@ enum HubEventStream {
                     backoff = 1
                 } catch {
                     // Connection dropped; fall through to the backoff delay.
+                    if !Task.isCancelled {
+                        DevLog.shared.record(
+                            "Event stream lost",
+                            category: .events,
+                            level: .warning,
+                            detail: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                        )
+                    }
                 }
                 if Task.isCancelled { break }
+                DevLog.shared.record(
+                    "Event stream reconnecting",
+                    category: .events,
+                    detail: "Retrying in \(backoff)s"
+                )
                 try? await Task.sleep(nanoseconds: backoff * 1_000_000_000)
                 backoff = min(backoff * 2, 20)
             }
@@ -52,6 +65,11 @@ enum HubEventStream {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw APIError.status((response as? HTTPURLResponse)?.statusCode ?? -1)
         }
+        DevLog.shared.record(
+            "Event stream connected",
+            category: .events,
+            detail: baseURL.host.map { "\($0) · live updates" } ?? "Live updates"
+        )
 
         for try await line in bytes.lines {
             if Task.isCancelled { break }

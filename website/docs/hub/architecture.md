@@ -117,6 +117,20 @@ Other folders fall back to a recursive walk that skips common build and cache
 directories. The response is capped at 20,000 paths and reports `truncated`
 when it is shortened.
 
+## Git
+
+`/api/project/{id}/git` and `/api/session/{id}/git` read the work tree directly
+on the hub's machine, the same way the file browser does. The project route runs
+`git for-each-ref` and `git log --all --date-order` so branches, tags, and every
+reachable commit come back with parent links; the clients use those links to
+draw the lane graph. The session route reuses the repository summary and lists
+commits whose committer time falls inside the session's created/updated window.
+
+Both routes cap their commit list (2,000 by default, 20,000 maximum), report the
+uncapped `total`, and return `null` instead of an error when the directory is
+not a git work tree. Git commands run with a short timeout so a broken or huge
+repository cannot stall the API.
+
 ## Project icons
 
 `/api/project/{id}/icon` finds the icon a project already ships with, so the

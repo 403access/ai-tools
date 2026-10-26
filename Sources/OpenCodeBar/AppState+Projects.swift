@@ -54,6 +54,39 @@ extension AppState {
         await loadProject(project.id, force: true)
         await loadProjectChanges(project.id, force: true)
         await loadProjectFiles(project.id, force: true)
+        await loadProjectGit(project.id, force: true)
+    }
+
+    /// Fetches the project repository's branches, tags, and full commit graph.
+    /// Loaded when the Git tab opens, so projects that are not repositories
+    /// never pay for the git commands.
+    func loadProjectGit(_ projectID: String, force: Bool = false) async {
+        guard let api else { return }
+        if projectGit[projectID]?.isLoading == true { return }
+        if !force, let loaded = projectGit[projectID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+        defer { trimCache(&projectGit, loadedAt: { $0.loadedAt }, pinning: projectID) }
+
+        var state = projectGit[projectID] ?? ProjectGitState()
+        state.isLoading = true
+        state.error = nil
+        projectGit[projectID] = state
+
+        do {
+            let repository = try await api.projectGit(id: projectID)
+            projectGit[projectID] = ProjectGitState(repository: repository, loadedAt: Date())
+        } catch {
+            var failed = projectGit[projectID] ?? ProjectGitState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                projectGit[projectID] = failed
+                return
+            }
+            failed.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            projectGit[projectID] = failed
+        }
     }
 
     /// Fetches icons for projects that do not have one yet. Best effort: a

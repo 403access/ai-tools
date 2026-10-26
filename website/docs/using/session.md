@@ -18,6 +18,7 @@ Select any session on the Live tab or a project page to open it.
 | **Chat** | The full conversation, newest message first |
 | **Stats** | Prompts, steps, tool reliability, failures, files, and token mix |
 | **Changes** | Every file the session wrote, with real patches and line counts |
+| **Git** | The current branch, HEAD, working-tree state, and commits made during the session |
 | **Prompts** | A prompts-only list with copy buttons |
 | **Subagents** | Child sessions, shown when the session has any |
 
@@ -49,15 +50,19 @@ If a provider call fails, OpenCode records the error on the turn. The Chat tab
 shows a **Turn failed** card with the provider's message and HTTP status, and a
 banner above it offers:
 
-- **Retry** — forks the session before the failed prompt and resends it with the
-  same model and agent.
-- **Retry with settings…** — opens a picker for model, variant, and agent before
-  forking and resending.
+- **Retry here** — resends the same prompt in the current conversation so the
+  turn can continue.
+- **Retry options…** — opens a sheet where you can send `continue`, choose the
+  destination (**This session** or **New fork**), and pick a model, variant, and
+  agent before resending. The model browser has search, provider filters,
+  sorting, and inline variant choices.
 
-The original session is left untouched. The new session keeps only the history
-before the failed prompt. The header and **Session settings** disclosure show
-the agent, model, provider, variant, directory, and outcome that were actually
-used.
+Retrying in this session keeps the failure in the conversation history. A fork
+leaves the original session untouched and keeps only the history before the
+failed prompt. A forked session's header links back to its source conversation,
+and the source lists its forks. The header and **Session settings** disclosure
+also show the agent, model, provider, variant, directory, and outcome that were
+actually used.
 
 ### Models and data training
 
@@ -72,7 +77,7 @@ expose that metadata.
 Never enable **Allow paid endpoints that train on request data** just to make a
 model work in OpenCodeBar. OpenCode CLI does not need that setting, and neither
 do the apps. If a turn fails with the training error, choose a model whose
-policy you accept — for example with **Retry with settings…** — or change your
+policy you accept — for example with **Retry options…** — or change your
 OpenCode default model.
 :::
 
@@ -111,6 +116,18 @@ counts; tap a file in the tree to show its patch.
 The hub reads the `metadata.files` patches that OpenCode attaches to edit/write
 tool calls and stores them while caching messages, so they remain available
 after the service restarts.
+
+## Git
+
+The Git tab shows the work tree around the session: current branch, HEAD
+commit, upstream ahead/behind counts, and how many files have uncommitted
+changes. Below that it lists every commit made while the session was active,
+newest first, with the author and relative time.
+
+The hub reads the session's directory directly with git, so the tab reflects
+the current checkout rather than the message cache. Sessions opened outside a
+git work tree, or without a directory, show a **Not a git repository** empty
+state.
 
 ## Prompts
 

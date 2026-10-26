@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { backfillToolCalls } from "./messages.ts";
 import { number, type Row } from "./rows.ts";
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 export function migrate(db: Database): void {
   const version = number((db.query("PRAGMA user_version").get() as Row | null)?.user_version);
@@ -188,5 +188,22 @@ export function migrate(db: Database): void {
     // newest page per session so existing failures become visible.
     db.exec("DELETE FROM message_syncs;");
     db.exec("PRAGMA user_version = 6;");
+  }
+
+  if (version < 7) {
+    // OpenCode marks a forked session with its source conversation. Cache the
+    // relationship so both apps can explain a fork and list a session's forks.
+    for (const column of ["fork_session_id TEXT", "fork_boundary TEXT"]) {
+      try {
+        db.exec(`ALTER TABLE sessions ADD COLUMN ${column};`);
+      } catch {
+        // A partially applied migration may already have added this column.
+      }
+    }
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS sessions_fork_source
+        ON sessions(fork_session_id, updated DESC);
+    `);
+    db.exec("PRAGMA user_version = 7;");
   }
 }
