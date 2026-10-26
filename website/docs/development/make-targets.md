@@ -26,6 +26,7 @@ sidebar_position: 2
 | `make mobile-build` | Build the iOS app for the simulator |
 | `make mobile-run` | Build, install, launch, and pair the simulator app |
 | `make mobile-device` | Build, sign, install, launch, and pair a device |
+| `make mobile-variants` | Install one app variant per git worktree side by side |
 | `make mobile-icon` | Regenerate the iOS app icon |
 | `make docs` | Run the Docusaurus docs dev server |
 | `make docs-build` | Build the docs for production |
@@ -44,6 +45,11 @@ make mobile-run
 
 # Phone on a real device
 make mobile-device DEVICE="iPhone von Oli"
+
+# Several worktrees side by side on the same phone
+make mobile-variants
+make mobile-variants ARGS="--dry-run"
+make mobile-variants ARGS="main feature/virtual-machines"
 
 # Phone on cellular
 make hub-tunnel        # terminal 2: public HTTPS URL
@@ -75,6 +81,20 @@ The script uses the team selected in Xcode, falling back to the team on your
 Apple Development certificate. It pairs over the Mac's LAN address, or over a
 running `make hub-tunnel` URL, because `127.0.0.1` on the phone means the phone
 itself. See [iOS app](../getting-started/ios-app.md).
+
+## `make mobile-variants`
+
+```bash
+make mobile-variants
+make mobile-variants ARGS="--list"
+make mobile-variants ARGS="--no-build"
+make mobile-variants ARGS="main feature/virtual-machines"
+```
+
+Builds, signs, installs, launches, and pairs one app per git worktree. Variants
+get their own bundle ids and home-screen names so they coexist with each other
+and with the normal app. `DEVICE=` still selects a device; free-form flags go in
+`ARGS`. See [Review builds side by side](variant-builds.md).
 
 ## `make hub-tunnel`
 

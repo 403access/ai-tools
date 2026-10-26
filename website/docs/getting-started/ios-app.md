@@ -58,6 +58,23 @@ Scripts/run-mobile-device.sh --console    # stream app logs
 On the first run, connect and unlock the device, tap **Trust**, and enable
 **Settings → Privacy & Security → Developer Mode** on the iPhone/iPad.
 
+## Several versions side by side
+
+Reviewing branches does not require reinstalling one build over another. Every
+git worktree can be installed as its own app with a distinct bundle id and
+home-screen name, all paired with the same hub:
+
+```bash
+make hub                # terminal 1
+make mobile-variants    # terminal 2: one app per worktree
+```
+
+The normal app stays installed, and `make mobile-device` keeps using
+`dev.opencodebar.mobile`. Pass worktree paths or branches in `ARGS` to build a
+subset, and use `Scripts/run-mobile-variants.sh --list` to preview names and
+bundle ids. See [Review builds side by side](../development/variant-builds.md)
+for naming, signing, clean-up, and what the variants share.
+
 ## Remote desktop permissions
 
 `make hub` also builds the ScreenCaptureKit helper used by **Host → Remote**. The

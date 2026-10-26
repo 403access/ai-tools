@@ -650,6 +650,7 @@ make vz-helper     # build and sign the Virtualization.framework VM helper
 make mobile-build  # build the iOS app and widget extension for the simulator
 make mobile-run    # build, install, launch, and pair the iOS app in a simulator
 make mobile-device # the same on a connected iPhone/iPad
+make mobile-variants # one installable app per git worktree
 make docs          # run the Docusaurus docs site locally
 make docs-build    # build the docs for production
 make docs-serve    # build and serve the docs locally
@@ -675,6 +676,33 @@ Scripts/run-mobile-device.sh --console    # stream the app's log output
 
 On the first run, connect and unlock the device, tap **Trust**, and enable
 **Settings → Privacy & Security → Developer Mode**.
+
+### Review several versions side by side
+
+`make mobile-variants` installs one app per git worktree on the same phone, so
+branches can be compared without replacing each other or the normal app:
+
+```sh
+make hub                  # terminal 1
+make mobile-variants      # terminal 2: every worktree
+
+Scripts/run-mobile-variants.sh --list             # show names and bundle ids
+Scripts/run-mobile-variants.sh main feature/kanban  # pick worktrees or branches
+Scripts/run-mobile-variants.sh "VMs=../vms"        # choose the display name
+make mobile-variants ARGS="--no-build"             # reinstall the last builds
+```
+
+Each variant is installed as `dev.opencodebar.mobile.<slug>` with an
+`OCB <label>` home-screen name (the widget extension follows the same prefix)
+and its own DerivedData folder under `.build/`. The suffix comes from `VARIANT_SUFFIX` in
+`project.yml`, which the wrapper passes to `xcodebuild`; worktrees that predate
+the placeholders are patched temporarily and restored afterwards. Variants have
+separate containers and caches but share the keychain access group, so pairing
+one pairs all of them and the hub lists the phone once. Every variant also
+registers the `opencodebar://` scheme, so widget taps may open another copy.
+
+See [Review builds side by side](website/docs/development/variant-builds.md) for
+naming, signing and App ID limits, clean-up, and troubleshooting.
 
 Remote desktop needs two macOS privacy grants for the capture helper. `make hub`
 builds the helper automatically (or run `make remote-host` yourself), then open
@@ -956,6 +984,7 @@ Scripts/
   restart.sh                  rebuild and restart the Mac app
   run-mobile.sh               install, launch, and pair the iOS app in a simulator
   run-mobile-device.sh        the same on a physical iPhone/iPad
+  run-mobile-variants.sh      one side-by-side app variant per git worktree
   perf-benchmark.sh           compile and run the shared-code microbenchmarks
   PerfBenchmark.swift         synthetic data + measurements for the benchmark
   make-icon.swift             generate the app icon

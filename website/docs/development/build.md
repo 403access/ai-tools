@@ -52,6 +52,7 @@ make mobile-project   # xcodegen generate
 make mobile-build     # simulator build (app + widget extension)
 make mobile-run       # build, install, launch, and pair
 make mobile-device    # build, sign, install, launch on a device
+make mobile-variants  # one installable variant per git worktree
 ```
 
 Xcode resolves SwiftTerm from the package reference in `project.yml` on the
@@ -60,7 +61,9 @@ first build. The generated project has two targets: `OpenCodeBarMobile` and the
 through a keychain access group, so widgets work as soon as the app is paired;
 no extra capability setup is needed beyond normal automatic signing.
 
-See [Run the iPhone/iPad app](../getting-started/ios-app.md).
+See [Run the iPhone/iPad app](../getting-started/ios-app.md). To install several
+worktree builds on one phone at once, see [Review builds side by
+side](variant-builds.md).
 
 ## Hub
 

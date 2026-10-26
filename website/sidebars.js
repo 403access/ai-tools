@@ -51,6 +51,7 @@ const sidebars = {
       items: [
         'development/build',
         'development/make-targets',
+        'development/variant-builds',
         'development/testing',
         'development/project-layout',
         'development/screenshots',

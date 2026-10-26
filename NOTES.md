@@ -279,6 +279,36 @@ Follow-ups:
   Linux builder is still a manual terminal command because it is a long-lived
   VM and cannot be a one-shot setup job.
 
+## Side-by-side review builds (2026-10-26)
+
+- **One bundle id per worktree.** iOS keys installed apps by bundle id, so a
+  branch review cannot replace another build without a distinct id.
+  `project.yml` now takes `VARIANT_SUFFIX` / `VARIANT_NAME` and expands them in
+  the app id, the widget id (`<app>.widgets`), and both display names.
+  `Scripts/run-mobile-variants.sh` passes them on the `xcodebuild` command line;
+  they cannot be target-specific flags because command-line settings apply to
+  every target, which would give the widget the app's id.
+- **Label to slug.** Branch name (or worktree directory for a detached HEAD)
+  becomes the home-screen label and the bundle id component. Duplicates get
+  `-2`, `-3`, ... within one run. The wrapper defaults to every worktree, uses a
+  per-variant DerivedData directory, and delegates to `run-mobile-device.sh
+  --worktree` so signing, device selection, and pairing stay in one place.
+- **Old worktrees.** Worktrees from before the placeholders get a temporary
+  `project.yml` patch before `xcodegen generate`, and the original file is
+  restored afterwards (including on failure), so the checkout stays clean. A
+  branch with its own spec changes should cherry-pick the variant-support
+  commit instead.
+- **Shared pairing, separate data.** Variants keep separate containers and
+  SQLite caches, but they use the same keychain access group and service, so
+  pairing one pairs all and `DeviceIdentity` reports the same phone. That is
+  deliberate for review; isolating variants would mean per-variant keychain
+  groups and other `DeviceIdentity` services. The `opencodebar://` scheme is
+  shared too, so deep links from widgets are ambiguous while several variants
+  are installed.
+- **App ID cost.** Each variant registers an App ID with Apple. Free teams have
+  weekly App ID limits and 7-day profiles, and the automatic profile needs
+  network access on the first build of each variant.
+
 ## Next steps
 
 - **Go plan limits: credits and extra usage.** The Usage tab now shows the

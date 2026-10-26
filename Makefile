@@ -1,4 +1,4 @@
-.PHONY: build test app run desktop restart preview shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-icon bench
+.PHONY: build test app run desktop restart preview shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-variants mobile-icon bench
 
 # Compile the Swift package (debug).
 build:
@@ -158,6 +158,13 @@ mobile-run: mobile-build
 # the signing team cannot be auto-detected.
 mobile-device: mobile-project
 	DEVICE="$(DEVICE)" DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)" Scripts/run-mobile-device.sh
+
+# Build, sign, install, and launch one app variant per git worktree so several
+# versions can be reviewed side by side on one phone. Every variant gets its own
+# bundle id and home-screen name. Pass worktree paths or branch names in ARGS to
+# build only some of them, or DEVICE=… to pick among several devices.
+mobile-variants:
+	DEVICE="$(DEVICE)" Scripts/run-mobile-variants.sh $(ARGS)
 
 clean:
 	swift package clean

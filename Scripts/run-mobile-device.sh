@@ -7,6 +7,12 @@
 #   Scripts/run-mobile-device.sh --device "iPhone von Oli"
 #   DEVICE="iPhone von Oli" Scripts/run-mobile-device.sh
 #   DEVELOPMENT_TEAM=ABCDE12345 Scripts/run-mobile-device.sh
+#   Scripts/run-mobile-device.sh --variant review-a --name "OCB A"
+#
+# --variant installs the build as an extra app instead of replacing the normal
+# one: the bundle ids get the variant suffix and the display name changes, so
+# several worktrees can be reviewed on the same phone. See
+# Scripts/run-mobile-variants.sh for the wrapper that does this per worktree.
 #
 # The device must be unlocked, trusted, and have Developer Mode enabled. Signing
 # uses the first "Apple Development" identity unless DEVELOPMENT_TEAM is set.
@@ -17,9 +23,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUNDLE_ID="dev.opencodebar.mobile"
-DERIVED="$ROOT/.build/ios-device"
-APP="$DERIVED/Build/Products/Debug-iphoneos/OpenCodeBar.app"
+BASE_BUNDLE_ID="dev.opencodebar.mobile"
 HUB_CONFIG="${HUB_CONFIG:-$HOME/.config/opencode/opencodebar-hub.json}"
 
 usage() {
@@ -31,7 +35,20 @@ Usage:
   Scripts/run-mobile-device.sh -d "My iPhone"   pick a device by name
   Scripts/run-mobile-device.sh --no-build       install the last build
   Scripts/run-mobile-device.sh --console        stream the app's log output
+  Scripts/run-mobile-device.sh --variant review-a --name "OCB A"
+                                                install as an extra app variant
+  Scripts/run-mobile-device.sh --worktree ../other-branch
+                                                build from another worktree
   Scripts/run-mobile-device.sh --help
+
+Options:
+  -v, --variant SLUG   Append `.SLUG` to the bundle ids so this build can be
+                       installed next to the normal app and other variants.
+                       Use lowercase letters, digits, and hyphens.
+      --name NAME      Home-screen name for the variant (default "OpenCodeBar
+                       SLUG"). Ignored without --variant.
+  -w, --worktree PATH  Build from the git worktree at PATH instead of this
+                       checkout. The project is regenerated there.
 
 Environment:
   DEVICE             Device name, UDID, serial number, or identifier
@@ -52,12 +69,51 @@ TEXT
 device="${DEVICE:-}"
 build=1
 console=0
+variant=""
+variant_name=""
+worktree=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
         -h|--help)
             usage
             exit 0
+            ;;
+        -v|--variant)
+            if [ $# -lt 2 ]; then
+                echo "run-mobile-device: $1 needs a value" >&2
+                exit 2
+            fi
+            variant="$2"
+            shift 2
+            ;;
+        --variant=*)
+            variant="${1#*=}"
+            shift
+            ;;
+        --name)
+            if [ $# -lt 2 ]; then
+                echo "run-mobile-device: $1 needs a value" >&2
+                exit 2
+            fi
+            variant_name="$2"
+            shift 2
+            ;;
+        --name=*)
+            variant_name="${1#*=}"
+            shift
+            ;;
+        -w|--worktree)
+            if [ $# -lt 2 ]; then
+                echo "run-mobile-device: $1 needs a value" >&2
+                exit 2
+            fi
+            worktree="$2"
+            shift 2
+            ;;
+        --worktree=*)
+            worktree="${1#*=}"
+            shift
             ;;
         -d|--device)
             if [ $# -lt 2 ]; then
@@ -86,6 +142,52 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+if [ -n "$worktree" ]; then
+    if [ ! -d "$worktree" ]; then
+        echo "run-mobile-device: worktree '$worktree' does not exist." >&2
+        exit 2
+    fi
+    ROOT="$(cd "$worktree" && pwd)"
+fi
+if [ ! -f "$ROOT/project.yml" ]; then
+    echo "run-mobile-device: no project.yml in $ROOT." >&2
+    exit 2
+fi
+if [ -n "$variant" ] && ! grep -q 'VARIANT_SUFFIX' "$ROOT/project.yml"; then
+    echo "run-mobile-device: $ROOT/project.yml has no VARIANT_SUFFIX placeholder," >&2
+    echo "so it cannot build a side-by-side variant. Use Scripts/run-mobile-variants.sh" >&2
+    echo "or cherry-pick the variant support from main." >&2
+    exit 2
+fi
+
+# Variants get their own bundle ids, home-screen name, and DerivedData folder so
+# the normal app and other worktrees stay installed. iOS resolves an installed
+# app by bundle id, so this is the only way to run builds side by side.
+variant_suffix=""
+derived_suffix=""
+if [ -n "$variant" ]; then
+    if ! [[ "$variant" =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]]; then
+        echo "run-mobile-device: variant '$variant' must be lowercase letters, digits," >&2
+        echo "and hyphens, and start with a letter or digit (max 40 characters)." >&2
+        exit 2
+    fi
+    variant_suffix=".$variant"
+    derived_suffix="-$variant"
+    if [ -z "$variant_name" ]; then
+        variant_name="OpenCodeBar $variant"
+    fi
+elif [ -n "$variant_name" ]; then
+    echo "run-mobile-device: --name needs --variant (otherwise it would rename the normal app)." >&2
+    exit 2
+fi
+if [ -z "$variant_name" ]; then
+    variant_name="OpenCodeBar"
+fi
+
+BUNDLE_ID="$BASE_BUNDLE_ID$variant_suffix"
+DERIVED="$ROOT/.build/ios-device$derived_suffix"
+APP="$DERIVED/Build/Products/Debug-iphoneos/OpenCodeBar.app"
 
 if ! command -v xcrun >/dev/null 2>&1; then
     echo "run-mobile-device: xcrun not found; install Xcode first." >&2
@@ -257,6 +359,9 @@ if [ "$build" -eq 1 ]; then
     if ! (
         cd "$ROOT"
         xcodegen generate
+        # Command-line settings apply to every target, so the variant ids live
+        # in project.yml as $(VARIANT_SUFFIX) placeholders and only the suffix
+        # is passed here. The widget target appends `.widgets` to the app id.
         xcodebuild \
             -project OpenCodeBarMobile.xcodeproj \
             -scheme OpenCodeBarMobile \
@@ -267,6 +372,8 @@ if [ "$build" -eq 1 ]; then
             -allowProvisioningDeviceRegistration \
             DEVELOPMENT_TEAM="$team" \
             CODE_SIGN_STYLE=Automatic \
+            VARIANT_SUFFIX="$variant_suffix" \
+            VARIANT_NAME="$variant_name" \
             build
     ); then
         cat >&2 <<'TEXT'
