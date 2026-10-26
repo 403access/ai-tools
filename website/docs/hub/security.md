@@ -109,12 +109,33 @@ address on the LAN. There is no App Store distribution or scoped ATS exception
 configured in the repository yet. For a store build, use an HTTPS tunnel or add
 a scoped exception.
 
+## Model providers and data training
+
+OpenCodeBar does not upload data to an OpenCodeBar service, but the prompts and
+responses still cross OpenCode to whichever model provider you configured. That
+provider's logging, retention, and training terms apply, together with your
+workspace privacy settings.
+
+Some OpenCode Go models require the workspace option **Allow paid endpoints that
+train on request data**. OpenCodeBar never enables that option and does not
+require it: OpenCode CLI works without it, and so does the app. Do not turn it on
+just to make a model work. Choose a model whose policy you accept, or set a
+non-training model as OpenCode's default for the directory. The session header
+and **Session settings** disclosure show the model, provider, variant, and agent
+that actually ran.
+
+See [Session detail → Models and data
+training](../using/session.md#models-and-data-training) and the
+[FAQ](../help/faq.md#will-opencodebar-enable-training-on-my-data).
+
 ## What OpenCodeBar does not do
 
 - It does not stop, interrupt, or delete sessions.
 - It does not sandbox terminal commands: they run as the hub's macOS user.
 - It does not upload your data to an OpenCodeBar service.
 - It does not include analytics or telemetry.
+- It does not change OpenCode or Go workspace privacy settings, and it never
+  enables training on request data.
 - It does not bypass OpenCode's own auth; the hub authenticates to OpenCode
   using the local service credentials.
 

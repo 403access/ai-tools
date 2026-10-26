@@ -388,6 +388,7 @@
             <li><span class="tick"></span><div><strong>History that survives.</strong> Sessions, projects, messages, file changes, tool stats, and Go plan limits live in <code>~/.local/share/opencodebar/hub.sqlite</code>. The phone — and the Mac when OpenCode is stopped — keep showing the last known state.</div></li>
             <li><span class="tick"></span><div><strong>Live for both apps.</strong> The hub subscribes to OpenCode's SSE stream and forwards every event, so rows update as tools run, reasoning streams, and cost changes.</div></li>
             <li><span class="tick"></span><div><strong>Local by default.</strong> Reads and writes cross loopback to OpenCode; clients authenticate to the hub with a Bearer token. Pairing writes an owner-only config for the Mac and a link for the phone.</div></li>
+            <li><span class="tick"></span><div><strong>No training opt-in.</strong> OpenCodeBar never turns on a model provider's train-on-request-data setting. Prompts go only to the model you configured through OpenCode, and the session view shows which model actually ran.</div></li>
             <li><span class="tick"></span><div><strong>No second service to trust.</strong> The hub is plain TypeScript in <code>server/</code>, tested with <code>make hub-test</code>, and started with <code>make hub</code>.</div></li>
           </ul>
           <a class="btn btn-ghost" href="https://github.com/403access/ai-tools/blob/main/README.md#how-it-works" target="_blank" rel="noopener">Read the architecture →</a>

@@ -69,7 +69,11 @@ struct ProjectsView: View {
                 ProjectDetailView(project: project)
             }
             .navigationDestination(for: Session.self) { session in
-                SessionDetailView(sessionID: session.id, fallback: session)
+                SessionDetailView(
+                    sessionID: session.id,
+                    fallback: session,
+                    onOpenSession: { path.append($0) }
+                )
             }
             .task(id: store.lastUpdated) {
                 openRequestedProject()

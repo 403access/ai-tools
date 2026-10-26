@@ -7,11 +7,13 @@ import {
   type OpenCodeLocation,
 } from "./opencode.ts";
 import type {
+  AgentInfo,
   ConnectedDevice,
   FileDiff,
   HubEvent,
   HubHealth,
   MessagesResponse,
+  ModelInfo,
   Session,
   SessionPendingItem,
   SessionStats,
@@ -20,20 +22,26 @@ import type {
 } from "./types.ts";
 import { EventBus, sessionIDFromEvent, type EventSink } from "./hub/event-bus.ts";
 import {
+  agents,
+  cancelPendingInput,
   changes,
   children,
   createSession,
+  defaultModel,
   devices,
+  forkSession,
   health,
   messages,
+  models,
   pendingInputs,
   projectChanges,
   promptSession,
   session,
   sessionStats,
   stats as readStats,
+  switchAgent,
+  switchModel,
   trackDevice,
-  cancelPendingInput,
 } from "./hub/reads.ts";
 import { sleep, syncFast as runFastSync, syncMessagesForChanges as runMessageSync, syncNow as runSyncNow, syncSlow as runSlowSync } from "./hub/sync.ts";
 import { CaffeinateSleepGuard, type SleepGuard } from "./hub/sleep.ts";
@@ -341,6 +349,33 @@ export class Hub {
 
   createSession(input: { title?: string; directory: string }): Promise<Session> {
     return createSession(this, input);
+  }
+
+  forkSession(id: string, before?: string | null): Promise<Session> {
+    return forkSession(this, id, before);
+  }
+
+  switchModel(
+    id: string,
+    model: { id: string; providerID: string; variant?: string },
+  ): Promise<void> {
+    return switchModel(this, id, model);
+  }
+
+  switchAgent(id: string, agent: string): Promise<void> {
+    return switchAgent(this, id, agent);
+  }
+
+  models(directory?: string): Promise<ModelInfo[]> {
+    return models(this, directory);
+  }
+
+  defaultModel(directory?: string): Promise<ModelInfo | null> {
+    return defaultModel(this, directory);
+  }
+
+  agents(directory?: string): Promise<AgentInfo[]> {
+    return agents(this, directory);
   }
 
   promptSession(id: string, text: string, delivery?: "steer" | "queue"): Promise<unknown> {

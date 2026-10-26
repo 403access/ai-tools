@@ -290,7 +290,7 @@ export const SCHEMAS = {
     additionalProperties: true,
     properties: {
       id: string,
-      type: { type: "string", enum: ["user", "assistant", "system"] },
+      type: { type: "string", enum: ["user", "assistant", "system", "synthetic", "idle"] },
       time: {
         type: "object",
         required: ["created"],
@@ -306,6 +306,75 @@ export const SCHEMAS = {
       agent: string,
       cost: number,
       tokens: { $ref: "#/components/schemas/TokenUsage" },
+      outcome: { type: "string", enum: ["succeeded", "failed", "interrupted"] },
+      finish: string,
+      error: { $ref: "#/components/schemas/SessionStructuredError" },
+      retry: { $ref: "#/components/schemas/SessionMessageRetry" },
+    },
+  },
+
+  SessionStructuredError: {
+    type: "object",
+    required: ["type", "message"],
+    properties: {
+      type: string,
+      message: string,
+      status: integer,
+      response: {
+        type: "object",
+        properties: { body: string },
+      },
+      retryAfterMs: integer,
+    },
+    example: {
+      type: "provider.invalid-request",
+      message: "Upstream request failed: the model is unavailable.",
+      status: 400,
+    },
+  },
+
+  SessionMessageRetry: {
+    type: "object",
+    required: ["attempt", "at", "error"],
+    properties: {
+      attempt: integer,
+      at: timestamp,
+      error: { $ref: "#/components/schemas/SessionStructuredError" },
+    },
+  },
+
+  ModelInfo: {
+    type: "object",
+    required: ["id", "providerID"],
+    additionalProperties: true,
+    properties: {
+      id: string,
+      modelID: string,
+      providerID: string,
+      name: string,
+      enabled: bool,
+      status: string,
+      variants: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { id: string, name: string },
+        },
+      },
+    },
+  },
+
+  AgentInfo: {
+    type: "object",
+    required: ["id"],
+    additionalProperties: true,
+    properties: {
+      id: string,
+      name: string,
+      mode: string,
+      hidden: bool,
+      description: string,
+      model: { $ref: "#/components/schemas/ModelRef" },
     },
   },
 
@@ -690,6 +759,9 @@ export const SCHEMAS = {
 
   SessionResponse: data(sessionRef),
   SessionChildrenResponse: data({ type: "array", items: sessionRef }),
+  ModelsResponse: data({ type: "array", items: { $ref: "#/components/schemas/ModelInfo" } }),
+  ModelResponse: data({ $ref: "#/components/schemas/ModelInfo" }),
+  AgentsResponse: data({ type: "array", items: { $ref: "#/components/schemas/AgentInfo" } }),
   SessionStatsResponse: data({ $ref: "#/components/schemas/SessionStats" }),
   ProjectResponse: { $ref: "#/components/schemas/Project" },
   ProjectsResponse: {

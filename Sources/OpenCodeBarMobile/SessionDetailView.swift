@@ -6,12 +6,14 @@ struct SessionDetailView: View {
     @EnvironmentObject var store: MobileStore
     let sessionID: String
     let fallback: Session
+    let onOpenSession: ((Session) -> Void)?
 
     @State var mode: MobileStore.DetailMode = .conversation
 
-    init(sessionID: String, fallback: Session) {
+    init(sessionID: String, fallback: Session, onOpenSession: ((Session) -> Void)? = nil) {
         self.sessionID = sessionID
         self.fallback = fallback
+        self.onOpenSession = onOpenSession
         #if DEBUG
         // Screenshot tooling: SIMCTL_CHILD_OPENCODEBAR_DETAIL_MODE=changes
         if let requested = ProcessInfo.processInfo.environment["OPENCODEBAR_DETAIL_MODE"],
@@ -37,6 +39,11 @@ struct SessionDetailView: View {
     @State var scrollRequest = 0
     @StateObject var dictation = SpeechDictation()
     @FocusState var composerFocused: Bool
+    @State var retryTarget: FailedTurn?
+    @State var retryingFailure = false
+    @State var retryError: String?
+    @State var settingsExpanded = false
+    @State var defaultModelInfo: ModelInfo?
 
     let topAnchor = "session-mobile-top"
 
@@ -148,7 +155,11 @@ struct SessionDetailView: View {
                             .foregroundStyle(Theme.running)
                     }
                 } else {
-                    Chip(text: "Finished")
+                    Chip(
+                        text: session.outcomeLabel,
+                        systemImage: session.hasFailureOutcome ? "exclamationmark.triangle.fill" : nil,
+                        tint: session.hasFailureOutcome ? Theme.danger : .secondary
+                    )
                 }
             }
         }
@@ -167,6 +178,9 @@ struct SessionDetailView: View {
         }
         .task(id: sessionID) {
             await store.loadSubagents(sessionID)
+        }
+        .task(id: sessionID) {
+            await loadDefaultModelIfNeeded()
         }
         .task(id: mode) {
             switch mode {
@@ -193,6 +207,12 @@ struct SessionDetailView: View {
         }
         .onChange(of: availableModes, initial: true) { _, modes in
             if !modes.contains(mode) { mode = .conversation }
+        }
+        .sheet(item: $retryTarget) { failure in
+            MobileRetryTurnSheet(session: session, failure: failure) { forked in
+                onOpenSession?(forked)
+            }
+            .environmentObject(store)
         }
     }
 }

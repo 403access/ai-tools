@@ -2,10 +2,12 @@ import { HUB_VERSION } from "../config.ts";
 import { DEVICE_STALE_MS } from "../db.ts";
 import { OpenCodeError } from "../opencode.ts";
 import type {
+  AgentInfo,
   ConnectedDevice,
   FileDiff,
   HubHealth,
   MessagesResponse,
+  ModelInfo,
   Session,
   SessionPendingItem,
   SessionStats,
@@ -78,6 +80,76 @@ export async function createSession(hub: Hub, input: { title?: string; directory
   hub.db.upsertSessions([created]);
   hub.broadcast({ type: "hub.sessions", data: { at: Date.now() } });
   return created;
+}
+
+/** Copies a session's history into a new child session. */
+export async function forkSession(
+  hub: Hub,
+  id: string,
+  before?: string | null,
+): Promise<Session> {
+  const client = hub.client ?? (await hub.ensureClient());
+  if (!client) throw new OpenCodeError("OpenCode is offline", 503);
+
+  const forked = await client.forkSession(id, before);
+  hub.db.upsertSessions([forked]);
+  hub.broadcast({ type: "hub.sessions", data: { at: Date.now() } });
+  return forked;
+}
+
+/** Switches the model used by later turns, then refreshes the cached row. */
+export async function switchModel(
+  hub: Hub,
+  id: string,
+  model: { id: string; providerID: string; variant?: string },
+): Promise<void> {
+  const client = hub.client ?? (await hub.ensureClient());
+  if (!client) throw new OpenCodeError("OpenCode is offline", 503);
+
+  await client.switchModel(id, model);
+  await refreshSession(hub, client, id);
+  hub.broadcast({ type: "hub.sessions", data: { id, at: Date.now() } });
+}
+
+/** Switches the agent used by later turns, then refreshes the cached row. */
+export async function switchAgent(hub: Hub, id: string, agent: string): Promise<void> {
+  const client = hub.client ?? (await hub.ensureClient());
+  if (!client) throw new OpenCodeError("OpenCode is offline", 503);
+
+  await client.switchAgent(id, agent);
+  await refreshSession(hub, client, id);
+  hub.broadcast({ type: "hub.sessions", data: { id, at: Date.now() } });
+}
+
+async function refreshSession(hub: Hub, client: NonNullable<Hub["client"]>, id: string): Promise<void> {
+  try {
+    const fresh = await client.session(id);
+    hub.db.upsertSessions([fresh]);
+  } catch (error) {
+    // The switch already succeeded; a stale cached row is harmless.
+    hub.noteError(error);
+  }
+}
+
+/** Models available for a directory. */
+export async function models(hub: Hub, directory?: string): Promise<ModelInfo[]> {
+  const client = hub.client ?? (await hub.ensureClient());
+  if (!client) throw new OpenCodeError("OpenCode is offline", 503);
+  return client.models(directory);
+}
+
+/** Agents available for a directory. */
+export async function agents(hub: Hub, directory?: string): Promise<AgentInfo[]> {
+  const client = hub.client ?? (await hub.ensureClient());
+  if (!client) throw new OpenCodeError("OpenCode is offline", 503);
+  return client.agents(directory);
+}
+
+/** Model OpenCode uses when a session has no explicit selection. */
+export async function defaultModel(hub: Hub, directory?: string): Promise<ModelInfo | null> {
+  const client = hub.client ?? (await hub.ensureClient());
+  if (!client) throw new OpenCodeError("OpenCode is offline", 503);
+  return client.defaultModel(directory);
 }
 
 /**

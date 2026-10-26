@@ -81,12 +81,16 @@ extension SessionDetailView {
                     .padding(.vertical, 4)
                 }
 
-                ForEach(messages) { message in
+                if let failure = currentFailure {
+                    failureActions(failure)
+                }
+
+                ForEach(displayMessages) { message in
                     MessageCard(message: message)
                         .equatable()
                         .transition(.recentInsertion)
                 }
-                .animateRecentInsertion(ids: messages.map(\.id))
+                .animateRecentInsertion(ids: displayMessages.map(\.id))
 
                 // Inside the lazy stack so its onAppear only fires when the
                 // user reaches the end, not on the first layout.
@@ -94,6 +98,91 @@ extension SessionDetailView {
                     loadEarlierButton
                 }
             }
+        }
+    }
+
+    /// Idle status messages that succeeded are bookkeeping, not conversation.
+    var displayMessages: [SessionMessage] {
+        messages.visibleForConversation()
+    }
+
+    /// A failure in the newest turn, used to offer retry actions.
+    var currentFailure: FailedTurn? {
+        guard !isRunning else { return nil }
+        return messages.latestFailedTurn()
+    }
+
+    @ViewBuilder
+    func failureActions(_ failure: FailedTurn) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 12, weight: .bold))
+                Text("Last turn failed")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                if retryingFailure {
+                    ProgressView().controlSize(.mini)
+                }
+            }
+            .foregroundStyle(Theme.danger)
+
+            Text("Retry in a new session with the same model and agent, or choose different settings.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let retryError {
+                Text(retryError)
+                    .font(.caption)
+                    .foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    Task { await retryFailure(failure) }
+                } label: {
+                    Text("Retry")
+                        .font(.footnote.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accent)
+                .controlSize(.small)
+                .disabled(retryingFailure)
+
+                Button("Retry with settings…") {
+                    retryTarget = failure
+                }
+                .font(.footnote)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(retryingFailure)
+
+                Spacer()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card(padding: 12)
+    }
+
+    func retryFailure(_ failure: FailedTurn) async {
+        guard !retryingFailure, let prompt = failure.promptText else { return }
+        retryingFailure = true
+        retryError = nil
+        defer { retryingFailure = false }
+
+        do {
+            let forked = try await store.retryTurn(
+                from: session,
+                before: failure.prompt.id,
+                prompt: prompt,
+                model: failure.model,
+                agent: failure.agent
+            )
+            onOpenSession?(forked)
+        } catch {
+            retryError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 

@@ -43,6 +43,43 @@ The composer at the bottom sends the next prompt into this session.
 - The microphone button dictates into the composer. The transcript stays
   editable before you send it. See [Voice input](voice.md).
 
+### Failed turns and retries
+
+If a provider call fails, OpenCode records the error on the turn. The Chat tab
+shows a **Turn failed** card with the provider's message and HTTP status, and a
+banner above it offers:
+
+- **Retry** — forks the session before the failed prompt and resends it with the
+  same model and agent.
+- **Retry with settings…** — opens a picker for model, variant, and agent before
+  forking and resending.
+
+The original session is left untouched. The new session keeps only the history
+before the failed prompt. The header and **Session settings** disclosure show
+the agent, model, provider, variant, directory, and outcome that were actually
+used.
+
+### Models and data training
+
+OpenCodeBar forwards prompts to OpenCode; it does not choose the provider or
+change its data-use terms. New sessions use OpenCode's default model for the
+directory, which may be a model that trains on request data. The app lists the
+catalog OpenCode exposes and shows which model actually ran, but it cannot mark
+or filter models by a provider's training policy because OpenCode does not
+expose that metadata.
+
+:::warning
+Never enable **Allow paid endpoints that train on request data** just to make a
+model work in OpenCodeBar. OpenCode CLI does not need that setting, and neither
+do the apps. If a turn fails with the training error, choose a model whose
+policy you accept — for example with **Retry with settings…** — or change your
+OpenCode default model.
+:::
+
+OpenCodeBar never changes your OpenCode or Go workspace privacy settings. See
+[Data training and model choice](../help/faq.md#will-opencodebar-enable-training-on-my-data)
+for the short version.
+
 ## Stats
 
 <Figure src="/img/screenshots/stats.png" alt="Session Stats tab with tool reliability and per-tool durations" caption="Stats are derived from cached messages and indexed tool calls." />

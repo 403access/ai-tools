@@ -233,6 +233,54 @@ export const PATHS = {
     },
   },
 
+  "/api/model": {
+    get: {
+      tags: ["Sessions"],
+      summary: "Models available for a directory",
+      description: "Forwarded from OpenCode so clients can offer a model picker.",
+      operationId: "listModels",
+      parameters: [queryParam("directory", "Directory whose provider config should be used.")],
+      responses: {
+        200: ok(schemaRef("ModelsResponse")),
+        401: unauthorized,
+        503: unavailable,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/model/default": {
+    get: {
+      tags: ["Sessions"],
+      summary: "Default model for a directory",
+      description: "Used when a session has no explicit model selection.",
+      operationId: "getDefaultModel",
+      parameters: [queryParam("directory", "Directory whose provider config should be used.")],
+      responses: {
+        200: ok(schemaRef("ModelResponse")),
+        401: unauthorized,
+        503: unavailable,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/agent": {
+    get: {
+      tags: ["Sessions"],
+      summary: "Agents registered for a directory",
+      description: "Forwarded from OpenCode so clients can offer an agent picker.",
+      operationId: "listAgents",
+      parameters: [queryParam("directory", "Directory whose agent config should be used.")],
+      responses: {
+        200: ok(schemaRef("AgentsResponse")),
+        401: unauthorized,
+        503: unavailable,
+        default: failure,
+      },
+    },
+  },
+
   "/api/session/{id}": {
     get: {
       tags: ["Sessions"],
@@ -268,6 +316,77 @@ export const PATHS = {
       responses: {
         200: ok(schemaRef("MessagesResponse")),
         401: unauthorized,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/session/{id}/fork": {
+    post: {
+      tags: ["Sessions"],
+      summary: "Fork a session",
+      description:
+        "Copies projected history into a new child session. `before` excludes that message and everything after it.",
+      operationId: "forkSession",
+      parameters: [pathParam("id", "Session id.")],
+      requestBody: jsonBody(
+        {
+          type: "object",
+          properties: {
+            before: { type: "string", nullable: true, description: "Message id to fork before." },
+          },
+        },
+        false,
+      ),
+      responses: {
+        200: ok(schemaRef("SessionResponse")),
+        400: badRequest,
+        401: unauthorized,
+        404: notFound,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/session/{id}/model": {
+    post: {
+      tags: ["Sessions"],
+      summary: "Switch the session model",
+      description: "Applies to subsequent turns. Forwarded to OpenCode.",
+      operationId: "switchSessionModel",
+      parameters: [pathParam("id", "Session id.")],
+      requestBody: jsonBody({
+        type: "object",
+        required: ["model"],
+        properties: { model: { $ref: "#/components/schemas/ModelRef" } },
+      }),
+      responses: {
+        204: noContent,
+        400: badRequest,
+        401: unauthorized,
+        404: notFound,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/session/{id}/agent": {
+    post: {
+      tags: ["Sessions"],
+      summary: "Switch the session agent",
+      description: "Applies to subsequent turns. Forwarded to OpenCode.",
+      operationId: "switchSessionAgent",
+      parameters: [pathParam("id", "Session id.")],
+      requestBody: jsonBody({
+        type: "object",
+        required: ["agent"],
+        properties: { agent: { type: "string" } },
+      }),
+      responses: {
+        204: noContent,
+        400: badRequest,
+        401: unauthorized,
+        404: notFound,
         default: failure,
       },
     },

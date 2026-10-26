@@ -887,6 +887,19 @@ export function createHandler(
         return json(activeResponse(db));
       }
 
+      if (pathname === "/api/model" && request.method === "GET") {
+        return json({ data: await hub.models(url.searchParams.get("directory") ?? undefined) });
+      }
+
+      if (pathname === "/api/model/default" && request.method === "GET") {
+        const model = await hub.defaultModel(url.searchParams.get("directory") ?? undefined);
+        return json({ data: model });
+      }
+
+      if (pathname === "/api/agent" && request.method === "GET") {
+        return json({ data: await hub.agents(url.searchParams.get("directory") ?? undefined) });
+      }
+
       if (parts[0] === "api" && parts[1] === "session" && parts.length >= 3) {
         const id = decodeURIComponent(parts[2]!);
 
@@ -935,6 +948,44 @@ export function createHandler(
           }
 
           return json(await hub.promptSession(id, text, delivery));
+        }
+
+        if (parts.length === 4 && parts[3] === "fork") {
+          if (request.method !== "POST") return error("Method not allowed", 405);
+          const body = (await readJSONBody(request)) ?? {};
+          const rawBefore = (body as Record<string, unknown>).before;
+          const before =
+            typeof rawBefore === "string" && rawBefore.trim() ? rawBefore.trim() : null;
+          return json({ data: await hub.forkSession(id, before) });
+        }
+
+        if (parts.length === 4 && parts[3] === "model") {
+          if (request.method !== "POST") return error("Method not allowed", 405);
+          const body = await readJSONBody(request);
+          if (!body) return error("Expected a JSON body", 400);
+          const model = body.model;
+          if (!model || typeof model !== "object") {
+            return error("A model ref is required", 400);
+          }
+          const fields = model as Record<string, unknown>;
+          const modelID = typeof fields.id === "string" ? fields.id.trim() : "";
+          const providerID = typeof fields.providerID === "string" ? fields.providerID.trim() : "";
+          if (!modelID || !providerID) {
+            return error("model.id and model.providerID are required", 400);
+          }
+          const variant = typeof fields.variant === "string" && fields.variant ? fields.variant : undefined;
+          await hub.switchModel(id, { id: modelID, providerID, variant });
+          return new Response(null, { status: 204, headers: CORS_HEADERS });
+        }
+
+        if (parts.length === 4 && parts[3] === "agent") {
+          if (request.method !== "POST") return error("Method not allowed", 405);
+          const body = await readJSONBody(request);
+          if (!body) return error("Expected a JSON body", 400);
+          const agent = typeof body.agent === "string" ? body.agent.trim() : "";
+          if (!agent) return error("agent is required", 400);
+          await hub.switchAgent(id, agent);
+          return new Response(null, { status: 204, headers: CORS_HEADERS });
         }
 
         if (parts.length === 4 && parts[3] === "pending") {

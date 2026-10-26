@@ -37,6 +37,19 @@ struct Session: Codable, Identifiable, Hashable, Sendable {
         let t = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return t.isEmpty ? "Untitled session" : t
     }
+
+    /// Human-readable terminal state for a session that is no longer running.
+    var outcomeLabel: String {
+        switch outcome {
+        case "failed": return "Failed"
+        case "interrupted": return "Interrupted"
+        default: return "Finished"
+        }
+    }
+
+    var hasFailureOutcome: Bool {
+        outcome == "failed" || outcome == "interrupted"
+    }
 }
 
 // MARK: - Project

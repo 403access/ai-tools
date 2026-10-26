@@ -50,5 +50,40 @@ describe("HubDB messages", () => {
     expect(db.getMessagesSince("ses_1", 300).map((m) => m.id)).toEqual(["m3", "m2"]);
     db.close();
   });
+
+  test("round-trips message errors, retries, and outcomes", () => {
+    const db = new HubDB(":memory:");
+    db.upsertMessages("ses_1", [
+      {
+        id: "m1",
+        type: "idle",
+        time: { created: 100 },
+        outcome: "failed",
+        error: {
+          type: "provider.invalid-request",
+          message: "Upstream request failed",
+          status: 400,
+          response: { body: "{\"error\":\"nope\"}" },
+        },
+        retry: {
+          attempt: 2,
+          at: 90,
+          error: { type: "provider.error", message: "Retry failed" },
+        },
+      },
+    ]);
+
+    const stored = db.getMessages("ses_1", 10).data[0]!;
+    expect(stored.outcome).toBe("failed");
+    expect(stored.error?.message).toBe("Upstream request failed");
+    expect(stored.error?.status).toBe(400);
+    expect(stored.retry?.attempt).toBe(2);
+    expect(stored.retry?.error.message).toBe("Retry failed");
+
+    // A later streaming update without an error clears stale failure details.
+    db.upsertMessages("ses_1", [{ id: "m1", type: "idle", time: { created: 100 } }]);
+    expect(db.getMessages("ses_1", 10).data[0]?.error).toBeUndefined();
+    db.close();
+  });
 });
 

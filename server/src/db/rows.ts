@@ -140,5 +140,23 @@ export function rowToMessage(row: Row): SessionMessage {
   if (typeof row.tokens === "string" && row.tokens) {
     message.tokens = parseTokens(row.tokens);
   }
+  const outcome = text(row.outcome);
+  if (outcome) message.outcome = outcome;
+  const finish = text(row.finish);
+  if (finish) message.finish = finish;
+  if (typeof row.error === "string" && row.error) {
+    try {
+      message.error = JSON.parse(row.error);
+    } catch {
+      // Ignore malformed cached failure details.
+    }
+  }
+  if (typeof row.retry === "string" && row.retry) {
+    try {
+      message.retry = JSON.parse(row.retry);
+    } catch {
+      // Ignore malformed cached retry details.
+    }
+  }
   return message;
 }

@@ -5,6 +5,17 @@ sidebar_position: 3
 
 # Limitations
 
+## Model and provider data
+
+OpenCodeBar does not choose the model, the provider, or the provider's data-use
+terms. It lists the models OpenCode exposes and shows which one actually ran.
+It cannot mark or filter models that train on request data because OpenCode's
+API does not expose that metadata.
+
+New sessions use OpenCode's default model for the directory. If that default is
+a model you do not want, change it in OpenCode's configuration; the app follows
+the service. The app will never enable a training opt-in to make a model work.
+
 ## Session controls
 
 The apps can start sessions and send prompts, but they cannot interrupt, stop,

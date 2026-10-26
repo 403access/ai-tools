@@ -1,7 +1,9 @@
 import type {
   ActiveSessionsResponse,
+  AgentInfo,
   HubEvent,
   MessagesResponse,
+  ModelInfo,
   Project,
   ServerInfo,
   Session,
@@ -182,6 +184,58 @@ export class OpenCodeClient {
       location: { directory: input.directory },
     });
     return response.data;
+  }
+
+  /**
+   * Creates a child session from projected history. Omitting `before` copies
+   * the full history; otherwise only messages older than it are copied.
+   */
+  async forkSession(id: string, before?: string | null): Promise<Session> {
+    const response = await this.post<{ data: Session }>(
+      `/api/session/${encodeURIComponent(id)}/fork`,
+      { before: before ?? null },
+    );
+    return response.data;
+  }
+
+  /** Changes the model used by later turns in a session. */
+  async switchModel(id: string, model: { id: string; providerID: string; variant?: string }): Promise<void> {
+    await this.post<void>(`/api/session/${encodeURIComponent(id)}/model`, { model });
+  }
+
+  /** Changes the agent used by later turns in a session. */
+  async switchAgent(id: string, agent: string): Promise<void> {
+    await this.post<void>(`/api/session/${encodeURIComponent(id)}/agent`, { agent });
+  }
+
+  /** Models available in a directory, including provider-specific config. */
+  async models(directory?: string): Promise<ModelInfo[]> {
+    const query = new URLSearchParams();
+    if (directory) query.set("location[directory]", directory);
+    const encoded = query.toString();
+    const suffix = encoded ? `?${encoded}` : "";
+    const response = await this.get<{ data: ModelInfo[] }>(`/api/model${suffix}`);
+    return response.data ?? [];
+  }
+
+  /** Agents registered for a directory. */
+  async agents(directory?: string): Promise<AgentInfo[]> {
+    const query = new URLSearchParams();
+    if (directory) query.set("location[directory]", directory);
+    const encoded = query.toString();
+    const suffix = encoded ? `?${encoded}` : "";
+    const response = await this.get<{ data: AgentInfo[] }>(`/api/agent${suffix}`);
+    return response.data ?? [];
+  }
+
+  /** Model OpenCode uses when a session has no explicit selection. */
+  async defaultModel(directory?: string): Promise<ModelInfo | null> {
+    const query = new URLSearchParams();
+    if (directory) query.set("location[directory]", directory);
+    const encoded = query.toString();
+    const suffix = encoded ? `?${encoded}` : "";
+    const response = await this.get<{ data: ModelInfo | null }>(`/api/model/default${suffix}`);
+    return response.data ?? null;
   }
 
   /**

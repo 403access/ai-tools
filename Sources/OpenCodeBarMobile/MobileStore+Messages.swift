@@ -72,6 +72,55 @@ extension MobileStore {
         await loadPending(id, force: true)
     }
 
+    /// Forks a session before the failed prompt, optionally switches its model
+    /// and agent, then sends the prompt again.
+    func retryTurn(
+        from session: Session,
+        before messageID: String?,
+        prompt: String,
+        model: ModelRef?,
+        agent: String?
+    ) async throws -> Session {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+
+        var forked = try await api.forkSession(id: session.id, before: messageID)
+        if let model {
+            try await api.switchModel(id: forked.id, model: model)
+        }
+        if let agent, !agent.isEmpty {
+            try await api.switchAgent(id: forked.id, agent: agent)
+        }
+        try await api.promptSession(id: forked.id, text: prompt)
+        forked = (try? await api.session(id: forked.id)) ?? forked
+
+        sessions.removeAll { $0.id == forked.id }
+        sessions.insert(forked, at: 0)
+        sessions = SessionOrdering.mostRecentFirst(sessions)
+        activeIDs.insert(forked.id)
+        database?.upsertSessions([forked])
+        rebuildDerived()
+        await refreshLive()
+        return forked
+    }
+
+    /// Models available for a session's directory.
+    func modelCatalog(directory: String?) async throws -> [ModelInfo] {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+        return try await api.models(directory: directory)
+    }
+
+    /// Agents available for a session's directory.
+    func agentCatalog(directory: String?) async throws -> [AgentInfo] {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+        return try await api.agents(directory: directory)
+    }
+
+    /// Default model OpenCode would use for a directory.
+    func defaultModel(directory: String?) async throws -> ModelInfo? {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+        return try await api.defaultModel(directory: directory)
+    }
+
     /// Fetches the prompts a session has accepted but not delivered yet.
     func loadPending(_ sessionID: String, force: Bool = false) async {
         guard let api else { return }

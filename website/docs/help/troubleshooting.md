@@ -59,6 +59,23 @@ make hub
 Environment overrides take precedence over the generated file. Unset
 `OPENCODEBAR_HUB_URL` / `OPENCODEBAR_HUB_TOKEN` if they point at an old hub.
 
+## A turn fails with “This Go model trains on request data”
+
+This is a policy rejection from OpenCode/your Go workspace, not a hub or
+OpenCodeBar error. Do **not** enable **Allow paid endpoints that train on
+request data** just to make the model work. OpenCode CLI does not require it,
+and OpenCodeBar never changes that setting for you.
+
+Instead:
+
+- open **Retry with settings…** on the failed turn and choose a model whose
+  data-use policy you accept, or
+- set a non-training model as OpenCode's default for that directory.
+
+The failed session stays unchanged; retrying creates a forked session before
+the failed prompt. See [Session detail → Models and data
+training](../using/session.md#models-and-data-training).
+
 ## The phone cannot connect
 
 - Use the Mac's LAN address, not `127.0.0.1`.

@@ -11,7 +11,7 @@ set -euo pipefail
 DEVICE="${DEVICE:-iPhone 16 Pro}"
 BUNDLE_ID="dev.opencodebar.mobile"
 
-APP=$(ls -d "$HOME"/Library/Developer/Xcode/DerivedData/OpenCodeBarMobile-*/Build/Products/Debug-iphonesimulator/OpenCodeBar.app 2>/dev/null | head -1 || true)
+APP=$(ls -dt "$HOME"/Library/Developer/Xcode/DerivedData/OpenCodeBarMobile-*/Build/Products/Debug-iphonesimulator/OpenCodeBar.app 2>/dev/null | head -1 || true)
 if [ -z "$APP" ]; then
   echo "No built app found. Run 'make mobile-build' first." >&2
   exit 1

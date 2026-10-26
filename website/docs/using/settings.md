@@ -87,6 +87,18 @@ The iOS Settings screen includes:
 
 The iOS app does not expose the Mac's server restart or reveal-file controls.
 
+## Model and data policy
+
+Model selection lives in OpenCode, not OpenCodeBar. The apps list the models
+OpenCode exposes and show which one actually ran in the session header and
+**Session settings** disclosure.
+
+OpenCodeBar never changes OpenCode or Go workspace privacy settings. In
+particular, it will not enable **Allow paid endpoints that train on request
+data**. New sessions use OpenCode's default model for the directory; set a
+non-training default in OpenCode if you need one. See [Session detail → Models
+and data training](../using/session.md#models-and-data-training).
+
 ## Security
 
 The token is stored only on the device or in the owner-only generated file. The

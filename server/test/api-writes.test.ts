@@ -83,5 +83,56 @@ describe("hub API writes", () => {
 
     db.close();
   });
+
+  test("validates fork, model, and agent bodies", async () => {
+    const { handler, db } = setup();
+
+    const missingModel = await handler(
+      request("/api/session/ses_1/model", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: { id: "only-id" } }),
+      }),
+    );
+    expect(missingModel.status).toBe(400);
+
+    const missingAgent = await handler(
+      request("/api/session/ses_1/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent: "  " }),
+      }),
+    );
+    expect(missingAgent.status).toBe(400);
+
+    const wrongMethod = await handler(request("/api/session/ses_1/fork"));
+    expect(wrongMethod.status).toBe(405);
+
+    const catalog = await handler(request("/api/model"));
+    expect(catalog.status).toBe(503);
+
+    const agents = await handler(request("/api/agent"));
+    expect(agents.status).toBe(503);
+
+    db.close();
+  });
+
+  test("reports an offline service for fork and settings switches", async () => {
+    const { handler, db } = setup();
+    const headers = { "Content-Type": "application/json" };
+
+    for (const [path, payload] of [
+      ["/api/session/ses_1/fork", {}],
+      ["/api/session/ses_1/model", { model: { id: "m", providerID: "p" } }],
+      ["/api/session/ses_1/agent", { agent: "build" }],
+    ] as const) {
+      const response = await handler(
+        request(path, { method: "POST", headers, body: JSON.stringify(payload) }),
+      );
+      expect(response.status).toBe(503);
+    }
+
+    db.close();
+  });
 });
 

@@ -162,6 +162,10 @@ struct SessionMessage: Codable, Identifiable, Equatable {
     var agent: String?
     var cost: Double?
     var tokens: TokenUsage?
+    var outcome: String?
+    var finish: String?
+    var error: SessionMessageError?
+    var retry: SessionMessageRetry?
 
     struct Time: Codable, Equatable {
         var created: Double
@@ -173,10 +177,13 @@ struct SessionMessage: Codable, Identifiable, Equatable {
 
     var isUserLike: Bool { type == "user" || type == "synthetic" }
     var isSynthetic: Bool { type == "synthetic" }
+    var isIdle: Bool { type == "idle" }
+    var hasError: Bool { error != nil }
     var roleLabel: String {
         switch type {
         case "user": return "You"
         case "synthetic": return "System"
+        case "idle", "system": return "Status"
         default: return "Assistant"
         }
     }
@@ -190,6 +197,53 @@ struct SessionMessage: Codable, Identifiable, Equatable {
     /// File patches carried by this message's tool calls.
     var fileChanges: [FileChange] {
         (content ?? []).flatMap(\.fileChanges)
+    }
+
+    /// Idle status rows only matter when they explain a failure; successful
+    /// ones are bookkeeping and should not appear as empty assistant cards.
+    var isVisibleStatus: Bool {
+        !isIdle || error != nil || outcome == "failed" || outcome == "interrupted"
+    }
+}
+
+/// A failure OpenCode recorded on a turn or message.
+struct SessionMessageError: Codable, Equatable, Hashable, Sendable {
+    var type: String?
+    var message: String?
+    var status: Int?
+    var response: Body?
+    var retryAfterMs: Int?
+
+    struct Body: Codable, Equatable, Hashable, Sendable {
+        var body: String?
+    }
+
+    /// The most useful human-readable line, preferring the structured message.
+    var displayMessage: String {
+        if let message, !message.isEmpty { return message }
+        if let body = response?.body, !body.isEmpty {
+            return body
+        }
+        if let type, !type.isEmpty { return type }
+        return "The turn failed."
+    }
+
+    var detailLine: String? {
+        var parts: [String] = []
+        if let type, !type.isEmpty { parts.append(type) }
+        if let status { parts.append("HTTP \(status)") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+/// One provider retry OpenCode attempted before a turn settled.
+struct SessionMessageRetry: Codable, Equatable, Hashable, Sendable {
+    var attempt: Int?
+    var at: Double?
+    var error: SessionMessageError?
+
+    var atDate: Date? {
+        at.map { Date(timeIntervalSince1970: $0 / 1000) }
     }
 }
 

@@ -7,9 +7,39 @@ sidebar_position: 2
 
 ## Does OpenCodeBar send my data to a cloud service?
 
-No. The Mac app, iOS app, and hub run locally. The only outbound request is the
-optional Go usage lookup to OpenCode's console endpoint. There is no
-OpenCodeBar telemetry or hosted relay.
+OpenCodeBar itself does not. The Mac app, iOS app, and hub run locally, and the
+hub cache stays in `~/.local/share/opencodebar/hub.sqlite`. There is no
+OpenCodeBar telemetry, analytics, or hosted relay. The only outbound OpenCodeBar
+request is the optional Go usage lookup to OpenCode's console endpoint.
+
+Prompts are different: they go through OpenCode to the model provider you have
+configured there. That provider may log, retain, or train on request data
+depending on its terms and your workspace settings. OpenCodeBar does not control
+those policies. See [Will OpenCodeBar enable training on my data?](#will-opencodebar-enable-training-on-my-data).
+
+## Will OpenCodeBar enable training on my data?
+
+No. It never changes OpenCode, provider, or Go workspace privacy settings. Some
+Go models require the workspace option **Allow paid endpoints that train on
+request data**; do not enable it just to use OpenCodeBar. OpenCode CLI does not
+need it, and neither do the apps.
+
+Choose a model whose data-use policy you accept. After a failed turn, **Retry
+with settings…** lets you pick a different model, variant, and agent in a forked
+session. You can also set a non-training model as OpenCode's default for the
+directory.
+
+## Why did a phone-created session use a model I don't use in the CLI?
+
+New sessions use OpenCode's default model for that directory. The CLI may have a
+session- or command-specific model selection that does not change that default.
+The session header and **Session settings** disclosure show the model, provider,
+variant, and agent that actually ran.
+
+If the default is a model you do not want, change the default in OpenCode's
+configuration for that project, or use **Retry with settings…** after a failed
+turn to choose another model. OpenCodeBar will never enable a training opt-in to
+make a model work.
 
 ## Does it stop or delete sessions?
 

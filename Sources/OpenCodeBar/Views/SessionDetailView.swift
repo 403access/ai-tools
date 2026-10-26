@@ -30,6 +30,11 @@ struct SessionDetailView: View {
     @StateObject var dictation = SpeechDictation()
     @FocusState var composerFocused: Bool
     @State var showingNewSession = false
+    @State var retryTarget: FailedTurn?
+    @State var retryingFailure = false
+    @State var retryError: String?
+    @State var settingsExpanded = true
+    @State var defaultModelInfo: ModelInfo?
 
     let topAnchor = "session-detail-top"
 
@@ -124,6 +129,9 @@ struct SessionDetailView: View {
         .task(id: session.id) {
             await state.loadSubagents(session.id)
         }
+        .task(id: session.id) {
+            await loadDefaultModelIfNeeded()
+        }
         .task(id: mode) {
             switch mode {
             case .conversation, .prompts:
@@ -146,6 +154,12 @@ struct SessionDetailView: View {
         .sheet(isPresented: $showingNewSession) {
             NewSessionSheet(directory: session.directory)
                 .environmentObject(state)
+        }
+        .sheet(item: $retryTarget) { failure in
+            RetryTurnSheet(session: session, failure: failure) { forked in
+                state.open(forked)
+            }
+            .environmentObject(state)
         }
     }
 
@@ -194,7 +208,11 @@ struct SessionDetailView: View {
                         .foregroundStyle(Theme.running)
                 }
             } else {
-                Chip(text: "Finished")
+                Chip(
+                    text: session.outcomeLabel,
+                    systemImage: session.hasFailureOutcome ? "exclamationmark.triangle.fill" : nil,
+                    tint: session.hasFailureOutcome ? Theme.danger : .secondary
+                )
             }
         }
     }
@@ -211,10 +229,12 @@ struct SessionDetailView: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                     .lineLimit(1)
-                if let model = session.model {
-                    Chip(text: model.id)
+                if let model = effectiveModel {
+                    Chip(text: model.label)
+                } else {
+                    Chip(text: "OpenCode default", tint: Theme.reasoning)
                 }
-                if let agent = session.agent, !agent.isEmpty {
+                if let agent = effectiveAgent, !agent.isEmpty {
                     Chip(text: agent, systemImage: "person.fill", tint: Theme.reasoning)
                 }
             }
@@ -230,6 +250,8 @@ struct SessionDetailView: View {
             .font(.system(size: 9))
             .foregroundStyle(.secondary)
 
+            settingsRow
+
             if isRunning, let activity = state.activity(for: session.id) {
                 Divider().opacity(0.4)
                 TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -242,6 +264,84 @@ struct SessionDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 10)
+    }
+
+    /// Settings actually used by the newest turn. OpenCode does not always
+    /// persist model/agent on the session row, so fall back to the assistant
+    /// message that carried them.
+    var effectiveModel: ModelRef? {
+        session.model ?? latestAssistantMessage?.model ?? defaultModelInfo?.ref()
+    }
+
+    func loadDefaultModelIfNeeded() async {
+        guard effectiveModel == nil else { return }
+        defaultModelInfo = try? await state.defaultModel(directory: session.directory)
+    }
+
+    var effectiveAgent: String? {
+        session.agent ?? latestAssistantMessage?.agent
+    }
+
+    var latestAssistantMessage: SessionMessage? {
+        messages.first { $0.type == "assistant" && ($0.model != nil || $0.agent != nil) }
+    }
+
+    var latestOutcome: String? {
+        session.outcome ?? messages.first(where: { $0.outcome != nil })?.outcome
+    }
+
+    @ViewBuilder
+    var settingsRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { settingsExpanded.toggle() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 8, weight: .semibold))
+                    Text("Session settings")
+                        .font(.system(size: 9, weight: .semibold))
+                    Spacer()
+                    Image(systemName: settingsExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 7, weight: .bold))
+                }
+                .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if settingsExpanded {
+                VStack(alignment: .leading, spacing: 3) {
+                    settingLine("Agent", effectiveAgent ?? "OpenCode default")
+                    settingLine("Model", effectiveModel?.id ?? "OpenCode default")
+                    settingLine("Provider", effectiveModel?.providerID ?? "—")
+                    settingLine("Variant", effectiveModel?.variant ?? "default")
+                    settingLine("Directory", session.directory ?? "—")
+                    if let latestOutcome {
+                        settingLine("Outcome", latestOutcome)
+                    }
+                    if let error = currentFailure?.message.error {
+                        settingLine("Failure", error.type ?? "failed")
+                    }
+                }
+                .padding(.leading, 11)
+            }
+        }
+    }
+
+    func settingLine(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(label.uppercased())
+                .font(.system(size: 7, weight: .bold))
+                .foregroundStyle(.tertiary)
+                .frame(width: 54, alignment: .leading)
+            Text(value)
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .lineLimit(2)
+                .truncationMode(.middle)
+        }
     }
 
     var durationLabel: String {

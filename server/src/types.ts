@@ -143,6 +143,22 @@ export interface MessagePart {
   time?: { created?: number; ran?: number; completed?: number };
 }
 
+/** A failure OpenCode recorded on a turn or message. */
+export interface SessionStructuredError {
+  type: string;
+  message: string;
+  status?: number;
+  response?: { body: string };
+  retryAfterMs?: number;
+}
+
+/** A provider retry OpenCode attempted before the turn settled. */
+export interface SessionMessageRetry {
+  attempt: number;
+  at: number;
+  error: SessionStructuredError;
+}
+
 export interface SessionMessage {
   id: string;
   type: string;
@@ -153,6 +169,37 @@ export interface SessionMessage {
   agent?: string;
   cost?: number;
   tokens?: TokenUsage;
+  /** `succeeded`, `failed`, or `interrupted` on session status messages. */
+  outcome?: string;
+  /** Provider finish reason on assistant messages. */
+  finish?: string;
+  /** Present when the turn failed, even if the assistant produced content. */
+  error?: SessionStructuredError;
+  /** Present when OpenCode retried the provider request. */
+  retry?: SessionMessageRetry;
+}
+
+/** A selectable OpenCode model. Only the fields the apps use are typed. */
+export interface ModelInfo {
+  id: string;
+  modelID?: string;
+  providerID: string;
+  name?: string;
+  enabled?: boolean;
+  status?: string;
+  variants?: Array<{ id?: string; name?: string; [key: string]: unknown }>;
+  [key: string]: unknown;
+}
+
+/** A selectable OpenCode agent. */
+export interface AgentInfo {
+  id: string;
+  name?: string;
+  mode?: string;
+  hidden?: boolean;
+  description?: string;
+  model?: ModelRef;
+  [key: string]: unknown;
 }
 
 /** One file in a tool call's metadata, with the patch OpenCode produced. */

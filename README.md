@@ -77,6 +77,13 @@ iOS app:
   the current turn finishes, and the conversation refreshes as it arrives.
   Queued prompts stay visible above the composer, with an **×** to withdraw one
   before the turn claims it.
+- **Recover from a failed turn.** Provider failures are shown in the
+  conversation with the upstream message and HTTP status. **Retry** forks the
+  session before the failed prompt and resends it with the same settings;
+  **Retry with settings…** opens a model, variant, and agent picker first. The
+  original session is left untouched. The session header and **Session
+  settings** disclosure show the agent, model, provider, variant, directory,
+  and outcome that were actually used.
 - **Speak your prompt.** The microphone in the conversation composer and the
   new-session sheet turns speech into text as you talk. It keeps whatever you
   already typed, and the transcript stays editable before you send. Speech
@@ -480,6 +487,27 @@ key is resolved in this order:
 Step 3 exists so a read-only or service-account key can be used for usage
 without replacing the credential OpenCode uses for inference.
 
+## Privacy and model providers
+
+OpenCodeBar has no hosted service, telemetry, or analytics. The hub and apps run
+locally, and the hub cache stays in
+`~/.local/share/opencodebar/hub.sqlite`. Prompts still go through OpenCode to
+the model provider configured there, so that provider's logging, retention, and
+training terms apply.
+
+**Never enable an endpoint's training opt-in just to use OpenCodeBar.** Some
+OpenCode Go models require the workspace option **Allow paid endpoints that
+train on request data**. OpenCode CLI does not need it, and neither do the apps.
+OpenCodeBar never changes OpenCode or workspace privacy settings, and it does
+not require that option. If a turn fails with the training error, choose a model
+whose policy you accept (the **Retry with settings…** action on a failed turn
+lets you pick one), or set a non-training model as OpenCode's default.
+
+New sessions inherit OpenCode's default model for the directory; they do not
+copy the model from your most recent CLI session. The session header and
+**Session settings** disclosure show the model, provider, variant, and agent
+that actually ran, so you can verify what a phone-created session used.
+
 ## Requirements
 
 - macOS 14 (Sonoma) or later for the menu bar app.
@@ -678,6 +706,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     Session.swift           sessions and projects
     Stats.swift             aggregate and per-session statistics
     Messages.swift          messages, parts and pending prompts
+    Catalog.swift           OpenCode model/agent catalogs and failed-turn lookup
     Changes.swift           file patches and grouping
     ProjectFiles.swift      project file browser payloads
     APIEnvelopes.swift      request/response envelopes
@@ -700,6 +729,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     DesktopView.swift       full-window layout with a persistent sidebar
     ChangeViews.swift       patch cards and change summaries
     NewSessionSheet.swift   start a session with an optional first prompt
+    RetryTurnSheet.swift    fork before a failure and pick model/agent
     PerformanceViews.swift  skeleton placeholders and shimmer (shared)
     SessionDetailView.swift session header and tabs
     SessionDetailView+Composer.swift  pending queue and composer
@@ -766,6 +796,7 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   SessionDetailView+Pieces.swift    shared loading/error views
   SessionDetailView+Loading.swift   message paging
   NewSessionSheet.swift       start a session from the phone
+  RetryTurnSheet.swift        fork before a failure and pick model/agent
   MobileMessageViews.swift    message cards
   MobileChangeViews.swift     patch cards and change summaries
   MobileSessionStatsView.swift  per-session reliability and failures

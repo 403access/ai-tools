@@ -18,6 +18,12 @@ struct RecentSessionRow: View {
                     if let model = session.model {
                         Chip(text: model.id)
                     }
+                    if session.hasFailureOutcome {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Theme.danger)
+                            .accessibilityLabel("Last turn failed")
+                    }
                 }
             }
             Spacer(minLength: 6)

@@ -26,8 +26,8 @@ export function upsertMessages(
   const insert = db.prepare(`
     INSERT INTO messages (
       id, session_id, type, created, streamed, completed, text, content,
-      model, agent, cost, tokens, synced_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      model, agent, cost, tokens, outcome, finish, error, retry, synced_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(session_id, id) DO UPDATE SET
       type = excluded.type,
       created = excluded.created,
@@ -39,6 +39,10 @@ export function upsertMessages(
       agent = COALESCE(excluded.agent, messages.agent),
       cost = COALESCE(excluded.cost, messages.cost),
       tokens = COALESCE(excluded.tokens, messages.tokens),
+      outcome = excluded.outcome,
+      finish = excluded.finish,
+      error = excluded.error,
+      retry = excluded.retry,
       synced_at = excluded.synced_at
   `);
   const directory = getSession(db, sessionID)?.location.directory;
@@ -57,6 +61,10 @@ export function upsertMessages(
         message.agent ?? null,
         message.cost ?? null,
         message.tokens ? JSON.stringify(message.tokens) : null,
+        message.outcome ?? null,
+        message.finish ?? null,
+        message.error ? JSON.stringify(message.error) : null,
+        message.retry ? JSON.stringify(message.retry) : null,
         now,
       );
       storeChanges(

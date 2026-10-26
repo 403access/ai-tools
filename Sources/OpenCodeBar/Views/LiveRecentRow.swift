@@ -18,6 +18,12 @@ struct RecentRow: View {
                     if let model = session.model {
                         Chip(text: model.id)
                     }
+                    if session.hasFailureOutcome {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(Theme.danger)
+                            .help("Last turn \(session.outcome ?? "failed")")
+                    }
                     Text(Fmt.relative(from: session.time.updatedDate))
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)

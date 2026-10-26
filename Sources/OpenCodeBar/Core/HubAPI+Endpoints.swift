@@ -436,6 +436,69 @@ extension HubAPI {
         )
     }
 
+    /// Copies history before `before` into a new child session. Omitting it
+    /// copies the full history.
+    func forkSession(id: String, before: String?) async throws -> Session {
+        struct Body: Encodable { var before: String? }
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let data = try await send(
+            "/api/session/\(encoded)/fork",
+            method: "POST",
+            body: try JSONEncoder().encode(Body(before: before))
+        )
+        do {
+            return try Self.decoder.decode(SessionEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
+    /// Changes the model used by subsequent turns.
+    func switchModel(id: String, model: ModelRef) async throws {
+        struct Body: Encodable { var model: ModelRef }
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        _ = try await send(
+            "/api/session/\(encoded)/model",
+            method: "POST",
+            body: try JSONEncoder().encode(Body(model: model))
+        )
+    }
+
+    /// Changes the agent used by subsequent turns.
+    func switchAgent(id: String, agent: String) async throws {
+        struct Body: Encodable { var agent: String }
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        _ = try await send(
+            "/api/session/\(encoded)/agent",
+            method: "POST",
+            body: try JSONEncoder().encode(Body(agent: agent))
+        )
+    }
+
+    /// Models OpenCode exposes for a directory.
+    func models(directory: String?) async throws -> [ModelInfo] {
+        let response: ModelsCatalogResponse = try await get(catalogPath("/api/model", directory: directory))
+        return response.data
+    }
+
+    /// Agents OpenCode exposes for a directory.
+    func agents(directory: String?) async throws -> [AgentInfo] {
+        let response: AgentsCatalogResponse = try await get(catalogPath("/api/agent", directory: directory))
+        return response.data
+    }
+
+    /// Model OpenCode uses when a session has no explicit selection.
+    func defaultModel(directory: String?) async throws -> ModelInfo? {
+        let response: ModelCatalogResponse = try await get(catalogPath("/api/model/default", directory: directory))
+        return response.data
+    }
+
+    private func catalogPath(_ endpoint: String, directory: String?) -> String {
+        guard let directory, !directory.isEmpty else { return endpoint }
+        let encoded = directory.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? directory
+        return "\(endpoint)?directory=\(encoded)"
+    }
+
     /// Prompts admitted to the session but not delivered to the model yet,
     /// ordered oldest first.
     func sessionPending(id: String) async throws -> [SessionPending] {

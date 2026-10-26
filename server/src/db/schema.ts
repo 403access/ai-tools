@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { backfillToolCalls } from "./messages.ts";
 import { number, type Row } from "./rows.ts";
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 export function migrate(db: Database): void {
   const version = number((db.query("PRAGMA user_version").get() as Row | null)?.user_version);
@@ -172,5 +172,21 @@ export function migrate(db: Database): void {
       CREATE INDEX IF NOT EXISTS sync_log_kind_rev ON sync_log(kind, rev);
     `);
     db.exec("PRAGMA user_version = 5;");
+  }
+
+  if (version < 6) {
+    // Message-level failures live on assistant and idle messages. Cache them
+    // so the apps can explain a failed turn without re-reading OpenCode.
+    for (const column of ["outcome", "finish", "error", "retry"]) {
+      try {
+        db.exec(`ALTER TABLE messages ADD COLUMN ${column} TEXT;`);
+      } catch {
+        // A partially applied migration may already have added this column.
+      }
+    }
+    // Older cached rows have no failure details. Force one refresh of the
+    // newest page per session so existing failures become visible.
+    db.exec("DELETE FROM message_syncs;");
+    db.exec("PRAGMA user_version = 6;");
   }
 }

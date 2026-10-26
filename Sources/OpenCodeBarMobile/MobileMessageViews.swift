@@ -15,6 +15,15 @@ struct MessageCard: View, Equatable {
         }
     }
 
+    private var idleLabel: String {
+        if message.hasError { return "Turn failed" }
+        switch message.outcome {
+        case "interrupted": return "Turn interrupted"
+        case "failed": return "Turn failed"
+        default: return message.isIdle ? "Turn finished" : "Assistant"
+        }
+    }
+
     private var userCard: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
@@ -51,12 +60,12 @@ struct MessageCard: View, Equatable {
     private var assistantCard: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 5) {
-                Image(systemName: "sparkles")
+                Image(systemName: message.hasError ? "exclamationmark.triangle.fill" : "sparkles")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Theme.running)
-                Text("Assistant")
+                    .foregroundStyle(message.hasError ? Theme.danger : Theme.running)
+                Text(idleLabel)
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(Theme.running)
+                    .foregroundStyle(message.hasError ? Theme.danger : Theme.running)
                 Spacer()
                 Text(Fmt.relative(from: message.time.createdDate))
                     .font(.system(size: 11))
@@ -64,18 +73,55 @@ struct MessageCard: View, Equatable {
             }
 
             let parts = message.content ?? []
-            if parts.isEmpty {
+            ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
+                MessagePartView(part: part)
+            }
+
+            if let error = message.error {
+                errorBlock(error)
+            } else if parts.isEmpty {
                 Text("Working…")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-            } else {
-                ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
-                    MessagePartView(part: part)
-                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 12)
+    }
+
+    @ViewBuilder
+    private func errorBlock(_ error: SessionMessageError) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(error.displayMessage)
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.danger)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let detail = error.detailLine {
+                Text(detail)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+
+            if let retry = message.retry, let retryError = retry.error {
+                Text("Retried \(retry.attempt ?? 0)× · \(retryError.displayMessage)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Theme.danger.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Theme.danger.opacity(0.18), lineWidth: 1)
+        )
     }
 }
 
