@@ -26,6 +26,12 @@ extension AppState {
             Task { await refreshGoUsage() }
         }
 
+        // A build published elsewhere (another window, or `make mobile-ota`)
+        // changes the install code shown in Settings → Deployments.
+        if event.type == "hub.ota" {
+            Task { await refreshOta(force: true) }
+        }
+
         // Task resolutions and a session going idle both change the board's
         // derived status, so update the review badge even from another tab.
         if event.type == "hub.sessions"

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { body, request, setup } from "./helpers/api.ts";
+import { isPublicPath } from "../src/openapi/paths.ts";
 import { swaggerPage } from "../src/openapi/swagger.ts";
 
 interface Operation {
@@ -83,9 +84,9 @@ describe("API documentation", () => {
     expect(doc.info.version).toBe("1.0.0");
     expect(doc.servers[0]?.url).toBe("/");
 
-    // Every documented endpoint except the three public ones requires auth.
+    // Every documented endpoint except the public ones requires auth.
     for (const { path, op } of operations(doc)) {
-      if (["/api/ping", "/api/docs", "/api/openapi.json"].includes(path)) {
+      if (isPublicPath(path)) {
         expect(op.security).toEqual([]);
       } else {
         expect(op.security).toBeUndefined();
@@ -176,6 +177,7 @@ describe("API documentation", () => {
         "/api/remote",
         "/api/files",
         "/api/settings",
+        "/api/deployments/ota",
       ]),
     );
 

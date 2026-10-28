@@ -11,7 +11,7 @@ import { HUB_VERSION } from "../config.ts";
 import {
   DEVICE_HEADER_PARAMETERS,
   PATHS,
-  PUBLIC_PATHS,
+  isPublicPath,
 } from "./paths.ts";
 import { SCHEMAS } from "./schemas.ts";
 
@@ -86,7 +86,7 @@ const SECURITY_SCHEMES = {
 function documentPaths(): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [pathname, item] of Object.entries(PATHS) as Array<[string, Record<string, unknown>]>) {
-    if (PUBLIC_PATHS.includes(pathname)) {
+    if (isPublicPath(pathname)) {
       result[pathname] = item;
       continue;
     }

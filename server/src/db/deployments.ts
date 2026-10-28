@@ -30,7 +30,7 @@ export interface DeploymentInput {
   commitSha?: string;
   branch?: string;
   worktree?: string;
-  source?: "script" | "sync";
+  source?: "script" | "sync" | "ota";
   installedAt?: number;
 }
 
@@ -42,6 +42,7 @@ export interface SyncedApp {
 }
 
 function rowToDeployment(row: Row): Deployment {
+  const source = text(row.source);
   const deployment: Deployment = {
     id: String(row.id),
     deviceKey: String(row.device_key ?? ""),
@@ -55,7 +56,7 @@ function rowToDeployment(row: Row): Deployment {
     commitSha: text(row.commit_sha) ?? "",
     branch: text(row.branch) ?? "",
     worktree: text(row.worktree) ?? "",
-    source: text(row.source) === "sync" ? "sync" : "script",
+    source: source === "sync" ? "sync" : source === "ota" ? "ota" : "script",
     installedAt: number(row.installed_at),
   };
   const endedAt = optionalNumber(row.ended_at);

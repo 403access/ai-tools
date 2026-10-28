@@ -1,4 +1,4 @@
-.PHONY: build test app install uninstall run desktop restart watch preview shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-variants mobile-icon bench
+.PHONY: build test app install uninstall run desktop restart watch preview shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-ota mobile-variants mobile-icon bench
 
 # Compile the Swift package (debug).
 build:
@@ -172,6 +172,12 @@ mobile-run: mobile-build
 # the signing team cannot be auto-detected.
 mobile-device: mobile-project
 	DEVICE="$(DEVICE)" DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)" Scripts/run-mobile-device.sh
+
+# Archive, export, and publish an over-the-air build through the hub. The phone
+# installs from the printed link or QR with no cable and no shared network.
+# Requires a running hub; uses its `make hub-tunnel` URL when one is up.
+mobile-ota: mobile-project
+	DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)" Scripts/deploy-ota.sh $(ARGS)
 
 # Build, sign, install, and launch one app variant per git worktree so several
 # versions can be reviewed side by side on one phone. Every variant gets its own

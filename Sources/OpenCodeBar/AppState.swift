@@ -241,6 +241,16 @@ final class AppState: ObservableObject {
     @Published var deploymentsNotice: String?
     @Published var isRefreshingDeployments = false
     @Published var isScanningDeployments = false
+    /// Newest over-the-air build the hub hosts, if any.
+    @Published var otaLatest: OtaArtifact?
+    /// Published over-the-air builds, newest first.
+    @Published var otaBuilds: [OtaArtifact] = []
+    /// The hub's single background OTA build, including its output tail.
+    @Published var otaBuild: OtaBuildStatus?
+    @Published var otaFetchedAt: Date?
+    @Published var otaError: String?
+    @Published var otaNotice: String?
+    @Published var isOtaBuilding = false
     /// Server information shown on the Settings tab.
     @Published var hubInfo: ServerInfo?
     @Published var hubHealth: HubHealthResponse?

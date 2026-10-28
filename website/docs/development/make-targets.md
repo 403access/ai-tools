@@ -28,6 +28,7 @@ sidebar_position: 2
 | `make mobile-build` | Build the iOS app for the simulator |
 | `make mobile-run` | Build, install, launch, and pair the simulator app |
 | `make mobile-device` | Build, sign, install, launch, and pair a device |
+| `make mobile-ota` | Build a development-signed IPA and publish it for over-the-air install |
 | `make mobile-variants` | Install one app variant per git worktree side by side |
 | `make mobile-icon` | Regenerate the iOS app icon |
 | `make docs` | Run the Docusaurus docs dev server |
@@ -56,6 +57,10 @@ make mobile-variants ARGS="main feature/virtual-machines"
 # Phone on cellular
 make hub-tunnel        # terminal 2: public HTTPS URL
 make mobile-device     # picks the tunnel up automatically
+
+# No cable, no shared network: publish and install from a link/QR
+make hub-tunnel        # terminal 2: public HTTPS URL
+make mobile-ota        # or use Settings → Deployments → Build & install
 
 # Docs while editing markdown
 make docs
@@ -103,6 +108,23 @@ The script uses the team selected in Xcode, falling back to the team on your
 Apple Development certificate. It pairs over the Mac's LAN address, or over a
 running `make hub-tunnel` URL, because `127.0.0.1` on the phone means the phone
 itself. See [iOS app](../getting-started/ios-app.md).
+
+## `make mobile-ota`
+
+```bash
+make mobile-ota
+make mobile-ota ARGS="--no-build"   # republish the last export
+make mobile-ota ARGS="--json"       # one OTA_RESULT line, for scripts
+```
+
+Archives the app, exports a development-signed IPA, and publishes it into the
+hub's data directory. The script prints an install page URL and opens a QR code;
+the phone installs from that page over HTTPS with no cable and no shared
+network. It reuses a running `make hub-tunnel` URL automatically.
+
+The hub's **Settings → Deployments → Build & install** button runs the same
+script in the background and shows the QR there, so the terminal is optional.
+See [Install without a cable](../getting-started/ios-app.md#install-without-a-cable-over-the-air).
 
 ## `make mobile-variants`
 

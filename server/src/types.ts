@@ -599,8 +599,8 @@ export interface Deployment {
   commitSha: string;
   branch: string;
   worktree: string;
-  /** The install script reported this, or a device scan discovered it. */
-  source: "script" | "sync";
+  /** Where the row came from: a script report, a scan, or an OTA build. */
+  source: "script" | "sync" | "ota";
   installedAt: number;
   /** Set when the build was replaced or uninstalled. */
   endedAt?: number;
@@ -638,6 +638,47 @@ export interface DeploymentsResponse {
 
 export interface DeploymentResponse {
   data: Deployment;
+}
+
+/**
+ * One published over-the-air build: an IPA the hub serves for installation
+ * from a phone's browser, plus the metadata the install page shows.
+ */
+export interface OtaArtifact {
+  id: string;
+  title: string;
+  bundleId: string;
+  version: string;
+  build: string;
+  commitSha: string;
+  branch: string;
+  worktree: string;
+  createdAt: number;
+}
+
+/** Progress of the single background OTA build the hub runs at a time. */
+export interface OtaBuildStatus {
+  state: "idle" | "running" | "succeeded" | "failed";
+  startedAt?: number;
+  finishedAt?: number;
+  /** Last lines of the build output, newest last. */
+  log: string[];
+  error?: string;
+  artifact?: OtaArtifact;
+}
+
+export interface OtaPayload {
+  latest: OtaArtifact | null;
+  builds: OtaArtifact[];
+  build: OtaBuildStatus;
+}
+
+export interface OtaResponse {
+  data: OtaPayload;
+}
+
+export interface OtaBuildResponse {
+  data: OtaBuildStatus;
 }
 
 /**

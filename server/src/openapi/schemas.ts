@@ -893,7 +893,7 @@ export const SCHEMAS = {
       commitSha: string,
       branch: string,
       worktree: string,
-      source: { type: "string", enum: ["script", "sync"] },
+      source: { type: "string", enum: ["script", "sync", "ota"] },
       installedAt: timestamp,
       endedAt: { ...timestamp, description: "Absent while this build is installed." },
       endReason: { type: "string", enum: ["replaced", "uninstalled"] },
@@ -950,6 +950,11 @@ export const SCHEMAS = {
       commitSha: string,
       branch: string,
       worktree: string,
+      source: {
+        type: "string",
+        enum: ["script", "ota"],
+        description: "`ota` marks a build the install script fetched over the air.",
+      },
       installedAt: timestamp,
     },
     example: {
@@ -966,6 +971,59 @@ export const SCHEMAS = {
       worktree: "/Users/oli/Developer/ai-tools",
     },
   },
+
+  OtaArtifact: {
+    type: "object",
+    required: [
+      "id", "title", "bundleId", "version", "build", "commitSha",
+      "branch", "worktree", "createdAt",
+    ],
+    properties: {
+      id: { type: "string", description: "Build id and URL segment; a random secret." },
+      title: string,
+      bundleId: string,
+      version: string,
+      build: string,
+      commitSha: string,
+      branch: string,
+      worktree: string,
+      createdAt: timestamp,
+    },
+  },
+
+  OtaBuildStatus: {
+    type: "object",
+    required: ["state", "log"],
+    properties: {
+      state: { type: "string", enum: ["idle", "running", "succeeded", "failed"] },
+      startedAt: timestamp,
+      finishedAt: timestamp,
+      log: {
+        ...stringArray,
+        description: "Tail of the archive/export output, newest last.",
+      },
+      error: string,
+      artifact: { $ref: "#/components/schemas/OtaArtifact" },
+    },
+  },
+
+  OtaPayload: {
+    type: "object",
+    required: ["latest", "builds", "build"],
+    properties: {
+      latest: {
+        $ref: "#/components/schemas/OtaArtifact",
+        nullable: true,
+        description: "Newest published build, or `null` before the first one.",
+      },
+      builds: { type: "array", items: { $ref: "#/components/schemas/OtaArtifact" } },
+      build: { $ref: "#/components/schemas/OtaBuildStatus" },
+    },
+  },
+
+  OtaResponse: data({ $ref: "#/components/schemas/OtaPayload" }),
+
+  OtaBuildResponse: data({ $ref: "#/components/schemas/OtaBuildStatus" }),
 
   HubSettings: {
     type: "object",

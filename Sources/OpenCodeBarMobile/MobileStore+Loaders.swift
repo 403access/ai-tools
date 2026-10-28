@@ -3,6 +3,53 @@ import Foundation
 import UIKit
 
 extension MobileStore {
+    /// Refreshes the newest over-the-air build. Older hubs do not have the
+    /// endpoint, which is not an error worth showing; it just means there is no
+    /// update to offer.
+    func refreshOta(force: Bool = false) async {
+        guard let api else { return }
+        if !force, let fetched = otaFetchedAt, Date().timeIntervalSince(fetched) < 60 {
+            return
+        }
+        do {
+            otaLatest = try await api.otaBuilds().latest
+            otaFetchedAt = Date()
+        } catch APIError.request(404, _) {
+            otaLatest = nil
+        } catch {
+            // Keep the last known build; the banner is advisory.
+        }
+    }
+
+    /// The build to offer in the update banner. The installed app's build
+    /// number comes from its own Info.plist, so re-publishing the same build
+    /// does not prompt, and a dismissed build stays dismissed.
+    var otaUpdate: OtaArtifact? {
+        guard let latest = otaLatest, latest.id != otaDismissedID else { return nil }
+        let installed = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+        if !installed.isEmpty, !latest.build.isEmpty, installed == latest.build { return nil }
+        return latest
+    }
+
+    /// Opens the hub's install page in Safari. iOS only starts an install from
+    /// Safari (or an `itms-services` link), never from an app's own web view.
+    func openOtaInstallPage(for artifact: OtaArtifact) {
+        guard let api,
+              let page = URL(string: "api/deployments/ota/\(artifact.id)", relativeTo: api.baseURL)
+        else { return }
+        UIApplication.shared.open(page)
+    }
+
+    /// The install page on this device's hub, also used by Settings.
+    func otaInstallPageURL(for artifact: OtaArtifact) -> URL? {
+        guard let api else { return nil }
+        return URL(string: "api/deployments/ota/\(artifact.id)", relativeTo: api.baseURL)
+    }
+
+    func dismissOtaUpdate(_ artifact: OtaArtifact) {
+        otaDismissedID = artifact.id
+    }
+
     /// Resolves a session id opened from a widget (or another deep link) even
     /// when the row is older than the local snapshot window.
     func fetchSession(id: String) async -> Session? {

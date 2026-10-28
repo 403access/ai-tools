@@ -86,6 +86,20 @@ export const DEVICE_HEADER_PARAMETERS: Schema[] = [
 /** Paths that stay available without a token and do not take device headers. */
 export const PUBLIC_PATHS = ["/api/ping", "/api/docs", "/api/openapi.json"];
 
+/**
+ * Public paths that carry parameters, so they cannot be compared verbatim.
+ * The install page and its assets are opened by Safari on the phone, which
+ * cannot send the hub token; the random build id is the secret.
+ */
+const PUBLIC_PATH_PREFIXES = ["/api/deployments/ota/{id}"];
+
+export function isPublicPath(pathname: string): boolean {
+  return (
+    PUBLIC_PATHS.includes(pathname) ||
+    PUBLIC_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  );
+}
+
 export const PATHS = {
   "/api/ping": {
     get: {
@@ -971,6 +985,111 @@ export const PATHS = {
         401: unauthorized,
         409: failure,
         default: failure,
+      },
+    },
+  },
+
+  "/api/deployments/ota": {
+    get: {
+      tags: ["Deployments"],
+      summary: "Published over-the-air builds",
+      description:
+        "Builds the hub hosts for installation from a phone's browser, newest first, plus the state of the single background build job.",
+      operationId: "listOtaBuilds",
+      responses: {
+        200: ok(schemaRef("OtaResponse")),
+        401: unauthorized,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/deployments/ota/build": {
+    get: {
+      tags: ["Deployments"],
+      summary: "OTA build progress",
+      description:
+        "Polls the background `Scripts/deploy-ota.sh` run started from the macOS app, including the tail of its output.",
+      operationId: "getOtaBuild",
+      responses: {
+        200: ok(schemaRef("OtaBuildResponse")),
+        401: unauthorized,
+        default: failure,
+      },
+    },
+    post: {
+      tags: ["Deployments"],
+      summary: "Build and publish an OTA install",
+      description:
+        "Starts one archive/export on the hub host. Returns immediately; poll the GET for progress. Publishing also emits a `hub.ota` event so connected apps can prompt.",
+      operationId: "startOtaBuild",
+      responses: {
+        202: jsonResponse("Build started", schemaRef("OtaBuildResponse")),
+        401: unauthorized,
+        409: jsonResponse("A build is already running", schemaRef("ErrorResponse")),
+        503: jsonResponse(
+          "The hub host has no source checkout to build from",
+          schemaRef("ErrorResponse"),
+        ),
+        default: failure,
+      },
+    },
+  },
+
+  "/api/deployments/ota/{id}": {
+    get: {
+      tags: ["Deployments"],
+      summary: "Install page",
+      description:
+        "Self-contained HTML page opened by the phone from the install QR or link. Offers the `itms-services` install and a one-tap pairing link. Public: the random build id is the secret.",
+      operationId: "otaInstallPage",
+      security: [],
+      parameters: [pathParam("id", "Build id from a published OTA build.")],
+      responses: {
+        200: {
+          description: "Install page",
+          content: { "text/html": { schema: { type: "string" } } },
+        },
+        404: notFound,
+      },
+    },
+  },
+
+  "/api/deployments/ota/{id}/manifest.plist": {
+    get: {
+      tags: ["Deployments"],
+      summary: "OTA manifest",
+      description:
+        "Property list iOS fetches from the `itms-services` URL. Served as `application/xml`, which iOS accepts; `application/octet-stream` would be rejected.",
+      operationId: "otaManifest",
+      security: [],
+      parameters: [pathParam("id", "Build id from a published OTA build.")],
+      responses: {
+        200: {
+          description: "OTA manifest",
+          content: { "application/xml": { schema: { type: "string" } } },
+        },
+        404: notFound,
+      },
+    },
+  },
+
+  "/api/deployments/ota/{id}/app.ipa": {
+    get: {
+      tags: ["Deployments"],
+      summary: "Signed IPA",
+      description: "The development-signed IPA referenced by the manifest.",
+      operationId: "otaPackage",
+      security: [],
+      parameters: [pathParam("id", "Build id from a published OTA build.")],
+      responses: {
+        200: {
+          description: "IPA download",
+          content: {
+            "application/octet-stream": { schema: { type: "string", format: "binary" } },
+          },
+        },
+        404: notFound,
       },
     },
   },

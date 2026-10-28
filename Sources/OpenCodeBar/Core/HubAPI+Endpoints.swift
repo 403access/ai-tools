@@ -86,6 +86,29 @@ extension HubAPI {
         }
     }
 
+    /// Over-the-air builds the hub hosts, plus the current background build.
+    func otaBuilds() async throws -> OtaPayload {
+        let response: OtaResponse = try await get("/api/deployments/ota")
+        return response.data
+    }
+
+    /// Progress of the single archive/export the hub can run at a time.
+    func otaBuildStatus() async throws -> OtaBuildStatus {
+        let response: OtaBuildResponse = try await get("/api/deployments/ota/build")
+        return response.data
+    }
+
+    /// Starts an archive/export on the hub host. Returns as soon as the job is
+    /// accepted; poll `otaBuildStatus()` for progress.
+    func startOtaBuild() async throws -> OtaBuildStatus {
+        let data = try await send("/api/deployments/ota/build", method: "POST")
+        do {
+            return try Self.decoder.decode(OtaBuildResponse.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     /// Current hub behaviour, including the event update throttle.
     func settings() async throws -> ServerSettings {
         let response: ServerSettingsResponse = try await get("/api/settings")

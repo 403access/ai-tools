@@ -198,6 +198,62 @@ struct DeploymentsResponse: Decodable {
     var data: DeploymentsPayload
 }
 
+/// One published over-the-air build the hub serves to a phone's browser.
+struct OtaArtifact: Decodable, Identifiable, Equatable {
+    var id: String
+    var title: String
+    var bundleId: String
+    var version: String
+    var build: String
+    var commitSha: String
+    var branch: String
+    var worktree: String
+    var createdAt: Double
+
+    var createdAtDate: Date { Date(timeIntervalSince1970: createdAt / 1000) }
+
+    var buildLabel: String {
+        switch (version.isEmpty, build.isEmpty) {
+        case (false, false): return "\(version) (\(build))"
+        case (false, true): return version
+        case (true, false): return "build \(build)"
+        case (true, true): return "unknown build"
+        }
+    }
+
+    var shortCommit: String { commitSha.isEmpty ? "" : String(commitSha.prefix(7)) }
+}
+
+/// Progress of the single background build the hub runs at a time.
+struct OtaBuildStatus: Decodable, Equatable {
+    var state: String
+    var startedAt: Double?
+    var finishedAt: Double?
+    /// Tail of the archive/export output, newest last.
+    var log: [String]
+    var error: String?
+    var artifact: OtaArtifact?
+
+    var isRunning: Bool { state == "running" }
+    var isFailed: Bool { state == "failed" }
+    var isSucceeded: Bool { state == "succeeded" }
+    var lastLogLine: String? { log.last }
+}
+
+struct OtaPayload: Decodable {
+    var latest: OtaArtifact?
+    var builds: [OtaArtifact]
+    var build: OtaBuildStatus
+}
+
+struct OtaResponse: Decodable {
+    var data: OtaPayload
+}
+
+struct OtaBuildResponse: Decodable {
+    var data: OtaBuildStatus
+}
+
 /// Hub behaviour the Settings tab can tune. The hub clamps values, so the
 /// bounds are only used to label the controls.
 struct ServerSettings: Decodable, Equatable {

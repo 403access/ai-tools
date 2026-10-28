@@ -187,6 +187,11 @@ final class MobileStore: ObservableObject {
     @Published var tasks: [Session] = []
     @Published var tasksFetchedAt: Date?
     @Published var tasksError: String?
+    /// Newest over-the-air build the hub published, for the update banner.
+    @Published var otaLatest: OtaArtifact?
+    @Published var otaFetchedAt: Date?
+    /// Build id the user dismissed, so the banner stays away until the next one.
+    @Published var otaDismissedID: String?
     /// Derived feeds, rebuilt once per refresh instead of on every read.
     @Published var runningSessions: [Session] = []
     @Published var recentSessions: [Session] = []
@@ -348,6 +353,9 @@ final class MobileStore: ObservableObject {
         tasks = []
         tasksFetchedAt = nil
         tasksError = nil
+        otaLatest = nil
+        otaFetchedAt = nil
+        otaDismissedID = nil
         eventStreamConnected = false
         seedAttempts = [:]
         seeding = []
@@ -375,6 +383,8 @@ final class MobileStore: ObservableObject {
         tasks = []
         tasksFetchedAt = nil
         tasksError = nil
+        otaLatest = nil
+        otaFetchedAt = nil
         connection = .disabled
         hubHealth = nil
         DevLog.shared.record("Hub configuration removed", category: .app)

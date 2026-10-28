@@ -28,6 +28,11 @@ extension MobileStore {
         if event.type == "hub.stats" {
             Task { await refreshStats(force: true) }
         }
+        // A build published from the Mac (or `make mobile-ota`) offers an
+        // in-app update instead of waiting for the next refresh.
+        if event.type == "hub.ota" {
+            Task { await refreshOta(force: true) }
+        }
         // Task resolutions and a session going idle both change the board's
         // derived status, so refresh it only once the user has opened it.
         if event.type == "hub.sessions"

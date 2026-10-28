@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import {
   clampEventThrottle,
   clampMaxConcurrentAgents,
@@ -51,6 +52,8 @@ import {
 import { MAX_PAUSE_MS, MAX_QUEUE_MS } from "./hub/control.ts";
 import { DeploymentScanError } from "./deployments.ts";
 import { isMobileBundle, variantFromBundle } from "./db/deployments.ts";
+import { OtaBuilder, OtaBuildBusyError, OtaBuildUnavailableError } from "./hub/ota-build.ts";
+import { OtaStore, otaManifest, otaPage, otaRootFor, requestOrigin } from "./hub/ota.ts";
 import { eventStream } from "./api/event-stream.ts";
 import { docsResponse, openApiResponse } from "./api/docs.ts";
 import {
@@ -103,6 +106,10 @@ export interface ApiDeps {
   deployments?: {
     scan(): Promise<{ payload: DeploymentsPayload; errors: string[] }>;
   };
+  /** Published OTA builds, injectable so tests can use a temp directory. */
+  ota?: OtaStore;
+  /** Background OTA builder, injectable so tests do not run xcodebuild. */
+  otaBuild?: OtaBuilder;
 }
 
 export function createHandler(
@@ -124,6 +131,21 @@ export function createHandler(
   const vms = deps.vms ?? new VirtualMachineService();
   const vmSockets = deps.vmSockets;
   const deployments = deps.deployments ?? { scan: () => hub.scanDeployments() };
+  const ota = deps.ota ?? new OtaStore(otaRootFor(config.dbPath));
+  const otaBuild = deps.otaBuild ?? new OtaBuilder({
+    store: ota,
+    repoRoot: resolve(import.meta.dir, "../.."),
+    onPublished: (artifact) => hub.broadcast({
+      type: "hub.ota",
+      data: {
+        id: artifact.id,
+        title: artifact.title,
+        version: artifact.version,
+        build: artifact.build,
+        createdAt: artifact.createdAt,
+      },
+    }),
+  });
 
   const withVMErrors = async (work: () => Promise<Response>): Promise<Response> => {
     try {
@@ -160,6 +182,52 @@ export function createHandler(
       if (pathname === "/api/docs" || pathname === "/api/openapi.json") {
         if (request.method !== "GET") return error("Method not allowed", 405);
         return pathname === "/api/docs" ? docsResponse() : openApiResponse();
+      }
+
+      // OTA installs are opened by Safari on the phone, which cannot send the
+      // hub token. The build id is a random secret: anyone with the page URL
+      // can download that build and read the pairing link on it.
+      const otaPublic = /^\/api\/deployments\/ota\/([a-z0-9][a-z0-9-]{5,63})(?:\/(manifest\.plist|app\.ipa))?$/.exec(pathname);
+      if (otaPublic && request.method === "GET") {
+        const id = otaPublic[1]!;
+        const file = otaPublic[2];
+        const artifact = ota.get(id);
+        if (!artifact) return error("Unknown OTA build", 404);
+
+        if (!file) {
+          return new Response(otaPage(artifact, requestOrigin(request), config.token), {
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "Cache-Control": "no-cache",
+              ...CORS_HEADERS,
+            },
+          });
+        }
+
+        if (file === "manifest.plist") {
+          return new Response(otaManifest(artifact, requestOrigin(request)), {
+            headers: {
+              "Content-Type": "application/xml; charset=utf-8",
+              "Cache-Control": "no-cache",
+              ...CORS_HEADERS,
+            },
+          });
+        }
+
+        const ipaPath = ota.ipaPath(id);
+        if (!ipaPath) return error("This build has no IPA", 404);
+        const ipa = Bun.file(ipaPath);
+        const name = `${artifact.title}-${artifact.build || artifact.version || "build"}.ipa`
+          .replace(/[^A-Za-z0-9._-]+/g, "-");
+        return new Response(ipa, {
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "Content-Length": String(ipa.size),
+            "Content-Disposition": `attachment; filename="${name}"`,
+            "Cache-Control": "no-cache",
+            ...CORS_HEADERS,
+          },
+        });
       }
 
       if (!isAuthorized(request, config.token)) {
@@ -228,10 +296,34 @@ export function createHandler(
           commitSha: optional("commitSha"),
           branch: optional("branch"),
           worktree: optional("worktree"),
-          source: "script",
+          source: optional("source") === "ota" ? "ota" : "script",
           installedAt,
         });
         return json({ data: deployment }, 201);
+      }
+
+      if (pathname === "/api/deployments/ota" && request.method === "GET") {
+        return json({
+          data: {
+            latest: ota.latest(),
+            builds: ota.list(),
+            build: otaBuild.snapshot(),
+          },
+        });
+      }
+
+      if (pathname === "/api/deployments/ota/build") {
+        if (request.method === "GET") return json({ data: otaBuild.snapshot() });
+        if (request.method === "POST") {
+          try {
+            return json({ data: otaBuild.start() }, 202);
+          } catch (caught) {
+            if (caught instanceof OtaBuildBusyError) return error(caught.message, 409);
+            if (caught instanceof OtaBuildUnavailableError) return error(caught.message, 503);
+            throw caught;
+          }
+        }
+        return error("Method not allowed", 405);
       }
 
       if (pathname === "/api/settings") {

@@ -353,6 +353,19 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
+        .overlay(alignment: .top) {
+            if let update = store.otaUpdate {
+                OtaUpdateBanner(
+                    artifact: update,
+                    onInstall: { store.openOtaInstallPage(for: update) },
+                    onDismiss: { store.dismissOtaUpdate(update) }
+                )
+                .padding(.horizontal, 12)
+                .padding(.top, 6)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: store.otaUpdate?.id)
     }
 }
 

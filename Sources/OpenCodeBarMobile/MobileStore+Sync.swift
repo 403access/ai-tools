@@ -10,7 +10,8 @@ extension MobileStore {
         async let stats: Void = refreshStats(force: true)
         async let usage: Void = refreshUsage(force: true)
         async let tasks: Void = refreshTasks()
-        _ = await (live, stats, usage, tasks)
+        async let ota: Void = refreshOta(force: true)
+        _ = await (live, stats, usage, tasks, ota)
         DevLog.shared.sync(
             "Full refresh",
             detail: DevLog.durationText(Date().timeIntervalSince(started))

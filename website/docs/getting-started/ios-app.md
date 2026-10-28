@@ -125,6 +125,55 @@ For a stable address, run [Tailscale](https://tailscale.com) on the Mac and the
 phone and pair with the Mac's `100.x.y.z` address instead; no public URL is
 created.
 
+## Install without a cable (over the air)
+
+`make mobile-device` needs the phone and the Mac to talk over USB or the same
+network. An over-the-air build removes both: the hub hosts the IPA, and the
+phone downloads it from a normal HTTPS link.
+
+```bash
+# terminal 1: the hub
+make hub
+
+# terminal 2: a public HTTPS URL (only needed off the LAN)
+make hub-tunnel
+
+# terminal 3: archive, export, and publish
+make mobile-ota
+```
+
+The script archives the app, exports a **development-signed IPA**, copies it
+into the hub's data directory, and prints an install page URL plus a QR code.
+Open the link or scan the QR on the phone and tap **Install**; iOS shows its own
+confirmation. The page also has a **Pair this hub** button, so a fresh install
+connects with one tap instead of typing a URL and token.
+
+You can also do this without a terminal: the Mac app's
+**Settings → Deployments** has a **Build & install** button. The hub runs the
+same archive/export in the background, shows the output while it works, and
+then shows the install QR and link. When the phone app is connected, publishing
+a build also sends it an **Update available** banner that opens the install.
+
+:::note
+iOS only installs an app when the device asks for it. A hub cannot push an
+install to a phone without an MDM server, so the last tap always happens on the
+phone.
+:::
+
+Requirements and caveats:
+
+- An HTTPS URL is mandatory. `itms-services` links are rejected over plain HTTP,
+  which is why `make hub-tunnel` (or Tailscale with HTTPS) is needed off the
+  LAN.
+- The IPA is signed with the development profile, so the phone's UDID must be in
+  that profile. Usually it already is after the first `make mobile-device`, which
+  registers the device. Ad-hoc export needs a paid team and a manually managed
+  profile; OpenCodeBar deliberately uses the development profile instead.
+- The developer certificate must be trusted on the phone: **Settings → General →
+  VPN & Device Management**. It is after the first Xcode/USB install.
+- Builds are pruned to the newest five; change that with
+  `OPENCODEBAR_OTA_KEEP`.
+
 ## Build only
 
 ```bash

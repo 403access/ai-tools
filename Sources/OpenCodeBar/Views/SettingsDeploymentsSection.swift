@@ -41,6 +41,8 @@ struct SettingsDeploymentsSection: View {
                 NoticeRow(icon: "exclamationmark.triangle", message: notice, tint: Theme.warn)
             }
 
+            SettingsOtaCard()
+
             if state.deploymentDevices.isEmpty {
                 EmptyState(
                     icon: "shippingbox",
