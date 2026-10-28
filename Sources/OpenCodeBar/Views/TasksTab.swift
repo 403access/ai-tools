@@ -17,6 +17,9 @@ struct TasksTab: View {
     /// Done tasks are reference only, so they stay out of the board until the
     /// user asks for them.
     @AppStorage("tasks.showDone") private var showDone = false
+    /// Splits each board column into project sections so work for one repo
+    /// stays together. Only affects the wide board; the list keeps its order.
+    @AppStorage("tasks.groupByProject") private var groupByProject = false
 
     /// A status column stays readable at this width. The board needs room for
     /// three columns before it replaces the list; showing Done adds a fourth
@@ -57,6 +60,12 @@ struct TasksTab: View {
     /// Five filter chips get too tight in the desktop's narrow split column.
     private var usesScrollableFilters: Bool {
         availableWidth < 340
+    }
+
+    private struct ProjectTaskGroup: Identifiable {
+        let id: String
+        let name: String
+        let sessions: [Session]
     }
 
     var body: some View {
@@ -110,6 +119,9 @@ struct TasksTab: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
                 Spacer(minLength: 4)
+                if usesBoard {
+                    projectGroupToggle
+                }
                 doneToggle
                 newTaskButton
             }
@@ -162,6 +174,39 @@ struct TasksTab: View {
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
         .help(showDone ? "Hide completed tasks" : "Show completed tasks")
+    }
+
+    /// Board-only option that keeps a single project's tasks together inside
+    /// each status column instead of interleaving them with other projects.
+    private var projectGroupToggle: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.16)) {
+                groupByProject.toggle()
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 8, weight: .bold))
+                Text("By project")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                Capsule().fill(
+                    groupByProject ? Theme.accent.opacity(0.14) : Color.primary.opacity(0.06)
+                )
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(groupByProject ? Theme.accent : Color.secondary)
+        .help(
+            groupByProject
+                ? "Show each column as one list again"
+                : "Group each column by project"
+        )
+        .accessibilityAddTraits(groupByProject ? .isSelected : [])
     }
 
     private var newTaskButton: some View {
@@ -304,9 +349,13 @@ struct TasksTab: View {
             .padding(.horizontal, 2)
 
             ScrollView {
-                LazyVStack(spacing: 8) {
+                LazyVStack(alignment: .leading, spacing: groupByProject ? 10 : 8) {
                     if sessions.isEmpty {
                         emptyBoardColumn(status)
+                    } else if groupByProject {
+                        ForEach(projectGroups(for: sessions)) { group in
+                            projectSection(group)
+                        }
                     } else {
                         ForEach(sessions) { session in
                             TaskCard(session: session, compact: true)
@@ -330,6 +379,59 @@ struct TasksTab: View {
                 .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
         )
         .animateRecentInsertion(ids: ids)
+    }
+
+    /// Board projects ordered by their most recent activity. Every column uses
+    /// the same order, so a project stays in the same place as the eye moves
+    /// between statuses.
+    private var projectOrder: [String] {
+        var latest: [String: Date] = [:]
+        for session in state.tasks {
+            guard let status = session.taskStatus, boardOrder.contains(status) else { continue }
+            let updated = session.time.updatedDate
+            if let existing = latest[session.projectID], existing >= updated { continue }
+            latest[session.projectID] = updated
+        }
+        return latest.sorted { $0.value > $1.value }.map(\.key)
+    }
+
+    private func projectGroups(for sessions: [Session]) -> [ProjectTaskGroup] {
+        let buckets = Dictionary(grouping: sessions, by: \.projectID)
+        let ordered = projectOrder.filter { buckets[$0] != nil }
+        let rest = buckets.keys.filter { !ordered.contains($0) }.sorted()
+        return (ordered + rest).compactMap { key in
+            guard let group = buckets[key], let first = group.first else { return nil }
+            return ProjectTaskGroup(
+                id: key,
+                name: state.projectName(for: first),
+                sessions: group
+            )
+        }
+    }
+
+    private func projectSection(_ group: ProjectTaskGroup) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: "folder.fill")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(Theme.accent.opacity(0.85))
+                Text(group.name)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(group.sessions.count)")
+                    .font(.system(size: 9, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 2)
+
+            ForEach(group.sessions) { session in
+                TaskCard(session: session, compact: true, showsProject: false)
+                    .transition(.recentInsertion)
+            }
+        }
     }
 
     private func emptyBoardColumn(_ status: SessionTask.Status) -> some View {
@@ -419,6 +521,9 @@ private struct TaskCard: View {
     /// already carries the status, so the card drops its status icon and moves
     /// the failure badge under the metadata to keep the title readable.
     var compact = false
+    /// Off when the column is grouped by project and the section header
+    /// already names the project.
+    var showsProject = true
 
     var body: some View {
         HStack(alignment: .top, spacing: compact ? 6 : 9) {
@@ -438,13 +543,15 @@ private struct TaskCard: View {
                 }
 
                 HStack(spacing: 6) {
-                    Text(state.projectName(for: session))
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Text("·")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
+                    if showsProject {
+                        Text(state.projectName(for: session))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Text("·")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                    }
                     Text(relativeTime)
                         .font(.system(size: 9))
                         .foregroundStyle(.tertiary)
