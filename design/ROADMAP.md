@@ -56,6 +56,13 @@ product can be reviewed, demoed, and extended visually:
 | Document becomes too large for one page | One OpenPencil page per product area, screens laid out in labelled rows |
 | Generated JSX is hard to maintain | Small helper kit (`design/gen/kit.mjs`) and one module per page |
 
+## Rendering constraints
+
+- Pages 05 and 07 use independent top-level frames because a single large
+  `Page` frame did not paint in OpenPencil's canvas. The exporter was unaffected.
+- Performance bars are rectangles with pixel heights, never percentage-height
+  frames; the latter produced invalid 100×100 nodes and blank canvas groups.
+
 ## Definition of done
 
 - `design/OpenCodeBar.fig` opens in OpenPencil 0.16 with all pages.

@@ -23,6 +23,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` planned
 - [x] Live: recent rows, filters, grouping
 - [x] Live: empty and loading
 - [x] Tasks: board, filters, labels, actions
+- [x] Tasks: Queued column, start-now/remove actions, hidden Done by default
 - [x] Tasks: empty filters and no tasks
 - [x] New session sheet
 - [x] Project picker sheet
@@ -43,6 +44,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` planned
 ## iOS
 
 - [x] Live, Tasks, Projects, Usage, Settings
+- [x] Tasks: Queued column, start-now/remove actions, hidden Done by default
 - [x] Session detail and all tabs
 - [x] Project detail and search
 - [x] Pairing and device detail
@@ -53,6 +55,12 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` planned
 - [x] Widgets: Live and Usage, small/medium/large
 - [x] iPad layout
 - [x] Light appearance
+
+## Rendering fixes
+
+- [x] Rebuild pages 05 and 07 as independent top-level frames
+- [x] Replace percentage-height performance bars with pixel rectangles
+- [x] Remove zero-size title-bar placeholders
 
 ## Cross-cutting
 

@@ -49,7 +49,9 @@ for (const [key, name, load] of PAGES) {
   const mod = await load();
   const out = mod.default();
   const file = `${outDir}/${key}.json`;
-  writeFileSync(file, JSON.stringify({ jsx: typeof out === "string" ? out : out.root }));
+  if (typeof out === "string" || !out.flat) {
+    writeFileSync(file, JSON.stringify({ jsx: typeof out === "string" ? out : out.root }));
+  }
   console.log(`${key}  ${name}  ${(JSON.stringify(out).length / 1024).toFixed(1)} KB`);
   if (render) {
     const pageId = pageIds[name];
@@ -68,6 +70,21 @@ for (const [key, name, load] of PAGES) {
         ["tool", "call", "delete_node", "--args", JSON.stringify({ id: child.id }), "--document-id", docId, "--page-id", pageId],
         { stdio: "ignore" },
       );
+    }
+    if (typeof out !== "string" && out.flat) {
+      // Flat pages render every top-level frame independently. This avoids a
+      // single huge page frame that some OpenPencil canvas builds refuse to paint.
+      out.sections.forEach((jsx, i) => {
+        const sectionFile = `${outDir}/${key}-flat-${i}.json`;
+        writeFileSync(sectionFile, JSON.stringify({ jsx }));
+        console.log(`  flat ${i + 1}/${out.sections.length}  ${(jsx.length / 1024).toFixed(1)} KB`);
+        execFileSync(
+          "openpencil",
+          ["tool", "call", "render", "--args-file", sectionFile, "--document-id", docId, "--page-id", pageId],
+          { stdio: "inherit" },
+        );
+      });
+      continue;
     }
     execFileSync(
       "openpencil",

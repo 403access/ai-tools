@@ -511,13 +511,15 @@ export const phone = ({
           py: 8,
           h: "hug",
         },
-        T(title, { size: 16, weight: "semibold", color: dark ? D.text : L.text }),
-        F(
-          "Right",
-          { flex: "row", items: "center", gap: 6 },
-          sub ? F("Dot", { w: 6, h: 6, rounded: 3, bg: D.accent }) : "",
-          sub ? T(sub, { size: 10, weight: "medium", color: D.accent }) : "",
-        ),
+        T(title, { size: 16, weight: "semibold", color: dark ? D.text : L.text }) +
+        (sub
+          ? F(
+              "Right",
+              { flex: "row", items: "center", gap: 6 },
+              F("Dot", { w: 6, h: 6, rounded: 3, bg: D.accent }) +
+                T(sub, { size: 10, weight: "medium", color: D.accent }),
+            )
+          : ""),
       ) +
       F(
         "Content",
@@ -619,10 +621,10 @@ export const pageParts = ({ title, subtitle, meta = "", width = 3000, sections, 
 });
 
 // A labelled group of screens inside a page.
-export const group = (label, note, children) =>
+export const group = (label, note, children, props = {}) =>
   F(
     "Group",
-    { flex: "col", gap: 16, w: "fill", h: "hug" },
+    { flex: "col", gap: 16, w: "fill", h: "hug", ...props },
     F(
       "Group header",
       { flex: "col", gap: 3, w: "fill" },

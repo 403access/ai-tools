@@ -1,4 +1,4 @@
-import { D, F, T, I, chip, card, sectionLabel, pageParts, group, bar, notice, emptyState, phone, iconButton } from "./kit.mjs";
+import { D, F, R, T, I, chip, card, sectionLabel, pageParts, pageHeader, group, bar, notice, emptyState, phone, iconButton } from "./kit.mjs";
 
 const dot = (c = D.accent) => F("Dot", { w: 7, h: 7, rounded: 4, bg: c });
 
@@ -37,7 +37,7 @@ const performance = host("iOS · Performance", [
         F("C", { flex: "col", gap: 1, grow: 1 },
           T(`${p}`, { size: 6, color: D.ter, textAlign: "center" }) +
           F("B", { w: "fill", h: 28, rounded: 2, bg: "#2A2A2A", overflow: "hidden" },
-            F("F", { w: "fill", h: `${p}%`, y: `${100 - p}%`, bg: p > 30 ? D.warn : D.running })))).join(""))),
+            R("Bar fill", { w: "fill", h: Math.round(28 * p / 100), y: 28 - Math.round(28 * p / 100), bg: p > 30 ? D.warn : D.running })))).join(""))),
   sectionLabel("Top processes"),
   [["WindowServer", "12.4%"], ["OpenCode", "9.8%"], ["Xcode", "8.1%"]].map(([n, p]) => F("P", { flex: "row", items: "center", gap: 6, p: 7, rounded: 7, bg: D.card }, T(n, { size: 9, color: D.text, w: "fill" }), T(p, { size: 8, color: D.sec }))).join(""),
 ]);
@@ -146,29 +146,32 @@ const appDetail = host("iOS · App detail", [
 ]);
 
 export default function () {
-  return pageParts({
-    title: "iOS — Host and Remote desktop",
-    subtitle: "The phone can watch the Mac: vitals, storage, network, software, terminals and files, plus a live remote display with touch and keyboard input.",
-    meta: "Sources: HostView.swift · SystemView.swift · SystemCategoryView.swift · RemoteDesktopView.swift · RemoteDesktopConnection.swift · MobileTerminalViews.swift · MobileFileBrowser.swift · SystemAppDetailView.swift",
-    width: 2400,
+  const title = "iOS — Host and Remote desktop";
+  const subtitle = "The phone can watch the Mac: vitals, storage, network, software, terminals and files, plus a live remote display with touch and keyboard input.";
+  const meta = "Sources: HostView.swift · SystemView.swift · SystemCategoryView.swift · RemoteDesktopView.swift · RemoteDesktopConnection.swift · MobileTerminalViews.swift · MobileFileBrowser.swift · SystemAppDetailView.swift";
+  return {
+    flat: true,
     sections: [
+      R("Page background", { x: 0, y: 0, w: 2400, h: 3342, bg: "#E9ECEF" }),
+      F("Header position", { x: 72, y: 72, w: 2256, h: "hug" },
+        pageHeader({ title, subtitle, meta })),
       group("Host dashboard and focused pages", "Vitals double as navigation; each focused page keeps the same card rhythm.", [
         F("Col", { flex: "col", gap: 10 }, T("Host · dashboard", { size: 13, weight: "semibold", color: "#2B3038" }), hostDash),
         F("Col", { flex: "col", gap: 10 }, T("Performance", { size: 13, weight: "semibold", color: "#2B3038" }), performance),
         F("Col", { flex: "col", gap: 10 }, T("Storage", { size: 13, weight: "semibold", color: "#2B3038" }), storage),
         F("Col", { flex: "col", gap: 10 }, T("Network", { size: 13, weight: "semibold", color: "#2B3038" }), network),
-      ].join("")),
+      ].join(""), { x: 72, y: 250, w: 2256 }),
       group("Software, machine and tools", "Everything is read-only except terminal input and app actions.", [
         F("Col", { flex: "col", gap: 10 }, T("Software", { size: 13, weight: "semibold", color: "#2B3038" }), software),
         F("Col", { flex: "col", gap: 10 }, T("Machine & health", { size: 13, weight: "semibold", color: "#2B3038" }), machine),
         F("Col", { flex: "col", gap: 10 }, T("Terminals", { size: 13, weight: "semibold", color: "#2B3038" }), terminals),
         F("Col", { flex: "col", gap: 10 }, T("Files", { size: 13, weight: "semibold", color: "#2B3038" }), files),
-      ].join("")),
+      ].join(""), { x: 72, y: 1300, w: 2256 }),
       group("Remote desktop", "Streaming, permissions and view-only fallback.", [
         F("Col", { flex: "col", gap: 10 }, T("Remote · connected", { size: 13, weight: "semibold", color: "#2B3038" }), remote),
         F("Col", { flex: "col", gap: 10 }, T("Remote · permissions", { size: 13, weight: "semibold", color: "#2B3038" }), remotePermission),
         F("Col", { flex: "col", gap: 10 }, T("App detail", { size: 13, weight: "semibold", color: "#2B3038" }), appDetail),
-      ].join("")),
+      ].join(""), { x: 72, y: 2350, w: 2256 }),
     ],
-  });
+  };
 }

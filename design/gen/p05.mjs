@@ -1,4 +1,4 @@
-import { D, F, T, I, chip, card, sectionLabel, pageParts, group, bar, notice, emptyState, panel, macTabs7, iconButton } from "./kit.mjs";
+import { D, F, R, T, I, chip, card, sectionLabel, pageParts, pageHeader, group, bar, notice, emptyState, panel, macTabs7, iconButton } from "./kit.mjs";
 
 const dot = (c = D.accent) => F("Dot", { w: 7, h: 7, rounded: 4, bg: c });
 
@@ -43,7 +43,7 @@ const performance = systemPanel("System · performance",
         F("Core", { flex: "col", gap: 2, grow: 1 },
           T(`${p}%`, { size: 7, color: D.ter, textAlign: "center" }) +
           F("B", { w: "fill", h: 40, rounded: 3, bg: "#2A2A2A", overflow: "hidden" },
-            F("Fill", { w: "fill", h: `${p}%`, y: `${100 - p}%`, bg: p > 30 ? D.warn : D.running })))).join(""))) +
+            R("Bar fill", { w: "fill", h: Math.round(40 * p / 100), y: 40 - Math.round(40 * p / 100), bg: p > 30 ? D.warn : D.running })))).join(""))) +
   sectionLabel("Top processes") +
   [["WindowServer", 12.4, "oliver"], ["OpenCode", 9.8, "oliver"], ["Xcode", 8.1, "oliver"], ["Simulator", 5.2, "oliver"]].map(([n, p, u]) =>
     F("Proc", { flex: "row", items: "center", gap: 7, p: 8, rounded: 8, bg: D.card, w: "fill" },
@@ -217,40 +217,42 @@ const builder = F("VM builder", { flex: "col", gap: 10, w: 900, h: 760, p: 18, r
 );
 
 export default function () {
-  return pageParts({
-    title: "macOS — system and virtual machines",
-    subtitle: "The hub's machine inventory, performance, media, terminals and files, plus the NixOS guest lifecycle: build, boot, console, rebuild and delete.",
-    meta: "Sources: SystemTab.swift · SystemAppDetailView.swift · PerformanceViews.swift · TerminalViews.swift · SystemFileBrowser.swift · VirtualMachinesTab.swift · VirtualMachineDetailView.swift · NewVirtualMachineSheet.swift · NixOSBuilderView.swift",
-    width: 3000,
+  const title = "macOS — system and virtual machines";
+  const subtitle = "The hub's machine inventory, performance, media, terminals and files, plus the NixOS guest lifecycle: build, boot, console, rebuild and delete.";
+  const meta = "Sources: SystemTab.swift · SystemAppDetailView.swift · PerformanceViews.swift · TerminalViews.swift · SystemFileBrowser.swift · VirtualMachinesTab.swift · VirtualMachineDetailView.swift · NewVirtualMachineSheet.swift · NixOSBuilderView.swift";
+  return {
+    flat: true,
     sections: [
+      R("Page background", { x: 0, y: 0, w: 3000, h: 8526, bg: "#E9ECEF" }),
+      F("Header position", { x: 72, y: 72, w: 2856, h: "hug" }, pageHeader({ title, subtitle, meta })),
       group("System dashboard", "Vitals double as navigation; Now Playing and the More grid keep the panel short.", [
         F("Col", { flex: "col", gap: 10 }, T("System · dashboard", { size: 13, weight: "semibold", color: "#2B3038" }), system),
         F("Col", { flex: "col", gap: 10 }, T("Performance", { size: 13, weight: "semibold", color: "#2B3038" }), performance),
         F("Col", { flex: "col", gap: 10 }, T("Network", { size: 13, weight: "semibold", color: "#2B3038" }), network),
-      ].join("")),
+      ].join(""), { x: 72, y: 249, w: 2856 }),
       group("Software and media", "Everything on the hub host is readable without leaving the app.", [
         F("Col", { flex: "col", gap: 10 }, T("Software", { size: 13, weight: "semibold", color: "#2B3038" }), software),
         F("Col", { flex: "col", gap: 10 }, T("Now playing", { size: 13, weight: "semibold", color: "#2B3038" }), nowPlaying),
-      ].join("")),
+      ].join(""), { x: 72, y: 1572, w: 2856 }),
       group("Terminals and files", "OpenCode PTYs and Terminal.app mirrors, plus the read-only host browser.", [
         F("Col", { flex: "col", gap: 10 }, T("Terminals", { size: 13, weight: "semibold", color: "#2B3038" }), terminals),
         F("Col", { flex: "col", gap: 10 }, T("Files", { size: 13, weight: "semibold", color: "#2B3038" }), files),
-      ].join("")),
+      ].join(""), { x: 72, y: 2895, w: 2856 }),
       group("Terminal emulator", "A real PTY, proxied by the hub; Terminal.app tabs get a line-based mirror instead.", [
         F("Col", { flex: "col", gap: 10 }, T("Terminal · zsh", { size: 13, weight: "semibold", color: "#2B3038" }), terminal),
-      ].join("")),
+      ].join(""), { x: 72, y: 4218, w: 2856 }),
       group("Virtual machines · list states", "Populated, empty and not-ready states.", [
         F("Col", { flex: "col", gap: 10 }, T("VMs · populated", { size: 13, weight: "semibold", color: "#2B3038" }), vmList),
         F("Col", { flex: "col", gap: 10 }, T("VMs · empty", { size: 13, weight: "semibold", color: "#2B3038" }), vmEmpty),
         F("Col", { flex: "col", gap: 10 }, T("VMs · not available", { size: 13, weight: "semibold", color: "#2B3038" }), vmUnavailable),
-      ].join("")),
+      ].join(""), { x: 72, y: 4961, w: 2856 }),
       group("Virtual machine detail", "Live metrics, SSH facts, lifecycle actions and the declarative configuration.", [
         F("Col", { flex: "col", gap: 10 }, T("VM · overview", { size: 13, weight: "semibold", color: "#2B3038" }), vmDetail),
-      ].join("")),
+      ].join(""), { x: 72, y: 6284, w: 2856 }),
       group("Console and builder", "The serial console recovers a guest before SSH; the builder previews the real configuration.nix.", [
         F("Col", { flex: "col", gap: 10 }, T("VM · serial console", { size: 13, weight: "semibold", color: "#2B3038" }), vmConsole),
         F("Col", { flex: "col", gap: 10 }, T("VM · builder", { size: 13, weight: "semibold", color: "#2B3038" }), builder),
-      ].join("")),
+      ].join(""), { x: 72, y: 7607, w: 2856 }),
     ],
-  });
+  };
 }

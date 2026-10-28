@@ -55,6 +55,13 @@ Notes:
 - `design/gen/kit.mjs` holds the palette, typography and component helpers.
 - Demo data is synthetic. Never put real tokens, paths or personal data in the
   design.
+- **Pages 05 and 07 are flat.** They render as independent top-level frames
+  instead of one large `Page` frame. Some OpenPencil canvas builds refuse to
+  paint a single huge auto-layout frame, while the exporter still succeeds.
+  Keep them flat when editing those pages.
+- **No percentage heights on frames.** Use a `Rectangle` with a computed pixel
+  height (see the performance bars). Percentage `h`/`y` on a frame can produce
+  a 100×100 frame with null position and break canvas painting for its parent.
 
 ## Documentation
 
