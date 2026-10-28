@@ -185,6 +185,13 @@ docs/                             static marketing site
   assets/style.css
   screenshots/                    shared screenshots used by README and site
 
+design/                           OpenPencil design mirror (generated)
+  OpenCodeBar.fig                 full product design, 13 pages
+  README.md                       open/regenerate instructions
+  ROADMAP.md / TODO.md            plan and coverage checklist
+  build.mjs                       render pages into the open document
+  gen/                            JSX page modules + component kit
+
 .github/workflows/deploy-pages.yml  builds marketing + docs, deploys Pages
 
 project.yml                       XcodeGen spec

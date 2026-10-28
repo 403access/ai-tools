@@ -1,4 +1,4 @@
-.PHONY: build test app run desktop restart preview shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-variants mobile-icon bench
+.PHONY: build test app run desktop restart watch preview shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-variants mobile-icon bench
 
 # Compile the Swift package (debug).
 build:
@@ -27,6 +27,11 @@ desktop: app
 # Rebuild and restart the running app in one step.
 restart:
 	Scripts/restart.sh
+
+# Rebuild and restart the app whenever Sources/ or Package.swift change.
+# Live reload, not state-preserving: the app restarts on every change.
+watch:
+	Scripts/watch.sh
 
 # Render the panel in a normal window (for design work / screenshots).
 preview:

@@ -630,6 +630,7 @@ make mobile-device
 ```sh
 make run        # build dist/OpenCodeBar.app and launch it
 make restart    # rebuild and restart the running app
+make watch      # rebuild/relaunch automatically when Sources change
 ```
 
 `make restart` runs `Scripts/restart.sh`, which builds first and only then
@@ -639,6 +640,19 @@ The script can also be called directly:
 ```sh
 Scripts/restart.sh --no-build      # relaunch the existing bundle
 CONFIG=debug Scripts/restart.sh    # rebuild a debug bundle instead
+```
+
+`make watch` runs `Scripts/watch.sh` for a live-reload loop. It builds a debug
+bundle, launches it, then rebuilds and relaunches whenever a Swift file under
+`Sources/OpenCodeBar`, `Package.swift`, or `Package.resolved` changes. Saves are
+debounced, and a failed build leaves the running app untouched. This restarts
+the process, so in-memory UI state (open panel, selected session) is reset; it
+is not in-place hot patching.
+
+```sh
+Scripts/watch.sh --no-initial      # watch without the initial build
+CONFIG=release Scripts/watch.sh    # watch with release builds
+INTERVAL=1 Scripts/watch.sh        # poll once a second instead of 0.5s
 ```
 
 Other targets:
@@ -753,6 +767,24 @@ make docs-serve   # build and serve the production docs
 
 The docs dev server runs at `http://localhost:3000/ai-tools/docs/`, matching the
 published base path.
+
+### Design mirror (OpenPencil)
+
+[`design/OpenCodeBar.fig`](design/OpenCodeBar.fig) is a complete visual mirror of the product in
+[OpenPencil](https://openpencil.dev): the macOS menu bar, panel and desktop
+window, iPhone and iPad, Home Screen widgets, the hub architecture, every
+important empty/loading/error/stale/permission state, and the roadmap for the
+mirror itself. It uses synthetic demo data, so it can be opened and shared
+without a hub.
+
+```sh
+open -a OpenPencil design/OpenCodeBar.fig
+node design/build.mjs            # regenerate page JSX
+OPENPENCIL_DOC=tab-1 node design/build.mjs --render   # render into the app
+```
+
+See [`design/README.md`](design/README.md) for the page index, conventions and
+rebuild steps, and [`design/TODO.md`](design/TODO.md) for coverage.
 
 ### GitHub Pages
 
@@ -978,6 +1010,14 @@ docs/                         static marketing site
   assets/
   screenshots/                shared screenshots used by README and site
 
+design/                       OpenPencil design mirror (generated)
+  OpenCodeBar.fig             full product design: 14 pages, all states
+  README.md                   how to open and regenerate the file
+  ROADMAP.md                  phases, milestones, risks, definition of done
+  TODO.md                     live coverage checklist
+  build.mjs                   render pages into the open OpenPencil document
+  gen/                        one JSX module per page + shared component kit
+
 performance/                  performance analysis and results
   before.md                   baseline hot paths and measurements
   after.md                    implemented changes, results, follow-ups
@@ -992,6 +1032,7 @@ Mobile/*.entitlements         shared keychain group for app + widget
 Scripts/
   build-app.sh                assemble the macOS .app bundle
   restart.sh                  rebuild and restart the Mac app
+  watch.sh                    rebuild and relaunch on source changes
   run-mobile.sh               install, launch, and pair the iOS app in a simulator
   run-mobile-device.sh        the same on a physical iPhone/iPad
   run-mobile-variants.sh      one side-by-side app variant per git worktree
