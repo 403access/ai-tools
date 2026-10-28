@@ -32,6 +32,7 @@ make build
 make test
 make app
 make run
+make install     # also visible in Spotlight and Raycast
 ```
 
 The app bundle is assembled in `dist/`. The first build also generates the icon

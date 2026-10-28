@@ -435,7 +435,7 @@
           </li>
           <li>
             <h3>Launch the Mac app</h3>
-            <p><code>make run</code> in a second terminal builds, ad-hoc signs, and opens <code>dist/OpenCodeBar.app</code>. It connects to the hub automatically.</p>
+            <p><code>make run</code> in a second terminal builds, ad-hoc signs, and opens <code>dist/OpenCodeBar.app</code>. It connects to the hub automatically. Run <code>make install</code> to keep a copy in <code>~/Applications</code> so Spotlight and Raycast can launch it.</p>
           </li>
           <li>
             <h3>Pair your iPhone or iPad (optional)</h3>
@@ -454,10 +454,12 @@
 cd ai-tools
 make hub
 make run
+make install
 make mobile-run"><span class="cmd">$</span> git clone https://github.com/403access/ai-tools.git
 <span class="cmd">$</span> cd ai-tools
 <span class="cmd">$</span> make hub        <span class="comment"># terminal 1: start the hub</span>
 <span class="cmd">$</span> make run        <span class="comment"># terminal 2: macOS app</span>
+<span class="cmd">$</span> make install    <span class="comment"># optional: Spotlight + Raycast</span>
 <span class="cmd">$</span> make mobile-run <span class="comment"># optional: iOS simulator</span></pre>
           </div>
           <ul class="reqs">

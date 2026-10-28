@@ -10,6 +10,8 @@ sidebar_position: 2
 | `make build` | Compile the Swift package in debug |
 | `make test` | Run Swift unit tests |
 | `make app` | Assemble `dist/OpenCodeBar.app` in release |
+| `make install` | Build and install into `~/Applications` for Spotlight and Raycast |
+| `make uninstall` | Remove the installed copy and its Launch Services registration |
 | `make run` | Build and launch the Mac app |
 | `make restart` | Rebuild and restart the running Mac app |
 | `make preview` | Open the panel in a normal window |
@@ -68,6 +70,26 @@ does not leave you without a running app.
 Scripts/restart.sh --no-build
 CONFIG=debug Scripts/restart.sh
 ```
+
+## `make install`
+
+Raycast only indexes application folders, and every build recreates the bundle
+in `dist/`, so both Raycast and Spotlight lose track of it. `make install` copies
+the bundle to a stable path so launchers keep working:
+
+```bash
+make install            # build, copy to ~/Applications, register, relaunch
+make uninstall          # stop, remove, unregister
+Scripts/install.sh --no-build    # reinstall the existing dist/ bundle
+Scripts/install.sh --no-restart  # install without relaunching
+CONFIG=debug Scripts/install.sh  # install a debug build
+```
+
+It is explicit, not part of `make run`/`restart`/`watch`; re-run it after a
+change you want to launch from Spotlight or Raycast. The script re-signs the
+copy ad hoc, re-registers it with Launch Services, and prints any other bundles
+that share `dev.opencode.opencodebar` (for example from a worktree). Because
+the app is a menu bar agent, Launchpad and Cmd-Tab stay empty.
 
 ## `make mobile-device`
 

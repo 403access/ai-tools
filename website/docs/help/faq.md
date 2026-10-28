@@ -53,6 +53,13 @@ any prompt also releases the hold.
 OpenCodeBar cannot delete sessions. A prompt sent to a running session is queued
 by default and appears in the pending queue above the composer until it starts.
 
+## Why doesn't the Mac app show up in Spotlight, Raycast, or Launchpad?
+
+`make run` builds into `dist/`, which Raycast does not index, and every build
+recreates that bundle. Run `make install` to place a registered copy in
+`~/Applications`; Spotlight and Raycast then find it. Launchpad stays empty
+because the app is a menu bar agent (`LSUIElement`) with no Dock icon.
+
 ## Can I use it without a Mac?
 
 The iOS app needs a hub. The hub needs a machine that can run Bun and reach

@@ -667,6 +667,43 @@ CONFIG=release Scripts/watch.sh    # watch with release builds
 INTERVAL=1 Scripts/watch.sh        # poll once a second instead of 0.5s
 ```
 
+### Find the app in Spotlight and Raycast
+
+`make app` leaves the bundle in `dist/`, which is build output: Raycast only
+indexes application folders such as `/Applications` and `~/Applications`, and
+every build deletes and recreates the bundle in `dist/`, so cached Launch
+Services and Spotlight records go stale. Install it into `~/Applications` to
+give both tools a stable path:
+
+```sh
+make install       # build, copy to ~/Applications, register, relaunch
+make uninstall     # stop, remove, unregister
+```
+
+`Scripts/install.sh` copies `dist/OpenCodeBar.app` to
+`~/Applications/OpenCodeBar.app`, re-signs it ad hoc, re-registers it with
+Launch Services, and nudges the Spotlight index. `dist/` stays the build output;
+the installed copy is what Spotlight and Raycast launch.
+
+This is an explicit step, not part of every build. After a change you want to
+use, run `make install` again: it stops the running instance (from either path),
+swaps the bundle atomically, and relaunches the installed copy. The script
+prints any other registered copies of the same bundle id, which happens when
+several worktrees have built the app.
+
+```sh
+Scripts/install.sh --no-build      # reinstall the existing dist/ bundle
+Scripts/install.sh --no-restart    # install without relaunching
+CONFIG=debug Scripts/install.sh    # install a debug bundle
+INSTALL_DIR=/Applications Scripts/install.sh
+```
+
+The app is a menu bar agent (`LSUIElement`), so it never appears in Launchpad or
+Cmd-Tab and has no Dock icon; Spotlight and Raycast still list it as an
+application. If Raycast does not show it yet, run **Refresh Applications** in
+Raycast's **Search Applications** extension (or toggle the extension off and on)
+to rebuild its index.
+
 Other targets:
 
 ```sh
@@ -674,6 +711,8 @@ make build         # swift build (debug)
 make test          # swift test
 make bench         # shared-code performance microbenchmarks
 make app           # assemble dist/OpenCodeBar.app (release)
+make install       # build and install into ~/Applications (Spotlight, Raycast)
+make uninstall     # remove the installed copy
 make preview       # open the panel in a normal window for design work
 make shots         # regenerate docs/screenshots
 make icon          # regenerate the app icon
@@ -757,9 +796,10 @@ feature entirely with `OPENCODEBAR_REMOTE=0`.
 
 The first Mac build generates `Assets/AppIcon.icns` and ad-hoc signs the bundle.
 
-To launch the Mac app at login, add `dist/OpenCodeBar.app` in **System Settings →
-General → Login Items**. The hub can run as a launch agent if you want the phone
-to reach it without starting a terminal.
+To launch the Mac app at login, add `~/Applications/OpenCodeBar.app` (the copy
+`make install` creates) in **System Settings → General → Login Items**, not the
+bundle in `dist/`, which is recreated by every build. The hub can run as a launch
+agent if you want the phone to reach it without starting a terminal.
 
 ## Website and docs
 

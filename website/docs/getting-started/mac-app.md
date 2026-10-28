@@ -69,6 +69,24 @@ Scripts/restart.sh --no-build      # relaunch the existing bundle
 CONFIG=debug Scripts/restart.sh    # rebuild a debug bundle instead
 ```
 
+## Find it in Spotlight and Raycast
+
+The bundle in `dist/` is build output. Raycast only indexes application folders,
+and each build deletes and recreates `dist/OpenCodeBar.app`, so both Raycast and
+Spotlight drift out of sync with it. Install a copy to a stable path:
+
+```bash
+make install       # build, copy to ~/Applications, register, relaunch
+make uninstall     # stop, remove, unregister
+```
+
+After a change you want to open from a launcher, run `make install` again; it
+stops the running instance, swaps the bundle, and relaunches the installed copy.
+`Scripts/install.sh --no-build` reinstalls the existing build without compiling.
+The app is a menu bar agent, so it will not appear in Launchpad or Cmd-Tab even
+after installing. If Raycast does not list it yet, use **Refresh Applications**
+in its **Search Applications** extension.
+
 ## Design and screenshots
 
 ```bash
@@ -81,9 +99,11 @@ the images used by the website, README, and these docs.
 
 ## Launch at login
 
-Add `dist/OpenCodeBar.app` in **System Settings → General → Login Items**. The
-hub can be launched separately, for example with a `launchd` agent, if you want
-the phone to reach it without keeping a terminal open.
+Add `~/Applications/OpenCodeBar.app` (the copy `make install` creates) in
+**System Settings → General → Login Items**; the bundle in `dist/` is recreated
+by every build, so a login item pointed at it goes stale. The hub can be
+launched separately, for example with a `launchd` agent, if you want the phone
+to reach it without keeping a terminal open.
 
 ## Build only
 
@@ -91,6 +111,7 @@ the phone to reach it without keeping a terminal open.
 make build      # swift build (debug)
 make test       # swift test
 make app        # assemble dist/OpenCodeBar.app (release)
+make install    # same, plus ~/Applications copy for Spotlight and Raycast
 ```
 
 ## Updating
@@ -98,6 +119,7 @@ make app        # assemble dist/OpenCodeBar.app (release)
 ```bash
 git pull
 make restart
+make install    # optional: refresh the copy launchers use
 ```
 
 The app is ad-hoc signed for local use. There is no Developer ID or

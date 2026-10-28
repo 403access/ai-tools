@@ -59,6 +59,30 @@ make hub
 Environment overrides take precedence over the generated file. Unset
 `OPENCODEBAR_HUB_URL` / `OPENCODEBAR_HUB_TOKEN` if they point at an old hub.
 
+## Spotlight or Raycast cannot find the app
+
+`make run` leaves the bundle in `dist/`, which is build output. Raycast only
+indexes application folders such as `/Applications` and `~/Applications`, and
+each build deletes and recreates `dist/OpenCodeBar.app`, so Launch Services and
+Spotlight records for it go stale.
+
+```bash
+make install     # build, copy to ~/Applications, register, relaunch
+```
+
+`Scripts/install.sh` re-signs the copy ad hoc, re-registers it with Launch
+Services, and nudges the Spotlight index; re-run it after changes you want
+launchers to pick up (`--no-build` reinstalls the current build).
+
+- Launchpad and Cmd-Tab stay empty either way: the app is a menu bar agent
+  (`LSUIElement`) with no Dock icon.
+- If Raycast still lags, run **Refresh Applications** in its **Search
+  Applications** extension, or toggle the extension off and on.
+- If several worktrees have built the app, they share
+  `dev.opencode.opencodebar`; `make install` lists the other copies it finds.
+- Verify what the index sees:
+  `mdfind "kMDItemCFBundleIdentifier == 'dev.opencode.opencodebar'"`.
+
 ## A turn fails with “This Go model trains on request data”
 
 This is a policy rejection from OpenCode/your Go workspace, not a hub or

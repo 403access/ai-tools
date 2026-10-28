@@ -1,4 +1,4 @@
-.PHONY: build test app run desktop restart watch preview shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-variants mobile-icon bench
+.PHONY: build test app install uninstall run desktop restart watch preview shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-variants mobile-icon bench
 
 # Compile the Swift package (debug).
 build:
@@ -19,6 +19,15 @@ app:
 # Build and launch the menu bar app.
 run: app
 	open dist/OpenCodeBar.app
+
+# Build and install into ~/Applications so Spotlight and Raycast can find it.
+# Re-run after source changes to refresh the installed copy.
+install:
+	Scripts/install.sh
+
+# Remove the installed copy and its Launch Services registration.
+uninstall:
+	Scripts/install.sh --uninstall
 
 # Build and launch with the desktop window open.
 desktop: app
