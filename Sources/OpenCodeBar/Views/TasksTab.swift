@@ -17,9 +17,11 @@ struct TasksTab: View {
     /// Done tasks are reference only, so they stay out of the board until the
     /// user asks for them.
     @AppStorage("tasks.showDone") private var showDone = false
-    /// Splits each board column into project sections so work for one repo
-    /// stays together. Only affects the wide board; the list keeps its order.
-    @AppStorage("tasks.groupByProject") private var groupByProject = false
+    /// How each board column is split. Date grouping can stand alone or be
+    /// combined with project grouping, in which case date comes first.
+    @AppStorage("tasks.grouping") private var groupingRaw = ""
+    /// Bucket size for date grouping, also remembered between launches.
+    @AppStorage("tasks.dateInterval") private var dateIntervalRaw = "day"
 
     /// A status column stays readable at this width. The board needs room for
     /// three columns before it replaces the list; showing Done adds a fourth
@@ -62,10 +64,76 @@ struct TasksTab: View {
         availableWidth < 340
     }
 
+    /// Board grouping modes. Date grouping can be combined with projects; the
+    /// date bucket is always the outer level so one day's work stays together.
+    private enum TaskGrouping: String, CaseIterable, Identifiable, Hashable {
+        case none
+        case project
+        case date
+        case dateAndProject
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .none: return "None"
+            case .project: return "Project"
+            case .date: return "Date"
+            case .dateAndProject: return "Date and project"
+            }
+        }
+    }
+
+    private enum TaskDateInterval: String, CaseIterable, Identifiable, Hashable {
+        case day
+        case week
+        case month
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .day: return "Day"
+            case .week: return "Week"
+            case .month: return "Month"
+            }
+        }
+    }
+
     private struct ProjectTaskGroup: Identifiable {
         let id: String
         let name: String
         let sessions: [Session]
+    }
+
+    private struct DateTaskGroup: Identifiable {
+        /// Start of the bucket, used as the identity so a group keeps its place
+        /// while its cards update.
+        let id: Date
+        let title: String
+        let sessions: [Session]
+    }
+
+    private var grouping: TaskGrouping {
+        TaskGrouping(rawValue: groupingRaw) ?? .none
+    }
+
+    private var groupingBinding: Binding<TaskGrouping> {
+        Binding(
+            get: { grouping },
+            set: { groupingRaw = $0.rawValue }
+        )
+    }
+
+    private var dateInterval: TaskDateInterval {
+        TaskDateInterval(rawValue: dateIntervalRaw) ?? .day
+    }
+
+    private var dateIntervalBinding: Binding<TaskDateInterval> {
+        Binding(
+            get: { dateInterval },
+            set: { dateIntervalRaw = $0.rawValue }
+        )
     }
 
     var body: some View {
@@ -85,9 +153,19 @@ struct TasksTab: View {
                 .environmentObject(state)
         }
         .task { await state.refreshTasks() }
+        .onAppear { migrateLegacyGrouping() }
         .onChange(of: showDone) { _, visible in
             if !visible, filter == .done { filter = .review }
         }
+    }
+
+    /// The first board grouping release only had a By project toggle. Fold that
+    /// preference into the new mode picker once, then drop the old key.
+    private func migrateLegacyGrouping() {
+        guard groupingRaw.isEmpty else { return }
+        let legacy = UserDefaults.standard.bool(forKey: "tasks.groupByProject")
+        groupingRaw = legacy ? TaskGrouping.project.rawValue : TaskGrouping.none.rawValue
+        UserDefaults.standard.removeObject(forKey: "tasks.groupByProject")
     }
 
     /// Reports the width the tab can actually use. The panel and the desktop
@@ -120,7 +198,7 @@ struct TasksTab: View {
                     .minimumScaleFactor(0.85)
                 Spacer(minLength: 4)
                 if usesBoard {
-                    projectGroupToggle
+                    groupMenu
                 }
                 doneToggle
                 newTaskButton
@@ -176,37 +254,57 @@ struct TasksTab: View {
         .help(showDone ? "Hide completed tasks" : "Show completed tasks")
     }
 
-    /// Board-only option that keeps a single project's tasks together inside
-    /// each status column instead of interleaving them with other projects.
-    private var projectGroupToggle: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.16)) {
-                groupByProject.toggle()
+    /// Board-only option for splitting each status column by date, by project,
+    /// or by date and then project. The interval only applies to date grouping.
+    private var groupMenu: some View {
+        Menu {
+            Picker("Group by", selection: groupingBinding) {
+                ForEach(TaskGrouping.allCases) { option in
+                    Text(option.title).tag(option)
+                }
+            }
+
+            Picker("Date interval", selection: dateIntervalBinding) {
+                ForEach(TaskDateInterval.allCases) { interval in
+                    Text(interval.title).tag(interval)
+                }
             }
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "square.grid.2x2")
                     .font(.system(size: 8, weight: .bold))
-                Text("By project")
+                Text(groupMenuLabel)
                     .font(.system(size: 9, weight: .semibold))
+                    .lineLimit(1)
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .background(
                 Capsule().fill(
-                    groupByProject ? Theme.accent.opacity(0.14) : Color.primary.opacity(0.06)
+                    grouping == .none ? Color.primary.opacity(0.06) : Theme.accent.opacity(0.14)
                 )
             )
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(groupByProject ? Theme.accent : Color.secondary)
-        .help(
-            groupByProject
-                ? "Show each column as one list again"
-                : "Group each column by project"
-        )
-        .accessibilityAddTraits(groupByProject ? .isSelected : [])
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .foregroundStyle(grouping == .none ? Color.secondary : Theme.accent)
+        .help("Group each column by date, project, or both")
+        .accessibilityLabel("Grouping: \(grouping.title)")
+    }
+
+    private var groupMenuLabel: String {
+        switch grouping {
+        case .none:
+            return "Group"
+        case .project:
+            return "By project"
+        case .date:
+            return "By \(dateInterval.title.lowercased())"
+        case .dateAndProject:
+            return "By \(dateInterval.title.lowercased()) + project"
+        }
     }
 
     private var newTaskButton: some View {
@@ -349,17 +447,28 @@ struct TasksTab: View {
             .padding(.horizontal, 2)
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: groupByProject ? 10 : 8) {
+                LazyVStack(alignment: .leading, spacing: grouping == .none ? 8 : 10) {
                     if sessions.isEmpty {
                         emptyBoardColumn(status)
-                    } else if groupByProject {
-                        ForEach(projectGroups(for: sessions)) { group in
-                            projectSection(group)
-                        }
                     } else {
-                        ForEach(sessions) { session in
-                            TaskCard(session: session, compact: true)
-                                .transition(.recentInsertion)
+                        switch grouping {
+                        case .none:
+                            ForEach(sessions) { session in
+                                TaskCard(session: session, compact: true)
+                                    .transition(.recentInsertion)
+                            }
+                        case .project:
+                            ForEach(projectGroups(for: sessions)) { group in
+                                projectSection(group)
+                            }
+                        case .date:
+                            ForEach(dateGroups(for: sessions)) { group in
+                                dateSection(group, showsProjects: false)
+                            }
+                        case .dateAndProject:
+                            ForEach(dateGroups(for: sessions)) { group in
+                                dateSection(group, showsProjects: true)
+                            }
                         }
                     }
                 }
@@ -433,6 +542,124 @@ struct TasksTab: View {
             }
         }
     }
+
+    /// Buckets one column's sessions into the chosen date interval, newest
+    /// bucket first. The sessions inside a bucket keep the board's activity
+    /// order.
+    private func dateGroups(for sessions: [Session]) -> [DateTaskGroup] {
+        let calendar = Calendar.current
+        var buckets: [Date: [Session]] = [:]
+        for session in sessions {
+            let start = dateBucketStart(for: groupingDate(for: session), calendar: calendar)
+            buckets[start, default: []].append(session)
+        }
+        return buckets.keys.sorted(by: >).map { start in
+            DateTaskGroup(
+                id: start,
+                title: dateGroupTitle(for: start, calendar: calendar),
+                sessions: buckets[start] ?? []
+            )
+        }
+    }
+
+    /// Done tasks are filed under the day they were accepted; everything else
+    /// uses the last activity the board already shows.
+    private func groupingDate(for session: Session) -> Date {
+        if session.taskStatus == .done, let done = session.task?.doneDate {
+            return done
+        }
+        return session.time.updatedDate
+    }
+
+    private func dateBucketStart(for date: Date, calendar: Calendar) -> Date {
+        switch dateInterval {
+        case .day:
+            return calendar.startOfDay(for: date)
+        case .week:
+            return calendar.dateInterval(of: .weekOfYear, for: date)?.start
+                ?? calendar.startOfDay(for: date)
+        case .month:
+            return calendar.dateInterval(of: .month, for: date)?.start
+                ?? calendar.startOfDay(for: date)
+        }
+    }
+
+    private func dateGroupTitle(for start: Date, calendar: Calendar) -> String {
+        let now = Date()
+        switch dateInterval {
+        case .day:
+            if calendar.isDateInToday(start) { return "Today" }
+            if calendar.isDateInYesterday(start) { return "Yesterday" }
+            return Self.dayGroupFormatter.string(from: start)
+        case .week:
+            if calendar.isDate(start, equalTo: now, toGranularity: .weekOfYear) {
+                return "This week"
+            }
+            if let previous = calendar.date(byAdding: .weekOfYear, value: -1, to: now),
+               calendar.isDate(start, equalTo: previous, toGranularity: .weekOfYear) {
+                return "Last week"
+            }
+            return "Week of \(Self.weekGroupFormatter.string(from: start))"
+        case .month:
+            if calendar.isDate(start, equalTo: now, toGranularity: .month) {
+                return "This month"
+            }
+            if let previous = calendar.date(byAdding: .month, value: -1, to: now),
+               calendar.isDate(start, equalTo: previous, toGranularity: .month) {
+                return "Last month"
+            }
+            return Self.monthGroupFormatter.string(from: start)
+        }
+    }
+
+    private func dateSection(_ group: DateTaskGroup, showsProjects: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 5) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(Theme.accent.opacity(0.85))
+                Text(group.title)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.primary.opacity(0.85))
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(group.sessions.count)")
+                    .font(.system(size: 9, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 2)
+
+            if showsProjects {
+                ForEach(projectGroups(for: group.sessions)) { project in
+                    projectSection(project)
+                }
+            } else {
+                ForEach(group.sessions) { session in
+                    TaskCard(session: session, compact: true)
+                        .transition(.recentInsertion)
+                }
+            }
+        }
+    }
+
+    private static let dayGroupFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("EEE MMM d")
+        return formatter
+    }()
+
+    private static let weekGroupFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMM d")
+        return formatter
+    }()
+
+    private static let monthGroupFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
+        return formatter
+    }()
 
     private func emptyBoardColumn(_ status: SessionTask.Status) -> some View {
         VStack(spacing: 5) {

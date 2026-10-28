@@ -81,9 +81,10 @@ iOS app:
   **Data loss**, or **Breaking change**. Filters switch between queued, review,
   in progress, done, and every task, and **New task** starts a session directly
   from the board.
-- On the wide desktop board, **By project** groups each status column into
-  project sections so one repo's work stays together. The choice is remembered,
-  and cards inside a section stop repeating the project name.
+- On the wide desktop board, **Group** splits each status column by project, by
+  date (day, week, or month), or by date and then project. The mode and interval
+  are remembered, and cards inside a project section stop repeating the project
+  name.
 - The board is stored on the hub and synced to both apps, so resolving a task on
   the Mac updates the phone.
 
