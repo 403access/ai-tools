@@ -27,7 +27,7 @@ struct SettingsOtaCard: View {
         VStack(alignment: .leading, spacing: 10) {
             header
 
-            Text("Archive, sign, and publish a development build from this Mac, then scan the code with the phone. Works from any network.")
+            Text("Archive, sign, and publish a development build from this Mac. If the phone is reachable over USB or the local network the hub installs it right away; otherwise scan the code from any network.")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -98,7 +98,7 @@ struct SettingsOtaCard: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(state.isOtaBuilding || state.api == nil)
-            .help("Build the app on this Mac and publish it for installation from the phone")
+            .help("Build the app on this Mac, install it if the phone is reachable, and publish an install code")
             .accessibilityHint("Starts an archive and export on the hub host, then shows an install code")
 
             if state.isOtaBuilding {
@@ -115,6 +115,12 @@ struct SettingsOtaCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    /// True when the last build run installed this exact artifact directly.
+    private func installedDirectly(_ artifact: OtaArtifact) -> Bool {
+        guard let build = state.otaBuild, build.installed == true else { return false }
+        return build.artifact?.id == artifact.id
     }
 
     private var publishedBuilds: some View {
@@ -201,10 +207,20 @@ struct SettingsOtaCard: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
-                    Text("Scan with the iPhone camera, then tap Install. The page also pairs the hub in one tap.")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if installedDirectly(artifact) {
+                        Label(
+                            state.otaBuild?.device.map { "Installed on \($0) during this build." }
+                                ?? "Installed on the phone during this build.",
+                            systemImage: "checkmark.seal.fill"
+                        )
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                    } else {
+                        Text("Scan with the iPhone camera, then tap Install. The page also pairs the hub in one tap.")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     HStack(spacing: 6) {
                         Button {

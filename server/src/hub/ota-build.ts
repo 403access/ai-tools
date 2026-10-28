@@ -32,6 +32,8 @@ export class OtaBuilder {
   private status: OtaBuildStatus = { state: "idle", log: [] };
   private running = false;
   private resultID: string | null = null;
+  private installed = false;
+  private device: string | undefined;
 
   constructor(private readonly options: OtaBuilderOptions) {}
 
@@ -56,6 +58,8 @@ export class OtaBuilder {
 
     this.running = true;
     this.resultID = null;
+    this.installed = false;
+    this.device = undefined;
     this.status = {
       state: "running",
       startedAt: Date.now(),
@@ -85,6 +89,8 @@ export class OtaBuilder {
         finishedAt: Date.now(),
         log: this.status.log,
         artifact,
+        installed: this.installed,
+        ...(this.device ? { device: this.device } : {}),
       };
       this.options.onPublished?.(artifact);
     } catch (caught) {
@@ -104,7 +110,9 @@ export class OtaBuilder {
   private async runScript(script: string): Promise<void> {
     const repoRoot = this.options.repoRoot ?? resolve(import.meta.dir, "../../..");
     const proc = Bun.spawn({
-      cmd: ["bash", script, "--json", "--no-qr", "--out", this.options.store.root],
+      // `--install` tries the phone over USB or the local network and falls
+      // back to the published link, which works from any network.
+      cmd: ["bash", script, "--install", "--json", "--no-qr", "--out", this.options.store.root],
       cwd: repoRoot,
       env: {
         ...process.env,
@@ -159,8 +167,14 @@ export class OtaBuilder {
     if (!line) return;
     if (line.startsWith("OTA_RESULT ")) {
       try {
-        const parsed = JSON.parse(line.slice("OTA_RESULT ".length)) as { id?: unknown };
+        const parsed = JSON.parse(line.slice("OTA_RESULT ".length)) as {
+          id?: unknown;
+          installed?: unknown;
+          device?: unknown;
+        };
         if (typeof parsed.id === "string") this.resultID = parsed.id;
+        if (parsed.installed === true) this.installed = true;
+        if (typeof parsed.device === "string" && parsed.device) this.device = parsed.device;
       } catch {
         // The final JSON is only a hint; the store is authoritative.
       }

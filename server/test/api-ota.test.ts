@@ -276,6 +276,56 @@ describe("hub API OTA", () => {
     cleanup();
   });
 
+  test("records a direct install reported by the script", async () => {
+    const { root, store, cleanup } = tempStore();
+    const script = join(root, "stub-ota.sh");
+    const meta = JSON.stringify({
+      id: ID,
+      title: "OpenCodeBar",
+      bundleId: "dev.opencodebar.mobile",
+      version: "1.4",
+      build: "42",
+      commitSha: "abcdef1234567890",
+      branch: "main",
+      worktree: "/tmp/ai-tools",
+      createdAt: 1_767_268_800_000,
+    });
+    writeFileSync(
+      script,
+      [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        "install=0",
+        'out=""',
+        'while [ $# -gt 0 ]; do',
+        '  case "$1" in',
+        '    --install) install=1 ;;',
+        '    --out) shift; out="$1" ;;',
+        "  esac",
+        "  shift",
+        "done",
+        'if [ "$install" -ne 1 ]; then echo "missing --install" >&2; exit 2; fi',
+        'dir="$out/' + ID + '"',
+        'mkdir -p "$dir"',
+        'printf payload > "$dir/app.ipa"',
+        `printf '%s' '${meta}' > "$dir/meta.json"`,
+        `echo 'OTA_RESULT {"id":"${ID}","installed":true,"device":"Oli iPhone"}'`,
+        "",
+      ].join("\n"),
+    );
+
+    const builder = new OtaBuilder({ store, scriptPath: script, repoRoot: root });
+    builder.start();
+    for (let i = 0; i < 100 && builder.busy; i += 1) await Bun.sleep(5);
+
+    const status = builder.snapshot();
+    expect(status.state).toBe("succeeded");
+    expect(status.artifact?.id).toBe(ID);
+    expect(status.installed).toBe(true);
+    expect(status.device).toBe("Oli iPhone");
+    cleanup();
+  });
+
   test("accepts an OTA install report", async () => {
     const { root, store, cleanup } = tempStore();
     publish(root);

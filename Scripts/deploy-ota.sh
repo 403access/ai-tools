@@ -10,6 +10,7 @@
 #
 # Usage:
 #   Scripts/deploy-ota.sh              build, publish, show a QR
+#   Scripts/deploy-ota.sh --install    also install directly when the phone is reachable
 #   Scripts/deploy-ota.sh --no-build   republish the last build
 #   Scripts/deploy-ota.sh --json       machine-readable result for the hub
 #
@@ -26,14 +27,21 @@ Publish an over-the-air OpenCodeBar build through the hub.
 
 Usage:
   Scripts/deploy-ota.sh                 archive, export, publish, show a QR
+  Scripts/deploy-ota.sh --install       also install now if the phone is reachable
   Scripts/deploy-ota.sh --no-build      republish .build/ota without rebuilding
   Scripts/deploy-ota.sh --json          print one OTA_RESULT line (used by the hub)
   Scripts/deploy-ota.sh --no-qr         do not open the QR image
   Scripts/deploy-ota.sh --out DIR       publish below DIR
   Scripts/deploy-ota.sh --help
 
+--install talks to the phone with devicectl over USB or the local network. It
+needs the phone unlocked, trusted, and Developer Mode enabled. When the phone
+is not reachable, the published link and QR still work from any network.
+
 Environment:
+  DEVICE                      device name or UDID for --install (default: only reachable device)
   DEVELOPMENT_TEAM            Apple team id (otherwise found in Xcode)
+  OPENCODEBAR_OTA_INSTALL=1   same as --install
   OPENCODEBAR_OTA_KEEP        builds to keep (default 5)
   OPENCODEBAR_HUB_URL/TOKEN   override the hub from opencodebar-hub.json
   OPENCODEBAR_TUNNEL_CONFIG   tunnel record written by `make hub-tunnel`
@@ -43,13 +51,22 @@ TEXT
 build=1
 json=0
 qr=1
+install=0
+[ "${OPENCODEBAR_OTA_INSTALL:-0}" = "1" ] && install=1
+device="${DEVICE:-}"
 out="${XDG_DATA_HOME:-$HOME/.local/share}/opencodebar/ota"
 while [ $# -gt 0 ]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
         --no-build|-n) build=0 ;;
+        --install) install=1 ;;
         --json) json=1; qr=0 ;;
         --no-qr) qr=0 ;;
+        --device)
+            shift
+            [ $# -gt 0 ] || { echo "deploy-ota: --device needs a name or UDID" >&2; exit 2; }
+            device="$1"
+            ;;
         --out)
             shift
             [ $# -gt 0 ] || { echo "deploy-ota: --out needs a directory" >&2; exit 2; }
@@ -278,6 +295,133 @@ base="${base%/}"
 page="${base}/api/deployments/ota/${id}"
 label="${title} ${version}${build_number:+ ($build_number)}"
 
+installed=0
+installed_device=""
+if [ "$install" -eq 1 ]; then
+    if ! command -v xcrun >/dev/null 2>&1; then
+        note "    Install skipped: xcrun not found (install Xcode)"
+    else
+        device_line="$(
+            xcrun devicectl list devices --json-output - 2>/dev/null | python3 -c '
+import json
+import sys
+
+wanted = sys.argv[1].strip().lower()
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print("none")
+    sys.exit(0)
+
+devices = []
+for entry in data.get("result", {}).get("devices", []):
+    hardware = (entry.get("properties") or {}).get("hardware") or entry.get("hardwareProperties") or {}
+    connection = (entry.get("properties") or {}).get("connection") or entry.get("connectionProperties") or {}
+    details = entry.get("deviceProperties") or {}
+    if hardware.get("platform") != "iOS" or hardware.get("reality") != "physical":
+        continue
+    devices.append({
+        "id": entry.get("identifier", ""),
+        "name": details.get("name") or entry.get("name") or hardware.get("marketingName") or "iPhone",
+        "model": hardware.get("marketingName", ""),
+        "state": connection.get("state", "unknown"),
+        "udid": hardware.get("udid", ""),
+        "serial": hardware.get("serialNumber", ""),
+    })
+
+def matches(item):
+    values = [item["id"], item["udid"], item["serial"], item["name"], item["model"]]
+    return any(wanted == value.lower() for value in values if value) or wanted in item["name"].lower()
+
+if wanted:
+    found = [item for item in devices if matches(item)]
+else:
+    found = [item for item in devices if item["state"] == "connected"]
+
+if not found:
+    print("none")
+elif len(found) > 1:
+    print("many\t" + "\t".join(item["name"] for item in found))
+else:
+    item = found[0]
+    print("\t".join(["ok", item["id"], item["name"], item["udid"], item["model"], item["state"]]))
+' "$device" 2>/dev/null || echo none
+        )"
+        case "$device_line" in
+            ok$'\t'*)
+                IFS=$'\t' read -r _ device_id device_name device_udid device_model _state <<<"$device_line"
+                install_app="$payload/Payload/OpenCodeBar.app"
+                if [ -d "$install_app" ] \
+                    && xcrun devicectl device install app --device "$device_id" "$install_app" \
+                        >"$work/install.log" 2>&1; then
+                    installed=1
+                    installed_device="$device_name"
+                    note "    Installed on $device_name${device_udid:+ ($device_udid)}"
+                else
+                    note "    Install skipped: devicectl could not install (log: $work/install.log)"
+                fi
+                ;;
+            many*)
+                note "    Install skipped: several phones are reachable; set DEVICE=…"
+                ;;
+            *)
+                note "    Install skipped: no reachable phone (USB or same Wi-Fi)"
+                ;;
+        esac
+    fi
+fi
+
+if [ "$installed" -eq 1 ] && [ -n "$hub_token" ]; then
+    # Record the direct install so Settings → Deployments shows it as current.
+    # Prefer the loopback URL: the tunnel hostname may not resolve on this Mac.
+    report_base="$base"
+    hub_port="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("port", ""))' "$HUB_CONFIG" 2>/dev/null || true)"
+    if [ -n "$hub_port" ]; then report_base="http://127.0.0.1:$hub_port"; fi
+    OC_DEVICE_KEY="${device_udid:-$device_id}" \
+    OC_DEVICE_NAME="$device_name" \
+    OC_DEVICE_MODEL="$device_model" \
+    OC_BUNDLE_ID="$bundle_id" \
+    OC_APP_NAME="$title" \
+    OC_VERSION="$version" \
+    OC_BUILD="$build_number" \
+    OC_COMMIT="$commit" \
+    OC_BRANCH="$branch" \
+    OC_WORKTREE="$ROOT" \
+    OC_TOKEN="$hub_token" \
+    python3 - "$report_base" <<'PY_REPORT' >/dev/null 2>&1 || note "    Note: the install was not recorded in the hub"
+import json
+import os
+import sys
+import urllib.request
+
+payload = {
+    "deviceKey": os.environ.get("OC_DEVICE_KEY", ""),
+    "deviceName": os.environ.get("OC_DEVICE_NAME", ""),
+    "deviceModel": os.environ.get("OC_DEVICE_MODEL", ""),
+    "bundleId": os.environ.get("OC_BUNDLE_ID", ""),
+    "appName": os.environ.get("OC_APP_NAME", ""),
+    "version": os.environ.get("OC_VERSION", ""),
+    "build": os.environ.get("OC_BUILD", ""),
+    "commitSha": os.environ.get("OC_COMMIT", ""),
+    "branch": os.environ.get("OC_BRANCH", ""),
+    "worktree": os.environ.get("OC_WORKTREE", ""),
+    "source": "ota",
+}
+request = urllib.request.Request(
+    sys.argv[1].rstrip("/") + "/api/deployments",
+    data=json.dumps(payload).encode(),
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + os.environ.get("OC_TOKEN", ""),
+    },
+    method="POST",
+)
+with urllib.request.urlopen(request, timeout=5) as response:
+    if response.status not in (200, 201):
+        raise RuntimeError("hub returned %s" % response.status)
+PY_REPORT
+fi
+
 note "==> Published $label"
 note "    Build   $id"
 if [ -n "$commit" ]; then note "    Commit  $(printf '%.7s' "$commit") on ${branch:-detached}"; fi
@@ -300,9 +444,16 @@ if [ "$qr" -eq 1 ] && [ -n "$page" ]; then
 fi
 
 if [ "$json" -eq 1 ]; then
-    python3 - "$id" "$page" <<'PY'
+    python3 - "$id" "$page" "$installed" "$installed_device" "${base:-}" <<'PY'
 import json
 import sys
-print("OTA_RESULT " + json.dumps({"id": sys.argv[1], "page": sys.argv[2]}))
+
+build_id, page, installed, device, origin = sys.argv[1:6]
+result = {"id": build_id, "page": page, "installed": installed == "1"}
+if device:
+    result["device"] = device
+if origin:
+    result["origin"] = origin
+print("OTA_RESULT " + json.dumps(result))
 PY
 fi

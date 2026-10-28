@@ -1004,6 +1004,15 @@ export const SCHEMAS = {
       },
       error: string,
       artifact: { $ref: "#/components/schemas/OtaArtifact" },
+      installed: {
+        type: "boolean",
+        description:
+          "True when the run also installed the build straight onto a reachable phone.",
+      },
+      device: {
+        type: "string",
+        description: "Name of the phone the build was installed on, when known.",
+      },
     },
   },
 

@@ -233,6 +233,10 @@ struct OtaBuildStatus: Decodable, Equatable {
     var log: [String]
     var error: String?
     var artifact: OtaArtifact?
+    /// True when the run also installed the build straight onto a reachable phone.
+    var installed: Bool?
+    /// Name of the phone the build was installed on, when known.
+    var device: String?
 
     var isRunning: Bool { state == "running" }
     var isFailed: Bool { state == "failed" }

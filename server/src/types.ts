@@ -665,6 +665,10 @@ export interface OtaBuildStatus {
   log: string[];
   error?: string;
   artifact?: OtaArtifact;
+  /** True when the build was also installed straight onto a reachable phone. */
+  installed?: boolean;
+  /** Name of the phone the build was installed on, when known. */
+  device?: string;
 }
 
 export interface OtaPayload {

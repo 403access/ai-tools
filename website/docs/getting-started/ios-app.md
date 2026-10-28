@@ -148,11 +148,24 @@ Open the link or scan the QR on the phone and tap **Install**; iOS shows its own
 confirmation. The page also has a **Pair this hub** button, so a fresh install
 connects with one tap instead of typing a URL and token.
 
+When the phone happens to be reachable — plugged in over USB or on the same
+Wi-Fi with Developer Mode on — pass `--install` and the script skips the manual
+step and installs the build with `devicectl` right away:
+
+```bash
+make mobile-ota ARGS="--install"
+make mobile-ota ARGS="--install --device <UDID or name>"
+```
+
+If no phone is reachable it says so and keeps the published link and QR, so the
+same command works from any network.
+
 You can also do this without a terminal: the Mac app's
 **Settings → Deployments** has a **Build & install** button. The hub runs the
-same archive/export in the background, shows the output while it works, and
-then shows the install QR and link. When the phone app is connected, publishing
-a build also sends it an **Update available** banner that opens the install.
+same archive/export in the background, installs directly when the phone is
+reachable, and shows the output while it works; otherwise it shows the install
+QR and link. When the phone app is connected, publishing a build also sends it
+an **Update available** banner that opens the install.
 
 :::note
 iOS only installs an app when the device asks for it. A hub cannot push an
@@ -171,6 +184,9 @@ Requirements and caveats:
   profile; OpenCodeBar deliberately uses the development profile instead.
 - The developer certificate must be trusted on the phone: **Settings → General →
   VPN & Device Management**. It is after the first Xcode/USB install.
+- A direct install (`--install`, and the hub's Build & install button) needs the
+  phone unlocked and trusted, with Developer Mode enabled. When it is not
+  reachable, the QR and link still work from any network.
 - Builds are pruned to the newest five; change that with
   `OPENCODEBAR_OTA_KEEP`.
 

@@ -113,6 +113,7 @@ itself. See [iOS app](../getting-started/ios-app.md).
 
 ```bash
 make mobile-ota
+make mobile-ota ARGS="--install"    # also install now if a phone is reachable
 make mobile-ota ARGS="--no-build"   # republish the last export
 make mobile-ota ARGS="--json"       # one OTA_RESULT line, for scripts
 ```
@@ -122,8 +123,14 @@ hub's data directory. The script prints an install page URL and opens a QR code;
 the phone installs from that page over HTTPS with no cable and no shared
 network. It reuses a running `make hub-tunnel` URL automatically.
 
+`--install` (or `OPENCODEBAR_OTA_INSTALL=1`) installs the build onto a
+reachable phone with `devicectl` instead, using `DEVICE=<name or UDID>` to pick
+one when several are connected. It falls back to the QR when the phone is not
+on USB or the same Wi-Fi.
+
 The hub's **Settings → Deployments → Build & install** button runs the same
-script in the background and shows the QR there, so the terminal is optional.
+script with `--install` in the background and shows the QR there, so the
+terminal is optional.
 See [Install without a cable](../getting-started/ios-app.md#install-without-a-cable-over-the-air).
 
 ## `make mobile-variants`

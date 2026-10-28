@@ -171,7 +171,12 @@ extension AppState {
         switch status.state {
         case "succeeded":
             let label = status.artifact?.buildLabel ?? "a new build"
-            otaNotice = "Published \(label)."
+            if status.installed == true {
+                let phone = status.device.map { " on \($0)" } ?? ""
+                otaNotice = "Installed \(label)\(phone)."
+            } else {
+                otaNotice = "Published \(label). Scan the code on the phone to install."
+            }
             await refreshOta(force: true)
         case "failed":
             otaError = status.error ?? "The build failed. Check the output above."

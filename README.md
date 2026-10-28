@@ -654,10 +654,15 @@ make mobile-ota    # archive, export, publish; prints a link and QR code
 ```
 
 The phone opens the link or scans the QR, taps **Install**, and iOS confirms.
+When the phone is on USB or the same Wi-Fi, `make mobile-ota ARGS="--install"`
+installs it directly with `devicectl` and still publishes the link as a
+fallback.
+
 The same build is available from the Mac app's **Settings → Deployments →
-Build & install** button; connected phone apps show an **Update available**
-banner when a new build is published. iOS cannot be made to install from the
-hub alone: without an MDM server the confirmation always happens on the phone.
+Build & install** button, which tries the direct install too; connected phone
+apps show an **Update available** banner when a new build is published. iOS
+cannot be made to install from the hub alone: without an MDM server the
+confirmation always happens on the phone.
 
 ```sh
 make run        # build dist/OpenCodeBar.app and launch it
