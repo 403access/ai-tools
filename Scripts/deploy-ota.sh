@@ -336,7 +336,15 @@ def matches(item):
 if wanted:
     found = [item for item in devices if matches(item)]
 else:
-    found = [item for item in devices if item["state"] == "connected"]
+    # Prefer a USB-connected phone, but a single paired phone is still worth
+    # trying: devicectl also installs over the local network (e.g. a hotspot).
+    connected = [item for item in devices if item["state"] == "connected"]
+    if connected:
+        found = connected
+    elif len(devices) == 1:
+        found = devices
+    else:
+        found = []
 
 if not found:
     print("none")
