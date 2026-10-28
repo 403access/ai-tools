@@ -3,13 +3,26 @@ import SwiftUI
 /// Project-management board for sessions. New top-level sessions become tasks,
 /// running ones are in progress, and finished ones wait in review until the
 /// user accepts them or sends another prompt.
+///
+/// The menu bar panel and the narrow desktop split show a filtered list. A wide
+/// desktop window switches to a board with one column per status, so resizing
+/// the window reflows the tasks instead of stretching single cards across the
+/// screen.
 struct TasksTab: View {
     @EnvironmentObject private var state: AppState
     @State private var filter: TaskBoardFilter = .review
     @State private var showingNewSession = false
+    /// Measured content width, so the layout can follow window resizing.
+    @State private var availableWidth: CGFloat = 0
     /// Done tasks are reference only, so they stay out of the board until the
     /// user asks for them.
     @AppStorage("tasks.showDone") private var showDone = false
+
+    /// A status column stays readable at this width. The board needs room for
+    /// three columns before it replaces the list; showing Done adds a fourth
+    /// column that scrolls horizontally when the window is not wide enough.
+    private let columnMinWidth: CGFloat = 230
+    private let columnSpacing: CGFloat = 10
 
     private let sectionOrder: [SessionTask.Status] = [
         .queued, .review, .working, .done, .dismissed,
@@ -19,45 +32,45 @@ struct TasksTab: View {
         sectionOrder.filter { showDone || $0 != .done }
     }
 
+    /// Columns shown on the wide board. Dismissed tasks stay in the list, where
+    /// the All filter keeps them available for reference.
+    private var boardOrder: [SessionTask.Status] {
+        [.queued, .review, .working] + (showDone ? [.done] : [])
+    }
+
+    private var boardMinWidth: CGFloat {
+        columnMinWidth * 3 + columnSpacing * 2
+    }
+
+    /// A board of empty columns is not useful; with only dismissed or hidden
+    /// done tasks the filtered list carries the empty state instead.
+    private var hasBoardContent: Bool {
+        state.tasks.contains { session in
+            session.taskStatus.map(boardOrder.contains) ?? false
+        }
+    }
+
+    private var usesBoard: Bool {
+        availableWidth >= boardMinWidth && hasBoardContent
+    }
+
+    /// Five filter chips get too tight in the desktop's narrow split column.
+    private var usesScrollableFilters: Bool {
+        availableWidth < 340
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            filters
+            header
 
             if let error = state.tasksError, state.tasks.isEmpty {
                 NoticeRow(icon: "exclamationmark.triangle", message: error, tint: Theme.warn)
             }
 
-            if state.tasks.isEmpty {
-                if state.isInitialLoading || state.tasksFetchedAt == nil {
-                    SessionListSkeleton(count: 3)
-                        .shimmering()
-                } else {
-                    EmptyState(
-                        icon: "checklist",
-                        title: "No tasks yet",
-                        subtitle: "New sessions become tasks. Finished work lands here for review."
-                    )
-                }
-            } else if filter == .all {
-                ForEach(visibleSections, id: \.self) { status in
-                    let sessions = state.tasks.filter { $0.taskStatus == status }
-                    if !sessions.isEmpty {
-                        section(status: status, sessions: sessions)
-                    }
-                }
-            } else {
-                let sessions = state.tasks(matching: filter)
-                if sessions.isEmpty {
-                    EmptyState(
-                        icon: filter.icon,
-                        title: emptyTitle,
-                        subtitle: emptySubtitle
-                    )
-                } else {
-                    section(status: status(for: filter) ?? .review, sessions: sessions)
-                }
-            }
+            content
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(widthReader)
         .sheet(isPresented: $showingNewSession) {
             NewSessionSheet()
                 .environmentObject(state)
@@ -68,66 +81,275 @@ struct TasksTab: View {
         }
     }
 
-    private var filters: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                ForEach(TaskBoardFilter.allCases) { option in
-                    if option != .done || showDone {
-                        ChoiceChip(
-                            title: "\(option.shortTitle) \(count(for: option))",
-                            isSelected: filter == option
-                        ) {
-                            withAnimation(.easeInOut(duration: 0.16)) {
-                                filter = option
-                            }
-                        }
-                    }
+    /// Reports the width the tab can actually use. The panel and the desktop
+    /// split pass a narrow column; a wide desktop window passes the full area.
+    private var widthReader: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .onAppear { availableWidth = proxy.size.width }
+                .onChange(of: proxy.size.width) { _, width in
+                    availableWidth = width
                 }
+        }
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // The wide board shows every status at once, so the status filters
+            // would have nothing to narrow down.
+            if !usesBoard {
+                filterRow
             }
 
             HStack(spacing: 6) {
                 Text("Auto-labelled from the request")
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 Spacer(minLength: 4)
-                Button {
-                    withAnimation(.easeInOut(duration: 0.16)) {
-                        showDone.toggle()
-                    }
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: showDone ? "eye.slash" : "eye")
-                            .font(.system(size: 8, weight: .bold))
-                        Text(showDone ? "Hide done" : "Show done")
-                            .font(.system(size: 9, weight: .semibold))
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(Color.primary.opacity(0.06)))
-                    .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help(showDone ? "Hide completed tasks" : "Show completed tasks")
-                Button {
-                    showingNewSession = true
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 8, weight: .bold))
-                        Text("New task")
-                            .font(.system(size: 9, weight: .bold))
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(Theme.accent.opacity(0.14)))
-                    .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(Theme.accent)
-                .help("Start a session and add it to the task board")
+                doneToggle
+                newTaskButton
             }
         }
+    }
+
+    @ViewBuilder
+    private var filterRow: some View {
+        if usesScrollableFilters {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) { filterButtons }
+            }
+        } else {
+            HStack(spacing: 6) { filterButtons }
+        }
+    }
+
+    private var filterButtons: some View {
+        ForEach(TaskBoardFilter.allCases) { option in
+            if option != .done || showDone {
+                ChoiceChip(
+                    title: "\(option.shortTitle) \(count(for: option))",
+                    isSelected: filter == option
+                ) {
+                    withAnimation(.easeInOut(duration: 0.16)) {
+                        filter = option
+                    }
+                }
+            }
+        }
+    }
+
+    private var doneToggle: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.16)) {
+                showDone.toggle()
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: showDone ? "eye.slash" : "eye")
+                    .font(.system(size: 8, weight: .bold))
+                Text(showDone ? "Hide done" : "Show done")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Color.primary.opacity(0.06)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help(showDone ? "Hide completed tasks" : "Show completed tasks")
+    }
+
+    private var newTaskButton: some View {
+        Button {
+            showingNewSession = true
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "plus")
+                    .font(.system(size: 8, weight: .bold))
+                Text("New task")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Theme.accent.opacity(0.14)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.accent)
+        .help("Start a session and add it to the task board")
+    }
+
+    // MARK: - Content
+
+    @ViewBuilder
+    private var content: some View {
+        if state.tasks.isEmpty {
+            ScrollView {
+                emptyContent
+            }
+        } else if usesBoard {
+            board
+        } else {
+            filteredList
+        }
+    }
+
+    @ViewBuilder
+    private var emptyContent: some View {
+        Group {
+            if state.isInitialLoading || state.tasksFetchedAt == nil {
+                SessionListSkeleton(count: 3)
+                    .shimmering()
+            } else {
+                EmptyState(
+                    icon: "checklist",
+                    title: "No tasks yet",
+                    subtitle: "New sessions become tasks. Finished work lands here for review."
+                )
+            }
+        }
+        .frame(maxWidth: 560)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
+    }
+
+    private var filteredList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                if filter == .all {
+                    ForEach(visibleSections, id: \.self) { status in
+                        let sessions = state.tasks.filter { $0.taskStatus == status }
+                        if !sessions.isEmpty {
+                            section(status: status, sessions: sessions)
+                        }
+                    }
+                } else {
+                    let sessions = state.tasks(matching: filter)
+                    if sessions.isEmpty {
+                        EmptyState(
+                            icon: filter.icon,
+                            title: emptyTitle,
+                            subtitle: emptySubtitle
+                        )
+                        .frame(maxWidth: 560, alignment: .leading)
+                    } else {
+                        section(status: status(for: filter) ?? .review, sessions: sessions)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - Wide board
+
+    @ViewBuilder
+    private var board: some View {
+        let columns = CGFloat(boardOrder.count)
+        let fitted = (availableWidth - columnSpacing * (columns - 1)) / columns
+
+        if fitted >= columnMinWidth {
+            // The window is wide enough for every column, so share the width
+            // between them. This is the common case on a large display.
+            HStack(alignment: .top, spacing: columnSpacing) {
+                ForEach(boardOrder, id: \.self) { status in
+                    boardColumn(status: status)
+                }
+            }
+        } else {
+            // Showing Done adds a column that does not fit yet. Keep the cards
+            // readable and let the board scroll sideways until the window grows.
+            ScrollView(.horizontal, showsIndicators: true) {
+                HStack(alignment: .top, spacing: columnSpacing) {
+                    ForEach(boardOrder, id: \.self) { status in
+                        boardColumn(status: status)
+                            .frame(width: columnMinWidth)
+                    }
+                }
+                .padding(.bottom, 2)
+            }
+        }
+    }
+
+    private func boardColumn(status: SessionTask.Status) -> some View {
+        let sessions = state.tasks.filter { $0.taskStatus == status }
+        let ids = sessions.map(\.id)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: status.icon)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(taskStatusTint(status))
+                Text(status.title.uppercased())
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.6)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(sessions.count)")
+                    .font(.system(size: 9, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(
+                        sessions.isEmpty ? Color.secondary.opacity(0.55) : taskStatusTint(status)
+                    )
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+            }
+            .padding(.horizontal, 2)
+
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    if sessions.isEmpty {
+                        emptyBoardColumn(status)
+                    } else {
+                        ForEach(sessions) { session in
+                            TaskCard(session: session, compact: true)
+                                .transition(.recentInsertion)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 2)
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.primary.opacity(0.035))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
+        )
+        .animateRecentInsertion(ids: ids)
+    }
+
+    private func emptyBoardColumn(_ status: SessionTask.Status) -> some View {
+        VStack(spacing: 5) {
+            Image(systemName: status.icon)
+                .font(.system(size: 14, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text("No tasks")
+                .font(.system(size: 9))
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(
+                    Color.primary.opacity(0.08),
+                    style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                )
+        )
     }
 
     private func section(status: SessionTask.Status, sessions: [Session]) -> some View {
@@ -193,23 +415,25 @@ struct TasksTab: View {
 private struct TaskCard: View {
     @EnvironmentObject private var state: AppState
     let session: Session
+    /// Narrower card used in the wide board's columns. The column header
+    /// already carries the status, so the card drops its status icon and moves
+    /// the failure badge under the metadata to keep the title readable.
+    var compact = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 9) {
-            statusIcon
+        HStack(alignment: .top, spacing: compact ? 6 : 9) {
+            if !compact {
+                statusIcon
+            }
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text(session.displayTitle)
                         .font(.system(size: 12, weight: .semibold))
-                        .lineLimit(2)
-                    Spacer(minLength: 4)
-                    if session.hasFailureOutcome {
-                        Chip(
-                            text: session.outcomeLabel,
-                            systemImage: "exclamationmark.triangle.fill",
-                            tint: Theme.danger
-                        )
+                        .lineLimit(compact ? 3 : 2)
+                    if !compact {
+                        Spacer(minLength: 4)
+                        failureBadge
                     }
                 }
 
@@ -224,17 +448,26 @@ private struct TaskCard: View {
                     Text(relativeTime)
                         .font(.system(size: 9))
                         .foregroundStyle(.tertiary)
+                        .lineLimit(1)
                     Spacer(minLength: 0)
                 }
 
+                if compact {
+                    failureBadge
+                }
+
                 if let labels = session.task?.labels, !labels.isEmpty {
+                    let visible = compact ? Array(labels.prefix(2)) : labels
                     HStack(spacing: 4) {
-                        ForEach(labels) { label in
+                        ForEach(visible) { label in
                             Chip(
                                 text: label.title,
                                 systemImage: label.systemImage,
                                 tint: tint(for: label)
                             )
+                        }
+                        if compact, labels.count > visible.count {
+                            Chip(text: "+\(labels.count - visible.count)", tint: .secondary)
                         }
                     }
                 }
@@ -242,10 +475,22 @@ private struct TaskCard: View {
 
             actions
         }
-        .card(padding: 10)
+        .card(padding: compact ? 9 : 10)
         .contentShape(Rectangle())
         .onTapGesture { state.open(session) }
         .help("Open the conversation")
+    }
+
+    @ViewBuilder
+    private var failureBadge: some View {
+        if session.hasFailureOutcome {
+            Chip(
+                text: session.outcomeLabel,
+                systemImage: "exclamationmark.triangle.fill",
+                tint: Theme.danger
+            )
+            .fixedSize()
+        }
     }
 
     private var statusIcon: some View {
@@ -347,14 +592,7 @@ private struct TaskCard: View {
     }
 
     private var statusTint: Color {
-        switch session.taskStatus {
-        case .queued: return Theme.reasoning
-        case .review: return Theme.warn
-        case .working: return Theme.running
-        case .done: return Theme.accent
-        case .dismissed: return .secondary
-        case nil: return .secondary
-        }
+        taskStatusTint(session.taskStatus)
     }
 
     private func tint(for label: TaskLabel) -> Color {
@@ -374,5 +612,17 @@ private struct TaskCard: View {
         default:
             return .secondary
         }
+    }
+}
+
+/// Shared status colour for task rows and the wide board's column headers.
+private func taskStatusTint(_ status: SessionTask.Status?) -> Color {
+    switch status {
+    case .queued: return Theme.reasoning
+    case .review: return Theme.warn
+    case .working: return Theme.running
+    case .done: return Theme.accent
+    case .dismissed: return .secondary
+    case nil: return .secondary
     }
 }

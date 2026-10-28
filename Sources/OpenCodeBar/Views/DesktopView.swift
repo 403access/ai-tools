@@ -128,7 +128,14 @@ struct DesktopView: View {
 
     private func rootList(compact: Bool) -> some View {
         Group {
-            if state.tab.scrollsItself {
+            if state.tab == .tasks {
+                // The task tab owns its scrolling and fills the content area
+                // without the list width cap, so a wide window gets a full
+                // board of status columns instead of one stretched column.
+                TasksTab()
+                    .padding(compact ? 12 : 20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else if state.tab.scrollsItself {
                 UsageTab()
                     .frame(maxWidth: compact ? .infinity : 1040, alignment: .leading)
                     .padding(compact ? 12 : 20)

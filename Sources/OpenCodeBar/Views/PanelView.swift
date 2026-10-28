@@ -45,7 +45,13 @@ struct PanelView: View {
                     .padding(.bottom, 6)
 
                 Group {
-                    if state.tab.scrollsItself {
+                    if state.tab == .tasks {
+                        // The task tab owns its scrolling so the wide board can
+                        // pin its headers and stretch columns to fill the area.
+                        TasksTab()
+                            .padding(12)
+                            .frame(maxHeight: .infinity)
+                    } else if state.tab.scrollsItself {
                         UsageTab()
                             .padding(12)
                             .frame(maxHeight: .infinity)

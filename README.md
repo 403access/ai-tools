@@ -53,6 +53,9 @@ iOS app:
 - On wide windows the list stays visible beside the detail page: projects sit
   next to their project page, and a session opened from a project adds a third
   column. Narrow windows fall back to the single-page layout.
+- The Tasks tab follows the window width: a wide window shows a board with one
+  column per status, filling the available area, while the compact panel and a
+  narrow split column keep the filtered single-column list.
 - The window remembers its size and position. Right-click (or control-click)
   the menu bar icon for the compact tray panel.
 - The window can also be toggled from **Settings → App → Desktop window** and
