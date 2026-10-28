@@ -35,6 +35,7 @@ Usage:
   Scripts/run-mobile-device.sh -d "My iPhone"   pick a device by name
   Scripts/run-mobile-device.sh --no-build       install the last build
   Scripts/run-mobile-device.sh --console        stream the app's log output
+  Scripts/run-mobile-device.sh --no-report      do not record the install in the hub
   Scripts/run-mobile-device.sh --variant review-a --name "OCB A"
                                                 install as an extra app variant
   Scripts/run-mobile-device.sh --worktree ../other-branch
@@ -69,6 +70,7 @@ TEXT
 device="${DEVICE:-}"
 build=1
 console=0
+report=1
 variant=""
 variant_name=""
 worktree=""
@@ -133,6 +135,10 @@ while [ $# -gt 0 ]; do
             ;;
         --console)
             console=1
+            shift
+            ;;
+        --no-report)
+            report=0
             shift
             ;;
         *)
@@ -267,14 +273,14 @@ else:
         print("tap Trust, and enable Developer Mode, then run this again.", file=sys.stderr)
         sys.exit(5)
 
-print("\t".join([chosen["id"], label(chosen), chosen["state"], chosen["udid"]]))
+print("\t".join([chosen["id"], label(chosen), chosen["state"], chosen["udid"], chosen["model"]]))
 ' "$device"
 )"; then
     echo "run-mobile-device: could not select a device." >&2
     exit 1
 fi
 
-IFS=$'\t' read -r DEVICE_ID DEVICE_NAME DEVICE_STATE DEVICE_UDID <<<"$device_line"
+IFS=$'\t' read -r DEVICE_ID DEVICE_NAME DEVICE_STATE DEVICE_UDID DEVICE_MODEL <<<"$device_line"
 if [ -z "$DEVICE_ID" ]; then
     echo "run-mobile-device: could not determine the device identifier." >&2
     exit 1
@@ -528,6 +534,65 @@ fi
 
 echo "==> Installing on $DEVICE_NAME"
 xcrun devicectl device install app --device "$DEVICE_ID" "$APP"
+
+# Record the install so the hub can show per-device deployment history. The
+# record carries the commit, branch, and worktree, which devicectl cannot
+# report. A failure here must never fail the install.
+if [ "$report" -eq 1 ] && [ -n "${hub_url:-}" ] && [ -n "${hub_token:-}" ]; then
+    info_plist="$APP/Info.plist"
+    plist_value() {
+        /usr/libexec/PlistBuddy -c "Print :$1" "$info_plist" 2>/dev/null || true
+    }
+    OC_DEVICE_KEY="${DEVICE_UDID:-$DEVICE_ID}" \
+    OC_DEVICE_NAME="$DEVICE_NAME" \
+    OC_DEVICE_MODEL="$DEVICE_MODEL" \
+    OC_BUNDLE_ID="$BUNDLE_ID" \
+    OC_APP_NAME="$(plist_value CFBundleDisplayName)" \
+    OC_VARIANT="$variant" \
+    OC_VERSION="$(plist_value CFBundleShortVersionString)" \
+    OC_BUILD="$(plist_value CFBundleVersion)" \
+    OC_COMMIT="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)" \
+    OC_BRANCH="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)" \
+    OC_WORKTREE="$ROOT" \
+    OC_TOKEN="$hub_token" \
+    python3 - "$hub_url" <<'PY_REPORT'
+import json
+import os
+import sys
+import urllib.request
+
+payload = {
+    "deviceKey": os.environ.get("OC_DEVICE_KEY", ""),
+    "deviceName": os.environ.get("OC_DEVICE_NAME", ""),
+    "deviceModel": os.environ.get("OC_DEVICE_MODEL", ""),
+    "bundleId": os.environ.get("OC_BUNDLE_ID", ""),
+    "appName": os.environ.get("OC_APP_NAME", ""),
+    "variant": os.environ.get("OC_VARIANT", ""),
+    "version": os.environ.get("OC_VERSION", ""),
+    "build": os.environ.get("OC_BUILD", ""),
+    "commitSha": os.environ.get("OC_COMMIT", ""),
+    "branch": os.environ.get("OC_BRANCH", ""),
+    "worktree": os.environ.get("OC_WORKTREE", ""),
+}
+
+request = urllib.request.Request(
+    sys.argv[1].rstrip("/") + "/api/deployments",
+    data=json.dumps(payload).encode(),
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + os.environ.get("OC_TOKEN", ""),
+    },
+    method="POST",
+)
+try:
+    with urllib.request.urlopen(request, timeout=5) as response:
+        if response.status not in (200, 201):
+            raise RuntimeError("hub returned %s" % response.status)
+    print("==> Recorded deployment in the hub")
+except Exception as error:
+    print("Note: could not record the deployment: %s" % error)
+PY_REPORT
+fi
 
 launch_args=(--device "$DEVICE_ID" --terminate-existing)
 if [ "$console" -eq 1 ]; then

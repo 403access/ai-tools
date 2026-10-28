@@ -95,6 +95,109 @@ struct DevicesResponse: Decodable {
     var data: [ConnectedDevice]
 }
 
+/// One install of an app build on a physical device. `endedAt` is absent while
+/// that build is the one installed for its bundle id.
+struct Deployment: Decodable, Identifiable, Equatable {
+    var id: String
+    var deviceKey: String
+    var deviceName: String
+    var deviceModel: String
+    var bundleId: String
+    var appName: String
+    /// Variant slug for side-by-side builds; empty for the normal app.
+    var variant: String
+    var version: String
+    var build: String
+    var commitSha: String
+    var branch: String
+    var worktree: String
+    /// `script` for an install reported by the scripts, `sync` for a scan.
+    var source: String
+    var installedAt: Double
+    var endedAt: Double?
+    var endReason: String?
+
+    var isCurrent: Bool { endedAt == nil }
+    var installedAtDate: Date { Date(timeIntervalSince1970: installedAt / 1000) }
+    var endedAtDate: Date? {
+        endedAt.map { Date(timeIntervalSince1970: $0 / 1000) }
+    }
+
+    var displayName: String {
+        if !appName.isEmpty { return appName }
+        return variant.isEmpty ? "OpenCodeBar" : "OpenCodeBar \(variant)"
+    }
+
+    /// "1.0 (1)" or whichever half the bundle reported.
+    var buildLabel: String {
+        switch (version.isEmpty, build.isEmpty) {
+        case (false, false): return "\(version) (\(build))"
+        case (false, true): return version
+        case (true, false): return "build \(build)"
+        case (true, true): return "unknown build"
+        }
+    }
+
+    var shortCommit: String {
+        commitSha.isEmpty ? "" : String(commitSha.prefix(7))
+    }
+
+    var endLabel: String? {
+        switch endReason {
+        case "replaced": return "Replaced"
+        case "uninstalled": return "Uninstalled"
+        default: return endedAt == nil ? nil : "Ended"
+        }
+    }
+}
+
+/// A physical iPhone/iPad and the OpenCodeBar builds installed on it now.
+struct DeploymentDevice: Decodable, Identifiable, Equatable {
+    var key: String
+    var name: String
+    var model: String
+    var platform: String
+    /// devicectl state: connected, unavailable, or empty before the first scan.
+    var state: String
+    /// True when the OpenCodeBar app on this device is live on the hub.
+    var connected: Bool
+    var lastSeen: Double?
+    var lastSynced: Double?
+    var current: [Deployment]
+
+    var id: String { key }
+    var icon: String { platform == "iPadOS" ? "ipad" : "iphone" }
+
+    var lastSyncedDate: Date? {
+        lastSynced.map { Date(timeIntervalSince1970: $0 / 1000) }
+    }
+
+    /// devicectl says "connected" only while the phone is reachable; the hub
+    /// connection flag is separate (a paired phone can be asleep but online).
+    var isReachable: Bool { state == "connected" }
+    var stateLabel: String {
+        if connected { return "App connected" }
+        switch state.lowercased() {
+        case "": return "Not scanned"
+        case "connected": return "Reachable"
+        case "available", "available (paired)": return "Paired"
+        case "unavailable", "disconnected": return "Unavailable"
+        default: return state.capitalized
+        }
+    }
+}
+
+struct DeploymentsPayload: Decodable {
+    var devices: [DeploymentDevice]
+    var deployments: [Deployment]
+    var syncedAt: Double?
+    var errors: [String]?
+}
+
+struct DeploymentsResponse: Decodable {
+    var data: DeploymentsPayload
+}
+
 /// Hub behaviour the Settings tab can tune. The hub clamps values, so the
 /// bounds are only used to label the controls.
 struct ServerSettings: Decodable, Equatable {

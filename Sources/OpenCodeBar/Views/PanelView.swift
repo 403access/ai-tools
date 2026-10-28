@@ -19,6 +19,11 @@ struct PanelView: View {
                     .id(path)
                     .frame(maxHeight: .infinity)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else if let device = state.selectedDeploymentDevice {
+                DeploymentDeviceDetail(device: device)
+                    .id(device.key)
+                    .frame(maxHeight: .infinity)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
             } else if let device = state.selectedDevice {
                 DeviceDetailView(device: device)
                     .id(device.id)

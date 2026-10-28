@@ -68,6 +68,24 @@ extension HubAPI {
         return response.data
     }
 
+    /// Physical devices with their open deployments, plus install history.
+    func deployments(limit: Int = 200) async throws -> DeploymentsPayload {
+        let response: DeploymentsResponse = try await get("/api/deployments?limit=\(limit)")
+        return response.data
+    }
+
+    /// Asks the hub to run `xcrun devicectl` and reconcile what is installed
+    /// now. Scanning several paired devices can take a while, so this uses a
+    /// longer session than normal requests.
+    func scanDeployments() async throws -> DeploymentsPayload {
+        let data = try await send("/api/deployments/scan", method: "POST", using: Self.scanSession)
+        do {
+            return try Self.decoder.decode(DeploymentsResponse.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     /// Current hub behaviour, including the event update throttle.
     func settings() async throws -> ServerSettings {
         let response: ServerSettingsResponse = try await get("/api/settings")

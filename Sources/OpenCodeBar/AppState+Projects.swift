@@ -32,6 +32,7 @@ extension AppState {
         sessionStack.removeAll()
         selectedSession = nil
         selectedDevice = nil
+        selectedDeploymentDevice = nil
         fileBrowserPath = nil
         selectedProject = project
         Task { await loadProject(project.id) }

@@ -20,6 +20,8 @@ import { OpenCodeError } from "./opencode.ts";
 import { resolveProjectIcon } from "./projectIcon.ts";
 import { resolveAppIcon } from "./system/appIcons.ts";
 import type {
+  Deployment,
+  DeploymentsPayload,
   MediaControlResult,
   ServerInfo,
   SystemAppDetail,
@@ -47,6 +49,8 @@ import {
   type HostTerminalStore,
 } from "./host-terminals.ts";
 import { MAX_PAUSE_MS, MAX_QUEUE_MS } from "./hub/control.ts";
+import { DeploymentScanError } from "./deployments.ts";
+import { isMobileBundle, variantFromBundle } from "./db/deployments.ts";
 import { eventStream } from "./api/event-stream.ts";
 import { docsResponse, openApiResponse } from "./api/docs.ts";
 import {
@@ -95,6 +99,10 @@ export interface ApiDeps {
   vms?: VirtualMachineStore;
   /** Websocket relay for VM serial consoles. */
   vmSockets?: VMSockets;
+  /** Injectable device scanner, used by tests to avoid devicectl. */
+  deployments?: {
+    scan(): Promise<{ payload: DeploymentsPayload; errors: string[] }>;
+  };
 }
 
 export function createHandler(
@@ -115,6 +123,7 @@ export function createHandler(
   const hostTerminals = deps.hostTerminals ?? new HostTerminalService();
   const vms = deps.vms ?? new VirtualMachineService();
   const vmSockets = deps.vmSockets;
+  const deployments = deps.deployments ?? { scan: () => hub.scanDeployments() };
 
   const withVMErrors = async (work: () => Promise<Response>): Promise<Response> => {
     try {
@@ -164,6 +173,65 @@ export function createHandler(
 
       if (pathname === "/api/devices" && request.method === "GET") {
         return json({ data: hub.devices() });
+      }
+
+      if (pathname === "/api/deployments" && request.method === "GET") {
+        const limit = intParam(url.searchParams.get("limit"), 200, 1, 2_000);
+        return json({ data: hub.deployments(limit) });
+      }
+
+      if (pathname === "/api/deployments/scan" && request.method === "POST") {
+        try {
+          const { payload, errors } = await deployments.scan();
+          return json({ data: errors.length ? { ...payload, errors } : payload });
+        } catch (caught) {
+          if (caught instanceof DeploymentScanError) return error(caught.message, 409);
+          throw caught;
+        }
+      }
+
+      if (pathname === "/api/deployments" && request.method === "POST") {
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+
+        const required = (key: string): string | null => {
+          const value = body[key];
+          return typeof value === "string" && value.trim() ? value.trim() : null;
+        };
+        const optional = (key: string): string => {
+          const value = body[key];
+          return typeof value === "string" ? value.trim().slice(0, 300) : "";
+        };
+
+        const deviceKey = required("deviceKey");
+        const deviceName = required("deviceName");
+        const bundleId = required("bundleId");
+        if (!deviceKey || !deviceName || !bundleId) {
+          return error("deviceKey, deviceName and bundleId are required", 400);
+        }
+        if (!isMobileBundle(bundleId)) {
+          return error("bundleId is not an OpenCodeBar mobile bundle", 400);
+        }
+
+        const installedAt = typeof body.installedAt === "number" && Number.isFinite(body.installedAt)
+          ? Math.min(body.installedAt, Date.now())
+          : undefined;
+        const deployment: Deployment = hub.db.recordDeployment({
+          deviceKey: deviceKey.slice(0, 120),
+          deviceName: deviceName.slice(0, 120),
+          deviceModel: optional("deviceModel"),
+          bundleId: bundleId.slice(0, 200),
+          appName: optional("appName"),
+          variant: optional("variant") || variantFromBundle(bundleId),
+          version: optional("version"),
+          build: optional("build"),
+          commitSha: optional("commitSha"),
+          branch: optional("branch"),
+          worktree: optional("worktree"),
+          source: "script",
+          installedAt,
+        });
+        return json({ data: deployment }, 201);
       }
 
       if (pathname === "/api/settings") {

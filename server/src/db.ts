@@ -3,6 +3,8 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type {
   ConnectedDevice,
+  Deployment,
+  DeploymentDevice,
   FileDiff,
   GoUsage,
   Project,
@@ -14,6 +16,16 @@ import type {
   TokenUsage,
 } from "./types.ts";
 import { getDevices, upsertDevice } from "./db/devices.ts";
+import {
+  getCurrentDeployments,
+  getDeploymentDevices,
+  getDeployments,
+  recordDeployment,
+  syncDeploymentDevice,
+  upsertDeploymentDevice,
+  type DeploymentInput,
+  type SyncedApp,
+} from "./db/deployments.ts";
 import {
   getChanges,
   getMessageCount,
@@ -117,6 +129,40 @@ export class HubDB implements ChangeLog {
 
   getDevices(limit = 50): ConnectedDevice[] {
     return getDevices(this.db, limit);
+  }
+
+  // MARK: - Deployments
+
+  recordDeployment(input: DeploymentInput, now = Date.now()): Deployment {
+    return recordDeployment(this.db, input, now);
+  }
+
+  syncDeploymentDevice(
+    device: { key: string; name: string; model?: string; platform?: string; state?: string },
+    apps: SyncedApp[],
+    now = Date.now(),
+  ): void {
+    syncDeploymentDevice(this.db, device, apps, now);
+  }
+
+  upsertDeploymentDevice(
+    device: { key: string; name: string; model?: string; platform?: string; state?: string },
+    now = Date.now(),
+    synced = true,
+  ): void {
+    upsertDeploymentDevice(this.db, device, now, synced);
+  }
+
+  getDeployments(limit = 200): Deployment[] {
+    return getDeployments(this.db, limit);
+  }
+
+  getDeploymentDevices(): DeploymentDevice[] {
+    return getDeploymentDevices(this.db);
+  }
+
+  getCurrentDeployments(): Map<string, Deployment[]> {
+    return getCurrentDeployments(this.db);
   }
 
   // MARK: - Projects

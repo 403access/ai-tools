@@ -189,8 +189,12 @@ extension AppState {
             async let devices = api.devices()
             async let info = api.serverInfo()
             async let health = api.health()
+            async let deployments = try? api.deployments()
             let (deviceList, serverInfo, serverHealth) = try await (devices, info, health)
             self.devices = deviceList
+            if let payload = await deployments {
+                self.applyDeployments(payload)
+            }
             self.hubInfo = serverInfo
             self.hubHealth = serverHealth
             // Hubs that predate the settings endpoint still expose devices and

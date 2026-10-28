@@ -334,6 +334,13 @@ iOS app:
 - Every app connected to the hub — macOS, iOS, and iPadOS — with its device
   name, platform, app version, and whether it is live right now. Click a device
   for its stable ID, first and last seen timestamps, and live connection state.
+- **Deployments**: every paired iPhone/iPad with the OpenCodeBar builds
+  installed on it right now — the normal app and each side-by-side variant —
+  plus install history with version/build, commit, branch, and worktree. Click
+  a device for its full history. **Scan** asks the hub to run `xcrun devicectl`
+  and reconcile the device, so builds installed from Xcode or another checkout
+  appear too; `make mobile-device` and `make mobile-variants` report each
+  install automatically.
 - Server information: hub version, address, uptime, cached session/message
   counts, OpenCode state, last sync, and the SQLite path.
 - Server controls: sync now, restart the hub, reveal its data/config files, and
@@ -453,7 +460,8 @@ The hub:
    `/api/vms/{id}/log`, `/api/vms/{id}/console/socket` (WebSocket),
    `/api/vms/setup` (`GET`/`POST`), `/api/vms/setup/cancel` (`POST`),
    `/api/vms/setup/logs`, `/api/vms/setup/log`,
-   `/api/devices`, `/api/settings` (`GET`/`PATCH`),
+   `/api/devices`, `/api/deployments` (`GET`/`POST`),
+   `/api/deployments/scan` (`POST`), `/api/settings` (`GET`/`PATCH`),
    `/api/sync` (`GET` delta feed, `POST` force sync),
    `/api/server/restart` (`POST`), and `/api/event`. Clients authenticate with a
    Bearer token and identify their platform with `X-OpenCodeBar-*` headers so
@@ -626,6 +634,10 @@ make mobile-run
 # ... or on a connected iPhone/iPad (signing required).
 make mobile-device
 ```
+
+Device installs are recorded in the hub automatically; Settings → Deployments
+shows what is installed now and the install history. Pass `--no-report` to
+`Scripts/run-mobile-device.sh` to skip the record.
 
 ```sh
 make run        # build dist/OpenCodeBar.app and launch it
@@ -1033,6 +1045,7 @@ Scripts/
   build-app.sh                assemble the macOS .app bundle
   restart.sh                  rebuild and restart the Mac app
   watch.sh                    rebuild and relaunch on source changes
+  run-mobile-device.sh        install on a phone and report the deployment
   run-mobile.sh               install, launch, and pair the iOS app in a simulator
   run-mobile-device.sh        the same on a physical iPhone/iPad
   run-mobile-variants.sh      one side-by-side app variant per git worktree

@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { backfillToolCalls } from "./messages.ts";
 import { number, type Row } from "./rows.ts";
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 export function migrate(db: Database): void {
   const version = number((db.query("PRAGMA user_version").get() as Row | null)?.user_version);
@@ -292,6 +292,52 @@ export function migrate(db: Database): void {
         ON sessions(queued_at)
         WHERE queued_at IS NOT NULL;
       PRAGMA user_version = 10;
+    `);
+  }
+
+  if (version < 11) {
+    // Builds installed on physical devices. The install script reports each
+    // install; a device scan reconciles what is installed now, so builds
+    // installed from Xcode or another checkout still show up.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS deployment_devices (
+        key TEXT PRIMARY KEY,
+        name TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL DEFAULT '',
+        platform TEXT NOT NULL DEFAULT '',
+        state TEXT NOT NULL DEFAULT '',
+        last_synced REAL NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS deployments (
+        id TEXT PRIMARY KEY,
+        device_key TEXT NOT NULL,
+        device_name TEXT NOT NULL DEFAULT '',
+        device_model TEXT NOT NULL DEFAULT '',
+        bundle_id TEXT NOT NULL,
+        app_name TEXT NOT NULL DEFAULT '',
+        variant TEXT NOT NULL DEFAULT '',
+        version TEXT NOT NULL DEFAULT '',
+        build TEXT NOT NULL DEFAULT '',
+        commit_sha TEXT NOT NULL DEFAULT '',
+        branch TEXT NOT NULL DEFAULT '',
+        worktree TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT 'script',
+        installed_at REAL NOT NULL,
+        ended_at REAL,
+        end_reason TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS deployments_device
+        ON deployments(device_key, installed_at DESC);
+      CREATE INDEX IF NOT EXISTS deployments_bundle
+        ON deployments(bundle_id, installed_at DESC);
+      -- At most one open row per bundle on a device: that is "installed now".
+      CREATE UNIQUE INDEX IF NOT EXISTS deployments_current
+        ON deployments(device_key, bundle_id)
+        WHERE ended_at IS NULL;
+
+      PRAGMA user_version = 11;
     `);
   }
 }

@@ -8,6 +8,7 @@ extension AppState {
         sessionStack.removeAll()
         selectedSession = nil
         selectedProject = nil
+        selectedDeploymentDevice = nil
         fileBrowserPath = nil
         selectedDevice = device
     }

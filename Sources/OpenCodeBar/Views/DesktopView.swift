@@ -183,6 +183,10 @@ struct DesktopView: View {
             SystemFileBrowser(initialPath: path)
                 .id(path)
                 .transition(.move(edge: .trailing).combined(with: .opacity))
+        } else if let device = state.selectedDeploymentDevice {
+            DeploymentDeviceDetail(device: device)
+                .id(device.key)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
         } else if let device = state.selectedDevice {
             DeviceDetailView(device: device)
                 .id(device.id)

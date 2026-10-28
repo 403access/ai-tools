@@ -929,6 +929,52 @@ export const PATHS = {
     },
   },
 
+  "/api/deployments": {
+    get: {
+      tags: ["Deployments"],
+      summary: "Devices and deployment history",
+      description:
+        "The current build installed for each bundle on every paired iPhone/iPad, plus install history reported by the install scripts and device scans.",
+      operationId: "listDeployments",
+      parameters: [queryParam("limit", "Maximum history rows to return (default 200).")],
+      responses: {
+        200: ok(schemaRef("DeploymentsResponse")),
+        401: unauthorized,
+        default: failure,
+      },
+    },
+    post: {
+      tags: ["Deployments"],
+      summary: "Report an install",
+      description:
+        "Called by the mobile install scripts after `devicectl install`. Replaces the previous open build for the same bundle on that device.",
+      operationId: "reportDeployment",
+      requestBody: jsonBody(schemaRef("DeploymentReport")),
+      responses: {
+        201: ok(schemaRef("DeploymentResponse")),
+        400: failure,
+        401: unauthorized,
+        default: failure,
+      },
+    },
+  },
+
+  "/api/deployments/scan": {
+    post: {
+      tags: ["Deployments"],
+      summary: "Scan devices",
+      description:
+        "Runs `xcrun devicectl` on the hub host to reconcile which builds are installed now. Install, replace and uninstall events discovered by the scan are recorded.",
+      operationId: "scanDeployments",
+      responses: {
+        200: ok(schemaRef("DeploymentsResponse")),
+        401: unauthorized,
+        409: failure,
+        default: failure,
+      },
+    },
+  },
+
   "/api/settings": {
     get: {
       tags: ["Settings"],

@@ -24,6 +24,7 @@ struct SettingsTab: View {
             agentsSection
             updatesSection
             devicesSection
+            deploymentsSection
             pairingSection
             connectionSection
             SettingsDeveloperSection()
@@ -363,6 +364,12 @@ struct SettingsTab: View {
                 }
             }
         }
+    }
+
+    // MARK: - Deployments
+
+    var deploymentsSection: some View {
+        SettingsDeploymentsSection()
     }
 
     // MARK: - Pairing

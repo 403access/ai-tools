@@ -46,6 +46,17 @@ struct HubAPI: Sendable {
         return URLSession(configuration: config)
     }()
 
+    /// A device scan shells out to devicectl once per paired phone. A sleeping
+    /// device can take a while to time out, so this outlives the default.
+    static let scanSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 120
+        config.timeoutIntervalForResource = 150
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.httpAdditionalHeaders = ["Accept": "application/json"]
+        return URLSession(configuration: config)
+    }()
+
     /// Project icons are immutable for long stretches and benefit from the
     /// normal HTTP cache, unlike the JSON endpoints which are always re-read.
     static let iconSession: URLSession = {

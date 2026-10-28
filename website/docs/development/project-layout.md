@@ -14,6 +14,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
   AppState.swift                  observable state, polling, derived data
   AppState+Terminals.swift        terminal polling, creation and removal
   AppState+HostTerminals.swift    Terminal.app tab polling
+  AppState+Deployments.swift      device deployment cache, scan, detail routing
   Core/
     HubAPI.swift                  async client for the hub (shared)
     HubAPI+Endpoints.swift        endpoint methods
@@ -63,8 +64,11 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     ProjectDetailAnalytics.swift  scoped at-a-glance stats
     ProjectSessions.swift         recent-session rows
     GitViews.swift                session commits and project commit graph
-    SettingsTab.swift             devices, server controls, pairing
+    SettingsTab.swift             devices, deployments, server controls, pairing
     SettingsTab+Support.swift     derived labels and actions
+    SettingsDeploymentsSection.swift  paired devices and current builds
+    SettingsDeploymentDetail.swift    one device: installed now + history
+    DeploymentRows.swift          device/build/install rows
     SettingsDeveloperSection.swift  live API/sync/event activity log
     NewSessionSheet.swift         create a session with a first prompt
     SessionStatsView.swift        per-session reliability and failures
@@ -163,6 +167,9 @@ server/                           Bun + TypeScript + SQLite hub
   src/api/vm-socket.ts            WebSocket proxy for VM serial consoles
   src/db.ts                       SQLite facade
   src/db/                         schema, row mapping, stores, queries
+  src/db/deployments.ts           install history and current-build queries
+  src/deployments.ts              devicectl device + installed-app scanning
+  src/hub/deployments.ts          deployment payload and reconcile pass
   src/hub.ts                      polling/event hub facade
   src/hub/                        event bus, sync, reads, usage cache
   src/files.ts                    project file browser

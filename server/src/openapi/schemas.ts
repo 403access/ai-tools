@@ -873,6 +873,100 @@ export const SCHEMAS = {
 
   DevicesResponse: data({ type: "array", items: { $ref: "#/components/schemas/Device" } }),
 
+  Deployment: {
+    type: "object",
+    required: [
+      "id", "deviceKey", "deviceName", "deviceModel", "bundleId", "appName",
+      "variant", "version", "build", "commitSha", "branch", "worktree",
+      "source", "installedAt",
+    ],
+    properties: {
+      id: string,
+      deviceKey: { type: "string", description: "devicectl UDID (or identifier)." },
+      deviceName: string,
+      deviceModel: string,
+      bundleId: string,
+      appName: string,
+      variant: { type: "string", description: "Variant slug; empty for the normal app." },
+      version: string,
+      build: string,
+      commitSha: string,
+      branch: string,
+      worktree: string,
+      source: { type: "string", enum: ["script", "sync"] },
+      installedAt: timestamp,
+      endedAt: { ...timestamp, description: "Absent while this build is installed." },
+      endReason: { type: "string", enum: ["replaced", "uninstalled"] },
+    },
+  },
+
+  DeploymentDevice: {
+    type: "object",
+    required: ["key", "name", "model", "platform", "state", "connected", "current"],
+    properties: {
+      key: string,
+      name: string,
+      model: string,
+      platform: string,
+      state: string,
+      connected: { ...bool, description: "The OpenCodeBar app on this device is live on the hub." },
+      lastSeen: timestamp,
+      lastSynced: timestamp,
+      current: { type: "array", items: { $ref: "#/components/schemas/Deployment" } },
+    },
+  },
+
+  DeploymentsPayload: {
+    type: "object",
+    required: ["devices", "deployments"],
+    properties: {
+      devices: { type: "array", items: { $ref: "#/components/schemas/DeploymentDevice" } },
+      deployments: {
+        type: "array",
+        items: { $ref: "#/components/schemas/Deployment" },
+        description: "Install history, newest first.",
+      },
+      syncedAt: timestamp,
+      errors: { ...stringArray, description: "Per-device scan failures." },
+    },
+  },
+
+  DeploymentsResponse: data({ $ref: "#/components/schemas/DeploymentsPayload" }),
+
+  DeploymentResponse: data({ $ref: "#/components/schemas/Deployment" }),
+
+  DeploymentReport: {
+    type: "object",
+    required: ["deviceKey", "deviceName", "bundleId"],
+    properties: {
+      deviceKey: string,
+      deviceName: string,
+      deviceModel: string,
+      bundleId: string,
+      appName: string,
+      variant: string,
+      version: string,
+      build: string,
+      commitSha: string,
+      branch: string,
+      worktree: string,
+      installedAt: timestamp,
+    },
+    example: {
+      deviceKey: "00008101-001971222298001E",
+      deviceName: "Oli's iPhone",
+      deviceModel: "iPhone 12 Pro",
+      bundleId: "dev.opencodebar.mobile",
+      appName: "OpenCodeBar",
+      variant: "",
+      version: "1.0",
+      build: "1",
+      commitSha: "abc1234",
+      branch: "main",
+      worktree: "/Users/oli/Developer/ai-tools",
+    },
+  },
+
   HubSettings: {
     type: "object",
     required: [

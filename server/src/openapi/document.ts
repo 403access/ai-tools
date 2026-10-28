@@ -29,6 +29,7 @@ const TAGS = [
   { name: "Host files", description: "Read-only browsing of the hub host's filesystem." },
   { name: "System", description: "Host inventory, installed apps, and media controls." },
   { name: "Devices", description: "Mac and iOS clients that have connected to this hub." },
+  { name: "Deployments", description: "App builds installed on paired iPhones and iPads, with history." },
   { name: "Settings", description: "Hub behaviour that can be tuned without a restart." },
   { name: "Documentation", description: "This specification and its interactive explorer." },
 ];

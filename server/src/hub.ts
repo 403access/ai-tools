@@ -9,6 +9,7 @@ import {
 import type {
   AgentInfo,
   ConnectedDevice,
+  DeploymentsPayload,
   FileDiff,
   HubEvent,
   HubHealth,
@@ -22,8 +23,7 @@ import type {
   WorktreeCreateInput,
   WorktreeInfo,
 } from "./types.ts";
-import { EventBus, sessionIDFromEvent, type EventSink } from "./hub/event-bus.ts";
-import {
+import { EventBus, sessionIDFromEvent, type EventSink } from "./hub/event-bus.ts";import {
   agents,
   cancelPendingInput,
   changes,
@@ -47,6 +47,7 @@ import {
   switchModel,
   trackDevice,
 } from "./hub/reads.ts";
+import { deploymentsPayload, scanDeployments, type DeploymentScanResult } from "./hub/deployments.ts";
 import { sleep, syncFast as runFastSync, syncMessagesForChanges as runMessageSync, syncNow as runSyncNow, syncSlow as runSlowSync } from "./hub/sync.ts";
 import { CaffeinateSleepGuard, type SleepGuard } from "./hub/sleep.ts";
 import { UsageService } from "./hub/usage.ts";
@@ -367,6 +368,14 @@ export class Hub {
 
   devices(): ConnectedDevice[] {
     return devices(this);
+  }
+
+  deployments(limit = 200): DeploymentsPayload {
+    return deploymentsPayload(this, limit);
+  }
+
+  scanDeployments(): Promise<DeploymentScanResult> {
+    return scanDeployments(this);
   }
 
   health(): HubHealth {

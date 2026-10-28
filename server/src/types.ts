@@ -580,6 +580,67 @@ export interface DevicesResponse {
 }
 
 /**
+ * One install of an app build on a physical device. A row stays open (no
+ * `endedAt`) while that build is the one installed for its bundle id, so the
+ * current state of every device is "the open rows".
+ */
+export interface Deployment {
+  id: string;
+  /** Stable devicectl identifier; the UDID for physical iOS devices. */
+  deviceKey: string;
+  deviceName: string;
+  deviceModel: string;
+  bundleId: string;
+  appName: string;
+  /** Variant slug for side-by-side builds; empty for the normal app. */
+  variant: string;
+  version: string;
+  build: string;
+  commitSha: string;
+  branch: string;
+  worktree: string;
+  /** The install script reported this, or a device scan discovered it. */
+  source: "script" | "sync";
+  installedAt: number;
+  /** Set when the build was replaced or uninstalled. */
+  endedAt?: number;
+  endReason?: "replaced" | "uninstalled";
+}
+
+/** A physical device and the OpenCodeBar builds installed on it right now. */
+export interface DeploymentDevice {
+  key: string;
+  name: string;
+  model: string;
+  platform: string;
+  /** devicectl connection state: connected, available (paired), unavailable. */
+  state: string;
+  /** True when the OpenCodeBar app on this device is talking to the hub. */
+  connected: boolean;
+  lastSeen?: number;
+  lastSynced?: number;
+  current: Deployment[];
+}
+
+export interface DeploymentsPayload {
+  devices: DeploymentDevice[];
+  /** Install history, newest first. */
+  deployments: Deployment[];
+  /** Last successful device scan; absent when only script reports exist. */
+  syncedAt?: number;
+  /** Per-device scan failures, so one sleeping phone does not hide the rest. */
+  errors?: string[];
+}
+
+export interface DeploymentsResponse {
+  data: DeploymentsPayload;
+}
+
+export interface DeploymentResponse {
+  data: Deployment;
+}
+
+/**
  * Hub behaviour that the settings screen can tune without restarting. The
  * bounds are included so clients do not have to hard-code the accepted range.
  */

@@ -88,6 +88,20 @@ enum PreviewRunner {
             state.openFileBrowser(at: path)
         }
 
+        // `--deployment-detail` opens the first iPhone/iPad with deployments.
+        if CommandLine.arguments.contains("--deployment-detail") {
+            Task { @MainActor in
+                for _ in 0..<50 {
+                    await state.refreshDeployments(force: true)
+                    if let device = state.deploymentDevices.first {
+                        state.open(device)
+                        return
+                    }
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                }
+            }
+        }
+
         // `--device-detail` opens the first connected device from Settings.
         if CommandLine.arguments.contains("--device-detail") {
             Task { @MainActor in
@@ -257,13 +271,59 @@ enum PreviewRunner {
             }
         }
 
+        // `--deployment-detail` needs the deployment payload before the device
+        // can be selected, so preload it like the device page does.
+        let wantsDeploymentDetail = CommandLine.arguments.contains("--deployment-detail")
+        if wantsDeploymentDetail {
+            for _ in 0..<10 {
+                var finished = false
+                Task { @MainActor in
+                    await state.refreshDeployments(force: true)
+                    finished = true
+                }
+                let deadline = Date().addingTimeInterval(3)
+                while !finished && Date() < deadline {
+                    RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+                }
+                if !state.deploymentDevices.isEmpty { break }
+            }
+            if let device = state.deploymentDevices.first {
+                state.open(device)
+            }
+        }
+
+        // `--settings-deployments` renders the Settings → Deployments section
+        // alone, since it sits below the fold of the Settings scroll view.
+        let wantsDeploymentsSection = CommandLine.arguments.contains("--settings-deployments")
+        if wantsDeploymentsSection {
+            var finished = false
+            Task { @MainActor in
+                await state.refreshDeployments(force: true)
+                finished = true
+            }
+            let deadline = Date().addingTimeInterval(5)
+            while !finished && Date() < deadline {
+                RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+            }
+        }
+
         // `--memory-process <pid>` and `--memory-group <name>` render the
         // drill-in pages so they can be inspected without clicking through.
         let memoryPID = value(after: "--memory-process", in: CommandLine.arguments).flatMap(Int.init)
         let memoryGroupName = value(after: "--memory-group", in: CommandLine.arguments)
 
         let root: AnyView
-        if wantsMemory,
+        if wantsDeploymentsSection {
+            root = AnyView(
+                ScrollView {
+                    SettingsDeploymentsSection()
+                        .environmentObject(state)
+                        .padding(12)
+                }
+                .frame(width: 400)
+                .background(Color(nsColor: ScreenshotRoot.background))
+            )
+        } else if wantsMemory,
            let memoryPID,
            let process = state.systemInfo?.processes.all.first(where: { $0.pid == memoryPID }) {
             root = AnyView(
@@ -324,6 +384,8 @@ enum PreviewRunner {
             || CommandLine.arguments.contains("--session")
             || wantsProjectDetail
             || wantsDeviceDetail
+            || wantsDeploymentDetail
+            || wantsDeploymentsSection
             || wantsSettings
             || wantsFiles
             || wantsTerminal

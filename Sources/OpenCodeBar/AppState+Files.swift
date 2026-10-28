@@ -7,6 +7,7 @@ extension AppState {
         selectedSession = nil
         selectedProject = nil
         selectedDevice = nil
+        selectedDeploymentDevice = nil
         fileBrowserPath = path
     }
 

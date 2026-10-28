@@ -231,6 +231,16 @@ final class AppState: ObservableObject {
     @Published var forkLists: [String: ForkList] = [:]
     /// Mac and iOS apps known to the hub, with their live state.
     @Published var devices: [ConnectedDevice] = []
+    /// iPhone/iPad devices with the OpenCodeBar builds installed on them now.
+    @Published var deploymentDevices: [DeploymentDevice] = []
+    /// Install history across devices, newest first.
+    @Published var deploymentHistory: [Deployment] = []
+    @Published var deploymentsFetchedAt: Date?
+    @Published var deploymentsSyncedAt: Date?
+    @Published var deploymentsError: String?
+    @Published var deploymentsNotice: String?
+    @Published var isRefreshingDeployments = false
+    @Published var isScanningDeployments = false
     /// Server information shown on the Settings tab.
     @Published var hubInfo: ServerInfo?
     @Published var hubHealth: HubHealthResponse?
@@ -284,6 +294,8 @@ final class AppState: ObservableObject {
     @Published var selectedProject: Project?
     /// Device whose detail page is open from Settings → Devices.
     @Published var selectedDevice: ConnectedDevice?
+    /// Physical device whose deployment history is open from Settings.
+    @Published var selectedDeploymentDevice: DeploymentDevice?
     /// Folder the host file browser is open at. Non-nil takes over the panel,
     /// so Back returns to the System tab.
     @Published var fileBrowserPath: String?
