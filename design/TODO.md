@@ -25,6 +25,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` planned
 - [x] Tasks: board, filters, labels, actions
 - [x] Tasks: Queued column, start-now/remove actions, hidden Done by default
 - [x] Tasks: empty filters and no tasks
+- [x] Tasks: queued column and "Show done" filter
 - [x] New session sheet
 - [x] Project picker sheet
 - [x] Model picker sheet

@@ -92,20 +92,22 @@ const tasksPanel = panel({
   name: "Panel · Tasks",
   children:
     F("Filters", { flex: "row", gap: 5, w: "fill", h: "hug" },
-      chip("Review 3", D.warn) + chip("Working 2", D.running) + chip("Done 12", D.sec) + chip("All 17", D.sec)) +
+      chip("Queued 2", D.purple) + chip("Review 3", D.warn) + chip("Working 2", D.running) + chip("All 7", D.sec)) +
     F("Filter meta", { flex: "row", items: "center", justify: "between", w: "fill" },
       T("Auto-labelled from the request", { size: 9, color: D.ter }) +
-      F("New", { flex: "row", items: "center", gap: 3, px: 7, py: 3, rounded: 99, bg: D.accent + "22" }, I("lucide:plus", 9, D.accent) + T("New task", { size: 9, weight: "bold", color: D.accent }))) +
+      F("Controls", { flex: "row", items: "center", gap: 5 },
+        F("Show done", { flex: "row", items: "center", gap: 3, px: 6, py: 3, rounded: 99, bg: D.sec + "18" }, I("lucide:eye", 8, D.sec) + T("Show done", { size: 8, weight: "semibold", color: D.sec })) +
+        F("New", { flex: "row", items: "center", gap: 3, px: 7, py: 3, rounded: 99, bg: D.accent + "22" }, I("lucide:plus", 9, D.accent) + T("New task", { size: 9, weight: "bold", color: D.accent })))) +
+    sectionLabel("Queued", T("2", { size: 10, weight: "bold", color: D.purple })) +
+    taskCard("queued", "lucide:hourglass", D.purple, "Draft release notes for the hub queue", "ai-tools", "Starts in 15m", [["Docs", D.sec, "lucide:file-text"], ["Technical", D.running]], "lucide:play") +
+    taskCard("queued", "lucide:hourglass", D.purple, "Pin the remote desktop overlay to the active display", "ai-tools", "Waiting for a slot", [["Feature", D.accent, "lucide:sparkles"], ["Product", D.running]], "lucide:play") +
     sectionLabel("Needs review", T("3", { size: 10, weight: "bold", color: D.warn })) +
     taskCard("review", "lucide:eye", D.warn, "Add map-based language family quiz", "stuttgart-uni-assistant", "48m ago", [["Feature", D.accent, "lucide:sparkles"], ["Product", D.running], ["Breaking change", D.warn, "lucide:triangle-alert"]], "lucide:check") +
     taskCard("review", "lucide:eye", D.warn, "Show actual changes and diffs in session and project views", "ai-tools", "1h ago", [["Feature", D.accent, "lucide:sparkles"], ["Technical", D.running]], "lucide:check") +
     taskCard("review", "lucide:eye", D.warn, "Harden VM serial console reconnect path", "ai-tools", "2h ago", [["Bug", D.danger, "lucide:bug"], ["Security-sensitive", D.warn, "lucide:shield-alert"]], "lucide:check") +
     sectionLabel("In progress", T("2", { size: 10, weight: "bold", color: D.running })) +
     taskCard("working", "lucide:loader", D.running, "Match iPhone dark theme to macOS tray app", "ai-tools", "14m", [["Feature", D.accent, "lucide:sparkles"], ["Product", D.running]], "lucide:arrow-up-right") +
-    taskCard("working", "lucide:loader", D.running, "Central quiz screen with module tiles", "stuttgart-uni-assistant", "39m", [["Refactor", D.purple], ["Technical", D.running]], "lucide:arrow-up-right") +
-    sectionLabel("Done", T("12", { size: 10, weight: "bold", color: D.sec })) +
-    taskCard("done", "lucide:check", D.accent, "Reusable quiz components for linguistics topics", "stuttgart-uni-assistant", "13h ago", [["Feature", D.accent, "lucide:sparkles"], ["Technical", D.running]], "lucide:undo-2") +
-    taskCard("done", "lucide:check", D.accent, "Refresh session on app reactivation", "stuttgart-uni-assistant", "3m ago", [["Bug", D.danger, "lucide:bug"], ["Technical", D.running]], "lucide:undo-2"),
+    taskCard("working", "lucide:loader", D.running, "Central quiz screen with module tiles", "stuttgart-uni-assistant", "39m", [["Refactor", D.purple], ["Technical", D.running]], "lucide:arrow-up-right"),
 });
 
 const tasksEmpty = panel({
@@ -115,7 +117,7 @@ const tasksEmpty = panel({
   name: "Panel · Tasks empty",
   children:
     F("Filters", { flex: "row", gap: 5, w: "fill", h: "hug" },
-      chip("Review 0", D.warn) + chip("Working 0", D.running) + chip("Done 0", D.sec) + chip("All 0", D.sec)) +
+      chip("Queued 0", D.purple) + chip("Review 0", D.warn) + chip("Working 0", D.running) + chip("All 0", D.sec)) +
     F("Filter meta", { flex: "row", items: "center", justify: "between", w: "fill" },
       T("Auto-labelled from the request", { size: 9, color: D.ter }) +
       F("New", { flex: "row", items: "center", gap: 3, px: 7, py: 3, rounded: 99, bg: D.accent + "22" }, I("lucide:plus", 9, D.accent) + T("New task", { size: 9, weight: "bold", color: D.accent }))) +

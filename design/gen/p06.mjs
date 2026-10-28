@@ -147,8 +147,14 @@ const projectDetail = F("iOS · project detail", { flex: "col", gap: 8, w: 414, 
 );
 
 const tasks = phone({ title: "Tasks", sub: "2 running", active: "Tasks", name: "iOS · Tasks", children:
-  F("Filters", { flex: "row", gap: 4, w: "fill" }, chip("Review 3", D.warn) + chip("Working 2", D.running) + chip("Done 12", D.sec) + chip("All 17", D.sec)) +
-  F("Meta", { flex: "row", items: "center", justify: "between", w: "fill" }, T("Auto-labelled from the request", { size: 8, color: D.ter }) + F("New", { flex: "row", items: "center", gap: 3, px: 7, py: 3, rounded: 99, bg: D.accent + "22" }, I("lucide:plus", 8, D.accent) + T("New task", { size: 8, weight: "bold", color: D.accent }))) +
+  F("Filters", { flex: "row", gap: 4, w: "fill" }, chip("Queued 2", D.purple) + chip("Review 3", D.warn) + chip("Working 2", D.running) + chip("All 7", D.sec)) +
+  F("Meta", { flex: "row", items: "center", justify: "between", w: "fill" }, T("Auto-labelled from the request", { size: 8, color: D.ter }) + F("Controls", { flex: "row", items: "center", gap: 4 }, F("Show done", { flex: "row", items: "center", gap: 2, px: 5, py: 3, rounded: 99, bg: D.sec + "18" }, I("lucide:eye", 7, D.sec) + T("Show done", { size: 7, weight: "semibold", color: D.sec })) + F("New", { flex: "row", items: "center", gap: 3, px: 7, py: 3, rounded: 99, bg: D.accent + "22" }, I("lucide:plus", 8, D.accent) + T("New task", { size: 8, weight: "bold", color: D.accent })))) +
+  sectionLabel("Queued", T("2", { size: 9, weight: "bold", color: D.purple })) +
+  [["Draft release notes for the hub queue", "ai-tools", "Starts in 15m"], ["Pin the remote desktop overlay to the active display", "ai-tools", "Waiting for a slot"]].map(([t, p, time]) =>
+    F("Task", { flex: "row", gap: 7, p: 9, rounded: 10, bg: D.card, stroke: D.border, strokeWidth: 1, w: "fill" },
+      F("S", { w: 16, h: 16, rounded: 8, bg: D.purple + "22", items: "center", justify: "center" }, I("lucide:hourglass", 9, D.purple)) +
+      F("B", { flex: "col", gap: 3, grow: 1 }, T(t, { size: 10, weight: "semibold", color: D.text, w: "fill" }), T(`${p} · ${time}`, { size: 8, color: D.sec })) +
+      F("A", { w: 18, h: 18, rounded: 6, bg: D.purple + "18", items: "center", justify: "center" }, I("lucide:play", 9, D.purple)))).join("") +
   sectionLabel("Needs review", T("3", { size: 9, weight: "bold", color: D.warn })) +
   [["Add map-based language family quiz", "stuttgart-uni-assistant", "48m ago", [["Feature", D.accent], ["Product", D.running]]],
    ["Show actual changes and diffs in session and project views", "ai-tools", "1h ago", [["Feature", D.accent], ["Technical", D.running]]],
@@ -165,7 +171,7 @@ const tasks = phone({ title: "Tasks", sub: "2 running", active: "Tasks", name: "
 });
 
 const tasksEmpty = phone({ title: "Tasks", sub: "", active: "Tasks", name: "iOS · Tasks empty", children:
-  F("Filters", { flex: "row", gap: 4, w: "fill" }, chip("Review 0", D.warn) + chip("Working 0", D.running) + chip("Done 0", D.sec) + chip("All 0", D.sec)) +
+  F("Filters", { flex: "row", gap: 4, w: "fill" }, chip("Queued 0", D.purple) + chip("Review 0", D.warn) + chip("Working 0", D.running) + chip("All 0", D.sec)) +
   emptyState("lucide:list-checks", "No tasks yet", "New sessions become tasks. Finished work lands here for review.", { h: 300 }) +
   F("Hint", { flex: "row", gap: 7, p: 10, rounded: 10, bg: D.card, stroke: D.border, strokeWidth: 1, w: "fill" }, I("lucide:wand-sparkles", 12, D.purple) + T("Labels are inferred from the request — no model call.", { size: 8, color: D.sec, w: "fill" })),
 });

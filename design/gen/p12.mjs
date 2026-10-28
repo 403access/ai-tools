@@ -26,7 +26,7 @@ export default function () {
           row("Menu bar + panel", "StatusItemController.swift · PanelView.swift", "02 · macOS shell", ["populated", "empty", "settings"]) +
           row("Desktop window", "DesktopWindowController.swift · DesktopView.swift", "02 · macOS shell", ["3-column", "narrow"]) +
           row("Live", "LiveTab.swift · LiveRunningRow.swift · LiveRecentRow.swift", "02/03 · macOS", ["populated", "empty", "filters", "failed", "paused"]) +
-          row("Tasks", "TasksTab.swift · MobileStore+Tasks.swift", "02/06 · Tasks", ["board", "empty", "done", "light"]) +
+          row("Tasks", "TasksTab.swift · MobileStore+Tasks.swift", "02/06 · Tasks", ["board", "queued", "done hidden", "empty", "light"]) +
           row("Session", "SessionDetailView*.swift · SessionMessageViews.swift", "03 · macOS · 06 · iOS", ["chat", "stats", "changes", "prompts", "git", "subagents"]) +
           row("Projects", "ProjectsTab.swift · ProjectDetail*.swift · MobileProjectFiles.swift", "04 · macOS · 06 · iOS", ["populated", "empty", "stats", "files", "non-git"]) +
           row("Usage", "UsageTab.swift · UsageCharts.swift · UsageView.swift", "04 · macOS · 06 · iOS", ["overview", "activity", "breakdown", "tools", "no key", "stale"]) +
