@@ -9,8 +9,16 @@ import SwiftUI
 struct SettingsOtaCard: View {
     @EnvironmentObject private var state: AppState
     @State private var copiedLink = false
+    /// Build selected in the published list; `nil` means the newest one.
+    @State private var selectedID: String?
 
-    private var latest: OtaArtifact? { state.otaLatest }
+    private var latest: OtaArtifact? {
+        if let selectedID, let match = state.otaBuilds.first(where: { $0.id == selectedID }) {
+            return match
+        }
+        return state.otaLatest
+    }
+
     private var pageURL: URL? {
         latest.flatMap { state.otaInstallPageURL(for: $0) }
     }
@@ -44,9 +52,18 @@ struct SettingsOtaCard: View {
                 Divider().opacity(0.5)
                 latestBuild(latest, pageURL: pageURL)
             }
+
+            if state.otaBuilds.count > 1 {
+                Divider().opacity(0.5)
+                publishedBuilds
+            }
         }
         .card(padding: 12)
         .task { await state.refreshOta() }
+        .onChange(of: state.otaLatest?.id) { _, _ in
+            // A fresh publish should become the selected build again.
+            selectedID = nil
+        }
     }
 
     private var header: some View {
@@ -96,6 +113,60 @@ struct SettingsOtaCard: View {
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var publishedBuilds: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Text("PUBLISHED BUILDS")
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.6)
+                    .foregroundStyle(.secondary)
+                Text("\(state.otaBuilds.count)")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+                Spacer(minLength: 0)
+                Text("Newest first; the hub keeps five")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.tertiary)
+            }
+
+            ForEach(state.otaBuilds) { build in
+                let selected = latest?.id == build.id
+                Button {
+                    selectedID = build.id
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 10, weight: selected ? .semibold : .regular))
+                            .foregroundStyle(selected ? Theme.accent : Color.secondary.opacity(0.5))
+                        Text(build.buildLabel)
+                            .font(.system(size: 10, weight: .medium))
+                            .monospacedDigit()
+                        if !build.shortCommit.isEmpty {
+                            Text(build.shortCommit)
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 4)
+                        Text(Fmt.relative(from: build.createdAtDate))
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(selected ? Theme.accent.opacity(0.12) : Color.clear)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Show the install code for this build")
             }
         }
     }
