@@ -54,7 +54,6 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
   Views/
     PanelView.swift               panel shell and tabs
     DesktopView.swift             desktop window: sidebar + content
-    LiveTab.swift                 running and recent sessions
     SessionDetailView.swift       chat, stats, changes, git, prompts, subagents
     SessionDetailView+Composer.swift  pending queue and composer
     SessionDetailView+Content.swift   tab content
@@ -75,6 +74,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     ChangeViews.swift             patch cards and diffs
     SubagentViews.swift           child-session tree
     UsageTab.swift                plan limits, trends, heatmap
+    TasksTab.swift                task board, filters, and grouping
     TerminalViews.swift           terminal list, new-terminal sheet, terminal window
     TerminalEmulatorView.swift    SwiftTerm host for Mac and iOS
     VirtualMachinesTab.swift      VM list, lifecycle actions, setup card
@@ -114,8 +114,8 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   MobileRouter.swift              widget/deep-link routing
   WidgetPublisher.swift           writes the shared widget snapshot
   PairingScanner.swift            camera QR scanner for pairing
-  LiveView.swift                  running/recent sessions
-  LiveView+Filters.swift          project/date filters
+  TasksView.swift                 task board, project/date/status filters
+  TasksView+Filters.swift         filter menus and date grouping
   SessionDetailView.swift         chat, stats, changes, git, prompts, subagents
   MobileGitViews.swift            session commits and project commit graph
   SessionDetailView+Composer.swift  pending queue and composer

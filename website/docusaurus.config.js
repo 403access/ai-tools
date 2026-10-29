@@ -118,7 +118,7 @@ const config = {
             title: 'Documentation',
             items: [
               { label: 'Getting started', to: '/getting-started/requirements' },
-              { label: 'Using the apps', to: '/using/live' },
+              { label: 'Using the apps', to: '/using/tasks' },
               { label: 'Hub reference', to: '/hub/architecture' },
             ],
           },

@@ -19,14 +19,14 @@ icon.
 
 To launch straight into the desktop window instead, use `make desktop`.
 
-<Figure src="/img/screenshots/live.png" alt="OpenCodeBar Live tab on macOS" caption="Right-click the menu bar item to open the compact panel." />
+<Figure src="/img/screenshots/live.png" alt="OpenCodeBar session activity on macOS" caption="Right-click the menu bar item to open the compact panel." />
 
 ## What you get
 
 - A terminal glyph in the menu bar, with the number of active sessions while
   work is running.
 - **Left-click** the icon for the full desktop window; **right-click** (or
-  control-click) for the compact panel with **Live**, **Usage**, **Projects**,
+  control-click) for the compact panel with **Tasks**, **Usage**, **Projects**,
   **System**, and **Settings**.
 - Session detail pages, project detail pages, and a full conversation view.
 - A System tab with the host inventory, media controls, file browsing,

@@ -14,7 +14,7 @@ app — a resizable window with a persistent sidebar — or **right-click** (or
 control-click) for the compact panel with **live** activity, a full **session**
 view, per-project **analytics**, and a **usage** overview. The desktop window
 can also be turned on from **Settings → App → Desktop window** and is
-remembered across launches. The iOS app has the same areas — Tasks, Live,
+remembered across launches. The iOS app has the same areas — Tasks,
 Projects, Usage, Host, VMs, and Settings — adapted for touch, with the same dark panel
 design and a floating tab dock. **Host** switches between the System inventory
 and Remote desktop, so the phone can also watch and control the Mac's screen.
@@ -27,7 +27,6 @@ large sizes.
 
 macOS panel:
 
-![Live tab](docs/screenshots/live.png)
 ![Session detail](docs/screenshots/session.png)
 ![Session stats](docs/screenshots/stats.png)
 ![Session changes](docs/screenshots/changes.png)
@@ -38,7 +37,7 @@ macOS panel:
 
 iOS app:
 
-![iOS live](docs/screenshots/ios-live.png)
+![iOS session activity](docs/screenshots/ios-live.png)
 ![iOS session](docs/screenshots/ios-session.png)
 ![iOS projects](docs/screenshots/ios-projects.png)
 ![iOS usage](docs/screenshots/ios-usage.png)
@@ -80,24 +79,20 @@ iOS app:
   **Infrastructure**), and a risk hint such as **Security-sensitive**,
   **Data loss**, or **Breaking change**. Filters switch between queued, review,
   in progress, done, and every task, and **New task** starts a session directly
-  from the board.
-- On the wide desktop board, **Group** splits each status column by project, by
-  date (day, week, or month), or by date and then project. The mode and interval
-  are remembered, and cards inside a project section stop repeating the project
+  from the board. Project, date (all time, today, last 7 days, or last 30 days),
+  and outcome (finished, failed, or interrupted) filters narrow the board too.
+- **Group** splits each status column by project, by date (day, week, or month),
+  or by date and then project. In the compact panel and a narrow split column it
+  groups the single-column list the same way. The mode and interval are
+  remembered, and cards inside a project section stop repeating the project
   name.
 - The board is stored on the hub and synced to both apps, so resolving a task on
   the Mac updates the phone.
+- A session that is **Paused** or **Stopped** keeps its badge and continue time
+  on its task card. Continue sends `continue` into the conversation, which
+  starts a fresh turn. Typing a prompt also releases the hold.
 
-**Live**
-- Running sessions update in real time via OpenCode's SSE event stream, with new
-  rows animating in at the top. Each row shows what the session is doing right
-  now — the current tool and its command or path, streaming reasoning, todo
-  progress, and the number of running subagents — alongside a pulsing indicator,
-  project, model, agent, live cost, elapsed time, and token count.
-- Recent sessions with project, model, relative time, cost, and tokens. Filter
-  the list by project, by date (all time, today, last 7 days, or last 30 days),
-  or by status (finished, failed, or interrupted), or group it by day (today,
-  yesterday, previous 7 days, and so on).
+**Sessions**
 - Click any session to open its details: the full conversation with the newest
   message first, a prompts-only list with copy buttons, and expandable reasoning
   and tool calls. The view keeps updating while the session runs and pages back
@@ -117,19 +112,19 @@ iOS app:
   of the conversation you are viewing. The header and **Session settings**
   disclosure also show the agent, model, provider, variant, directory, and
   outcome that were actually used.
-- **Pause or stop work.** The session header and each running/recent row offer
-  **Pause…** and **Stop**. Pausing interrupts the current turn and holds the
-  session for a duration or until a clock time you pick; the hub continues it
-  automatically at the deadline, even after a restart. Stopping holds it until
-  you press **Continue**. A held session leaves the Running list and shows a
-  **Paused** or **Stopped** badge with its continue time in the Recent list.
-  Continue sends `continue` into the conversation, which starts a fresh turn.
-  Typing a prompt also releases the hold.
+- **Pause or stop work.** The session header and a project's running and recent
+  rows offer **Pause…** and **Stop**. Pausing interrupts the current turn and
+  holds the session for a duration or until a clock time you pick; the hub
+  continues it automatically at the deadline, even after a restart. Stopping
+  holds it until you press **Continue**. A held session leaves the project's
+  running list and shows a **Paused** or **Stopped** badge with its continue
+  time in the recent list. Continue sends `continue` into the conversation,
+  which starts a fresh turn. Typing a prompt also releases the hold.
 - **Speak your prompt.** The microphone in the conversation composer and the
   new-session sheet turns speech into text as you talk. It keeps whatever you
   already typed, and the transcript stays editable before you send. Speech
   recognition runs on the device when the current language supports it.
-- **Start a new session** from the Live tab or a project page: open the
+- **Start a new session** from the Tasks tab or a project page: open the
   searchable project browser to sort by recent, name, or running work and
   filter to running, Git, or sandboxed projects, choose **Current folder** or
   **Git worktree** for the workspace, or clone a GitHub/git repository into a
@@ -367,7 +362,7 @@ iOS app:
   token or request bodies.
 
 **iPhone & iPad**
-- The same Live, Projects, Usage, Host, VMs, and Settings areas as the Mac
+- The same Tasks, Projects, Usage, Host, VMs, and Settings areas as the Mac
   panel, with the same compact panel design, live-activity folding, and a
   floating tab dock built for touch. **Host** has a System/Remote switch:
   System opens on a compact dashboard with live vitals, Now Playing, and a
@@ -509,8 +504,8 @@ the host build and the in-guest rebuild share one `configuration.nix`.
 The event stream does more than trigger refreshes. `session.step.*`,
 `session.reasoning.*`, `session.text.*`, `session.tool.*`, `session.usage.*`,
 and `permission.*` events are folded into a per-session activity snapshot, which
-is what the Live rows show. Cost and token counts move as `session.usage.updated`
-arrives instead of waiting for the next poll. When the stream is missed — on
+is what session headers and Home Screen widgets show. Cost and token counts move
+as `session.usage.updated` arrives instead of waiting for the next poll. When the stream is missed — on
 launch or after a reconnect — the newest messages are read back to rebuild the
 snapshot, including the latest `todowrite` list. Both apps fold events the same
 way from the shared payloads.
@@ -930,7 +925,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     SubagentOrdering.swift  running-first ordering for child sessions
     SessionOrdering.swift   most-recent-first ordering for feeds
     WidgetSnapshot.swift    compact widget payload shared by app and extension
-    SessionFilter.swift     project/date filters for recent feeds
+    SessionFilter.swift     project/date/outcome filters and date grouping
     GoUsage.swift           Go plan windows (shared)
     SystemInfo.swift        machine inventory from the system endpoint (shared)
     Terminals.swift         OpenCode PTY sessions and requests (shared)
@@ -939,6 +934,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     VirtualMachine.swift    VM definitions, metrics, capabilities (shared)
   Views/                    SwiftUI panel, tabs, heatmap, components
     DesktopView.swift       full-window layout with a persistent sidebar
+    TasksTab.swift          task board, filters, and grouping
     ChangeViews.swift       patch cards and change summaries
     NewSessionSheet.swift   start a session with an optional first prompt
     ProjectPickerSheet.swift  searchable, sortable, filterable project browser
@@ -1003,8 +999,8 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   MobileRouter.swift          widget/deep-link routing
   WidgetPublisher.swift       writes the shared widget snapshot
   PairingScanner.swift        camera QR scanner for pairing
-  LiveView.swift              running/recent sessions
-  LiveView+Filters.swift      project/date filters
+  TasksView.swift             task board, project/date/status filters
+  TasksView+Filters.swift     filter menus and date grouping
   SessionDetailView.swift     conversation, stats, changes, git, prompts, subagents
   MobileGitViews.swift        session commits and project commit graph
   SessionDetailView+Header.swift    live summary

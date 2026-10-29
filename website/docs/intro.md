@@ -94,8 +94,8 @@ stopped or moves to a new port.
 ## A closer look
 
 <div className="screenshotGrid">
-  <Figure src="/img/screenshots/live.png" alt="OpenCodeBar Live tab showing running sessions" caption="Live sessions on macOS" />
-  <Figure src="/img/screenshots/ios-live.png" alt="OpenCodeBar Live tab on iOS" caption="The same activity on iPhone" />
+  <Figure src="/img/screenshots/live.png" alt="OpenCodeBar running session activity on macOS" caption="Session activity on macOS" />
+  <Figure src="/img/screenshots/ios-live.png" alt="OpenCodeBar running session activity on iOS" caption="The same activity on iPhone" />
   <Figure src="/img/screenshots/stats.png" alt="Session Stats tab with tool reliability and timings" caption="Per-session stats and tool reliability" />
   <Figure src="/img/screenshots/changes.png" alt="Session Changes tab showing a colour-coded diff" caption="File changes with real patches" />
 </div>

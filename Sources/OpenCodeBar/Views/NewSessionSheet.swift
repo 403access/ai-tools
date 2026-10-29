@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Starts a new OpenCode session in a project directory, optionally with a
-/// first prompt. Opened from the Live tab or a project's detail page.
+/// first prompt. Opened from the tasks board or a project's detail page.
 struct NewSessionSheet: View {
     @EnvironmentObject private var state: AppState
     @Environment(\.dismiss) private var dismiss

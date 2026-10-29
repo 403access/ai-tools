@@ -23,7 +23,7 @@ export default function HomeHero() {
         <Link className="button button--primary button--lg" to="/getting-started/install-hub">
           Install the hub
         </Link>
-        <Link className="button button--secondary button--lg" to="/using/live">
+        <Link className="button button--secondary button--lg" to="/using/tasks">
           Explore the apps
         </Link>
         <Link className="button button--outline button--lg" to="/hub/api">

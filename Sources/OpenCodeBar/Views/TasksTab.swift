@@ -11,6 +11,9 @@ import SwiftUI
 struct TasksTab: View {
     @EnvironmentObject private var state: AppState
     @State private var filter: TaskBoardFilter = .review
+    @State private var selectedProjectID: String?
+    @State private var timeFilter: SessionTimeFilter = .all
+    @State private var statusFilter: SessionStatusFilter = .all
     @State private var showingNewSession = false
     /// Measured content width, so the layout can follow window resizing.
     @State private var availableWidth: CGFloat = 0
@@ -50,9 +53,55 @@ struct TasksTab: View {
     /// A board of empty columns is not useful; with only dismissed or hidden
     /// done tasks the filtered list carries the empty state instead.
     private var hasBoardContent: Bool {
-        state.tasks.contains { session in
+        filteredTasks.contains { session in
             session.taskStatus.map(boardOrder.contains) ?? false
         }
+    }
+
+    private var activeProjectID: String? {
+        guard let selectedProjectID, state.projects[selectedProjectID] != nil else {
+            return nil
+        }
+        return selectedProjectID
+    }
+
+    /// The board after the project, date, and outcome filters have been applied.
+    /// Task-status filters narrow this further in the list or board columns.
+    private var filteredTasks: [Session] {
+        let filtered = SessionFiltering.apply(
+            to: state.tasks,
+            projectID: activeProjectID,
+            time: timeFilter,
+            status: statusFilter,
+            projects: state.projects
+        )
+        guard statusFilter == .finished else { return filtered }
+        // The shared filter treats a session without a failure as finished.
+        // Tasks that have not run yet are still "open" on the board.
+        return filtered.filter {
+            $0.taskStatus != .working && $0.taskStatus != .queued
+        }
+    }
+
+    /// Projects that have tasks, so the menu stays relevant.
+    private var filterProjects: [Project] {
+        let tasks = state.tasks
+        return state.orderedProjects.filter { project in
+            tasks.contains {
+                SessionFiltering.matchesProject(
+                    $0,
+                    projectID: project.id,
+                    projects: state.projects
+                )
+            }
+        }
+    }
+
+    private var selectedProjectName: String {
+        guard let activeProjectID else { return "All projects" }
+        return state.projects[activeProjectID]?.displayName
+            ?? filterProjects.first { $0.id == activeProjectID }?.displayName
+            ?? "All projects"
     }
 
     private var usesBoard: Bool {
@@ -184,6 +233,8 @@ struct TasksTab: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
+            sessionFilterRow
+
             // The wide board shows every status at once, so the status filters
             // would have nothing to narrow down.
             if !usesBoard {
@@ -197,13 +248,125 @@ struct TasksTab: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
                 Spacer(minLength: 4)
-                if usesBoard {
-                    groupMenu
-                }
+                groupMenu
                 doneToggle
                 newTaskButton
             }
         }
+    }
+
+    /// Project, date, and outcome filters carried over from the retired Live
+    /// tab. They narrow the board as well as the list.
+    private var sessionFilterRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                projectFilterMenu
+                timeFilterMenu
+                statusFilterMenu
+            }
+        }
+    }
+
+    private var projectFilterMenu: some View {
+        Menu {
+            Button {
+                selectedProjectID = nil
+            } label: {
+                if activeProjectID == nil {
+                    Label("All projects", systemImage: "checkmark")
+                } else {
+                    Text("All projects")
+                }
+            }
+
+            if !filterProjects.isEmpty {
+                Divider()
+            }
+
+            ForEach(filterProjects) { project in
+                Button {
+                    selectedProjectID = project.id
+                } label: {
+                    if activeProjectID == project.id {
+                        Label(project.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(project.displayName)
+                    }
+                }
+            }
+        } label: {
+            filterChip(icon: "folder", title: selectedProjectName, active: activeProjectID != nil)
+        }
+        .fixedSize()
+        .controlSize(.small)
+        .help("Filter by project")
+        .accessibilityLabel("Filter by project")
+        .accessibilityValue(selectedProjectName)
+    }
+
+    private var timeFilterMenu: some View {
+        Menu {
+            ForEach(SessionTimeFilter.allCases) { option in
+                Button {
+                    timeFilter = option
+                } label: {
+                    if option == timeFilter {
+                        Label(option.title, systemImage: "checkmark")
+                    } else {
+                        Text(option.title)
+                    }
+                }
+            }
+        } label: {
+            filterChip(icon: "calendar", title: timeFilter.shortTitle, active: timeFilter != .all)
+        }
+        .fixedSize()
+        .controlSize(.small)
+        .help("Filter by date")
+        .accessibilityLabel("Filter by date")
+        .accessibilityValue(timeFilter.title)
+    }
+
+    private var statusFilterMenu: some View {
+        Menu {
+            ForEach(SessionStatusFilter.allCases) { option in
+                Button {
+                    statusFilter = option
+                } label: {
+                    if option == statusFilter {
+                        Label(option.title, systemImage: "checkmark")
+                    } else {
+                        Text(option.title)
+                    }
+                }
+            }
+        } label: {
+            filterChip(icon: "flag", title: statusFilter.shortTitle, active: statusFilter != .all)
+        }
+        .fixedSize()
+        .controlSize(.small)
+        .help("Filter by status")
+        .accessibilityLabel("Filter by status")
+        .accessibilityValue(statusFilter.title)
+    }
+
+    private func filterChip(icon: String, title: String, active: Bool) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8, weight: .bold))
+            Text(title)
+                .font(.system(size: 9, weight: .semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            Capsule().fill(
+                active ? Theme.accent.opacity(0.14) : Color.primary.opacity(0.06)
+            )
+        )
+        .foregroundStyle(active ? Theme.accent : Color.secondary)
     }
 
     @ViewBuilder
@@ -290,7 +453,7 @@ struct TasksTab: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .foregroundStyle(grouping == .none ? Color.secondary : Theme.accent)
-        .help("Group each column by date, project, or both")
+        .help("Group the board or list by date, project, or both")
         .accessibilityLabel("Grouping: \(grouping.title)")
     }
 
@@ -335,6 +498,17 @@ struct TasksTab: View {
             ScrollView {
                 emptyContent
             }
+        } else if filteredTasks.isEmpty {
+            ScrollView {
+                EmptyState(
+                    icon: "line.3.horizontal.decrease.circle",
+                    title: "No matching tasks",
+                    subtitle: "Try another project, date range, or status."
+                )
+                .frame(maxWidth: 560)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 4)
+            }
         } else if usesBoard {
             board
         } else {
@@ -365,14 +539,26 @@ struct TasksTab: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 if filter == .all {
-                    ForEach(visibleSections, id: \.self) { status in
-                        let sessions = state.tasks.filter { $0.taskStatus == status }
-                        if !sessions.isEmpty {
-                            section(status: status, sessions: sessions)
+                    let sessions = taskSessions(for: .all)
+                    if sessions.isEmpty {
+                        EmptyState(
+                            icon: "checklist",
+                            title: "No tasks",
+                            subtitle: "Show done tasks to see completed work."
+                        )
+                        .frame(maxWidth: 560, alignment: .leading)
+                    } else if grouping != .none {
+                        groupedList(sessions)
+                    } else {
+                        ForEach(visibleSections, id: \.self) { status in
+                            let sessions = filteredTasks.filter { $0.taskStatus == status }
+                            if !sessions.isEmpty {
+                                section(status: status, sessions: sessions)
+                            }
                         }
                     }
                 } else {
-                    let sessions = state.tasks(matching: filter)
+                    let sessions = taskSessions(for: filter)
                     if sessions.isEmpty {
                         EmptyState(
                             icon: filter.icon,
@@ -380,12 +566,36 @@ struct TasksTab: View {
                             subtitle: emptySubtitle
                         )
                         .frame(maxWidth: 560, alignment: .leading)
+                    } else if grouping != .none {
+                        groupedList(sessions)
                     } else {
                         section(status: status(for: filter) ?? .review, sessions: sessions)
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// The narrow panel has no board columns, so the grouping menu also
+    /// applies to its list. Date grouping keeps the newest buckets first.
+    @ViewBuilder
+    private func groupedList(_ sessions: [Session]) -> some View {
+        switch grouping {
+        case .none:
+            EmptyView()
+        case .project:
+            ForEach(projectGroups(for: sessions)) { group in
+                projectSection(group, compact: false)
+            }
+        case .date:
+            ForEach(dateGroups(for: sessions)) { group in
+                dateSection(group, showsProjects: false, compact: false)
+            }
+        case .dateAndProject:
+            ForEach(dateGroups(for: sessions)) { group in
+                dateSection(group, showsProjects: true, compact: false)
+            }
         }
     }
 
@@ -420,7 +630,7 @@ struct TasksTab: View {
     }
 
     private func boardColumn(status: SessionTask.Status) -> some View {
-        let sessions = state.tasks.filter { $0.taskStatus == status }
+        let sessions = filteredTasks.filter { $0.taskStatus == status }
         let ids = sessions.map(\.id)
 
         return VStack(alignment: .leading, spacing: 8) {
@@ -495,7 +705,7 @@ struct TasksTab: View {
     /// between statuses.
     private var projectOrder: [String] {
         var latest: [String: Date] = [:]
-        for session in state.tasks {
+        for session in filteredTasks {
             guard let status = session.taskStatus, boardOrder.contains(status) else { continue }
             let updated = session.time.updatedDate
             if let existing = latest[session.projectID], existing >= updated { continue }
@@ -518,7 +728,7 @@ struct TasksTab: View {
         }
     }
 
-    private func projectSection(_ group: ProjectTaskGroup) -> some View {
+    private func projectSection(_ group: ProjectTaskGroup, compact: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
                 Image(systemName: "folder.fill")
@@ -537,7 +747,7 @@ struct TasksTab: View {
             .padding(.horizontal, 2)
 
             ForEach(group.sessions) { session in
-                TaskCard(session: session, compact: true, showsProject: false)
+                TaskCard(session: session, compact: compact, showsProject: false)
                     .transition(.recentInsertion)
             }
         }
@@ -612,7 +822,11 @@ struct TasksTab: View {
         }
     }
 
-    private func dateSection(_ group: DateTaskGroup, showsProjects: Bool) -> some View {
+    private func dateSection(
+        _ group: DateTaskGroup,
+        showsProjects: Bool,
+        compact: Bool = true
+    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 5) {
                 Image(systemName: "calendar")
@@ -632,11 +846,11 @@ struct TasksTab: View {
 
             if showsProjects {
                 ForEach(projectGroups(for: group.sessions)) { project in
-                    projectSection(project)
+                    projectSection(project, compact: compact)
                 }
             } else {
                 ForEach(group.sessions) { session in
-                    TaskCard(session: session, compact: true)
+                    TaskCard(session: session, compact: compact)
                         .transition(.recentInsertion)
                 }
             }
@@ -703,11 +917,25 @@ struct TasksTab: View {
         .animateRecentInsertion(ids: ids)
     }
 
-    private func count(for filter: TaskBoardFilter) -> Int {
-        if filter == .all, !showDone {
-            return state.tasks.filter { $0.taskStatus != .done }.count
+    private func taskSessions(for filter: TaskBoardFilter) -> [Session] {
+        let matched: [Session]
+        switch filter {
+        case .all:
+            matched = filteredTasks
+        case .queued:
+            matched = filteredTasks.filter { $0.taskStatus == .queued }
+        case .review:
+            matched = filteredTasks.filter { $0.taskStatus == .review }
+        case .working:
+            matched = filteredTasks.filter { $0.taskStatus == .working }
+        case .done:
+            matched = filteredTasks.filter { $0.taskStatus == .done }
         }
-        return state.tasks(matching: filter).count
+        return showDone ? matched : matched.filter { $0.taskStatus != .done }
+    }
+
+    private func count(for filter: TaskBoardFilter) -> Int {
+        taskSessions(for: filter).count
     }
 
     private func status(for filter: TaskBoardFilter) -> SessionTask.Status? {

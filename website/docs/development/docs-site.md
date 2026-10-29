@@ -68,7 +68,7 @@ import Figure from '@site/src/components/Figure';
 
 <Figure
   src="/img/screenshots/live.png"
-  alt="OpenCodeBar Live tab"
+  alt="OpenCodeBar session activity"
   caption="Running sessions on macOS"
 />
 ```

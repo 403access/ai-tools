@@ -2,8 +2,8 @@ import AppKit
 import SwiftUI
 
 /// Expanded view for a single session: at-a-glance stats, the full
-/// conversation, and a prompts-only list. Opened by clicking a row on the
-/// Live tab.
+/// conversation, and a prompts-only list. Opened by clicking a task card or a
+/// project session row.
 struct SessionDetailView: View {
     @EnvironmentObject var state: AppState
     let session: Session

@@ -1,6 +1,6 @@
 import SwiftUI
 
-extension LiveView {
+extension TasksView {
     var groupingToggle: some View {
         Button {
             withAnimation(.easeInOut(duration: 0.18)) {
@@ -22,7 +22,7 @@ extension LiveView {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Group recent sessions by date")
+        .accessibilityLabel("Group tasks by date")
         .accessibilityValue(groupedByTime ? "On" : "Off")
         .accessibilityAddTraits(groupedByTime ? .isSelected : [])
     }
@@ -34,21 +34,29 @@ extension LiveView {
         return selectedProjectID
     }
 
-    var filteredRecent: [Session] {
-        SessionFiltering.apply(
-            to: store.recentSessions,
+    /// The board after the project, date, and outcome filters have been applied.
+    /// Task-status filters narrow this further in the view.
+    var filteredTasks: [Session] {
+        let filtered = SessionFiltering.apply(
+            to: store.tasks,
             projectID: activeProjectID,
             time: timeFilter,
             status: statusFilter,
             projects: store.projects
         )
+        guard statusFilter == .finished else { return filtered }
+        // The shared filter treats a session without a failure as finished.
+        // Tasks that have not run yet are still "open" on the board.
+        return filtered.filter {
+            $0.taskStatus != .working && $0.taskStatus != .queued
+        }
     }
 
-    /// Projects that have recent sessions, so the menu stays relevant.
+    /// Projects that have tasks, so the menu stays relevant.
     var filterProjects: [Project] {
-        let recent = store.recentSessions
+        let tasks = store.tasks
         return store.orderedProjects.filter { project in
-            recent.contains {
+            tasks.contains {
                 SessionFiltering.matchesProject(
                     $0,
                     projectID: project.id,
@@ -63,10 +71,6 @@ extension LiveView {
         return store.projects[activeProjectID]?.displayName
             ?? filterProjects.first { $0.id == activeProjectID }?.displayName
             ?? "All projects"
-    }
-
-    var filtersActive: Bool {
-        activeProjectID != nil || timeFilter != .all || statusFilter != .all
     }
 
     var projectFilterMenu: some View {

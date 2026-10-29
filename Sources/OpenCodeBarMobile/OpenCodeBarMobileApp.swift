@@ -31,7 +31,6 @@ struct OpenCodeBarMobileApp: App {
 struct RootView: View {
     enum Tab: String, CaseIterable, Identifiable {
         case tasks
-        case live
         case projects
         case usage
         case host
@@ -43,7 +42,6 @@ struct RootView: View {
         var title: String {
             switch self {
             case .tasks: return "Tasks"
-            case .live: return "Live"
             case .projects: return "Projects"
             case .usage: return "Usage"
             case .host: return "Host"
@@ -55,7 +53,6 @@ struct RootView: View {
         var icon: String {
             switch self {
             case .tasks: return "checklist"
-            case .live: return "dot.radiowaves.left.and.right"
             case .projects: return "folder.fill"
             case .usage: return "chart.bar.fill"
             case .host: return "desktopcomputer"
@@ -76,10 +73,10 @@ struct RootView: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.colorScheme) private var colorScheme
     /// The custom dock's selection. It includes Usage and VMs, which sit
-    /// outside the five-item `TabView` so UIKit does not wrap the sixth item in
-    /// “More”. The system tab bar itself stays hidden.
+    /// outside the four-item `TabView` so UIKit does not wrap them in “More”.
+    /// The system tab bar itself stays hidden.
     @State private var selection: Tab = .tasks
-    /// The five tabs owned by the system `TabView`.
+    /// The tabs owned by the system `TabView`.
     @State private var tabSelection: Tab = .tasks
 
     /// Landscape moves the tab strip into the leading safe-area strip as an
@@ -145,10 +142,16 @@ struct RootView: View {
         .task { store.start() }
         .task {
             #if DEBUG
-            if let requested = ProcessInfo.processInfo.environment["OPENCODEBAR_TAB"],
-               let tab = Tab(name: requested) {
-                selection = tab
-                return
+            if let requested = ProcessInfo.processInfo.environment["OPENCODEBAR_TAB"] {
+                // Old screenshot scripts still ask for the Live tab.
+                if requested.lowercased() == "live" {
+                    selection = .tasks
+                    return
+                }
+                if let tab = Tab(name: requested) {
+                    selection = tab
+                    return
+                }
             }
             #endif
             if !settings.isConfigured { selection = .settings }
@@ -225,9 +228,9 @@ struct RootView: View {
         // notch is about 49% of the screen width; the Dynamic Island is
         // narrower. Six points keep the capsule caps off the housing.
         let gap = screenHeight * (insets.leading >= 55 ? 0.32 : 0.49) + 6
-        // Landscape hides the Live tab: six icons split three above and three
-        // below the notch, which keeps the rail symmetric and the icons
-        // legible on notched phones.
+        // Landscape splits six icons three above and three below the notch,
+        // which keeps the rail symmetric and the icons legible on notched
+        // phones.
         let topLimit = insets.top + 16
         let bottomLimit = screenHeight - insets.bottom
         let halfSpace = min(
@@ -260,7 +263,7 @@ struct RootView: View {
 
     @ViewBuilder
     private func landscapeRail(_ rail: LandscapeRail) -> some View {
-        let tabs = RootView.Tab.allCases.filter { $0 != .live }
+        let tabs = RootView.Tab.allCases
         if rail.gap > 0 {
             VStack(spacing: 0) {
                 MobileTabBar(
@@ -323,10 +326,6 @@ struct RootView: View {
                 TasksView()
                     .toolbar(.hidden, for: .tabBar)
                     .tag(Tab.tasks)
-
-                LiveView()
-                    .toolbar(.hidden, for: .tabBar)
-                    .tag(Tab.live)
 
                 ProjectsView()
                     .toolbar(.hidden, for: .tabBar)

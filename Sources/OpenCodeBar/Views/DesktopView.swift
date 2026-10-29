@@ -109,11 +109,6 @@ struct DesktopView: View {
                         .font(.system(size: 10, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(Theme.warn)
-                } else if state.tab == .live, state.activeCount > 0 {
-                    Text("\(state.activeCount) active")
-                        .font(.system(size: 10, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(Theme.running)
                 }
             }
             .padding(.horizontal, 14)
@@ -156,8 +151,6 @@ struct DesktopView: View {
         switch state.tab {
         case .tasks:
             TasksTab()
-        case .live:
-            LiveTab()
         case .usage:
             UsageTab()
         case .projects:
@@ -285,14 +278,6 @@ private struct DesktopSidebar: View {
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 1)
                                 .background(Capsule().fill(Theme.warn.opacity(0.14)))
-                        } else if tab == .live, state.activeCount > 0 {
-                            Text("\(state.activeCount)")
-                                .font(.system(size: 10, weight: .bold))
-                                .monospacedDigit()
-                                .foregroundStyle(Theme.running)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(Capsule().fill(Theme.running.opacity(0.14)))
                         }
                     }
                     .padding(.horizontal, 9)

@@ -7,7 +7,7 @@ import Figure from '@site/src/components/Figure';
 
 # Session detail
 
-Select any session on the Live tab or a project page to open it.
+Select any task card or project session row to open it.
 
 <Figure src="/img/screenshots/session.png" alt="Session conversation with reasoning, tool calls, and the composer" caption="The conversation keeps the newest message first and refreshes in place." />
 

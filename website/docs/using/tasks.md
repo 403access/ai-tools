@@ -1,60 +1,53 @@
 ---
-title: Live sessions
+title: Tasks
 sidebar_position: 1
 ---
 
-import Figure from '@site/src/components/Figure';
+# Tasks
 
-# Live sessions
+The **Tasks** tab is the default view. It is a project-management board built
+from sessions: every new top-level session becomes a task.
 
-The **Live** tab is the default view. Running work appears first, followed by
-recent sessions.
+## Board columns
 
-<Figure src="/img/screenshots/live.png" alt="Live tab with running and recent sessions" caption="Running sessions stream in over SSE; recent sessions sit below." />
+| Column | What it means |
+| --- | --- |
+| **Queued** | Waiting for a start time or a free concurrent-agent slot |
+| **Needs review** | Finished, stopped, or failed work waiting for you |
+| **In progress** | Running now |
+| **Done** | Accepted work, hidden until you show completed tasks |
+| **Dismissed** | Work you removed from the board |
 
-## Running sessions
+Each card shows the task title, project, status, labels, and the last activity.
+Open a card for the full [session view](session.md), or use the card actions to
+start a queued task, mark it done, reopen it, or remove it from the queue.
 
-Each row shows:
+## Filters and grouping
 
-- the session title, project, model, agent, and a pulsing running indicator;
-- the current tool and its command or path;
-- streaming reasoning or text, todo progress, and running subagent count;
-- live cost, elapsed time, and token count.
+Both apps filter the board by **project**, **date** (all time, today, last 7
+days, or last 30 days), and **outcome** (finished, failed, or interrupted). The
+status chips switch between queued, review, in progress, done, and every task.
 
-OpenCode events (`session.step.*`, `session.reasoning.*`, `session.text.*`,
-`session.tool.*`, `session.usage.*`, and `permission.*`) are folded into a
-per-session activity snapshot. Cost and tokens move as usage events arrive
-instead of waiting for the next poll.
+- On iOS, the calendar toggle groups the list by day: today, yesterday,
+  previous 7 days, previous 30 days, and older.
+- On macOS, **Group** splits each status column by project, by date (day, week,
+  or month), or by date and then project. The compact panel and a narrow split
+  column use the same grouping for their single-column list.
 
-New rows animate in at the top. When the stream is missed — on launch or after a
-reconnect — the newest messages are read back to rebuild the snapshot,
-including the latest todo list.
+The empty state suggests another project, date range, or status when no tasks
+match.
 
-## Recent sessions
+## Running work
 
-Recent rows show the project, model, relative time, cost, and tokens. Select a
-row to open the full [session view](session.md).
-
-### Filter recent sessions
-
-Both apps have filter chips in the Recent header:
-
-- **Project** — all projects, or one project. Duplicate project records for the
-  same directory are matched by canonical path, so they filter as one.
-- **Date** — all time, today, last 7 days, or last 30 days.
-- **Status** — any status, finished, failed, or interrupted. Failed and
-  interrupted sessions are the ones that did not complete cleanly.
-
-The calendar toggle next to the filters groups the recent list by day: today,
-yesterday, previous 7 days, previous 30 days, and older. Turn it off to return
-to a single list.
-
-Filters apply only to the recent list, not to running sessions. When no rows
-match, the empty state suggests trying another project, range, or status.
+Session activity still updates in real time from OpenCode's event stream.
+Running tasks show their status on the board, and the session header and Home
+Screen widgets show the current tool, reasoning or text, todo progress,
+subagent count, live cost, and tokens. Cost and tokens move as usage events
+arrive instead of waiting for the next poll.
 
 ## Start a new session
 
-Use **New** on the Live tab (or the plus button on a project page):
+Use **New task** on the Tasks tab (or the plus button on a project page):
 
 1. Pick a project from the searchable browser — sort by recent, name, or running
    work, and filter to running, Git, or sandboxed projects — or type a custom

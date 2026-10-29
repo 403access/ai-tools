@@ -61,8 +61,6 @@ struct PanelView: View {
                                 switch state.tab {
                                 case .tasks:
                                     TasksTab()
-                                case .live:
-                                    LiveTab()
                                 case .usage:
                                     // Handled above; it owns its scroll view.
                                     EmptyView()

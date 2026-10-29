@@ -46,21 +46,6 @@ extension AppState {
 
     var reviewTaskCount: Int { reviewTasks.count }
 
-    func tasks(matching filter: TaskBoardFilter) -> [Session] {
-        switch filter {
-        case .all:
-            return tasks
-        case .queued:
-            return queuedTasks
-        case .review:
-            return reviewTasks
-        case .working:
-            return workingTasks
-        case .done:
-            return doneTasks
-        }
-    }
-
     func markTaskDone(_ session: Session) async {
         await setTaskStatus(session, status: .done)
     }

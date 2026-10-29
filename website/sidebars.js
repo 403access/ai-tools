@@ -19,9 +19,9 @@ const sidebars = {
     {
       type: 'category',
       label: 'Using OpenCodeBar',
-      link: { type: 'doc', id: 'using/live' },
+      link: { type: 'doc', id: 'using/tasks' },
       items: [
-        'using/live',
+        'using/tasks',
         'using/session',
         'using/projects',
         'using/usage',

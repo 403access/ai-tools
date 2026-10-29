@@ -4,7 +4,7 @@ extension AppState {
     // MARK: - Session detail
 
     /// Opens a session. Passing `from` when drilling into a subagent pushes the
-    /// parent onto the back stack; opening from the Live tab or a project
+    /// parent onto the back stack; opening from the task board or a project
     /// starts a fresh stack.
     func open(_ session: Session, from parent: Session? = nil) {
         if let parent, parent.id != session.id {

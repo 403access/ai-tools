@@ -72,8 +72,8 @@ their combined text. It also folds events into a per-session activity snapshot:
 - `session.usage.*`
 - `permission.*`
 
-That snapshot is what the Live rows show: current tool, reasoning, todos,
-subagents, cost, elapsed time, and tokens. If the stream is missed, the newest
+That snapshot is what session headers and widgets show: current tool,
+reasoning, todos, subagents, cost, elapsed time, and tokens. If the stream is missed, the newest
 messages are read back to rebuild the snapshot.
 
 The hub also emits `hub.*` notices (`hub.connected`, `hub.sessions`,

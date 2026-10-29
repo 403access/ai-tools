@@ -1,34 +1,6 @@
 import SwiftUI
 import UIKit
 
-/// The app mark and wordmark used in the Live navigation bar. It mirrors the
-/// small gradient tile at the top of the Mac panel.
-struct MobileBrandTitle: View {
-    var body: some View {
-        HStack(spacing: 7) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6.5, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Theme.accent, Theme.accent.opacity(0.55)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.black.opacity(0.75))
-            }
-            .frame(width: 23, height: 23)
-
-            Text("OpenCode")
-                .font(.system(size: 15, weight: .semibold))
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("OpenCode")
-    }
-}
-
 /// A compact status/notice row used across the mobile tabs.
 struct NoticeRow: View {
     let icon: String
@@ -102,7 +74,7 @@ struct ConnectionPill: View {
     }
 }
 
-/// Shown on the Live and Projects tabs when no hub has been paired yet.
+/// Shown on the Tasks and Projects tabs when no hub has been paired yet.
 struct SetupPrompt: View {
     var title: String = "Connect to your Mac"
     var message: String = "Run `make hub` on your Mac, then open Settings and paste the hub URL and token — or tap the pairing link the hub prints at startup."

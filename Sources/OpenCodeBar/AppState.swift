@@ -22,7 +22,6 @@ final class AppState: ObservableObject {
 
     enum Tab: String, CaseIterable, Identifiable {
         case tasks = "Tasks"
-        case live = "Live"
         case usage = "Usage"
         case projects = "Projects"
         case system = "System"
@@ -33,7 +32,6 @@ final class AppState: ObservableObject {
         var icon: String {
             switch self {
             case .tasks: return "checklist"
-            case .live: return "dot.radiowaves.left.and.right"
             case .usage: return "chart.bar.xaxis"
             case .projects: return "folder"
             case .system: return "cpu"

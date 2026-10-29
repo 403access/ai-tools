@@ -58,7 +58,7 @@ On macOS:
 - copy the project path,
 - start a new session in the project.
 
-On iOS, use the project page's session rows and start new work from the Live
+On iOS, use the project page's session rows and start new work from the Tasks
 tab.
 
 ## Search

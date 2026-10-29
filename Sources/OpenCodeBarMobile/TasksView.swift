@@ -8,12 +8,18 @@ import UIKit
 /// view at once.
 struct TasksView: View {
     @EnvironmentObject private var settings: HubSettingsStore
-    @EnvironmentObject private var store: MobileStore
+    @EnvironmentObject var store: MobileStore
+    @EnvironmentObject private var router: MobileRouter
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var path = NavigationPath()
     @State private var filter: TaskBoardFilter = .review
     @State private var showingNewSession = false
     @State private var sessionToOpen: Session?
+    @State var selectedProjectID: String?
+    @State var timeFilter: SessionTimeFilter = .all
+    @State var statusFilter: SessionStatusFilter = .all
+    @State var groupedByTime = false
+    @State private var deepLinkAttempt = ""
     /// Done tasks are reference only, so they stay out of the board (and its
     /// landscape columns) until the user asks for them.
     @AppStorage("tasks.showDone") private var showDone = false
@@ -77,6 +83,9 @@ struct TasksView: View {
             }
             .refreshable { await store.refreshAll() }
             .task { await store.refreshTasks() }
+            .task(id: store.lastUpdated) { openRequestedSession() }
+            .onChange(of: router.requestedSessionID) { _, _ in openRequestedSession() }
+            .onAppear { openRequestedSession() }
             .onChange(of: showDone) { _, visible in
                 if !visible, filter == .done { filter = .review }
             }
@@ -95,10 +104,47 @@ struct TasksView: View {
         path.append(session)
     }
 
+    /// Handles links from widgets (`opencodebar://session/<id>`) as well as the
+    /// debug launch hook used for screenshots. If the session is not in the
+    /// cached window, fetch it before pushing the detail screen.
+    private func openRequestedSession() {
+        guard path.isEmpty else { return }
+
+        #if DEBUG
+        if let requested = ProcessInfo.processInfo.environment["OPENCODEBAR_OPEN_SESSION"] {
+            if requested == "running" {
+                if let first = store.runningSessions.first { path.append(first) }
+            } else if let match = store.session(id: requested) {
+                path.append(match)
+            }
+            return
+        }
+        #endif
+
+        guard let requested = router.requestedSessionID,
+              requested != deepLinkAttempt
+        else { return }
+
+        deepLinkAttempt = requested
+        if let match = store.session(id: requested) {
+            router.requestedSessionID = nil
+            deepLinkAttempt = ""
+            path.append(match)
+            return
+        }
+
+        Task {
+            guard let fetched = await store.fetchSession(id: requested) else { return }
+            router.requestedSessionID = nil
+            deepLinkAttempt = ""
+            if path.isEmpty { path.append(fetched) }
+        }
+    }
+
     private var content: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                filters
+                filters()
 
                 if let error = store.tasksError, store.tasks.isEmpty {
                     NoticeRow(icon: "exclamationmark.triangle", message: error, tint: Theme.warn)
@@ -115,21 +161,40 @@ struct TasksView: View {
                             subtitle: "New sessions become tasks. Finished work lands here for review."
                         )
                     }
+                } else if filteredTasks.isEmpty {
+                    EmptyState(
+                        icon: "line.3.horizontal.decrease.circle",
+                        title: "No matching tasks",
+                        subtitle: "Try another project, date range, or status."
+                    )
                 } else if filter == .all {
-                    ForEach(visibleSections, id: \.self) { status in
-                        let sessions = store.tasks.filter { $0.taskStatus == status }
-                        if !sessions.isEmpty {
-                            section(status: status, sessions: sessions)
+                    let sessions = taskSessions(for: .all)
+                    if sessions.isEmpty {
+                        EmptyState(
+                            icon: "checklist",
+                            title: "No tasks",
+                            subtitle: "Show done tasks to see completed work."
+                        )
+                    } else if groupedByTime {
+                        timeGroups(sessions)
+                    } else {
+                        ForEach(visibleSections, id: \.self) { status in
+                            let sessions = filteredTasks.filter { $0.taskStatus == status }
+                            if !sessions.isEmpty {
+                                section(status: status, sessions: sessions)
+                            }
                         }
                     }
                 } else {
-                    let sessions = store.tasks(matching: filter)
+                    let sessions = taskSessions(for: filter)
                     if sessions.isEmpty {
                         EmptyState(
                             icon: filter.icon,
                             title: emptyTitle,
                             subtitle: emptySubtitle
                         )
+                    } else if groupedByTime {
+                        timeGroups(sessions)
                     } else {
                         section(status: status(for: filter) ?? .review, sessions: sessions)
                     }
@@ -151,33 +216,49 @@ struct TasksView: View {
     // MARK: - Landscape kanban
 
     private var kanban: some View {
-        Group {
-            if let error = store.tasksError, store.tasks.isEmpty {
-                VStack(spacing: 0) {
-                    NoticeRow(icon: "exclamationmark.triangle", message: error, tint: Theme.warn)
-                    Spacer(minLength: 0)
-                }
-                .padding(16)
-            } else if store.tasks.isEmpty {
-                if store.tasksFetchedAt == nil {
-                    ScrollView {
-                        SessionListSkeleton(count: 3, showsActivity: true)
-                            .shimmering()
-                            .padding(16)
+        VStack(spacing: 0) {
+            filters(showsGrouping: false)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+
+            Group {
+                if let error = store.tasksError, store.tasks.isEmpty {
+                    VStack(spacing: 0) {
+                        NoticeRow(icon: "exclamationmark.triangle", message: error, tint: Theme.warn)
+                        Spacer(minLength: 0)
                     }
-                } else {
+                    .padding(16)
+                } else if store.tasks.isEmpty {
+                    if store.tasksFetchedAt == nil {
+                        ScrollView {
+                            SessionListSkeleton(count: 3, showsActivity: true)
+                                .shimmering()
+                                .padding(16)
+                        }
+                    } else {
+                        VStack(spacing: 0) {
+                            EmptyState(
+                                icon: "checklist",
+                                title: "No tasks yet",
+                                subtitle: "New sessions become tasks. Finished work lands here for review."
+                            )
+                            Spacer(minLength: 0)
+                        }
+                        .padding(16)
+                    }
+                } else if filteredTasks.isEmpty {
                     VStack(spacing: 0) {
                         EmptyState(
-                            icon: "checklist",
-                            title: "No tasks yet",
-                            subtitle: "New sessions become tasks. Finished work lands here for review."
+                            icon: "line.3.horizontal.decrease.circle",
+                            title: "No matching tasks",
+                            subtitle: "Try another project, date range, or status."
                         )
                         Spacer(minLength: 0)
                     }
                     .padding(16)
+                } else {
+                    board
                 }
-            } else {
-                board
             }
         }
     }
@@ -219,7 +300,7 @@ struct TasksView: View {
         width: CGFloat,
         height: CGFloat
     ) -> some View {
-        let sessions = store.tasks.filter { $0.taskStatus == status }
+        let sessions = filteredTasks.filter { $0.taskStatus == status }
         let ids = sessions.map(\.id)
 
         return VStack(alignment: .leading, spacing: 8) {
@@ -310,7 +391,7 @@ struct TasksView: View {
         }
     }
 
-    private var filters: some View {
+    private func filters(showsGrouping: Bool = true) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(TaskBoardFilter.allCases) { option in
@@ -341,6 +422,13 @@ struct TasksView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(showDone ? "Hide done tasks" : "Show done tasks")
+
+                projectFilterMenu
+                timeFilterMenu
+                statusFilterMenu
+                if showsGrouping {
+                    groupingToggle
+                }
             }
             .padding(.vertical, 1)
         }
@@ -372,11 +460,53 @@ struct TasksView: View {
         .animateRecentInsertion(ids: ids)
     }
 
-    private func count(for filter: TaskBoardFilter) -> Int {
-        if filter == .all, !showDone {
-            return store.tasks.filter { $0.taskStatus != .done }.count
+    private func timeGroups(_ sessions: [Session]) -> some View {
+        ForEach(SessionGrouping.groupByTime(sessions)) { group in
+            let ids = group.sessions.map(\.id)
+            LazyVStack(alignment: .leading, spacing: 8) {
+                groupHeader(group.group.title)
+                ForEach(group.sessions) { session in
+                    MobileTaskCard(
+                        session: session,
+                        project: store.projectName(for: session),
+                        onOpen: { path.append(session) }
+                    )
+                    .transition(.recentInsertion)
+                }
+            }
+            .animateRecentInsertion(ids: ids)
         }
-        return store.tasks(matching: filter).count
+    }
+
+    private func groupHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .textCase(.uppercase)
+            .tracking(0.4)
+            .foregroundStyle(.tertiary)
+            .padding(.leading, 2)
+            .padding(.top, 2)
+    }
+
+    private func taskSessions(for filter: TaskBoardFilter) -> [Session] {
+        let matched: [Session]
+        switch filter {
+        case .all:
+            matched = filteredTasks
+        case .queued:
+            matched = filteredTasks.filter { $0.taskStatus == .queued }
+        case .review:
+            matched = filteredTasks.filter { $0.taskStatus == .review }
+        case .working:
+            matched = filteredTasks.filter { $0.taskStatus == .working }
+        case .done:
+            matched = filteredTasks.filter { $0.taskStatus == .done }
+        }
+        return showDone ? matched : matched.filter { $0.taskStatus != .done }
+    }
+
+    private func count(for filter: TaskBoardFilter) -> Int {
+        taskSessions(for: filter).count
     }
 
     private func status(for filter: TaskBoardFilter) -> SessionTask.Status? {
