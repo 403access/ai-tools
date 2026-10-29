@@ -1,6 +1,48 @@
 import SwiftUI
 import UIKit
 
+/// Grouping choices for the task list and kanban. Date grouping can stand
+/// alone or be combined with projects, in which case date comes first.
+enum MobileTaskGrouping: String, CaseIterable, Identifiable, Hashable {
+    case none
+    case project
+    case date
+    case dateAndProject
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .none: return "None"
+        case .project: return "Project"
+        case .date: return "Date"
+        case .dateAndProject: return "Date and project"
+        }
+    }
+
+    /// Whether the grouping buckets by date, and so needs an interval.
+    var usesDate: Bool {
+        self == .date || self == .dateAndProject
+    }
+}
+
+/// Bucket size for date grouping.
+enum MobileTaskDateInterval: String, CaseIterable, Identifiable, Hashable {
+    case day
+    case week
+    case month
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .day: return "Day"
+        case .week: return "Week"
+        case .month: return "Month"
+        }
+    }
+}
+
 /// Project-management board for sessions. New top-level sessions become tasks,
 /// running ones are in progress, and finished ones wait in review until the
 /// user accepts them or sends another prompt. Rotating a phone to landscape
@@ -18,7 +60,13 @@ struct TasksView: View {
     @State var selectedProjectID: String?
     @State var timeFilter: SessionTimeFilter = .all
     @State var statusFilter: SessionStatusFilter = .all
-    @State var groupedByTime = false
+    /// How the list and kanban split tasks. Mirrors the macOS board: date
+    /// grouping can stand alone or be combined with projects. Date and project
+    /// is the default.
+    @AppStorage("tasks.grouping") var groupingRaw = "dateAndProject"
+    /// Bucket size for date grouping.
+    @AppStorage("tasks.dateInterval") var dateIntervalRaw = "day"
+    @State private var showingFilters = false
     @State private var deepLinkAttempt = ""
     /// Done tasks are reference only, so they stay out of the board (and its
     /// landscape columns) until the user asks for them.
@@ -62,6 +110,21 @@ struct TasksView: View {
             .navigationTitle("Tasks")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showingFilters = true
+                    } label: {
+                        Image(systemName: activeFilterCount > 0
+                            ? "line.3.horizontal.decrease.circle.fill"
+                            : "line.3.horizontal.decrease.circle")
+                    }
+                    .accessibilityLabel("Task filters")
+                    .accessibilityValue(
+                        activeFilterCount > 0
+                            ? "\(activeFilterCount) active"
+                            : "None active"
+                    )
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 10) {
                         ConnectionPill(connection: connection, activeCount: activeCount)
@@ -85,7 +148,10 @@ struct TasksView: View {
             .task { await store.refreshTasks() }
             .task(id: store.lastUpdated) { openRequestedSession() }
             .onChange(of: router.requestedSessionID) { _, _ in openRequestedSession() }
-            .onAppear { openRequestedSession() }
+            .onAppear {
+                openRequestedSession()
+                applyDefaultGroupingIfNeeded()
+            }
             .onChange(of: showDone) { _, visible in
                 if !visible, filter == .done { filter = .review }
             }
@@ -94,6 +160,18 @@ struct TasksView: View {
                     sessionToOpen = session
                 }
                 .environmentObject(store)
+            }
+            .sheet(isPresented: $showingFilters) {
+                MobileTaskFiltersSheet(
+                    selectedProjectID: $selectedProjectID,
+                    timeFilter: $timeFilter,
+                    statusFilter: $statusFilter,
+                    grouping: groupingBinding,
+                    dateInterval: dateIntervalBinding,
+                    projects: filterProjects
+                )
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -175,15 +253,8 @@ struct TasksView: View {
                             title: "No tasks",
                             subtitle: "Show done tasks to see completed work."
                         )
-                    } else if groupedByTime {
-                        timeGroups(sessions)
                     } else {
-                        ForEach(visibleSections, id: \.self) { status in
-                            let sessions = filteredTasks.filter { $0.taskStatus == status }
-                            if !sessions.isEmpty {
-                                section(status: status, sessions: sessions)
-                            }
-                        }
+                        taskList(sessions, status: nil)
                     }
                 } else {
                     let sessions = taskSessions(for: filter)
@@ -193,10 +264,8 @@ struct TasksView: View {
                             title: emptyTitle,
                             subtitle: emptySubtitle
                         )
-                    } else if groupedByTime {
-                        timeGroups(sessions)
                     } else {
-                        section(status: status(for: filter) ?? .review, sessions: sessions)
+                        taskList(sessions, status: status(for: filter) ?? .review)
                     }
                 }
 
@@ -217,7 +286,7 @@ struct TasksView: View {
 
     private var kanban: some View {
         VStack(spacing: 0) {
-            filters(showsGrouping: false)
+            filters()
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
 
@@ -329,19 +398,11 @@ struct TasksView: View {
             .padding(.horizontal, 2)
 
             ScrollView {
-                LazyVStack(spacing: 8) {
+                LazyVStack(alignment: .leading, spacing: grouping == .none ? 8 : 10) {
                     if sessions.isEmpty {
                         emptyColumn(status)
                     } else {
-                        ForEach(sessions) { session in
-                            MobileTaskCard(
-                                session: session,
-                                project: store.projectName(for: session),
-                                compact: true,
-                                onOpen: { path.append(session) }
-                            )
-                            .transition(.recentInsertion)
-                        }
+                        kanbanCards(sessions)
                     }
                 }
                 .padding(.bottom, 2)
@@ -391,7 +452,7 @@ struct TasksView: View {
         }
     }
 
-    private func filters(showsGrouping: Bool = true) -> some View {
+    private func filters() -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(TaskBoardFilter.allCases) { option in
@@ -422,13 +483,6 @@ struct TasksView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(showDone ? "Hide done tasks" : "Show done tasks")
-
-                projectFilterMenu
-                timeFilterMenu
-                statusFilterMenu
-                if showsGrouping {
-                    groupingToggle
-                }
             }
             .padding(.vertical, 1)
         }
@@ -460,33 +514,261 @@ struct TasksView: View {
         .animateRecentInsertion(ids: ids)
     }
 
-    private func timeGroups(_ sessions: [Session]) -> some View {
-        ForEach(SessionGrouping.groupByTime(sessions)) { group in
-            let ids = group.sessions.map(\.id)
-            LazyVStack(alignment: .leading, spacing: 8) {
-                groupHeader(group.group.title)
+    /// Applies the chosen grouping to a set of sessions. Without grouping the
+    /// list keeps its status sections; grouped modes replace them with project
+    /// or date sections instead.
+    @ViewBuilder
+    private func taskList(_ sessions: [Session], status: SessionTask.Status?) -> some View {
+        if grouping == .none {
+            if let status {
+                section(status: status, sessions: sessions)
+            } else {
+                ForEach(visibleSections, id: \.self) { status in
+                    let matches = sessions.filter { $0.taskStatus == status }
+                    if !matches.isEmpty {
+                        section(status: status, sessions: matches)
+                    }
+                }
+            }
+        } else {
+            groupedSections(sessions)
+        }
+    }
+
+    @ViewBuilder
+    private func groupedSections(_ sessions: [Session]) -> some View {
+        switch grouping {
+        case .none:
+            EmptyView()
+        case .project:
+            ForEach(projectGroups(for: sessions)) { group in
+                projectSection(group)
+            }
+        case .date:
+            ForEach(dateGroups(for: sessions)) { group in
+                dateSection(group, showsProjects: false)
+            }
+        case .dateAndProject:
+            ForEach(dateGroups(for: sessions)) { group in
+                dateSection(group, showsProjects: true)
+            }
+        }
+    }
+
+    /// The kanban shows the same grouping inside each status column.
+    @ViewBuilder
+    private func kanbanCards(_ sessions: [Session]) -> some View {
+        switch grouping {
+        case .none:
+            ForEach(sessions) { session in
+                MobileTaskCard(
+                    session: session,
+                    project: store.projectName(for: session),
+                    compact: true,
+                    onOpen: { path.append(session) }
+                )
+                .transition(.recentInsertion)
+            }
+        case .project:
+            ForEach(projectGroups(for: sessions)) { group in
+                projectSection(group, compact: true)
+            }
+        case .date:
+            ForEach(dateGroups(for: sessions)) { group in
+                dateSection(group, showsProjects: false, compact: true)
+            }
+        case .dateAndProject:
+            ForEach(dateGroups(for: sessions)) { group in
+                dateSection(group, showsProjects: true, compact: true)
+            }
+        }
+    }
+
+    /// Projects ordered by their most recent activity, so a project keeps the
+    /// same position across status columns.
+    private var projectOrder: [String] {
+        var latest: [String: Date] = [:]
+        for session in filteredTasks {
+            let updated = session.time.updatedDate
+            if let existing = latest[session.projectID], existing >= updated { continue }
+            latest[session.projectID] = updated
+        }
+        return latest.sorted { $0.value > $1.value }.map(\.key)
+    }
+
+    private func projectGroups(for sessions: [Session]) -> [MobileProjectTaskGroup] {
+        let buckets = Dictionary(grouping: sessions, by: \.projectID)
+        let ordered = projectOrder.filter { buckets[$0] != nil }
+        let rest = buckets.keys.filter { !ordered.contains($0) }.sorted()
+        return (ordered + rest).compactMap { key in
+            guard let group = buckets[key], let first = group.first else { return nil }
+            return MobileProjectTaskGroup(
+                id: key,
+                name: store.projectName(for: first),
+                sessions: group
+            )
+        }
+    }
+
+    private func projectSection(
+        _ group: MobileProjectTaskGroup,
+        compact: Bool = false
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: "folder.fill")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.accent.opacity(0.85))
+                Text(group.name)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(group.sessions.count)")
+                    .font(.caption2.weight(.medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 2)
+
+            ForEach(group.sessions) { session in
+                MobileTaskCard(
+                    session: session,
+                    project: store.projectName(for: session),
+                    compact: compact,
+                    showsProject: false,
+                    onOpen: { path.append(session) }
+                )
+                .transition(.recentInsertion)
+            }
+        }
+    }
+
+    /// Buckets sessions into the chosen date interval, newest bucket first.
+    private func dateGroups(for sessions: [Session]) -> [MobileDateTaskGroup] {
+        let calendar = Calendar.current
+        var buckets: [Date: [Session]] = [:]
+        for session in sessions {
+            let start = dateBucketStart(for: groupingDate(for: session), calendar: calendar)
+            buckets[start, default: []].append(session)
+        }
+        return buckets.keys.sorted(by: >).map { start in
+            MobileDateTaskGroup(
+                id: start,
+                title: dateGroupTitle(for: start, calendar: calendar),
+                sessions: buckets[start] ?? []
+            )
+        }
+    }
+
+    /// Done tasks are filed under the day they were accepted; everything else
+    /// uses the last activity the list already shows.
+    private func groupingDate(for session: Session) -> Date {
+        if session.taskStatus == .done, let done = session.task?.doneDate {
+            return done
+        }
+        return session.time.updatedDate
+    }
+
+    private func dateBucketStart(for date: Date, calendar: Calendar) -> Date {
+        switch dateInterval {
+        case .day:
+            return calendar.startOfDay(for: date)
+        case .week:
+            return calendar.dateInterval(of: .weekOfYear, for: date)?.start
+                ?? calendar.startOfDay(for: date)
+        case .month:
+            return calendar.dateInterval(of: .month, for: date)?.start
+                ?? calendar.startOfDay(for: date)
+        }
+    }
+
+    private func dateGroupTitle(for start: Date, calendar: Calendar) -> String {
+        let now = Date()
+        switch dateInterval {
+        case .day:
+            if calendar.isDateInToday(start) { return "Today" }
+            if calendar.isDateInYesterday(start) { return "Yesterday" }
+            return Self.dayGroupFormatter.string(from: start)
+        case .week:
+            if calendar.isDate(start, equalTo: now, toGranularity: .weekOfYear) {
+                return "This week"
+            }
+            if let previous = calendar.date(byAdding: .weekOfYear, value: -1, to: now),
+               calendar.isDate(start, equalTo: previous, toGranularity: .weekOfYear) {
+                return "Last week"
+            }
+            return "Week of \(Self.weekGroupFormatter.string(from: start))"
+        case .month:
+            if calendar.isDate(start, equalTo: now, toGranularity: .month) {
+                return "This month"
+            }
+            if let previous = calendar.date(byAdding: .month, value: -1, to: now),
+               calendar.isDate(start, equalTo: previous, toGranularity: .month) {
+                return "Last month"
+            }
+            return Self.monthGroupFormatter.string(from: start)
+        }
+    }
+
+    private func dateSection(
+        _ group: MobileDateTaskGroup,
+        showsProjects: Bool,
+        compact: Bool = false
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 5) {
+                Image(systemName: "calendar")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.accent.opacity(0.85))
+                Text(group.title)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.primary.opacity(0.85))
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(group.sessions.count)")
+                    .font(.caption2.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 2)
+
+            if showsProjects {
+                ForEach(projectGroups(for: group.sessions)) { project in
+                    projectSection(project, compact: compact)
+                }
+            } else {
                 ForEach(group.sessions) { session in
                     MobileTaskCard(
                         session: session,
                         project: store.projectName(for: session),
+                        compact: compact,
                         onOpen: { path.append(session) }
                     )
                     .transition(.recentInsertion)
                 }
             }
-            .animateRecentInsertion(ids: ids)
         }
     }
 
-    private func groupHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.caption2.weight(.semibold))
-            .textCase(.uppercase)
-            .tracking(0.4)
-            .foregroundStyle(.tertiary)
-            .padding(.leading, 2)
-            .padding(.top, 2)
-    }
+    private static let dayGroupFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("EEE MMM d")
+        return formatter
+    }()
+
+    private static let weekGroupFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMM d")
+        return formatter
+    }()
+
+    private static let monthGroupFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
+        return formatter
+    }()
+
 
     private func taskSessions(for filter: TaskBoardFilter) -> [Session] {
         let matched: [Session]
@@ -540,6 +822,19 @@ struct TasksView: View {
     }
 }
 
+private struct MobileProjectTaskGroup: Identifiable {
+    let id: String
+    let name: String
+    let sessions: [Session]
+}
+
+private struct MobileDateTaskGroup: Identifiable {
+    /// Start of the bucket, so a group keeps its identity while cards update.
+    let id: Date
+    let title: String
+    let sessions: [Session]
+}
+
 private struct MobileTaskCard: View {
     @EnvironmentObject private var store: MobileStore
     let session: Session
@@ -548,6 +843,8 @@ private struct MobileTaskCard: View {
     /// header already carries the status, so the card drops its icon and status
     /// line to keep the title, metadata, and action from wrapping.
     var compact = false
+    /// Off when a project section header already names the project.
+    var showsProject = true
     let onOpen: () -> Void
 
     var body: some View {
@@ -584,13 +881,15 @@ private struct MobileTaskCard: View {
                 .lineLimit(2)
 
             HStack(spacing: 5) {
-                Text(project)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.accent)
-                    .lineLimit(1)
-                Text("·")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                if showsProject {
+                    Text(project)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                        .lineLimit(1)
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
                 Text(relativeTime)
                     .font(.caption2)
                     .foregroundStyle(.secondary)

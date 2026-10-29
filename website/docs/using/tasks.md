@@ -25,11 +25,17 @@ start a queued task, mark it done, reopen it, or remove it from the queue.
 ## Filters and grouping
 
 Both apps filter the board by **project**, **date** (all time, today, last 7
-days, or last 30 days), and **outcome** (finished, failed, or interrupted). The
-status chips switch between queued, review, in progress, done, and every task.
+days, or last 30 days), and **outcome** (finished, failed, or interrupted).
+These filters sit behind the funnel icon in the Tasks header. The icon opens a
+drawer with project, date, and outcome, and shows how many filters are active.
+The status chips remain in the tab and switch between queued, review, in
+progress, done, and every task.
 
-- On iOS, the calendar toggle groups the list by day: today, yesterday,
-  previous 7 days, previous 30 days, and older.
+Date and project is the default grouping in both apps.
+
+- On iOS, the filter drawer's **Grouping** section offers None, project, date,
+  or date and project. Date grouping can bucket by day, week, or month, and
+  applies to both the portrait list and the landscape kanban columns.
 - On macOS, **Group** splits each status column by project, by date (day, week,
   or month), or by date and then project. The compact panel and a narrow split
   column use the same grouping for their single-column list.

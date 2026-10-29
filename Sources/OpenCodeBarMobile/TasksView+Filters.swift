@@ -1,37 +1,50 @@
 import SwiftUI
 
 extension TasksView {
-    var groupingToggle: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                groupedByTime.toggle()
-            }
-        } label: {
-            Image(systemName: "calendar.badge.clock")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(groupedByTime ? Theme.accent : Color.secondary)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule().fill(
-                        groupedByTime
-                            ? Theme.accent.opacity(0.14)
-                            : Color.primary.opacity(0.07)
-                    )
-                )
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Group tasks by date")
-        .accessibilityValue(groupedByTime ? "On" : "Off")
-        .accessibilityAddTraits(groupedByTime ? .isSelected : [])
-    }
-
     var activeProjectID: String? {
         guard let selectedProjectID, store.projects[selectedProjectID] != nil else {
             return nil
         }
         return selectedProjectID
+    }
+
+    /// Number of project, date, and outcome filters narrowing the tasks.
+    var activeFilterCount: Int {
+        (activeProjectID != nil ? 1 : 0)
+            + (timeFilter == .all ? 0 : 1)
+            + (statusFilter == .all ? 0 : 1)
+    }
+
+    var grouping: MobileTaskGrouping {
+        MobileTaskGrouping(rawValue: groupingRaw) ?? .none
+    }
+
+    var groupingBinding: Binding<MobileTaskGrouping> {
+        Binding(
+            get: { grouping },
+            set: { groupingRaw = $0.rawValue }
+        )
+    }
+
+    var dateInterval: MobileTaskDateInterval {
+        MobileTaskDateInterval(rawValue: dateIntervalRaw) ?? .day
+    }
+
+    var dateIntervalBinding: Binding<MobileTaskDateInterval> {
+        Binding(
+            get: { dateInterval },
+            set: { dateIntervalRaw = $0.rawValue }
+        )
+    }
+
+    /// Date and project grouping is the default. Installs that stored another
+    /// mode before this default shipped adopt it once; later choices are kept.
+    func applyDefaultGroupingIfNeeded() {
+        let defaults = UserDefaults.standard
+        let key = "tasks.defaultGroupingApplied"
+        guard !defaults.bool(forKey: key) else { return }
+        groupingRaw = MobileTaskGrouping.dateAndProject.rawValue
+        defaults.set(true, forKey: key)
     }
 
     /// The board after the project, date, and outcome filters have been applied.
@@ -52,7 +65,7 @@ extension TasksView {
         }
     }
 
-    /// Projects that have tasks, so the menu stays relevant.
+    /// Projects that have tasks, so the filter drawer stays relevant.
     var filterProjects: [Project] {
         let tasks = store.tasks
         return store.orderedProjects.filter { project in
@@ -72,96 +85,92 @@ extension TasksView {
             ?? filterProjects.first { $0.id == activeProjectID }?.displayName
             ?? "All projects"
     }
+}
 
-    var projectFilterMenu: some View {
-        Menu {
-            Button {
-                selectedProjectID = nil
-            } label: {
-                if activeProjectID == nil {
-                    Label("All projects", systemImage: "checkmark")
-                } else {
-                    Text("All projects")
+/// Drawer opened from the Tasks header. Task states stay as chips in the list;
+/// the project, date, and outcome filters plus the grouping options only need
+/// attention occasionally, so they live here instead of taking a row of the
+/// screen.
+struct MobileTaskFiltersSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var selectedProjectID: String?
+    @Binding var timeFilter: SessionTimeFilter
+    @Binding var statusFilter: SessionStatusFilter
+    @Binding var grouping: MobileTaskGrouping
+    @Binding var dateInterval: MobileTaskDateInterval
+    let projects: [Project]
+
+    private var hasActiveFilters: Bool {
+        selectedProjectID != nil || timeFilter != .all || statusFilter != .all
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Project", selection: $selectedProjectID) {
+                        Text("All projects").tag(String?.none)
+                        ForEach(projects) { project in
+                            Text(project.displayName).tag(Optional(project.id))
+                        }
+                    }
+
+                    Picker("Date", selection: $timeFilter) {
+                        ForEach(SessionTimeFilter.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+
+                    Picker("Outcome", selection: $statusFilter) {
+                        ForEach(SessionStatusFilter.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+                } header: {
+                    Text("Filter tasks")
+                } footer: {
+                    Text("Task states stay available as chips on the Tasks tab.")
+                }
+
+                Section {
+                    Picker("Group by", selection: $grouping) {
+                        ForEach(MobileTaskGrouping.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+
+                    if grouping.usesDate {
+                        Picker("Date interval", selection: $dateInterval) {
+                            ForEach(MobileTaskDateInterval.allCases) { interval in
+                                Text(interval.title).tag(interval)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Grouping")
+                } footer: {
+                    Text("Grouping also applies to each status column in landscape.")
+                }
+
+                Section {
+                    Button("Reset filters") {
+                        selectedProjectID = nil
+                        timeFilter = .all
+                        statusFilter = .all
+                    }
+                    .disabled(!hasActiveFilters)
                 }
             }
-
-            if !filterProjects.isEmpty {
-                Divider()
-            }
-
-            ForEach(filterProjects) { project in
-                Button {
-                    selectedProjectID = project.id
-                } label: {
-                    if activeProjectID == project.id {
-                        Label(project.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(project.displayName)
+            .pickerStyle(.menu)
+            .navigationTitle("Filters")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
                     }
                 }
             }
-        } label: {
-            filterChip(icon: "folder", title: selectedProjectName)
         }
-        .accessibilityLabel("Filter by project")
-        .accessibilityValue(selectedProjectName)
-    }
-
-    var timeFilterMenu: some View {
-        Menu {
-            ForEach(SessionTimeFilter.allCases) { option in
-                Button {
-                    timeFilter = option
-                } label: {
-                    if option == timeFilter {
-                        Label(option.title, systemImage: "checkmark")
-                    } else {
-                        Text(option.title)
-                    }
-                }
-            }
-        } label: {
-            filterChip(icon: "calendar", title: timeFilter.shortTitle)
-        }
-        .accessibilityLabel("Filter by date")
-        .accessibilityValue(timeFilter.title)
-    }
-
-    var statusFilterMenu: some View {
-        Menu {
-            ForEach(SessionStatusFilter.allCases) { option in
-                Button {
-                    statusFilter = option
-                } label: {
-                    if option == statusFilter {
-                        Label(option.title, systemImage: "checkmark")
-                    } else {
-                        Text(option.title)
-                    }
-                }
-            }
-        } label: {
-            filterChip(icon: "flag", title: statusFilter.shortTitle)
-        }
-        .accessibilityLabel("Filter by status")
-        .accessibilityValue(statusFilter.title)
-    }
-
-    func filterChip(icon: String, title: String) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: icon)
-                .font(.system(size: 9, weight: .bold))
-            Text(title)
-                .font(.caption2.weight(.semibold))
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Image(systemName: "chevron.down")
-                .font(.system(size: 8, weight: .bold))
-        }
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(Capsule().fill(Color.primary.opacity(0.07)))
-        .contentShape(Capsule())
     }
 }

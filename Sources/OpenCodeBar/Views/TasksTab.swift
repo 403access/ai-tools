@@ -14,6 +14,7 @@ struct TasksTab: View {
     @State private var selectedProjectID: String?
     @State private var timeFilter: SessionTimeFilter = .all
     @State private var statusFilter: SessionStatusFilter = .all
+    @State private var showingFilterDrawer = false
     @State private var showingNewSession = false
     /// Measured content width, so the layout can follow window resizing.
     @State private var availableWidth: CGFloat = 0
@@ -21,8 +22,9 @@ struct TasksTab: View {
     /// user asks for them.
     @AppStorage("tasks.showDone") private var showDone = false
     /// How each board column is split. Date grouping can stand alone or be
-    /// combined with project grouping, in which case date comes first.
-    @AppStorage("tasks.grouping") private var groupingRaw = ""
+    /// combined with project grouping, in which case date comes first. Date
+    /// and project is the default.
+    @AppStorage("tasks.grouping") private var groupingRaw = "dateAndProject"
     /// Bucket size for date grouping, also remembered between launches.
     @AppStorage("tasks.dateInterval") private var dateIntervalRaw = "day"
 
@@ -83,7 +85,7 @@ struct TasksTab: View {
         }
     }
 
-    /// Projects that have tasks, so the menu stays relevant.
+    /// Projects that have tasks, so the filter drawer stays relevant.
     private var filterProjects: [Project] {
         let tasks = state.tasks
         return state.orderedProjects.filter { project in
@@ -202,7 +204,10 @@ struct TasksTab: View {
                 .environmentObject(state)
         }
         .task { await state.refreshTasks() }
-        .onAppear { migrateLegacyGrouping() }
+        .onAppear {
+            migrateLegacyGrouping()
+            applyDefaultGroupingIfNeeded()
+        }
         .onChange(of: showDone) { _, visible in
             if !visible, filter == .done { filter = .review }
         }
@@ -211,10 +216,22 @@ struct TasksTab: View {
     /// The first board grouping release only had a By project toggle. Fold that
     /// preference into the new mode picker once, then drop the old key.
     private func migrateLegacyGrouping() {
-        guard groupingRaw.isEmpty else { return }
-        let legacy = UserDefaults.standard.bool(forKey: "tasks.groupByProject")
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: "tasks.groupByProject") != nil else { return }
+        let legacy = defaults.bool(forKey: "tasks.groupByProject")
         groupingRaw = legacy ? TaskGrouping.project.rawValue : TaskGrouping.none.rawValue
-        UserDefaults.standard.removeObject(forKey: "tasks.groupByProject")
+        defaults.removeObject(forKey: "tasks.groupByProject")
+    }
+
+    /// Date and project grouping is the default. Installs that already stored
+    /// another mode before this default shipped adopt it once; later choices
+    /// are kept.
+    private func applyDefaultGroupingIfNeeded() {
+        let defaults = UserDefaults.standard
+        let key = "tasks.defaultGroupingApplied"
+        guard !defaults.bool(forKey: key) else { return }
+        groupingRaw = TaskGrouping.dateAndProject.rawValue
+        defaults.set(true, forKey: key)
     }
 
     /// Reports the width the tab can actually use. The panel and the desktop
@@ -233,12 +250,12 @@ struct TasksTab: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sessionFilterRow
+            // Filters sit behind the funnel icon so the chip row stays
+            // reserved for task states.
+            filterRow
 
-            // The wide board shows every status at once, so the status filters
-            // would have nothing to narrow down.
-            if !usesBoard {
-                filterRow
+            if showingFilterDrawer {
+                filterDrawer
             }
 
             HStack(spacing: 6) {
@@ -255,57 +272,199 @@ struct TasksTab: View {
         }
     }
 
+    private var activeFilterCount: Int {
+        (activeProjectID != nil ? 1 : 0)
+            + (timeFilter == .all ? 0 : 1)
+            + (statusFilter == .all ? 0 : 1)
+    }
+
+    private var hasActiveFilters: Bool {
+        activeFilterCount > 0
+    }
+
+    private func resetFilters() {
+        withAnimation(.easeInOut(duration: 0.16)) {
+            selectedProjectID = nil
+            timeFilter = .all
+            statusFilter = .all
+        }
+    }
+
     /// Project, date, and outcome filters carried over from the retired Live
     /// tab. They narrow the board as well as the list.
-    private var sessionFilterRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 7) {
-                projectFilterMenu
-                timeFilterMenu
-                statusFilterMenu
+    private var filterDrawer: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Text("Filters")
+                    .font(.system(size: 9, weight: .bold))
+                    .textCase(.uppercase)
+                    .tracking(0.6)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 4)
+
+                if hasActiveFilters {
+                    Button("Reset") {
+                        resetFilters()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .help("Clear all filters")
+                }
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        showingFilterDrawer = false
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16, height: 16)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close filters")
+            }
+
+            projectFilterMenu
+            timeFilterMenu
+            statusFilterMenu
+        }
+        .padding(9)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .frame(maxWidth: 380, alignment: .leading)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    private func filterDrawerRow(
+        icon: String,
+        title: String,
+        value: String,
+        active: Bool
+    ) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(active ? Theme.accent : Color.secondary)
+                .frame(width: 12)
+
+            Text(title)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+
+            Spacer(minLength: 6)
+
+            Text(value)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(active ? Theme.accent : Color.primary)
+                .lineLimit(1)
+
+            Image(systemName: "chevron.down")
+                .font(.system(size: 7, weight: .bold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var projectMenuItems: some View {
+        Button {
+            selectedProjectID = nil
+        } label: {
+            if activeProjectID == nil {
+                Label("All projects", systemImage: "checkmark")
+            } else {
+                Text("All projects")
             }
         }
+
+        if !filterProjects.isEmpty {
+            Divider()
+        }
+
+        ForEach(filterProjects) { project in
+            Button {
+                selectedProjectID = project.id
+            } label: {
+                if activeProjectID == project.id {
+                    Label(project.displayName, systemImage: "checkmark")
+                } else {
+                    Text(project.displayName)
+                }
+            }
+        }
+    }
+
+    /// One drawer row. The menu sits in a `ZStack` over the row so the whole
+    /// row is the hit target; a `Menu` label with a `Spacer` would collapse to
+    /// its intrinsic width.
+    private func filterMenu<Items: View>(
+        icon: String,
+        title: String,
+        value: String,
+        active: Bool,
+        help: String,
+        @ViewBuilder items: () -> Items
+    ) -> some View {
+        ZStack {
+            filterDrawerRow(
+                icon: icon,
+                title: title,
+                value: value,
+                active: active
+            )
+
+            Menu {
+                items()
+            } label: {
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+        }
+        .help(help)
+        .accessibilityLabel(help)
+        .accessibilityValue(value)
     }
 
     private var projectFilterMenu: some View {
-        Menu {
-            Button {
-                selectedProjectID = nil
-            } label: {
-                if activeProjectID == nil {
-                    Label("All projects", systemImage: "checkmark")
-                } else {
-                    Text("All projects")
-                }
-            }
-
-            if !filterProjects.isEmpty {
-                Divider()
-            }
-
-            ForEach(filterProjects) { project in
-                Button {
-                    selectedProjectID = project.id
-                } label: {
-                    if activeProjectID == project.id {
-                        Label(project.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(project.displayName)
-                    }
-                }
-            }
-        } label: {
-            filterChip(icon: "folder", title: selectedProjectName, active: activeProjectID != nil)
+        filterMenu(
+            icon: "folder",
+            title: "Project",
+            value: selectedProjectName,
+            active: activeProjectID != nil,
+            help: "Filter by project"
+        ) {
+            projectMenuItems
         }
-        .fixedSize()
-        .controlSize(.small)
-        .help("Filter by project")
-        .accessibilityLabel("Filter by project")
-        .accessibilityValue(selectedProjectName)
     }
 
     private var timeFilterMenu: some View {
-        Menu {
+        filterMenu(
+            icon: "calendar",
+            title: "Date",
+            value: timeFilter.title,
+            active: timeFilter != .all,
+            help: "Filter by date"
+        ) {
             ForEach(SessionTimeFilter.allCases) { option in
                 Button {
                     timeFilter = option
@@ -317,18 +476,17 @@ struct TasksTab: View {
                     }
                 }
             }
-        } label: {
-            filterChip(icon: "calendar", title: timeFilter.shortTitle, active: timeFilter != .all)
         }
-        .fixedSize()
-        .controlSize(.small)
-        .help("Filter by date")
-        .accessibilityLabel("Filter by date")
-        .accessibilityValue(timeFilter.title)
     }
 
     private var statusFilterMenu: some View {
-        Menu {
+        filterMenu(
+            icon: "flag",
+            title: "Outcome",
+            value: statusFilter.title,
+            active: statusFilter != .all,
+            help: "Filter by outcome"
+        ) {
             ForEach(SessionStatusFilter.allCases) { option in
                 Button {
                     statusFilter = option
@@ -340,43 +498,68 @@ struct TasksTab: View {
                     }
                 }
             }
-        } label: {
-            filterChip(icon: "flag", title: statusFilter.shortTitle, active: statusFilter != .all)
         }
-        .fixedSize()
-        .controlSize(.small)
-        .help("Filter by status")
-        .accessibilityLabel("Filter by status")
-        .accessibilityValue(statusFilter.title)
     }
 
-    private func filterChip(icon: String, title: String, active: Bool) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: icon)
-                .font(.system(size: 8, weight: .bold))
-            Text(title)
-                .font(.system(size: 9, weight: .semibold))
-                .lineLimit(1)
-                .truncationMode(.tail)
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(
-            Capsule().fill(
-                active ? Theme.accent.opacity(0.14) : Color.primary.opacity(0.06)
+    /// Opens the filter drawer. The badge counts the project, date, and
+    /// outcome filters that are currently narrowing the tasks.
+    private var filterButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                showingFilterDrawer.toggle()
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.system(size: 8, weight: .bold))
+                if hasActiveFilters {
+                    Text("\(activeFilterCount)")
+                        .font(.system(size: 8, weight: .bold))
+                        .monospacedDigit()
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                Capsule().fill(
+                    hasActiveFilters || showingFilterDrawer
+                        ? Theme.accent.opacity(0.14)
+                        : Color.primary.opacity(0.06)
+                )
             )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(
+            hasActiveFilters || showingFilterDrawer ? Theme.accent : Color.secondary
         )
-        .foregroundStyle(active ? Theme.accent : Color.secondary)
+        .help(showingFilterDrawer ? "Hide task filters" : "Show task filters")
+        .accessibilityLabel("Task filters")
+        .accessibilityValue(
+            hasActiveFilters ? "\(activeFilterCount) active" : "None active"
+        )
+        .accessibilityAddTraits(showingFilterDrawer ? .isSelected : [])
     }
 
     @ViewBuilder
     private var filterRow: some View {
-        if usesScrollableFilters {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) { filterButtons }
+        HStack(spacing: 6) {
+            filterButton
+
+            // The wide board shows every status at once, so the state chips
+            // would have nothing to narrow down.
+            if !usesBoard {
+                if usesScrollableFilters {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) { filterButtons }
+                    }
+                } else {
+                    HStack(spacing: 6) { filterButtons }
+                    Spacer(minLength: 0)
+                }
+            } else {
+                Spacer(minLength: 0)
             }
-        } else {
-            HStack(spacing: 6) { filterButtons }
         }
     }
 
