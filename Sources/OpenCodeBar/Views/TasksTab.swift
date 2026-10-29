@@ -27,6 +27,9 @@ struct TasksTab: View {
     @AppStorage("tasks.grouping") private var groupingRaw = "dateAndProject"
     /// Bucket size for date grouping, also remembered between launches.
     @AppStorage("tasks.dateInterval") private var dateIntervalRaw = "day"
+    /// Show each project's own icon in group headers when the hub found one.
+    /// Projects without artwork keep the folder glyph.
+    @AppStorage("tasks.projectIcons") private var showsProjectIcons = true
 
     /// A status column stays readable at this width. The board needs room for
     /// three columns before it replaces the list; showing Done adds a fourth
@@ -914,9 +917,13 @@ struct TasksTab: View {
     private func projectSection(_ group: ProjectTaskGroup, compact: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
-                Image(systemName: "folder.fill")
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(Theme.accent.opacity(0.85))
+                if showsProjectIcons, let image = state.projectIcons[group.id] {
+                    ProjectIconView(image: image, size: 13)
+                } else {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(Theme.accent.opacity(0.85))
+                }
                 Text(group.name)
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.secondary)

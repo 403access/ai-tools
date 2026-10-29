@@ -71,6 +71,7 @@ struct TasksView: View {
     /// Done tasks are reference only, so they stay out of the board (and its
     /// landscape columns) until the user asks for them.
     @AppStorage("tasks.showDone") private var showDone = false
+    @AppStorage("tasks.projectIcons") private var showsProjectIcons = true
 
     private let sectionOrder: [SessionTask.Status] = [
         .queued, .review, .working, .done, .dismissed,
@@ -616,9 +617,13 @@ struct TasksView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
-                Image(systemName: "folder.fill")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Theme.accent.opacity(0.85))
+                if showsProjectIcons, let image = store.projectIcons[group.id] {
+                    ProjectIconTile(image: image, size: 14)
+                } else {
+                    Image(systemName: "folder.fill")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Theme.accent.opacity(0.85))
+                }
                 Text(group.name)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)

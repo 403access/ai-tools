@@ -86,6 +86,10 @@ iOS app:
   groups the single-column list the same way. The mode and interval are
   remembered, and cards inside a project section stop repeating the project
   name.
+- Project sections show the project's own app icon when the hub finds artwork
+  for it, and keep the folder symbol otherwise. Turn this off in
+  **Settings → App → Project icons in Tasks** on macOS or
+  **Settings → Appearance** on iOS.
 - The board is stored on the hub and synced to both apps, so resolving a task on
   the Mac updates the phone.
 - A session that is **Paused** or **Stopped** keeps its badge and continue time

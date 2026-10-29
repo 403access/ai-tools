@@ -18,6 +18,18 @@ extension SettingsView {
                 Text("Dark mirrors the Mac menu bar panel.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+
+                Divider()
+
+                Toggle(isOn: $showsProjectIcons) {
+                    Text("Project icons in Tasks")
+                        .font(.subheadline.weight(.medium))
+                }
+                .tint(Theme.accent)
+
+                Text("Show each project's app icon in Tasks group headers. Projects without artwork keep the folder symbol.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
             .card(padding: 12)
         }

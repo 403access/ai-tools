@@ -9,6 +9,7 @@ struct SettingsTab: View {
 
     @State var copiedPairingLink = false
     @State private var showRestartConfirmation = false
+    @AppStorage("tasks.projectIcons") private var showsProjectIcons = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -60,6 +61,20 @@ struct SettingsTab: View {
                 .controlSize(.small)
 
                 Text("Run OpenCodeBar as a desktop app alongside the menu bar item. A resizable window opens at launch, with a Dock icon and the same sessions, projects, and settings.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Divider()
+
+                Toggle(isOn: $showsProjectIcons) {
+                    Text("Project icons in Tasks")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+                Text("Show each project's app icon in the Tasks board group headers. Projects without artwork keep the folder symbol.")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

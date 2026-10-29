@@ -40,6 +40,11 @@ Date and project is the default grouping in both apps.
   or month), or by date and then project. The compact panel and a narrow split
   column use the same grouping for their single-column list.
 
+Project group headers use the project's own app icon when the hub finds artwork
+for it, and fall back to the folder symbol otherwise. Switch this off in
+**Settings → App → Project icons in Tasks** on macOS or
+**Settings → Appearance** on iOS.
+
 The empty state suggests another project, date range, or status when no tasks
 match.
 

@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State var pairingLink = ""
     @State var showScanner = false
     @State var showToken = false
+    @AppStorage("tasks.projectIcons") var showsProjectIcons = true
     @State var loaded = false
     @State var testing = false
     @State var testMessage: String?
