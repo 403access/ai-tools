@@ -25,6 +25,10 @@ packages:
     # After v1.5.1 (no stray debug print) and before the Metal resource was
     # added; see Package.swift for why this revision is pinned.
     revision: 493d99e4e3e99a27077bf24bc0e1c8d20f9f7925
+  FluidAudio:
+    url: https://github.com/FluidInference/FluidAudio.git
+    # On-device Parakeet speech recognition for dictation; see Package.swift.
+    exactVersion: 0.18.0
 
 targets:
   OpenCodeBarMobile:
@@ -49,6 +53,9 @@ targets:
       - path: Sources/OpenCodeBar/Core/RemoteDesktopModels.swift
       - path: Sources/OpenCodeBar/Core/HostTerminalMirror.swift
       - path: Sources/OpenCodeBar/Support/Formatters.swift
+      - path: Sources/OpenCodeBar/Support/DictationEngine.swift
+      - path: Sources/OpenCodeBar/Support/ParakeetDictationEngine.swift
+      - path: Sources/OpenCodeBar/Support/AppleDictationEngine.swift
       - path: Sources/OpenCodeBar/Support/SpeechInput.swift
       - path: Sources/OpenCodeBar/Views/Theme.swift
       - path: Sources/OpenCodeBar/Views/Components.swift
@@ -65,6 +72,7 @@ targets:
       - sdk: libsqlite3.tbd
       - target: OpenCodeBarWidgets
       - package: SwiftTerm
+      - package: FluidAudio
     entitlements:
       path: Mobile/OpenCodeBar.entitlements
       properties:

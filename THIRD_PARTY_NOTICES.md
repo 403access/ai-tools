@@ -32,3 +32,30 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
+
+## FluidAudio
+
+Dictation runs on [FluidAudio](https://github.com/FluidInference/FluidAudio),
+which loads Core ML conversions of NVIDIA's Parakeet models. FluidAudio is
+licensed under the Apache License 2.0.
+
+The speech model weights (`nvidia/parakeet-tdt-0.6b-v2` and
+`nvidia/parakeet-tdt-0.6b-v3`, converted by Fluid Inference) are licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
+```text
+Copyright 2025 Fluid Inference
+Copyright 2024 NVIDIA Corporation
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use these files except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```

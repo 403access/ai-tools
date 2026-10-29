@@ -19,13 +19,20 @@ let package = Package(
         .package(
             url: "https://github.com/migueldeicaza/SwiftTerm.git",
             revision: "493d99e4e3e99a27077bf24bc0e1c8d20f9f7925"
+        ),
+        // On-device Parakeet speech recognition for dictation. Models run on
+        // the Neural Engine and download once on first use.
+        .package(
+            url: "https://github.com/FluidInference/FluidAudio.git",
+            from: "0.18.0"
         )
     ],
     targets: [
         .executableTarget(
             name: "OpenCodeBar",
             dependencies: [
-                .product(name: "SwiftTerm", package: "SwiftTerm")
+                .product(name: "SwiftTerm", package: "SwiftTerm"),
+                .product(name: "FluidAudio", package: "FluidAudio")
             ],
             path: "Sources/OpenCodeBar"
         ),

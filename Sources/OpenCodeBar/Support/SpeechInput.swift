@@ -1,5 +1,3 @@
-import AVFoundation
-import Speech
 import SwiftUI
 #if os(iOS)
 import UIKit
@@ -7,23 +5,26 @@ import UIKit
 
 /// Live speech-to-text for the prompt composers.
 ///
-/// Wraps `SFSpeechRecognizer` and `AVAudioEngine` in a small state machine:
-/// request permission, stream microphone buffers, and publish the growing
-/// transcript while the user speaks. On-device recognition is preferred when
-/// the current locale supports it, so prompts stay on the device.
+/// Runs the local Parakeet model on the Neural Engine and falls back to the
+/// system recognizer when the model cannot be prepared. Whatever the engine,
+/// the transcript is appended to the draft the user already typed and stays
+/// editable.
 @MainActor
 final class SpeechDictation: ObservableObject {
     @Published private(set) var isListening = false
     @Published private(set) var isPreparing = false
+    /// 0...1 while the local model downloads or compiles, otherwise nil.
+    @Published private(set) var preparationProgress: Double?
+    @Published private(set) var preparationStatus: String?
     @Published var errorMessage: String?
 
-    private var recognizer: SFSpeechRecognizer?
-    private var audioEngine: AVAudioEngine?
-    private var request: SFSpeechAudioBufferRecognitionRequest?
-    private var task: SFSpeechRecognitionTask?
+    private var engine: (any DictationEngine)?
     private var baseText = ""
     private var update: ((String) -> Void)?
     private var isFinalizing = false
+    /// Guards against a late `finish()` from a previous session writing into a
+    /// new draft after the user tapped the microphone again.
+    private var sessionID = 0
 
     /// Starts or stops dictation. `update` receives the draft with the live
     /// transcript appended to whatever was already in the field.
@@ -37,124 +38,153 @@ final class SpeechDictation: ObservableObject {
 
     func start(text: String, update: @escaping (String) -> Void) async {
         guard !isListening, !isPreparing else { return }
-        // Drop a previous task that is still finalizing so it cannot feed
-        // results into the new dictation session.
-        if isFinalizing || task != nil { reset() }
+
+        // Drop a previous session that is still finalizing so its results
+        // cannot feed into this one.
+        discardEngine()
+        sessionID &+= 1
+        let session = sessionID
 
         errorMessage = nil
         isPreparing = true
         baseText = text
         self.update = update
+        preparationProgress = nil
+        preparationStatus = nil
         defer { isPreparing = false }
 
-        guard await requestAccess() else {
-            self.update = nil
-            baseText = ""
-            return
+        let engine = ParakeetDictationEngine()
+        engine.onTranscript = { [weak self] spoken in self?.receive(spoken) }
+        engine.onFailure = { [weak self] message in self?.fail(message) }
+        self.engine = engine
+
+        do {
+            try await engine.prepare { [weak self] fraction, status in
+                guard let self, self.sessionID == session else { return }
+                self.preparationProgress = fraction
+                self.preparationStatus = status
+            }
+        } catch {
+            guard sessionID == session else { return }
+            // The local model needs a one-time download. When that fails, keep
+            // dictation working with the system recognizer instead of leaving
+            // the button dead.
+            DevLog.shared.record(
+                "Local speech model unavailable",
+                category: .app,
+                level: .warning,
+                detail: "Falling back to system dictation: \(error.localizedDescription)"
+            )
+            let fallback = AppleDictationEngine()
+            fallback.onTranscript = { [weak self] spoken in self?.receive(spoken) }
+            fallback.onFailure = { [weak self] message in self?.fail(message) }
+            self.engine = fallback
+            do {
+                try await fallback.prepare { _, _ in }
+            } catch {
+                guard sessionID == session else { return }
+                self.engine = nil
+                self.update = nil
+                self.baseText = ""
+                errorMessage = error.localizedDescription
+                return
+            }
         }
 
-        // The view may have disappeared while the permission sheet was open.
-        guard isPreparing, self.update != nil else { return }
-
-        guard let recognizer = makeRecognizer(), recognizer.isAvailable else {
-            errorMessage = "Speech recognition isn't available right now."
-            self.update = nil
-            baseText = ""
+        // The view may have disappeared while the permission sheet or the model
+        // download was in progress.
+        guard sessionID == session, isPreparing, self.update != nil, let engine = self.engine else {
             return
         }
 
         do {
-            #if os(iOS)
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .measurement)
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-            #endif
-
-            let engine = AVAudioEngine()
-            let request = SFSpeechAudioBufferRecognitionRequest()
-            request.shouldReportPartialResults = true
-            request.taskHint = .dictation
-            if recognizer.supportsOnDeviceRecognition {
-                request.requiresOnDeviceRecognition = true
-            }
-
-            let input = engine.inputNode
-            let format = input.outputFormat(forBus: 0)
-            guard format.sampleRate > 0, format.channelCount > 0 else {
-                throw DictationError.noMicrophone
-            }
-
-            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-                request.append(buffer)
-            }
-            engine.prepare()
-            try engine.start()
-
-            self.recognizer = recognizer
-            self.audioEngine = engine
-            self.request = request
-            isListening = true
-
-            task = recognizer.recognitionTask(with: request) { [weak self] result, error in
-                Task { @MainActor [weak self] in
-                    self?.handle(result: result, error: error)
-                }
-            }
+            try await engine.startCapture()
         } catch {
-            errorMessage = message(for: error)
-            reset()
+            guard sessionID == session else { return }
+            self.engine = nil
+            self.update = nil
+            self.baseText = ""
+            errorMessage = error.localizedDescription
+            return
         }
+
+        guard sessionID == session else { return }
+        isListening = true
+        preparationProgress = nil
+        preparationStatus = nil
     }
 
-    /// Stops listening and lets the recognizer finalize the last words.
+    /// Stops listening and lets the engine finalize the last words.
     func stop() {
-        guard isListening else { return }
+        guard isListening || isPreparing, !isFinalizing else { return }
 
         isListening = false
+        isPreparing = false
         isFinalizing = true
-        audioEngine?.stop()
-        request?.endAudio()
-        task?.finish()
+        preparationProgress = nil
+        preparationStatus = nil
 
-        // Keep the audio session briefly so a final transcription can land,
-        // then release everything even if the recognizer stays quiet.
-        let finishingTask = task
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-            guard let self, self.task === finishingTask else { return }
-            self.reset()
+        let session = sessionID
+        let engine = self.engine
+        Task {
+            let final = await engine?.finish() ?? ""
+            self.finishSession(session, transcript: final)
+        }
+        // Watchdog: an engine that stalls must never leave the button stuck in
+        // the finalizing state.
+        Task {
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            self.finishSession(session, transcript: "")
         }
     }
 
     /// Stops immediately, discarding any late recognition callbacks.
     func cancel() {
-        guard isListening || isPreparing || task != nil else { return }
-        update = nil
-        baseText = ""
-        reset()
+        guard engine != nil || isListening || isPreparing else { return }
+
+        sessionID &+= 1
+        discardEngine()
+        isListening = false
+        isPreparing = false
+        isFinalizing = false
+        preparationProgress = nil
+        preparationStatus = nil
     }
 
-    // MARK: - Recognition
+    // MARK: - Session
 
-    private func handle(result: SFSpeechRecognitionResult?, error: Error?) {
-        guard isListening || isFinalizing else { return }
+    private func receive(_ spoken: String) {
+        guard let update else { return }
+        update(joined(baseText, spoken))
+    }
 
-        if let result {
-            let spoken = result.bestTranscription.formattedString
-            update?(joined(baseText, spoken))
-            if result.isFinal {
-                reset()
-                return
-            }
+    private func finishSession(_ session: Int, transcript: String) {
+        guard session == sessionID else { return }
+        if !transcript.isEmpty {
+            receive(transcript)
         }
+        discardEngine()
+        isFinalizing = false
+    }
 
-        if let error {
-            // Errors after an explicit stop are expected while finalizing.
-            if isListening {
-                errorMessage = message(for: error)
-            }
-            reset()
+    private func fail(_ message: String) {
+        errorMessage = message
+        discardEngine()
+        isListening = false
+        isPreparing = false
+        isFinalizing = false
+    }
+
+    private func discardEngine() {
+        guard let engine else {
+            update = nil
+            baseText = ""
+            return
         }
+        self.engine = nil
+        update = nil
+        baseText = ""
+        Task { await engine.cancel() }
     }
 
     private func joined(_ base: String, _ spoken: String) -> String {
@@ -162,86 +192,6 @@ final class SpeechDictation: ObservableObject {
         guard !base.isEmpty else { return spoken }
         if base.hasSuffix(" ") || base.hasSuffix("\n") { return base + spoken }
         return base + " " + spoken
-    }
-
-    private func makeRecognizer() -> SFSpeechRecognizer? {
-        let locale = Locale.preferredLanguages.first.map { Locale(identifier: $0) } ?? Locale.current
-        return SFSpeechRecognizer(locale: locale) ?? SFSpeechRecognizer()
-    }
-
-    // MARK: - Permission
-
-    private func requestAccess() async -> Bool {
-        switch SFSpeechRecognizer.authorizationStatus() {
-        case .authorized:
-            break
-        case .notDetermined:
-            await withCheckedContinuation { continuation in
-                SFSpeechRecognizer.requestAuthorization { _ in continuation.resume() }
-            }
-            guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
-                errorMessage = "Speech recognition is turned off. Allow it in Settings to dictate prompts."
-                return false
-            }
-        case .denied, .restricted:
-            errorMessage = "Speech recognition is turned off. Allow it in Settings to dictate prompts."
-            return false
-        @unknown default:
-            errorMessage = "Speech recognition isn't available on this device."
-            return false
-        }
-
-        let microphoneGranted = await withCheckedContinuation { continuation in
-            AVAudioApplication.requestRecordPermission { granted in
-                continuation.resume(returning: granted)
-            }
-        }
-        guard microphoneGranted else {
-            errorMessage = "Microphone access is turned off. Allow it in Settings to dictate prompts."
-            return false
-        }
-        return true
-    }
-
-    // MARK: - Teardown
-
-    private func reset() {
-        isListening = false
-        isPreparing = false
-        isFinalizing = false
-
-        if let engine = audioEngine {
-            engine.stop()
-            engine.inputNode.removeTap(onBus: 0)
-        }
-        task?.cancel()
-        request?.endAudio()
-
-        audioEngine = nil
-        request = nil
-        task = nil
-        recognizer = nil
-        update = nil
-        baseText = ""
-
-        #if os(iOS)
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        #endif
-    }
-
-    private func message(for error: Error) -> String {
-        if (error as NSError).domain == "kAFAssistantErrorDomain" {
-            return "Dictation stopped. Tap the microphone to try again."
-        }
-        return error.localizedDescription
-    }
-
-    private enum DictationError: LocalizedError {
-        case noMicrophone
-
-        var errorDescription: String? {
-            "No microphone input is available."
-        }
     }
 }
 
@@ -263,8 +213,10 @@ struct VoiceInputButton: View {
             ZStack(alignment: .topTrailing) {
                 Group {
                     if dictation.isPreparing {
-                        ProgressView()
-                            .controlSize(.small)
+                        DictationProgressRing(
+                            progress: dictation.preparationProgress,
+                            size: iconSize
+                        )
                     } else {
                         Image(systemName: dictation.isListening ? "mic.fill" : "mic")
                             .font(.system(size: iconSize, weight: .medium))
@@ -285,10 +237,9 @@ struct VoiceInputButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(dictation.isPreparing)
         .accessibilityLabel(dictation.isListening ? "Stop dictation" : "Dictate prompt")
         .accessibilityHint("Speaks your prompt into the text field")
-        .help(dictation.isListening ? "Stop dictation" : "Dictate prompt")
+        .help(helpText)
         .alert("Dictation unavailable", isPresented: errorPresented) {
             #if os(iOS)
             Button("Open Settings") {
@@ -306,6 +257,13 @@ struct VoiceInputButton: View {
         }
     }
 
+    private var helpText: String {
+        if dictation.isPreparing {
+            return dictation.preparationStatus ?? "Preparing dictation"
+        }
+        return dictation.isListening ? "Stop dictation" : "Dictate prompt"
+    }
+
     private var errorPresented: Binding<Bool> {
         Binding(
             get: { dictation.errorMessage != nil },
@@ -313,5 +271,33 @@ struct VoiceInputButton: View {
                 if !presented { dictation.errorMessage = nil }
             }
         )
+    }
+}
+
+/// Spinner with a determinate arc while the speech model downloads.
+private struct DictationProgressRing: View {
+    var progress: Double?
+    var size: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.secondary.opacity(0.25), lineWidth: 2)
+
+            if let progress {
+                Circle()
+                    .trim(from: 0, to: max(0.02, min(progress, 1)))
+                    .stroke(
+                        Color.accentColor,
+                        style: StrokeStyle(lineWidth: 2, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+        .frame(width: size, height: size)
+        .animation(.easeOut(duration: 0.2), value: progress)
     }
 }

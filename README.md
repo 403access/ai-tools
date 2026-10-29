@@ -125,9 +125,11 @@ iOS app:
   time in the recent list. Continue sends `continue` into the conversation,
   which starts a fresh turn. Typing a prompt also releases the hold.
 - **Speak your prompt.** The microphone in the conversation composer and the
-  new-session sheet turns speech into text as you talk. It keeps whatever you
-  already typed, and the transcript stays editable before you send. Speech
-  recognition runs on the device when the current language supports it.
+  new-session sheet turns speech into text as you talk, using NVIDIA's Parakeet
+  model on the Apple Neural Engine. It keeps whatever you already typed, and the
+  transcript stays editable before you send. The model downloads once (~450 MB)
+  and then dictation works offline; if it cannot be prepared the app falls back
+  to the system speech recognizer.
 - **Start a new session** from the Tasks tab or a project page: open the
   searchable project browser to sort by recent, name, or running work and
   filter to running, Git, or sandboxed projects, choose **Current folder** or
