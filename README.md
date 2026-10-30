@@ -188,6 +188,13 @@ iOS app:
   including untracked files, and marks git working-tree changes as added,
   modified, or deleted; filter it to changed files or search by path. The layout
   button swaps the flat list for a collapsible folder tree.
+- **Structure** draws the project folder as a layered diagram: the root, its
+  top-level areas, the modules inside them, and one more level of nested
+  folders, with edges for containment. Each node shows its file count, dominant
+  language, and working-tree changes; the header adds totals, a language
+  composition bar, and a legend. Select a node to read its full path, inspect
+  its language mix, or reveal it in Finder. Wide folders are capped per column
+  and show **+N** for the children the map leaves out.
 - **Git** shows the repository's current branch, HEAD, working-tree state, local
   branches, tags, and the full commit graph across every ref. Commits keep their
   parent links, so merges and side branches are drawn as a lane graph instead
@@ -929,6 +936,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     Catalog.swift           OpenCode model/agent catalogs and failed-turn lookup
     Changes.swift           file patches and grouping
     ProjectFiles.swift      project file browser payloads
+    ProjectStructure.swift  layered project structure map and file languages
     GitInfo.swift           commit, branch, and repository graph models (shared)
     GitHubFlows.swift       workflow runs, stages, jobs and checks (shared)
     APIEnvelopes.swift      request/response envelopes
@@ -964,6 +972,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     SessionMessageViews.swift         message, part and prompt cards
     ProjectDetailView.swift           project header, tabs, and sections
     ProjectDetailAnalytics.swift      scoped at-a-glance stats
+    ProjectStructureView.swift        project map, edges and node details
     ProjectSessions.swift             recent-session rows
     GitViews.swift                    session commits and project commit graph
     FlowsViews.swift                  GitHub Actions stages, jobs and checks

@@ -14,7 +14,7 @@ come first, then the most recently active.
 
 ## Project detail
 
-<Figure src="/img/screenshots/project-detail.png" alt="Project detail with an Overview tab showing running sessions and at-a-glance stats" caption="Overview keeps running work and recent sessions together; Stats, Changes, Files, Git, and Sessions have their own tabs." />
+<Figure src="/img/screenshots/project-detail.png" alt="Project detail with an Overview tab showing running sessions and at-a-glance stats" caption="Overview keeps running work and recent sessions together; Stats, Changes, Files, Structure, Git, and Sessions have their own tabs." />
 
 Select a project to open its detail page. The name, path, and quick actions
 stay pinned at the top, and the content is split into tabs so each kind of
@@ -33,6 +33,14 @@ information gets its own screen instead of one long scroll:
   the flat list for a collapsible folder tree; collapsed folders show how many
   changed files they contain. Folders that are not git work trees still list
   their files, without status.
+- **Structure** — a layered, left-to-right diagram of the folder: the project
+  root, its top-level areas, the modules inside them, and one more level of
+  nested folders. Edges show containment; nodes show their file count, dominant
+  language, and working-tree changes. The header totals files, folders, nodes,
+  links, and changes, with a language composition bar and legend. Select a node
+  to read its path, language mix, and hidden-child count, or reveal it in
+  Finder. Large folders are capped per column and mark the leftover children
+  with **+N**.
 - **Git** — the repository's current branch, HEAD, working-tree state, local
   branches, tags, and the full commit graph across every ref. Commits keep
   their parent links, so merges and side branches are drawn as a lane graph

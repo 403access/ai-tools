@@ -64,6 +64,7 @@ struct ProjectDetailView: View {
                         case .stats: statsTab
                         case .changes: changesTab
                         case .files: filesTab
+                        case .structure: structureTab
                         case .git: gitTab
                         case .flows: flowsTab
                         case .sessions: sessionsTab
@@ -584,6 +585,35 @@ struct ProjectDetailView: View {
         } else {
             SectionHeader("Files")
             LoadingState(message: "Reading project folder…")
+        }
+    }
+
+    // MARK: - Structure
+
+    @ViewBuilder
+    private var structureTab: some View {
+        let filesState = state.projectFiles[project.id]
+
+        if let files = filesState?.files {
+            ProjectStructureTab(
+                projectName: project.displayName,
+                projectPath: project.canonical,
+                files: files,
+                loadedAt: filesState?.loadedAt
+            )
+        } else if let filesState, filesState.isLoading {
+            SectionHeader("Structure")
+            LoadingState(message: "Mapping project folders…")
+        } else if let filesState, let error = filesState.error {
+            SectionHeader("Structure")
+            NoticeRow(
+                icon: "exclamationmark.triangle.fill",
+                message: error,
+                tint: Theme.warn
+            )
+        } else {
+            SectionHeader("Structure")
+            LoadingState(message: "Mapping project folders…")
         }
     }
 

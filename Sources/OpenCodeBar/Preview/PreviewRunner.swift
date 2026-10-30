@@ -232,6 +232,17 @@ enum PreviewRunner {
                         RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
                     }
                 }
+                if requestedProjectMode == .structure {
+                    var finished = false
+                    Task { @MainActor in
+                        await state.loadProjectFiles(project.id, force: true)
+                        finished = true
+                    }
+                    let deadline = Date().addingTimeInterval(20)
+                    while !finished && Date() < deadline {
+                        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+                    }
+                }
             }
         }
 
