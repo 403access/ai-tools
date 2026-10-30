@@ -102,6 +102,8 @@ struct UsageView: View {
                                     tint: .secondary
                                 )
                             } else {
+                                ToolUsageChart(usage: filtered)
+                                    .equatable()
                                 ToolUsageBreakdown(usage: filtered)
                                     .equatable()
                             }

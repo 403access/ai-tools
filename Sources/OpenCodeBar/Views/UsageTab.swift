@@ -193,6 +193,7 @@ struct UsageTab: View {
                             tint: .secondary
                         )
                     } else {
+                        ToolUsageChart(usage: filtered)
                         ToolUsageBreakdown(usage: filtered)
                     }
                 }

@@ -5,6 +5,7 @@ typealias AppIconImage = NSImage
 import UIKit
 typealias AppIconImage = UIImage
 #endif
+import Charts
 import SwiftUI
 
 // MARK: - Motion
@@ -607,6 +608,78 @@ struct ToolUsageBreakdown: View, Equatable {
     private func fraction(_ value: Int, of total: Int) -> CGFloat {
         guard total > 0 else { return 0 }
         return CGFloat(value) / CGFloat(total)
+    }
+}
+
+/// Call volume per tool as a horizontal bar chart. Bars are tinted by tool type
+/// so the chart still reads when the list is filtered or too long for a legend.
+struct ToolUsageChart: View, Equatable {
+    let usage: [Stats.ToolUsage]
+    var limit: Int = 8
+
+    private var ordered: [Stats.ToolUsage] {
+        usage.sorted {
+            if $0.calls != $1.calls { return $0.calls > $1.calls }
+            return $0.name < $1.name
+        }
+    }
+
+    /// Reversed so the busiest tool lands at the top of the chart's Y axis.
+    private var rows: [Stats.ToolUsage] {
+        Array(ordered.prefix(limit)).reversed()
+    }
+
+    var body: some View {
+        let rows = rows
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Chart(rows) { tool in
+                BarMark(
+                    x: .value("Calls", Double(tool.calls)),
+                    y: .value("Tool", tool.name)
+                )
+                .foregroundStyle(tool.category.tint.opacity(0.85))
+                .cornerRadius(2)
+            }
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
+                        .foregroundStyle(Color.primary.opacity(0.12))
+                    AxisValueLabel {
+                        if let calls = value.as(Double.self) {
+                            Text(Fmt.compact(calls))
+                                .font(.system(size: 8))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks { value in
+                    AxisValueLabel {
+                        if let name = value.as(String.self) {
+                            Text(name)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                }
+            }
+            .chartPlotStyle { plot in
+                plot.background(Color.clear)
+            }
+            .frame(height: CGFloat(rows.count) * 22 + 10)
+            .accessibilityLabel("Tool calls by tool")
+
+            if ordered.count > rows.count {
+                Text("Top \(rows.count) of \(ordered.count) tools by calls")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .card()
     }
 }
 
