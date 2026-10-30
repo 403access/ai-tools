@@ -14,6 +14,10 @@ struct UsageTab: View {
     /// selected category.
     @State private var toolCategory: ToolCategory?
 
+    /// Persisted so the chosen representation survives tab switches and
+    /// relaunches.
+    @AppStorage("usage.toolVisualization") private var toolVisualization: ToolVisualization = .list
+
     private let topAnchor = "usage-top"
 
     var body: some View {
@@ -186,6 +190,8 @@ struct UsageTab: View {
                             .foregroundStyle(.secondary)
                     }
                     ToolCategoryFilter(usage: usage, selection: $toolCategory)
+                    ToolVisualizationPicker(selection: $toolVisualization)
+                        .controlSize(.small)
                     if filtered.isEmpty {
                         NoticeRow(
                             icon: "line.3.horizontal.decrease.circle",
@@ -193,8 +199,7 @@ struct UsageTab: View {
                             tint: .secondary
                         )
                     } else {
-                        ToolUsageChart(usage: filtered)
-                        ToolUsageBreakdown(usage: filtered)
+                        ToolVisualizationView(usage: filtered, style: toolVisualization)
                     }
                 }
             } else {

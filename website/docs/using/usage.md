@@ -61,10 +61,11 @@ bar. Per-model steps and cost appear below.
 
 ## Tool reliability
 
-The Usage tab includes a global tool-call success/failure summary, a bar chart
-of call volume per tool, and filters for MCP, OS, library, and app tools. The
-per-tool list adds failures and median duration. Project pages have the same
-breakdown scoped to one project.
+The Usage tab includes a global tool-call success/failure summary and filters
+for MCP, OS, library, and app tools. The filtered tools can be rendered as a
+list, horizontal or vertical bars, a pie chart, or a line chart. The list adds
+failures and median duration; the charts show call volume. Project pages have
+the same breakdown scoped to one project.
 
 ## Stale data
 

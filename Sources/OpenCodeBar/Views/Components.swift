@@ -611,11 +611,87 @@ struct ToolUsageBreakdown: View, Equatable {
     }
 }
 
-/// Call volume per tool as a horizontal bar chart. Bars are tinted by tool type
-/// so the chart still reads when the list is filtered or too long for a legend.
+/// How the usage tools section renders each tool's call volume. `list` keeps
+/// the detailed reliability rows; the rest are chart alternatives for the same
+/// filtered tools.
+enum ToolVisualization: String, CaseIterable, Identifiable, Sendable {
+    case list
+    case rows
+    case columns
+    case pie
+    case line
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .list: return "List"
+        case .rows: return "Rows"
+        case .columns: return "Columns"
+        case .pie: return "Pie"
+        case .line: return "Line"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .list: return "list.bullet"
+        case .rows: return "chart.bar.doc.horizontal"
+        case .columns: return "chart.bar.fill"
+        case .pie: return "chart.pie.fill"
+        case .line: return "chart.xyaxis.line"
+        }
+    }
+}
+
+/// Compact segmented control for switching the tool list's representation.
+struct ToolVisualizationPicker: View {
+    @Binding var selection: ToolVisualization
+
+    var body: some View {
+        Picker("Tool render type", selection: $selection) {
+            ForEach(ToolVisualization.allCases) { style in
+                Label(style.title, systemImage: style.icon)
+                    .labelStyle(.iconOnly)
+                    .tag(style)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .help("Choose how tool usage is rendered")
+        .accessibilityLabel("Tool render type")
+    }
+}
+
+/// Renders the filtered tool usage in the selected representation.
+struct ToolVisualizationView: View, Equatable {
+    let usage: [Stats.ToolUsage]
+    let style: ToolVisualization
+
+    var body: some View {
+        switch style {
+        case .list:
+            ToolUsageBreakdown(usage: usage)
+        case .rows, .columns, .pie, .line:
+            ToolUsageChart(usage: usage, style: style)
+        }
+    }
+}
+
+/// Per-tool call volume as rows, columns, a pie, or a line. Rows keep the
+/// detailed outcome bars; every chart mode shares one palette so switching
+/// representation keeps each tool's colour stable.
 struct ToolUsageChart: View, Equatable {
     let usage: [Stats.ToolUsage]
-    var limit: Int = 8
+    let style: ToolVisualization
+
+    private static let palette: [Color] = [
+        Theme.accent, Theme.running, Theme.reasoning, Theme.warn,
+        Theme.cacheWrite, Theme.input, Theme.output, Theme.cacheRead,
+    ]
+
+    private let limit = 8
+    private let pieLimit = 6
 
     private var ordered: [Stats.ToolUsage] {
         usage.sorted {
@@ -624,62 +700,279 @@ struct ToolUsageChart: View, Equatable {
         }
     }
 
-    /// Reversed so the busiest tool lands at the top of the chart's Y axis.
-    private var rows: [Stats.ToolUsage] {
-        Array(ordered.prefix(limit)).reversed()
+    private var top: [Stats.ToolUsage] { Array(ordered.prefix(limit)) }
+
+    private var ranks: [String: Int] {
+        Dictionary(uniqueKeysWithValues: ordered.enumerated().map { index, tool in
+            (tool.id, index)
+        })
     }
 
     var body: some View {
-        let rows = rows
+        VStack(alignment: .leading, spacing: 8) {
+            chart
 
-        return VStack(alignment: .leading, spacing: 8) {
-            Chart(rows) { tool in
-                BarMark(
-                    x: .value("Calls", Double(tool.calls)),
-                    y: .value("Tool", tool.name)
-                )
-                .foregroundStyle(tool.category.tint.opacity(0.85))
-                .cornerRadius(2)
-            }
-            .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 3)) { value in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
-                        .foregroundStyle(Color.primary.opacity(0.12))
-                    AxisValueLabel {
-                        if let calls = value.as(Double.self) {
-                            Text(Fmt.compact(calls))
-                                .font(.system(size: 8))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-            .chartYAxis {
-                AxisMarks { value in
-                    AxisValueLabel {
-                        if let name = value.as(String.self) {
-                            Text(name)
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                    }
-                }
-            }
-            .chartPlotStyle { plot in
-                plot.background(Color.clear)
-            }
-            .frame(height: CGFloat(rows.count) * 22 + 10)
-            .accessibilityLabel("Tool calls by tool")
-
-            if ordered.count > rows.count {
-                Text("Top \(rows.count) of \(ordered.count) tools by calls")
+            if let note {
+                Text(note)
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
             }
         }
         .card()
+    }
+
+    @ViewBuilder
+    private var chart: some View {
+        switch style {
+        case .rows:
+            rowsChart
+        case .columns:
+            columnsChart
+        case .pie:
+            pieChart
+        case .line:
+            lineChart
+        case .list:
+            EmptyView()
+        }
+    }
+
+    private var rowsChart: some View {
+        // Busiest first so it lands at the top of the chart's Y axis.
+        Chart(top) { tool in
+            BarMark(
+                x: .value("Calls", Double(tool.calls)),
+                y: .value("Tool", tool.name)
+            )
+            .foregroundStyle(color(for: tool).opacity(0.85))
+            .cornerRadius(2)
+        }
+        .chartLegend(.hidden)
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
+                    .foregroundStyle(Color.primary.opacity(0.12))
+                AxisValueLabel {
+                    if let calls = value.as(Double.self) {
+                        Text(Fmt.compact(calls))
+                            .font(.system(size: 8))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .chartYAxis {
+            AxisMarks { value in
+                AxisValueLabel {
+                    if let name = value.as(String.self) {
+                        Text(name)
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+            }
+        }
+        .chartPlotStyle { plot in
+            plot.background(Color.clear)
+        }
+        .frame(height: CGFloat(top.count) * 22 + 10)
+        .accessibilityLabel("Tool calls by tool, rows")
+    }
+
+    private var columnsChart: some View {
+        Chart(top) { tool in
+            BarMark(
+                x: .value("Tool", tool.name),
+                y: .value("Calls", Double(tool.calls))
+            )
+            .foregroundStyle(color(for: tool).opacity(0.85))
+            .cornerRadius(2)
+        }
+        .chartLegend(.hidden)
+        .chartXScale(domain: top.map(\.name))
+        .chartXAxis {
+            AxisMarks { value in
+                AxisValueLabel {
+                    if let name = value.as(String.self) {
+                        Text(shortName(name))
+                            .font(.system(size: 8))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
+                    .foregroundStyle(Color.primary.opacity(0.12))
+                AxisValueLabel {
+                    if let calls = value.as(Double.self) {
+                        Text(Fmt.compact(calls))
+                            .font(.system(size: 8))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .chartPlotStyle { plot in
+            plot.background(Color.clear)
+        }
+        .frame(height: 150)
+        .accessibilityLabel("Tool calls by tool, columns")
+    }
+
+    private var lineChart: some View {
+        Chart(top) { tool in
+            LineMark(
+                x: .value("Tool", tool.name),
+                y: .value("Calls", Double(tool.calls))
+            )
+            .foregroundStyle(Theme.accent)
+            .lineStyle(StrokeStyle(lineWidth: 2))
+            .interpolationMethod(.monotone)
+
+            PointMark(
+                x: .value("Tool", tool.name),
+                y: .value("Calls", Double(tool.calls))
+            )
+            .foregroundStyle(color(for: tool))
+            .symbolSize(28)
+        }
+        .chartLegend(.hidden)
+        .chartXScale(domain: top.map(\.name))
+        .chartXAxis {
+            AxisMarks { value in
+                AxisValueLabel {
+                    if let name = value.as(String.self) {
+                        Text(shortName(name))
+                            .font(.system(size: 8))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
+                    .foregroundStyle(Color.primary.opacity(0.12))
+                AxisValueLabel {
+                    if let calls = value.as(Double.self) {
+                        Text(Fmt.compact(calls))
+                            .font(.system(size: 8))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .chartPlotStyle { plot in
+            plot.background(Color.clear)
+        }
+        .frame(height: 150)
+        .accessibilityLabel("Tool calls by tool, line")
+    }
+
+    private var slices: [ToolSlice] {
+        var result = Array(ordered.prefix(pieLimit)).enumerated().map { index, tool in
+            ToolSlice(
+                id: tool.id,
+                name: tool.name,
+                calls: tool.calls,
+                color: color(at: index)
+            )
+        }
+
+        let otherCalls = ordered.dropFirst(pieLimit).reduce(0) { $0 + $1.calls }
+        if otherCalls > 0 {
+            result.append(ToolSlice(id: "other", name: "Other", calls: otherCalls, color: .secondary))
+        }
+        return result
+    }
+
+    private var pieChart: some View {
+        let slices = slices
+        let total = slices.reduce(0) { $0 + $1.calls }
+
+        return VStack(alignment: .leading, spacing: 10) {
+            ZStack {
+                Chart(slices) { slice in
+                    SectorMark(
+                        angle: .value("Calls", Double(slice.calls)),
+                        innerRadius: .ratio(0.55),
+                        angularInset: 1.5
+                    )
+                    .foregroundStyle(slice.color.opacity(0.85))
+                }
+                .chartLegend(.hidden)
+                .frame(height: 160)
+
+                VStack(spacing: 1) {
+                    Text(Fmt.compact(Double(total)))
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                    Text("calls")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                spacing: 5
+            ) {
+                ForEach(slices) { slice in
+                    HStack(spacing: 5) {
+                        Circle().fill(slice.color).frame(width: 6, height: 6)
+                        Text(slice.name)
+                            .font(.system(size: 9))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 4)
+                        Text(Fmt.grouped(slice.calls))
+                            .font(.system(size: 9, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Tool calls, pie")
+    }
+
+    private var note: String? {
+        switch style {
+        case .list:
+            return nil
+        case .pie:
+            guard ordered.count > pieLimit else { return nil }
+            return "Top \(pieLimit) tools shown; the rest are grouped as Other"
+        case .rows, .columns, .line:
+            guard ordered.count > limit else { return nil }
+            return "Top \(limit) of \(ordered.count) tools by calls"
+        }
+    }
+
+    private func color(for tool: Stats.ToolUsage) -> Color {
+        color(at: ranks[tool.id] ?? 0)
+    }
+
+    private func color(at index: Int) -> Color {
+        Self.palette[index % Self.palette.count]
+    }
+
+    private func shortName(_ name: String) -> String {
+        name.count > 12 ? String(name.prefix(11)) + "…" : name
+    }
+
+    private struct ToolSlice: Identifiable {
+        let id: String
+        let name: String
+        let calls: Int
+        let color: Color
     }
 }
 

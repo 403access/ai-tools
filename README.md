@@ -225,8 +225,8 @@ iOS app:
     by cost, with the same selectable windows.
   - **Breakdown** — token mix (input / output / reasoning / cache read / cache
     write) and the per-model breakdown with steps and cost.
-  - **Tools** — the tool call success/failure summary, a call-volume chart,
-    tool-type filters, and the per-tool breakdown.
+  - **Tools** — the tool call success/failure summary, tool-type filters, and
+    a switchable per-tool view: list, rows, columns, pie, or line.
 - The Go plan strip and section picker stay in place while a page scrolls, and
   switching tabs keeps the Usage page you last viewed.
 

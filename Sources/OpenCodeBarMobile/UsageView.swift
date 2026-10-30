@@ -9,6 +9,9 @@ struct UsageView: View {
     /// selected category.
     @State private var toolCategory: ToolCategory?
 
+    /// Persisted so the chosen representation survives relaunches.
+    @AppStorage("usage.toolVisualization") private var toolVisualization: ToolVisualization = .list
+
     var body: some View {
         NavigationStack {
             Group {
@@ -95,6 +98,7 @@ struct UsageView: View {
                                     .foregroundStyle(.secondary)
                             }
                             ToolCategoryFilter(usage: usage, selection: $toolCategory)
+                            ToolVisualizationPicker(selection: $toolVisualization)
                             if filtered.isEmpty {
                                 NoticeRow(
                                     icon: "line.3.horizontal.decrease.circle",
@@ -102,9 +106,7 @@ struct UsageView: View {
                                     tint: .secondary
                                 )
                             } else {
-                                ToolUsageChart(usage: filtered)
-                                    .equatable()
-                                ToolUsageBreakdown(usage: filtered)
+                                ToolVisualizationView(usage: filtered, style: toolVisualization)
                                     .equatable()
                             }
                         }
