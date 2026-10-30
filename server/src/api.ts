@@ -11,6 +11,11 @@ import { CloneError, cloneRepository } from "./clone.ts";
 import { listProjectFiles, ProjectFilesError } from "./files.ts";
 import { readProjectGit, readSessionGit } from "./git.ts";
 import {
+  GitHubError,
+  readProjectFlows,
+  type ProjectFlowsOptions,
+} from "./github.ts";
+import {
   FileBrowserError,
   listDirectory,
   readFileContent,
@@ -23,6 +28,7 @@ import { resolveAppIcon } from "./system/appIcons.ts";
 import type {
   Deployment,
   DeploymentsPayload,
+  GitHubFlows,
   MediaControlResult,
   ServerInfo,
   SystemAppDetail,
@@ -110,12 +116,17 @@ export interface ApiDeps {
   ota?: OtaStore;
   /** Background OTA builder, injectable so tests do not run xcodebuild. */
   otaBuild?: OtaBuilder;
+  /** GitHub Actions reader, injectable so tests do not touch the network. */
+  github?: {
+    flows(directory: string, options?: ProjectFlowsOptions): Promise<GitHubFlows | null>;
+  };
 }
 
 export function createHandler(
   deps: ApiDeps,
 ): (request: Request, server?: Bun.Server<HubSocketData>) => Promise<Response> {
   const { db, hub, config, restart, persistSettings, remote } = deps;
+  const github = deps.github ?? { flows: readProjectFlows };
   const system: NonNullable<ApiDeps["system"]> = deps.system ?? new SystemInfoService({
     hub: () => ({
       startedAt: hub.startedAt,
@@ -1052,6 +1063,28 @@ export function createHandler(
         if (!project) return error("Project not found", 404);
         const limit = intParam(url.searchParams.get("limit"), 2_000, 1, 20_000);
         return json({ data: await readProjectGit(project.canonical, limit) });
+      }
+
+      if (parts[0] === "api" && parts[1] === "project" && parts[3] === "flows" && parts.length === 4) {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+        const id = decodeURIComponent(parts[2]!);
+        const project = db.getProject(id);
+        if (!project) return error("Project not found", 404);
+
+        const rawRun = url.searchParams.get("run");
+        const runID = rawRun === null ? undefined : Number.parseInt(rawRun, 10);
+        if (runID !== undefined && (!Number.isFinite(runID) || runID <= 0)) {
+          return error("run must be a positive workflow run id", 400);
+        }
+        const force = url.searchParams.get("refresh") === "1";
+        try {
+          return json({
+            data: await github.flows(project.canonical, { runID, force }),
+          });
+        } catch (caught) {
+          if (caught instanceof GitHubError) return error(caught.message, caught.status);
+          throw caught;
+        }
       }
 
       if (parts[0] === "api" && parts[1] === "project" && parts[3] === "icon" && parts.length === 4) {

@@ -837,6 +837,7 @@ and the hub retries on the next loop. A deleted session releases its control.
 | `GET` | `/api/project/{id}/changes` | Aggregated project changes |
 | `GET` | `/api/project/{id}/files` | Project files with git status |
 | `GET` | `/api/project/{id}/git` | Full repository graph, branches, and tags |
+| `GET` | `/api/project/{id}/flows` | GitHub Actions runs, jobs, stages, and checks |
 | `GET` | `/api/project/{id}/icon` | The project's own app icon |
 
 `/api/project/{id}/changes` accepts `sessions` (default 10, max 100) for how
@@ -904,6 +905,15 @@ reports the full reachable count and `truncated` marks a shortened response.
 `/api/session/{id}/git` uses the same repository summary and adds the commits
 made while the session was active. It never fails for a non-repository
 directory; `repository` is `null` and `commits` is empty.
+
+`/api/project/{id}/flows` reads GitHub Actions for the repository in the
+project's `origin` remote. It returns recent runs, the selected run's workflow,
+branch, commit, duration, jobs grouped by the workflow's `needs` graph, and the
+head commit's check runs. `run` selects a specific workflow run id and `refresh=1`
+bypasses the short hub cache. `data` is `null` when the project has no GitHub
+remote. Public repositories work anonymously; set `GITHUB_TOKEN` or `GH_TOKEN`
+(alternatively sign in with `gh auth login`) for private repositories and a
+higher API limit.
 
 ### Stats and usage
 

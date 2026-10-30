@@ -28,6 +28,16 @@ enum PreviewRunner {
         return arguments[index + 1]
     }
 
+    /// Maps `--project-mode flows` (or any ProjectDetailMode title) to a tab.
+    private static func projectMode(
+        from arguments: [String]
+    ) -> AppState.ProjectDetailMode? {
+        guard let raw = value(after: "--project-mode", in: arguments) else { return nil }
+        return AppState.ProjectDetailMode.allCases.first {
+            $0.rawValue.localizedCaseInsensitiveCompare(raw) == .orderedSame
+        }
+    }
+
     // MARK: - Interactive preview window
 
     @MainActor
@@ -72,9 +82,17 @@ enum PreviewRunner {
 
         // `--project-detail` opens the first project's detail page.
         if CommandLine.arguments.contains("--project-detail") {
+            if let requested = projectMode(from: CommandLine.arguments) {
+                state.projectMode = requested
+            }
+            let requestedProject = value(after: "--project", in: CommandLine.arguments)
             Task { @MainActor in
                 for _ in 0..<50 {
-                    if let project = state.orderedProjects.first {
+                    if let project = requestedProject.flatMap({ requested in
+                        state.orderedProjects.first {
+                            $0.id == requested || $0.canonical == requested
+                        }
+                    }) ?? state.orderedProjects.first {
                         state.open(project)
                         return
                     }
@@ -187,10 +205,34 @@ enum PreviewRunner {
         }
 
         // `--project-detail` opens the first project's detail page, for the
-        // same reason.
+        // same reason. `--project` selects one by id or path, and
+        // `--project-mode` chooses the tab that should be visible.
         let wantsProjectDetail = CommandLine.arguments.contains("--project-detail")
-        if wantsProjectDetail, let project = state.orderedProjects.first {
-            state.open(project)
+        let requestedProjectMode = projectMode(from: CommandLine.arguments)
+        if let requestedProjectMode {
+            state.projectMode = requestedProjectMode
+        }
+        if wantsProjectDetail {
+            let requestedProject = value(after: "--project", in: CommandLine.arguments)
+            let project = requestedProject.flatMap { requested in
+                state.orderedProjects.first {
+                    $0.id == requested || $0.canonical == requested
+                }
+            } ?? state.orderedProjects.first
+            if let project {
+                state.open(project)
+                if requestedProjectMode == .flows {
+                    var finished = false
+                    Task { @MainActor in
+                        await state.loadProjectFlows(project.id, force: true)
+                        finished = true
+                    }
+                    let deadline = Date().addingTimeInterval(20)
+                    while !finished && Date() < deadline {
+                        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+                    }
+                }
+            }
         }
 
         // `--files <path>` opens the host file browser for screenshots.

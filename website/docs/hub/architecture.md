@@ -131,6 +131,17 @@ uncapped `total`, and return `null` instead of an error when the directory is
 not a git work tree. Git commands run with a short timeout so a broken or huge
 repository cannot stall the API.
 
+## GitHub flows
+
+`/api/project/{id}/flows` resolves the GitHub repository from the project's
+remotes, then reads the Actions runs, the selected run's jobs, the workflow
+file's `needs` graph, the head commit, and its check runs. The small YAML subset
+needed for `needs` is parsed without a dependency, and dependency depth becomes
+the stage board the Flows tab draws. Responses are normalized into one status
+vocabulary and cached briefly so switching tabs does not spend the API limit.
+A token from `GITHUB_TOKEN`, `GH_TOKEN`, or the GitHub CLI unlocks private
+repositories; public repositories work anonymously.
+
 ## Project icons
 
 `/api/project/{id}/icon` finds the icon a project already ships with, so the

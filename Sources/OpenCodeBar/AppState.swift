@@ -103,6 +103,13 @@ final class AppState: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct ProjectFlowsState: Equatable {
+        var flows: GitHubFlows?
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     struct SessionGitState: Equatable {
         var git: SessionGit?
         var isLoading = false
@@ -146,6 +153,7 @@ final class AppState: ObservableObject {
         case changes = "Changes"
         case files = "Files"
         case git = "Git"
+        case flows = "Flows"
         case sessions = "Sessions"
 
         var id: String { rawValue }
@@ -157,6 +165,7 @@ final class AppState: ObservableObject {
             case .changes: return "plus.forwardslash.minus"
             case .files: return "doc.text"
             case .git: return "arrow.triangle.branch"
+            case .flows: return "point.3.connected.trianglepath.dotted"
             case .sessions: return "bubble.left.and.bubble.right"
             }
         }
@@ -216,6 +225,8 @@ final class AppState: ObservableObject {
     @Published var projectFiles: [String: ProjectFilesState] = [:]
     /// Full repository graph for a project, loaded when its Git tab opens.
     @Published var projectGit: [String: ProjectGitState] = [:]
+    /// GitHub Actions runs and checks, loaded when the Flows tab opens.
+    @Published var projectFlows: [String: ProjectFlowsState] = [:]
     /// Commit information for one session, loaded when its Git tab opens.
     @Published var sessionGit: [String: SessionGitState] = [:]
     /// Per-session stats (prompts, tool reliability, failures), loaded when the

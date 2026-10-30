@@ -65,6 +65,7 @@ struct ProjectDetailView: View {
                         case .changes: changesTab
                         case .files: filesTab
                         case .git: gitTab
+                        case .flows: flowsTab
                         case .sessions: sessionsTab
                         }
                     }
@@ -91,6 +92,8 @@ struct ProjectDetailView: View {
         .task(id: "\(project.id)-\(mode.rawValue)") {
             if mode == .git {
                 await state.loadProjectGit(project.id)
+            } else if mode == .flows {
+                await state.loadProjectFlows(project.id)
             }
         }
         .onChange(of: project.id) { _, _ in
@@ -614,6 +617,48 @@ struct ProjectDetailView: View {
         } else {
             SectionHeader("Git")
             LoadingState(message: "Reading repository…")
+        }
+    }
+
+    // MARK: - Flows
+
+    @ViewBuilder
+    private var flowsTab: some View {
+        let flowsState = state.projectFlows[project.id]
+
+        if let flows = flowsState?.flows {
+            ProjectFlowsView(
+                flows: flows,
+                isLoading: flowsState?.isLoading == true,
+                onSelectRun: { run in
+                    Task {
+                        await state.loadProjectFlows(project.id, runID: run.id, force: true)
+                    }
+                },
+                onRefresh: {
+                    Task { await state.loadProjectFlows(project.id, force: true) }
+                }
+            )
+        } else if let flowsState, flowsState.isLoading {
+            FlowsSkeleton()
+                .shimmering()
+        } else if let flowsState, let error = flowsState.error {
+            SectionHeader("Flows")
+            NoticeRow(
+                icon: "exclamationmark.triangle.fill",
+                message: error,
+                tint: Theme.warn
+            )
+        } else if flowsState?.loadedAt != nil {
+            SectionHeader("Flows")
+            EmptyState(
+                icon: "point.3.connected.trianglepath.dotted",
+                title: "Not a GitHub project",
+                subtitle: "Add a GitHub remote to this checkout to see Actions runs and checks."
+            )
+        } else {
+            FlowsSkeleton()
+                .shimmering()
         }
     }
 

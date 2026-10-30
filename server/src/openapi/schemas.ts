@@ -632,6 +632,199 @@ export const SCHEMAS = {
     properties: { data: { $ref: "#/components/schemas/SessionGit" } },
   },
 
+  GitHubFlowRepository: {
+    type: "object",
+    required: ["owner", "name", "url", "remote"],
+    properties: {
+      owner: string,
+      name: string,
+      url: { type: "string", example: "https://github.com/acme/storefront" },
+      remote: { type: "string", example: "git@github.com:acme/storefront.git" },
+    },
+  },
+
+  GitHubFlowActor: {
+    type: "object",
+    required: ["login"],
+    properties: {
+      login: string,
+      avatarURL: string,
+    },
+  },
+
+  GitHubFlowRun: {
+    type: "object",
+    required: [
+      "id", "runNumber", "attempt", "workflowID", "workflowName", "event",
+      "status", "branch", "sha", "shortSHA", "title", "createdAt", "durationMs", "htmlURL",
+    ],
+    properties: {
+      id: { type: "integer", format: "int64" },
+      runNumber: integer,
+      attempt: integer,
+      workflowID: { type: "integer", format: "int64" },
+      workflowName: string,
+      workflowPath: string,
+      event: string,
+      status: {
+        type: "string",
+        enum: ["queued", "running", "success", "failure", "cancelled", "skipped", "neutral", "waiting", "unknown"],
+      },
+      conclusion: string,
+      branch: string,
+      sha: string,
+      shortSHA: string,
+      title: string,
+      message: string,
+      actor: { $ref: "#/components/schemas/GitHubFlowActor" },
+      createdAt: timestamp,
+      startedAt: timestamp,
+      updatedAt: timestamp,
+      durationMs: integer,
+      htmlURL: string,
+    },
+  },
+
+  GitHubFlowStep: {
+    type: "object",
+    required: ["number", "name", "status", "durationMs"],
+    properties: {
+      number: integer,
+      name: string,
+      status: { type: "string" },
+      conclusion: string,
+      startedAt: timestamp,
+      completedAt: timestamp,
+      durationMs: integer,
+    },
+  },
+
+  GitHubFlowJob: {
+    type: "object",
+    required: ["id", "name", "status", "durationMs", "labels", "htmlURL", "stage", "steps"],
+    properties: {
+      id: { type: "integer", format: "int64" },
+      name: string,
+      status: { type: "string" },
+      conclusion: string,
+      startedAt: timestamp,
+      completedAt: timestamp,
+      durationMs: integer,
+      runnerName: string,
+      labels: stringArray,
+      htmlURL: string,
+      stage: integer,
+      steps: { type: "array", items: { $ref: "#/components/schemas/GitHubFlowStep" } },
+    },
+  },
+
+  GitHubFlowStage: {
+    type: "object",
+    required: ["index", "name", "status", "jobs"],
+    properties: {
+      index: integer,
+      name: string,
+      status: { type: "string" },
+      jobs: { type: "array", items: { $ref: "#/components/schemas/GitHubFlowJob" } },
+    },
+  },
+
+  GitHubFlowCommit: {
+    type: "object",
+    required: [
+      "sha", "shortSHA", "message", "authorName", "additions", "deletions",
+      "changedFiles", "url",
+    ],
+    properties: {
+      sha: string,
+      shortSHA: string,
+      message: string,
+      authorName: string,
+      authorLogin: string,
+      additions: integer,
+      deletions: integer,
+      changedFiles: integer,
+      url: string,
+    },
+  },
+
+  GitHubCheckAnnotation: {
+    type: "object",
+    required: ["path", "startLine", "endLine", "level", "message"],
+    properties: {
+      path: string,
+      startLine: integer,
+      endLine: integer,
+      level: { type: "string", enum: ["notice", "warning", "failure"] },
+      title: string,
+      message: string,
+    },
+  },
+
+  GitHubCheck: {
+    type: "object",
+    required: ["id", "name", "status", "durationMs", "annotations"],
+    properties: {
+      id: { type: "integer", format: "int64" },
+      name: string,
+      status: { type: "string" },
+      conclusion: string,
+      startedAt: timestamp,
+      completedAt: timestamp,
+      durationMs: integer,
+      detailsURL: string,
+      description: string,
+      summary: string,
+      appName: string,
+      annotations: {
+        type: "array",
+        items: { $ref: "#/components/schemas/GitHubCheckAnnotation" },
+      },
+    },
+  },
+
+  GitHubFlowRunDetail: {
+    allOf: [
+      { $ref: "#/components/schemas/GitHubFlowRun" },
+      {
+        type: "object",
+        required: ["jobs", "stages", "checks"],
+        properties: {
+          jobs: { type: "array", items: { $ref: "#/components/schemas/GitHubFlowJob" } },
+          stages: { type: "array", items: { $ref: "#/components/schemas/GitHubFlowStage" } },
+          checks: { type: "array", items: { $ref: "#/components/schemas/GitHubCheck" } },
+        },
+      },
+    ],
+  },
+
+  GitHubFlows: {
+    type: "object",
+    required: ["repository", "branch", "runs", "run", "commit", "generatedAt"],
+    properties: {
+      repository: { $ref: "#/components/schemas/GitHubFlowRepository" },
+      branch: { type: "string", nullable: true },
+      runs: { type: "array", items: { $ref: "#/components/schemas/GitHubFlowRun" } },
+      run: {
+        allOf: [{ $ref: "#/components/schemas/GitHubFlowRunDetail" }],
+        nullable: true,
+      },
+      commit: {
+        allOf: [{ $ref: "#/components/schemas/GitHubFlowCommit" }],
+        nullable: true,
+      },
+      generatedAt: timestamp,
+    },
+  },
+
+  GitHubFlowsResponse: {
+    type: "object",
+    required: ["data"],
+    properties: {
+      data: { allOf: [{ $ref: "#/components/schemas/GitHubFlows" }], nullable: true },
+    },
+  },
+
   SessionPendingItem: {
     type: "object",
     required: ["id", "sessionID", "type", "time"],

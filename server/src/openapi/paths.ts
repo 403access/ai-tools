@@ -842,6 +842,32 @@ export const PATHS = {
     },
   },
 
+  "/api/project/{id}/flows": {
+    get: {
+      tags: ["Projects"],
+      summary: "GitHub Actions flows",
+      description:
+        "Reads recent workflow runs for the project's GitHub repository, the selected run's jobs grouped into dependency stages, head-commit stats, and check runs. `data` is null when the project is not a GitHub checkout. Set `GITHUB_TOKEN` or sign in with the GitHub CLI for private repositories.",
+      operationId: "getProjectFlows",
+      parameters: [
+        pathParam("id", "Project id."),
+        queryParam("run", "Workflow run id to open instead of the newest run.", {
+          type: "integer",
+          minimum: 1,
+        }),
+        refreshParam,
+      ],
+      responses: {
+        200: ok(schemaRef("GitHubFlowsResponse")),
+        400: badRequest,
+        401: unauthorized,
+        404: notFound,
+        429: { description: "GitHub API rate limit reached." },
+        default: failure,
+      },
+    },
+  },
+
   "/api/project/{id}/icon": {
     get: {
       tags: ["Projects"],

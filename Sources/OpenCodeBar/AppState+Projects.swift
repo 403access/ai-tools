@@ -78,6 +78,9 @@ extension AppState {
         await loadProjectChanges(project.id, force: true)
         await loadProjectFiles(project.id, force: true)
         await loadProjectGit(project.id, force: true)
+        if projectFlows[project.id] != nil {
+            await loadProjectFlows(project.id, force: true)
+        }
     }
 
     /// Fetches the project repository's branches, tags, and full commit graph.
@@ -109,6 +112,42 @@ extension AppState {
             }
             failed.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             projectGit[projectID] = failed
+        }
+    }
+
+    /// Fetches recent GitHub Actions runs, the selected run's jobs and
+    /// stages, commit stats and checks. Loaded when the Flows tab opens.
+    /// `flows` stays nil when the project is not a GitHub checkout.
+    func loadProjectFlows(
+        _ projectID: String,
+        runID: Int? = nil,
+        force: Bool = false
+    ) async {
+        guard let api else { return }
+        if projectFlows[projectID]?.isLoading == true { return }
+        if !force, runID == nil, let loaded = projectFlows[projectID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 45 {
+            return
+        }
+        defer { trimCache(&projectFlows, loadedAt: { $0.loadedAt }, pinning: projectID) }
+
+        var state = projectFlows[projectID] ?? ProjectFlowsState()
+        state.isLoading = true
+        state.error = nil
+        projectFlows[projectID] = state
+
+        do {
+            let flows = try await api.projectFlows(id: projectID, runID: runID, refresh: force)
+            projectFlows[projectID] = ProjectFlowsState(flows: flows, loadedAt: Date())
+        } catch {
+            var failed = projectFlows[projectID] ?? ProjectFlowsState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                projectFlows[projectID] = failed
+                return
+            }
+            failed.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            projectFlows[projectID] = failed
         }
     }
 

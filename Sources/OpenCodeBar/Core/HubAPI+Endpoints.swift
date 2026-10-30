@@ -794,6 +794,25 @@ extension HubAPI {
         return response.data
     }
 
+    /// Recent GitHub Actions runs for the project's repository, plus the
+    /// selected run's jobs, checks and commit. nil when the project is not a
+    /// GitHub checkout.
+    func projectFlows(
+        id: String,
+        runID: Int? = nil,
+        refresh: Bool = false
+    ) async throws -> GitHubFlows? {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        var query: [String] = []
+        if let runID { query.append("run=\(runID)") }
+        if refresh { query.append("refresh=1") }
+        let suffix = query.isEmpty ? "" : "?" + query.joined(separator: "&")
+        let response: GitHubFlowsResponse = try await get(
+            "/api/project/\(encoded)/flows\(suffix)"
+        )
+        return response.data
+    }
+
     /// The current repository state for a session plus commits made while it
     /// was active.
     func sessionGit(id: String, limit: Int = 2_000) async throws -> SessionGit {

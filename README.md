@@ -192,6 +192,14 @@ iOS app:
   branches, tags, and the full commit graph across every ref. Commits keep their
   parent links, so merges and side branches are drawn as a lane graph instead
   of a flat list. Non-repository folders show an empty state.
+- **Flows** brings the project's GitHub Actions pipeline into the same page:
+  recent runs, the selected run's workflow, branch, commit and duration, a stage
+  strip, jobs grouped into their `needs` dependency stages, the selected job's
+  steps and annotations, and the head commit's check runs. Each job and run
+  links back to GitHub. Use `GITHUB_TOKEN` / `GH_TOKEN`, or sign in with
+  `gh auth login`, so private repositories and the API rate limit work; public
+  repositories fall back to anonymous reads. Projects without a GitHub remote
+  show an empty state instead.
 - **Sessions** lists every session in the project with its cost and time,
   revealed in pages of 50. Quick actions open the project in Finder or Terminal
   and copy its path.
@@ -446,7 +454,8 @@ The hub:
    `/api/session/{id}/stats`, `/api/session/{id}/git`,
    `/api/session/{id}/forks`, `/api/project`,
    `/api/project/{id}/changes`, `/api/project/{id}/files`,
-   `/api/project/{id}/git`, `/api/project/{id}/icon`,
+   `/api/project/{id}/git`, `/api/project/{id}/flows`,
+   `/api/project/{id}/icon`,
    `/api/experimental/session/stats` — plus
    `/api/session/{id}/prompt` (`POST`), `/api/session/{id}/pause` (`POST`),
    `/api/session/{id}/stop` (`POST`), `/api/session/{id}/continue` (`POST`),
@@ -921,6 +930,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     Changes.swift           file patches and grouping
     ProjectFiles.swift      project file browser payloads
     GitInfo.swift           commit, branch, and repository graph models (shared)
+    GitHubFlows.swift       workflow runs, stages, jobs and checks (shared)
     APIEnvelopes.swift      request/response envelopes
     OpenCodeEvent.swift     decoded event payloads (shared)
     ProjectOrdering.swift   project merge + ordering from running counts (shared)
@@ -956,6 +966,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     ProjectDetailAnalytics.swift      scoped at-a-glance stats
     ProjectSessions.swift             recent-session rows
     GitViews.swift                    session commits and project commit graph
+    FlowsViews.swift                  GitHub Actions stages, jobs and checks
     SettingsTab.swift       connected devices and server controls
     SystemTab.swift         machine, resources, apps, Homebrew and tools
     SystemAppDetailView.swift  app bundle facts and Xcode simulator management
@@ -1071,6 +1082,7 @@ server/                       Bun + TypeScript + SQLite hub
   src/hub/                    event bus, sync, reads, usage cache
   src/files.ts                project file browser
   src/git.ts                  session commits and project commit graph
+  src/github.ts               GitHub Actions runs, stages, needs and checks
   src/browser.ts              read-only host file browser and previews
   src/projectIcon.ts          project app icon discovery and rendering
   src/api.ts                  HTTP routes

@@ -400,6 +400,153 @@ export interface SessionGitResponse {
   data: SessionGit;
 }
 
+/** Normalized state shared by GitHub workflow runs, jobs, steps and checks. */
+export type GitHubFlowStatus =
+  | "queued"
+  | "running"
+  | "success"
+  | "failure"
+  | "cancelled"
+  | "skipped"
+  | "neutral"
+  | "waiting"
+  | "unknown";
+
+/** The GitHub repository a project's flows are read from. */
+export interface GitHubFlowRepository {
+  owner: string;
+  name: string;
+  /** `https://github.com/owner/repo`. */
+  url: string;
+  /** Remote URL as configured in the project's git checkout. */
+  remote: string;
+}
+
+export interface GitHubFlowActor {
+  login: string;
+  avatarURL?: string;
+}
+
+/** One workflow run in the project's recent-run list. */
+export interface GitHubFlowRun {
+  id: number;
+  runNumber: number;
+  attempt: number;
+  workflowID: number;
+  workflowName: string;
+  workflowPath?: string;
+  event: string;
+  status: GitHubFlowStatus;
+  conclusion?: string;
+  branch: string;
+  sha: string;
+  shortSHA: string;
+  title: string;
+  message?: string;
+  actor?: GitHubFlowActor;
+  createdAt: number;
+  startedAt?: number;
+  updatedAt?: number;
+  durationMs: number;
+  htmlURL: string;
+}
+
+/** One step inside a workflow job. */
+export interface GitHubFlowStep {
+  number: number;
+  name: string;
+  status: GitHubFlowStatus;
+  conclusion?: string;
+  startedAt?: number;
+  completedAt?: number;
+  durationMs: number;
+}
+
+/** One job (and the steps it ran) inside a workflow run. */
+export interface GitHubFlowJob {
+  id: number;
+  name: string;
+  status: GitHubFlowStatus;
+  conclusion?: string;
+  startedAt?: number;
+  completedAt?: number;
+  durationMs: number;
+  runnerName?: string;
+  labels: string[];
+  htmlURL: string;
+  /** Dependency depth derived from the workflow's `needs` graph. */
+  stage: number;
+  steps: GitHubFlowStep[];
+}
+
+/** Jobs grouped by dependency depth, rendered as pipeline stages. */
+export interface GitHubFlowStage {
+  index: number;
+  name: string;
+  status: GitHubFlowStatus;
+  jobs: GitHubFlowJob[];
+}
+
+/** Commit metadata for the run's head revision. */
+export interface GitHubFlowCommit {
+  sha: string;
+  shortSHA: string;
+  message: string;
+  authorName: string;
+  authorLogin?: string;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  url: string;
+}
+
+/** One line annotation attached to a check run. */
+export interface GitHubCheckAnnotation {
+  path: string;
+  startLine: number;
+  endLine: number;
+  level: "notice" | "warning" | "failure";
+  title?: string;
+  message: string;
+}
+
+/** One check run reported for the run's head commit. */
+export interface GitHubCheck {
+  id: number;
+  name: string;
+  status: GitHubFlowStatus;
+  conclusion?: string;
+  startedAt?: number;
+  completedAt?: number;
+  durationMs: number;
+  detailsURL?: string;
+  description?: string;
+  summary?: string;
+  appName?: string;
+  annotations: GitHubCheckAnnotation[];
+}
+
+/** Full detail for the selected workflow run. */
+export interface GitHubFlowRunDetail extends GitHubFlowRun {
+  jobs: GitHubFlowJob[];
+  stages: GitHubFlowStage[];
+  checks: GitHubCheck[];
+}
+
+/** Everything the project's Flows tab needs in one read. */
+export interface GitHubFlows {
+  repository: GitHubFlowRepository;
+  branch: string | null;
+  runs: GitHubFlowRun[];
+  run: GitHubFlowRunDetail | null;
+  commit: GitHubFlowCommit | null;
+  generatedAt: number;
+}
+
+export interface GitHubFlowsResponse {
+  data: GitHubFlows | null;
+}
+
 export interface MessageCursor {
   previous?: string;
   next?: string;
