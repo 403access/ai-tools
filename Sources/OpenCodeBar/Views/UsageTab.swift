@@ -10,6 +10,10 @@ struct UsageTab: View {
     /// with reset countdowns on demand.
     @State private var quotaExpanded = false
 
+    /// `nil` shows every tool type; otherwise the Tools page keeps only the
+    /// selected category.
+    @State private var toolCategory: ToolCategory?
+
     private let topAnchor = "usage-top"
 
     var body: some View {
@@ -174,13 +178,23 @@ struct UsageTab: View {
                 ToolSummary(totals: totals)
 
                 if let usage = stats.tools.usage, !usage.isEmpty {
+                    let filtered = filteredTools(usage)
                     SectionHeader("Tools") {
-                        Text("\(usage.count)")
+                        Text("\(filtered.count)")
                             .font(.system(size: 10, weight: .bold))
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
-                    ToolUsageBreakdown(usage: usage)
+                    ToolCategoryFilter(usage: usage, selection: $toolCategory)
+                    if filtered.isEmpty {
+                        NoticeRow(
+                            icon: "line.3.horizontal.decrease.circle",
+                            message: "No \(toolCategory?.title ?? "matching") tool calls.",
+                            tint: .secondary
+                        )
+                    } else {
+                        ToolUsageBreakdown(usage: filtered)
+                    }
                 }
             } else {
                 SectionHeader("Tool calls")
@@ -191,6 +205,11 @@ struct UsageTab: View {
                 )
             }
         }
+    }
+
+    private func filteredTools(_ usage: [Stats.ToolUsage]) -> [Stats.ToolUsage] {
+        guard let toolCategory else { return usage }
+        return usage.filter { $0.category == toolCategory }
     }
 
     // MARK: - Plan limits

@@ -79,6 +79,53 @@ struct Stats: Codable, Hashable, Sendable {
     var maxSteps: Int { activity.map(\.steps).max() ?? 0 }
 }
 
+/// Grouping for the tool list. OpenCode reports MCP tools with their server
+/// prefix (`eu-news-news_list_articles`, `rea_open_bundle_resources`), so a
+/// name that is not a known built-in and looks namespaced is treated as MCP.
+enum ToolCategory: String, CaseIterable, Hashable, Sendable, Identifiable {
+    case mcp
+    case os
+    case library
+    case apps
+    case other
+
+    var id: String { rawValue }
+
+    static func classify(_ name: String) -> ToolCategory {
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else { return .other }
+        if osTools.contains(normalized) { return .os }
+        if libraryTools.contains(normalized) { return .library }
+        if appTools.contains(normalized) { return .apps }
+        if normalized.hasPrefix("mcp__") || normalized.contains("__") || normalized.contains("-") {
+            return .mcp
+        }
+        // `<server>_<tool>` is how this hub stores namespaced MCP calls.
+        if normalized.contains("_") { return .mcp }
+        return .other
+    }
+
+    private static let osTools: Set<String> = [
+        "bash", "cmd", "command", "execute", "fish", "grepshell", "powershell",
+        "process", "pwsh", "run", "sh", "shell", "terminal", "zsh",
+    ]
+
+    private static let libraryTools: Set<String> = [
+        "ast_grep", "apply_patch", "cp", "delete", "edit", "file", "files",
+        "find", "glob", "grep", "list", "ls", "lsp", "mkdir", "move",
+        "multiedit", "mv", "patch", "read", "rm", "search", "write",
+    ]
+
+    private static let appTools: Set<String> = [
+        "agent", "browser", "fetch", "plan", "question", "skill", "subagent",
+        "task", "todo", "todoread", "todowrite", "web", "webfetch", "websearch",
+    ]
+}
+
+extension Stats.ToolUsage {
+    var category: ToolCategory { ToolCategory.classify(name) }
+}
+
 // MARK: - Per-session statistics
 
 /// Stats derived by the hub from a session's cached messages and tool calls.

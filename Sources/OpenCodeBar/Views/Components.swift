@@ -428,6 +428,120 @@ struct TokenBreakdown: View, Equatable {
 
 // MARK: - Tool reliability
 
+extension ToolCategory {
+    var title: String {
+        switch self {
+        case .mcp: return "MCP"
+        case .os: return "OS"
+        case .library: return "Library"
+        case .apps: return "Apps"
+        case .other: return "Other"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .mcp: return "puzzlepiece.extension"
+        case .os: return "terminal"
+        case .library: return "books.vertical"
+        case .apps: return "square.grid.2x2"
+        case .other: return "wrench.and.screwdriver"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .mcp: return Theme.reasoning
+        case .os: return Theme.running
+        case .library: return Theme.output
+        case .apps: return Theme.accent
+        case .other: return .secondary
+        }
+    }
+}
+
+/// Type chips for the tool list. Only categories that actually have calls are
+/// shown, so the row stays compact and every filter has a result.
+struct ToolCategoryFilter: View {
+    let usage: [Stats.ToolUsage]
+    @Binding var selection: ToolCategory?
+
+    private var counts: [ToolCategory: Int] {
+        usage.reduce(into: [:]) { result, tool in
+            result[tool.category, default: 0] += 1
+        }
+    }
+
+    private var categories: [ToolCategory] {
+        let counts = self.counts
+        return ToolCategory.allCases.filter { counts[$0, default: 0] > 0 }
+    }
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                chip(
+                    title: "All",
+                    count: usage.count,
+                    isSelected: selection == nil,
+                    tint: Theme.accent
+                ) {
+                    selection = nil
+                }
+
+                ForEach(categories) { category in
+                    chip(
+                        title: category.title,
+                        count: counts[category] ?? 0,
+                        isSelected: selection == category,
+                        tint: category.tint
+                    ) {
+                        selection = category
+                    }
+                }
+            }
+            .padding(.vertical, 1)
+            .padding(.horizontal, 1)
+        }
+        .accessibilityLabel("Tool type")
+    }
+
+    private func chip(
+        title: String,
+        count: Int,
+        isSelected: Bool,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
+                Text(Fmt.grouped(count))
+                    .font(.system(size: 9, weight: .semibold))
+                    .monospacedDigit()
+                    .opacity(0.7)
+            }
+            .foregroundStyle(isSelected ? tint : Color.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule().fill(isSelected ? tint.opacity(0.18) : Color.primary.opacity(0.06))
+            )
+            .overlay(
+                Capsule().strokeBorder(
+                    isSelected ? tint.opacity(0.45) : Color.primary.opacity(0.08),
+                    lineWidth: 1
+                )
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title), \(Fmt.grouped(count)) tools")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
 /// Per-tool call counts, failures and median duration. Shared by the session,
 /// project and usage screens on both platforms.
 struct ToolUsageBreakdown: View, Equatable {

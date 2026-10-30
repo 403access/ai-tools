@@ -5,6 +5,10 @@ struct UsageView: View {
     @EnvironmentObject private var settings: HubSettingsStore
     @EnvironmentObject private var store: MobileStore
 
+    /// `nil` shows every tool type; otherwise the Tools section keeps only the
+    /// selected category.
+    @State private var toolCategory: ToolCategory?
+
     var body: some View {
         NavigationStack {
             Group {
@@ -83,14 +87,24 @@ struct UsageView: View {
                             .equatable()
 
                         if let usage = stats.tools.usage, !usage.isEmpty {
+                            let filtered = filteredTools(usage)
                             SectionHeader("Tools") {
-                                Text("\(usage.count)")
+                                Text("\(filtered.count)")
                                     .font(.caption.weight(.bold))
                                     .monospacedDigit()
                                     .foregroundStyle(.secondary)
                             }
-                            ToolUsageBreakdown(usage: usage)
-                                .equatable()
+                            ToolCategoryFilter(usage: usage, selection: $toolCategory)
+                            if filtered.isEmpty {
+                                NoticeRow(
+                                    icon: "line.3.horizontal.decrease.circle",
+                                    message: "No \(toolCategory?.title ?? "matching") tool calls.",
+                                    tint: .secondary
+                                )
+                            } else {
+                                ToolUsageBreakdown(usage: filtered)
+                                    .equatable()
+                            }
                         }
                     }
                 }
@@ -108,6 +122,11 @@ struct UsageView: View {
                 }
             }
         }
+    }
+
+    private func filteredTools(_ usage: [Stats.ToolUsage]) -> [Stats.ToolUsage] {
+        guard let toolCategory else { return usage }
+        return usage.filter { $0.category == toolCategory }
     }
 
     @ViewBuilder
