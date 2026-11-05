@@ -35,7 +35,9 @@ Keep the terminal open while you use the apps.
 
 :::tip
 Run the hub in a separate terminal from the Mac app. `make hub` is a foreground
-process by design; if the terminal exits, the server stops.
+process by design; if the terminal exits, the server stops. To skip the terminal
+entirely, use **Settings → Server → Start server** in the Mac app (see
+[Run it without a terminal](#run-it-without-a-terminal)).
 :::
 
 ## What happens on the first run
@@ -90,9 +92,16 @@ make hub-test   # Bun database and API tests
 
 ## Run it without a terminal
 
-The hub is a normal Bun process, so you can wrap it in a `launchd` agent if you
-want it to survive logout or run at login. Keep in mind that only one hub should
-own a given SQLite database and OpenCode service at a time.
+The Mac app can start the hub for you. When the hub is offline, **Settings →
+Server** shows **Start server** instead of the restart controls. During
+development the app finds the checkout automatically. For an installed copy,
+choose the `ai-tools` folder once next to **Server folder**; the app remembers
+it. Bun must be installed, and the hub's output goes to
+`~/.local/share/opencodebar/hub.log`.
+
+The hub is a normal Bun process, so you can also wrap it in a `launchd` agent if
+you want it to survive logout or run at login. Keep in mind that only one hub
+should own a given SQLite database and OpenCode service at a time.
 
 ## Reach it from another network
 

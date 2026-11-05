@@ -52,8 +52,10 @@ mode and removes the Dock icon. `make desktop` turns the setting on and
 launches straight into the window.
 
 The app reads `~/.config/opencode/opencodebar-hub.json` and connects
-automatically. If you override the hub URL or token with environment variables,
-see [Pairing and overrides](pairing.md).
+automatically. If the hub is not running, **Settings → Server → Start server**
+launches it from the checkout (choose the `ai-tools` folder once for an
+installed copy). If you override the hub URL or token with environment
+variables, see [Pairing and overrides](pairing.md).
 
 ## Rebuild and restart
 

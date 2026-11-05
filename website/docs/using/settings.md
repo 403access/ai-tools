@@ -37,12 +37,20 @@ Controls:
 
 | Action | What it does |
 | --- | --- |
+| **Start server** | Starts the hub when it is offline (shown instead of the online controls) |
 | **Sync now** | Requests `POST /api/sync` and refreshes cached data |
 | **Restart** | Restarts the hub process (`POST /api/server/restart`) |
 | **Show files** | Reveals the hub data and config files in Finder |
 | **Refresh** | Re-fetches health, devices, and settings |
 
-The Mac and iOS apps reconnect automatically after a restart.
+**Start server** launches `bun run src/index.ts` from the `server/` folder. The
+app finds the checkout automatically when it runs from the repository. For an
+installed copy, use **Choose…** next to **Server folder** and pick the
+`ai-tools` checkout once; the app remembers it. Bun must be installed. The
+process is detached from the menu bar app, and its output is appended to
+`~/.local/share/opencodebar/hub.log`, which **Show hub log** reveals.
+
+The Mac and iOS apps reconnect automatically after a restart or a manual start.
 
 ### Devices
 

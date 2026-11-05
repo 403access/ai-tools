@@ -366,9 +366,12 @@ iOS app:
   install automatically.
 - Server information: hub version, address, uptime, cached session/message
   counts, OpenCode state, last sync, and the SQLite path.
-- Server controls: sync now, restart the hub, reveal its data/config files, and
-  refresh. Pairing shows a scannable QR code plus the copyable link for adding
-  another phone.
+- Server controls: start the hub when it is not running, sync now, restart the
+  hub, reveal its data/config files, and refresh. The start control finds the
+  checkout automatically during development, or remembers a folder picked in
+  Settings, and keeps the hub's output in
+  `~/.local/share/opencodebar/hub.log`. Pairing shows a scannable QR code plus
+  the copyable link for adding another phone.
 - **Power**: choose whether the Mac may sleep while the hub runs. Keeping it
   awake holds an idle-sleep assertion so phones and tablets keep their
   connection; the display can still turn off. The preference is stored by the

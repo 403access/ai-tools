@@ -34,6 +34,23 @@ extension SettingsTab {
         return "Local hub config"
     }
 
+    var serverDirectory: URL? {
+        HubLauncher.serverDirectory()
+    }
+
+    var serverDirectoryLabel: String {
+        serverDirectory?.path ?? "Not found"
+    }
+
+    /// A non-loopback hub override points at another machine, so starting the
+    /// local Bun server would not help (and could create a second hub).
+    var remoteHubURL: URL? {
+        guard let location = HubDiscovery.load(), !state.isLoopback(location.url) else {
+            return nil
+        }
+        return location.url
+    }
+
     var orderedDevices: [ConnectedDevice] {
         state.devices.sorted { first, second in
             if first.connected != second.connected { return first.connected }
@@ -99,5 +116,14 @@ extension SettingsTab {
             target = dataDir
         }
         NSWorkspace.shared.activateFileViewerSelecting([target])
+    }
+
+    func revealHubLog() {
+        let log = HubLauncher.logFileURL
+        if FileManager.default.fileExists(atPath: log.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([log])
+        } else {
+            NSWorkspace.shared.open(HubLauncher.dataDirectory())
+        }
     }
 }

@@ -292,6 +292,7 @@ final class AppState: ObservableObject {
     @Published var isUpdatingSettings = false
     @Published var isSyncing = false
     @Published var isRestartingServer = false
+    @Published var isStartingServer = false
     @Published var settingsUpdatedAt: Date?
     @Published var lastUpdated: Date?
     @Published var isRefreshing = false
@@ -493,7 +494,7 @@ final class AppState: ObservableObject {
         DevLog.shared.record("Finding hub", category: .app)
         guard let location = await discover() else {
             connection = .offline("Hub not found")
-            settingsError = "Hub not found. Run `make hub` or check ~/.config/opencode/opencodebar-hub.json."
+            settingsError = "Hub not found. Check the connection or start it from Settings → Server."
             if stats != nil { statsStale = true }
             DevLog.shared.record(
                 "Hub not found",

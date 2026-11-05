@@ -10,6 +10,7 @@ struct SettingsTab: View {
     @State var copiedPairingLink = false
     @State private var showRestartConfirmation = false
     @AppStorage("tasks.projectIcons") private var showsProjectIcons = true
+    @AppStorage(HubLauncher.directoryDefaultsKey) private var hubDirectory = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -168,26 +169,30 @@ struct SettingsTab: View {
 
                 Divider().opacity(0.5)
 
-                HStack(spacing: 8) {
-                    Button {
-                        Task { await state.syncNow() }
-                    } label: {
-                        Label(state.isSyncing ? "Syncing…" : "Sync now", systemImage: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 10, weight: .semibold))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(state.isSyncing || !serverOnline)
+                if serverOnline {
+                    HStack(spacing: 8) {
+                        Button {
+                            Task { await state.syncNow() }
+                        } label: {
+                            Label(state.isSyncing ? "Syncing…" : "Sync now", systemImage: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 10, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(state.isSyncing)
 
-                    Button {
-                        showRestartConfirmation = true
-                    } label: {
-                        Label(state.isRestartingServer ? "Restarting…" : "Restart", systemImage: "power")
-                            .font(.system(size: 10, weight: .semibold))
-                            .frame(maxWidth: .infinity)
+                        Button {
+                            showRestartConfirmation = true
+                        } label: {
+                            Label(state.isRestartingServer ? "Restarting…" : "Restart", systemImage: "power")
+                                .font(.system(size: 10, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(state.isRestartingServer || state.hubHealth == nil)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(state.isRestartingServer || state.hubHealth == nil)
+                } else {
+                    startServerControls
                 }
 
                 HStack(spacing: 8) {
@@ -213,6 +218,99 @@ struct SettingsTab: View {
             }
             .card()
         }
+    }
+
+    /// Shown instead of the online controls when the hub is not answering.
+    /// Starting it from here keeps the terminal out of the normal setup path.
+    var startServerControls: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            if let remote = remoteHubURL {
+                Text("This app is configured for a hub at \(remote.absoluteString). Start that hub, or remove the URL override in ~/.config/opencode/opencodebar.json.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("The hub is not running. Start it here, or run make hub in the repository.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if serverDirectory == nil {
+                    Button {
+                        chooseServerDirectory()
+                    } label: {
+                        Label("Choose server folder", systemImage: "folder")
+                            .font(.system(size: 10, weight: .semibold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else {
+                    Button {
+                        Task { await state.startServer() }
+                    } label: {
+                        Label(state.isStartingServer ? "Starting…" : "Start server", systemImage: "play.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(state.isStartingServer)
+                }
+
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Server folder")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 8)
+
+                    Text(serverDirectoryLabel)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(serverDirectory == nil ? .tertiary : .secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+
+                    Button("Choose…") {
+                        chooseServerDirectory()
+                    }
+                    .font(.system(size: 10, weight: .semibold))
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
+                if serverDirectory == nil {
+                    Text("Choose the ai-tools checkout that contains the server folder. The app remembers it for next time.")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if FileManager.default.fileExists(atPath: HubLauncher.logFileURL.path) {
+                Button {
+                    revealHubLog()
+                } label: {
+                    Label("Show hub log", systemImage: "doc.text.magnifyingglass")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.link)
+            }
+        }
+    }
+
+    func chooseServerDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Use Folder"
+        panel.message = "Choose the ai-tools checkout that contains the server folder."
+        if let server = serverDirectory {
+            panel.directoryURL = server.deletingLastPathComponent()
+        }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        hubDirectory = url.path
+        state.settingsError = nil
     }
 
     // MARK: - Agents

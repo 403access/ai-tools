@@ -407,6 +407,94 @@ extension AppState {
         }
     }
 
+    /// Starts the hub when the app is offline. The process is detached and
+    /// logs to `~/.local/share/opencodebar/hub.log`, so it keeps running after
+    /// the menu bar app quits. Settings → Server calls this.
+    func startServer() async {
+        guard !isStartingServer else { return }
+        isStartingServer = true
+        settingsError = nil
+        settingsNotice = "Starting hub…"
+        DevLog.shared.record("Hub start requested", category: .app)
+        defer { isStartingServer = false }
+
+        if await HubLauncher.configuredHubIsRunning() {
+            DevLog.shared.record("Hub already running", category: .app)
+            await reconnectAfterServerStart(notice: "Hub is already running")
+            return
+        }
+
+        do {
+            let pid = try await HubLauncher.startServer()
+            DevLog.shared.record(
+                "Hub process started",
+                category: .app,
+                detail: "pid \(pid) · log \(HubLauncher.logFileURL.path)"
+            )
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            settingsError = message
+            DevLog.shared.record(
+                "Hub start failed",
+                category: .app,
+                level: .error,
+                detail: message
+            )
+            return
+        }
+
+        // The hub writes its config after it binds the port. Poll for that
+        // file and a successful ping instead of assuming a fixed startup time.
+        var found: HubLocation?
+        for _ in 0..<40 {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            if let candidate = await discover(), await HubAPI.ping(baseURL: candidate.url) {
+                found = candidate
+                break
+            }
+        }
+
+        guard found != nil else {
+            let message = "Hub started but did not respond. See \(HubLauncher.logFileURL.path) for details."
+            settingsError = message
+            DevLog.shared.record(
+                "Hub start timed out",
+                category: .app,
+                level: .error,
+                detail: message
+            )
+            return
+        }
+
+        await reconnectAfterServerStart()
+    }
+
+    /// Rebuilds the client after a hub start or restart. The old event stream
+    /// and API client point at the previous process, so they are discarded
+    /// before discovery runs again.
+    private func reconnectAfterServerStart(notice: String = "Hub started") async {
+        eventTask?.cancel()
+        eventTask = nil
+        api = nil
+        location = nil
+        connection = .connecting
+        await bootstrap()
+        await refreshSettings(force: true)
+
+        if case .offline(let reason) = connection {
+            settingsError = "Hub is not reachable: \(reason)"
+            DevLog.shared.record(
+                "Hub connection failed",
+                category: .app,
+                level: .error,
+                detail: reason
+            )
+        } else {
+            settingsNotice = notice
+            DevLog.shared.record("Hub started", category: .app)
+        }
+    }
+
     /// Publishes the last known numbers immediately, so the Usage tab has
     /// something to show before — or instead of — a successful fetch.
     func restoreCachedUsage() {
