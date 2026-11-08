@@ -161,12 +161,13 @@ iOS app:
   with elapsed timers, project, current tool or activity, cost, and tokens.
   Small shows the count and top session; medium shows two running rows; large
   adds more running rows plus recent sessions.
-- **Live** also has three Lock Screen layouts, styled like an ongoing delivery
-  or flight tracker. Inline shows the count and current activity above the
-  clock, circular shows a live count badge, and rectangular shows the primary
-  session with its project, activity, a ticking elapsed timer, and a thin
-  todo-progress line when the session has a todo list. The rectangular and
-  circular layouts open that session when tapped.
+- **Live** also has three Lock Screen layouts focused on status, not
+  moment-to-moment activity. Inline shows the session that needs attention
+  first and its status; circular shows a running, review, or queued count; and
+  rectangular lists up to three sessions grouped by project, with each
+  project's app icon and name, each session's name, and its status (Running,
+  Needs review, Queued, Paused, Stopped, Failed, or Interrupted). Done and
+  dismissed sessions are hidden. Tapping opens the highest-priority session.
 - **Usage** shows today's steps, cost, tokens, streak, prompts, and tool calls,
   the last 14 days of activity, and Go plan-limit bars with reset countdowns.
 - Both adapt to small, medium, and large families and open the matching tab when
@@ -177,15 +178,23 @@ iOS app:
 
 **Session Live Activity (iOS)**
 - While a session is running, a Live Activity shows a full-width card on the
-  Lock Screen — larger than any widget — with the session title, project,
-  current tool or activity, todo progress, elapsed timer, cost, and tokens.
-  Dynamic Island devices mirror the same state in the compact and expanded
-  views. Tap to open the conversation.
+  Lock Screen — larger than any widget — with sessions grouped by project:
+  project app icon and name, each session name, and its status. A header
+  summarises running, review, and queued counts. Dynamic Island devices mirror
+  the focus session and summary in the compact and expanded views. Tap to open
+  the tracked conversation.
 - The card follows the first running session so it does not jump between
-  sessions that take turns updating; the header keeps the total running count.
-- Updates are local: they arrive while the app is running and the timer keeps
-  ticking after iOS suspends it. Pushing updates while the app is closed is on
-  the roadmap (see `NOTES.md`).
+  sessions that take turns updating, but its list includes every
+  attention-worthy session.
+- Choose the card style in **Settings → Live Activity**: **App** (default)
+  mirrors the OpenCodeBar panel with its surface, accent glows, and
+  running/status colors; **System** follows the Lock Screen's native material —
+  Liquid Glass on iOS 26 — and Light/Dark Mode; **Mint** is the light branded
+  card with colorful pills. The change refreshes an activity already on the
+  Lock Screen.
+- Updates are local: they arrive while the app is running, and the card keeps
+  its last list after iOS suspends it. Pushing updates while the app is closed
+  is on the roadmap (see `NOTES.md`).
 
 **Projects**
 - Every project OpenCode has run in, with running work first and the most
@@ -972,7 +981,9 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     SubagentOrdering.swift  running-first ordering for child sessions
     SessionOrdering.swift   most-recent-first ordering for feeds
     WidgetSnapshot.swift    compact widget payload shared by app and extension
+    SessionDigest.swift     project-grouped session status digest
     SessionActivityAttributes.swift  shared Live Activity payload
+    LiveActivityTheme.swift  Native/Mint Live Activity style setting
     SessionFilter.swift     project/date/outcome filters and date grouping
     GoUsage.swift           Go plan windows (shared)
     SystemInfo.swift        machine inventory from the system endpoint (shared)
@@ -1096,6 +1107,7 @@ Sources/OpenCodeBarWidgets/   iOS Home Screen + Lock Screen extension (XcodeGen 
   SessionLiveActivityWidget.swift  large Lock Screen card and Dynamic Island
   UsageWidget.swift           stats, trend, plan limits, all three sizes
   WidgetDataLoader.swift      hub fetch + cached-snapshot fallback
+  WidgetProjectIcons.swift    project artwork for the Lock Screen widget
   WidgetTheme.swift           widget palette and compact components
 
 server/                       Bun + TypeScript + SQLite hub

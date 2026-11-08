@@ -8,9 +8,77 @@ import Foundation
 /// SQLite cache: only the rows and totals a Home Screen widget can display.
 struct WidgetSnapshot: Codable, Equatable, Sendable {
     struct Session: Codable, Equatable, Sendable, Identifiable {
+        /// What the session is doing at the task-board level, without the
+        /// moment-to-moment activity line. The Lock Screen widget groups
+        /// sessions by project and shows these instead of tool details.
+        enum Status: String, Codable, Equatable, Hashable, Sendable {
+            case running
+            case paused
+            case stopped
+            case queued
+            case review
+            case failed
+            case interrupted
+            case finished
+            case done
+            case dismissed
+
+            var label: String {
+                switch self {
+                case .running: return "Running"
+                case .paused: return "Paused"
+                case .stopped: return "Stopped"
+                case .queued: return "Queued"
+                case .review: return "Needs review"
+                case .failed: return "Failed"
+                case .interrupted: return "Interrupted"
+                case .finished: return "Finished"
+                case .done: return "Done"
+                case .dismissed: return "Dismissed"
+                }
+            }
+
+            /// Short enough for the trailing edge of a Lock Screen row.
+            var shortLabel: String {
+                switch self {
+                case .review: return "Review"
+                default: return label
+                }
+            }
+
+            var icon: String {
+                switch self {
+                case .running: return "bolt.fill"
+                case .paused: return "pause.fill"
+                case .stopped: return "stop.fill"
+                case .queued: return "hourglass"
+                case .review: return "sparkle.magnifyingglass"
+                case .failed: return "exclamationmark.triangle.fill"
+                case .interrupted: return "stop.circle.fill"
+                case .finished: return "checkmark.circle"
+                case .done: return "checkmark.circle.fill"
+                case .dismissed: return "eye.slash.fill"
+                }
+            }
+
+            /// Done and dismissed sessions are hidden from the Lock Screen so
+            /// running and review work gets the limited space.
+            var appearsOnLockScreen: Bool {
+                switch self {
+                case .running, .paused, .stopped, .queued, .review, .failed, .interrupted:
+                    return true
+                case .finished, .done, .dismissed:
+                    return false
+                }
+            }
+        }
+
         var id: String
         var title: String
         var project: String
+        /// Project identity for grouping and app artwork. Optional so cached
+        /// snapshots written by earlier builds still decode.
+        var projectID: String? = nil
         var model: String?
         var agent: String?
         var startedAt: Date
@@ -21,9 +89,10 @@ struct WidgetSnapshot: Codable, Equatable, Sendable {
         var activityDetail: String?
         var activityIcon: String?
         /// Completed fraction of the session's todo list, when it has one.
-        /// The Lock Screen card uses it as a delivery-tracker style progress
-        /// line; sessions without todos show none.
+        /// The Live Activity uses it as a delivery-tracker style progress line;
+        /// sessions without todos show none.
         var progress: Double? = nil
+        var status: Status? = nil
         var subagents: Int
     }
 
@@ -99,6 +168,34 @@ struct WidgetSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+extension Session {
+    /// Collapses the task board, the pause/stop control, and the session
+    /// outcome into the one status the widgets show.
+    func widgetStatus(isActive: Bool) -> WidgetSnapshot.Session.Status {
+        if let control {
+            switch control.state {
+            case .paused: return .paused
+            case .stopped: return .stopped
+            }
+        }
+        if isActive { return .running }
+        if let task {
+            switch task.status {
+            case .queued: return .queued
+            case .working: return .running
+            case .review: return .review
+            case .done: return .done
+            case .dismissed: return .dismissed
+            }
+        }
+        switch outcome {
+        case "failed": return .failed
+        case "interrupted": return .interrupted
+        default: return .finished
+        }
+    }
+}
+
 // MARK: - Samples
 
 extension WidgetSnapshot {
@@ -132,6 +229,7 @@ extension WidgetSnapshot {
                     id: "sample-1",
                     title: "Add Home Screen widgets",
                     project: "ai-tools",
+                    projectID: "sample-ai-tools",
                     model: "claude-sonnet-4-5",
                     agent: "build",
                     startedAt: now.addingTimeInterval(-754),
@@ -142,12 +240,14 @@ extension WidgetSnapshot {
                     activityDetail: "Sources/OpenCodeBarWidgets/LiveWidget.swift",
                     activityIcon: "wrench.and.screwdriver.fill",
                     progress: 0.7,
+                    status: .running,
                     subagents: 1
                 ),
                 Session(
                     id: "sample-2",
                     title: "Tune usage trend chart",
                     project: "website",
+                    projectID: "sample-website",
                     model: "gpt-5",
                     agent: nil,
                     startedAt: now.addingTimeInterval(-2_510),
@@ -158,6 +258,7 @@ extension WidgetSnapshot {
                     activityDetail: nil,
                     activityIcon: "brain",
                     progress: 0.25,
+                    status: .running,
                     subagents: 0
                 ),
             ],
@@ -166,6 +267,7 @@ extension WidgetSnapshot {
                     id: "sample-3",
                     title: "Cache hub health responses",
                     project: "ai-tools",
+                    projectID: "sample-ai-tools",
                     model: "claude-sonnet-4-5",
                     agent: nil,
                     startedAt: now.addingTimeInterval(-8_400),
@@ -175,6 +277,7 @@ extension WidgetSnapshot {
                     activity: nil,
                     activityDetail: nil,
                     activityIcon: nil,
+                    status: .review,
                     subagents: 0
                 ),
             ],

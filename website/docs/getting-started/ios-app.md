@@ -241,20 +241,26 @@ Both support small, medium, and large Home Screen sizes. Long-press the Home
 Screen, tap **Edit → Add Widget**, search for **OpenCodeBar**, and pick a size.
 Tapping a widget opens the matching tab.
 
-**Live Sessions** also supports the Lock Screen, with layouts that read like a
-delivery or flight tracker:
+**Live Sessions** also supports the Lock Screen. These layouts are about
+session status, not what a session is doing right now:
 
-- **Inline** — the running count and current activity above the clock.
-- **Circular** — a live count badge, or an idle/offline state.
-- **Rectangular** — the primary session, its project and current activity, a
-  ticking elapsed timer, and a thin progress line when the session has a todo
-  list. Only the newest running session is shown; the header keeps the total
-  count.
+- **Inline** — the session that needs attention first, with its status.
+- **Circular** — a count of running sessions, or of sessions needing review or
+  queued when nothing is running.
+- **Rectangular** — up to three sessions grouped by project. Each project shows
+  its app icon and name; each session shows its name and status — Running,
+  Needs review, Queued, Paused, Stopped, Failed, or Interrupted. Done and
+  dismissed sessions are hidden, and `+n` marks anything that did not fit.
+
+Activity lines, tool names, timers, and cost are deliberately left out of these
+widgets; the Home Screen widget and the Live Activity carry that detail.
 
 To add one, touch and hold the Lock Screen, tap **Customize**, choose the clock
 or widget area, and pick **OpenCodeBar**. Rectangular and circular layouts open
-the primary session in the app when tapped; inline opens the Live tab. Lock
-Screen widgets refresh on the same WidgetKit schedule as the Home Screen ones.
+the highest-priority session in the app when tapped; inline opens the Live tab.
+Lock Screen widgets refresh on the same WidgetKit schedule as the Home Screen
+ones. Project artwork is fetched from the hub and cached by the extension;
+projects without artwork keep the folder glyph.
 
 ### Session Live Activity
 
@@ -263,19 +269,27 @@ full-width card at the bottom of the Lock Screen — the same treatment as a
 delivery tracker or the system Now Playing player, and considerably bigger than
 a Lock Screen widget.
 
-The card shows the session title and project, the current tool or activity, a
-todo progress bar, a ticking elapsed timer, cost, and tokens. The header keeps
-the total number of running sessions. On Dynamic Island phones the compact and
-expanded views carry the project, timer, and activity line too.
+The card mirrors the Lock Screen widget's priorities with more room: sessions
+grouped by project, each project's app icon and name, each session's name, and
+its status. A header summarises running, review, and queued counts, and `+n`
+marks sessions that did not fit. On Dynamic Island phones the compact view
+carries the count and the expanded view lists the first two sessions with their
+statuses.
 
 - It follows the **first** running session for its lifetime, so the card does
   not jump between sessions that take turns updating. When that session ends,
   the next running one takes over.
 - Tap the card to open that conversation.
+- Pick the card style in **Settings → Live Activity**. **App** is the default
+  and mirrors the OpenCodeBar panel: its surface, accent glows, and
+  running/status colors. **System** uses the Lock Screen's native material
+  (Liquid Glass on iOS 26), following Light and Dark Mode. **Mint** is a light
+  branded card with colorful status pills. Changing it updates an activity that
+  is already on the Lock Screen.
 - The app updates it from the live event stream. After iOS suspends the app the
-  card keeps its last state and the timer keeps ticking; the system marks it
-  stale after 15 minutes without an update. Updates while the app is closed
-  need APNs push and are not implemented yet.
+  card keeps its last state; the system marks it stale after 15 minutes without
+  an update. Updates while the app is closed need APNs push and are not
+  implemented yet.
 
 Live Activities are controlled by the system: they can be disabled per app in
 **Settings → OpenCodeBar → Live Activities**, and the system ends them after

@@ -35,6 +35,28 @@ extension SettingsView {
         }
     }
 
+    // MARK: - Live Activity
+
+    var liveActivitySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Live Activity")
+
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Style", selection: $liveActivityTheme) {
+                    ForEach(LiveActivityTheme.allCases) { theme in
+                        Text(theme.title).tag(theme)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text(liveActivityTheme.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .card(padding: 12)
+        }
+    }
+
     // MARK: - Status
 
     var statusSection: some View {

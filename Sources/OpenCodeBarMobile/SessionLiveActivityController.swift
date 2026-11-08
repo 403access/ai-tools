@@ -51,8 +51,8 @@ final class SessionLiveActivityController {
         }
 
         if let activity,
-           let session = running.first(where: { $0.id == activity.attributes.sessionID }) {
-            update(activity, state: makeState(session: session, store: store), force: force)
+           running.contains(where: { $0.id == activity.attributes.sessionID }) {
+            update(activity, state: makeState(store: store), force: force)
             return
         }
 
@@ -96,7 +96,7 @@ final class SessionLiveActivityController {
 
     private func start(session: Session, store: MobileStore) {
         let attributes = SessionActivityAttributes(sessionID: session.id)
-        let state = makeState(session: session, store: store)
+        let state = makeState(store: store)
         do {
             let activity = try Activity.request(
                 attributes: attributes,
@@ -140,38 +140,61 @@ final class SessionLiveActivityController {
 
     // MARK: - Content
 
-    private func makeState(
-        session: Session,
-        store: MobileStore
-    ) -> SessionActivityAttributes.ContentState {
-        let live = store.liveActivity[session.id]
-        var headline: String?
-        var detail: String?
-        var icon: String?
+    private func makeState(store: MobileStore) -> SessionActivityAttributes.ContentState {
+        let runningItems = store.runningSessions.map {
+            digestItem($0, store: store, isActive: true)
+        }
+        let recentItems = store.recentSessions
+            .filter { $0.parentID == nil }
+            .prefix(8)
+            .map { digestItem($0, store: store, isActive: false) }
 
-        if let live {
-            icon = live.icon
-            if live.phase == .tool, let tool = live.tool {
-                headline = live.toolVerb
-                detail = tool.summary
-            } else {
-                headline = live.headline
-                detail = live.detailLine
-            }
+        let digest = SessionDigest.make(
+            running: runningItems,
+            recent: recentItems,
+            maxRows: 5,
+            maxGroups: 2,
+            maxEntriesPerGroup: 2
+        )
+
+        let groups = digest.groups.map { group in
+            SessionActivityAttributes.ContentState.Group(
+                projectID: group.projectID,
+                project: group.project,
+                entries: group.entries.map {
+                    SessionActivityAttributes.ContentState.Entry(
+                        id: $0.id,
+                        title: $0.title,
+                        status: $0.status
+                    )
+                },
+                hidden: group.hidden
+            )
         }
 
         return SessionActivityAttributes.ContentState(
+            groups: groups,
+            hidden: digest.hidden,
+            runningCount: runningItems.filter { $0.status == .running }.count,
+            reviewCount: recentItems.filter { $0.status == .review }.count,
+            queuedCount: recentItems.filter { $0.status == .queued }.count,
+            hubConnected: store.connection.isConnected,
+            theme: WidgetShared.liveActivityTheme
+        )
+    }
+
+    private func digestItem(
+        _ session: Session,
+        store: MobileStore,
+        isActive: Bool
+    ) -> SessionDigest.Item {
+        SessionDigest.Item(
+            id: session.id,
             title: session.displayTitle,
+            projectID: session.projectID,
             project: store.projectName(for: session),
-            activity: headline,
-            activityDetail: detail,
-            activityIcon: icon,
-            startedAt: session.time.createdDate,
-            progress: live.flatMap { $0.totalTodos > 0 ? $0.todoFraction : nil },
-            runningCount: store.activeCount,
-            cost: session.cost,
-            tokens: session.tokens.generated,
-            hubConnected: store.connection.isConnected
+            status: session.widgetStatus(isActive: isActive),
+            updatedAt: session.time.updatedDate
         )
     }
 

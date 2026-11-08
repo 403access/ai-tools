@@ -45,7 +45,7 @@ struct LiveWidget: Widget {
                 .containerBackground(for: .widget) { WidgetContainerBackground() }
         }
         .configurationDisplayName("Live Sessions")
-        .description("See which OpenCode sessions are running and what they are doing — on the Home Screen or the Lock Screen.")
+        .description("Running sessions and their status, grouped by project, on the Home Screen and Lock Screen.")
         .supportedFamilies([
             .systemSmall, .systemMedium, .systemLarge,
             .accessoryInline, .accessoryCircular, .accessoryRectangular,
@@ -270,13 +270,13 @@ struct LiveWidgetView: View {
 
     // MARK: - Lock Screen
 
-    /// One line above the clock. It reads like a tracking row: how many
-    /// sessions are running and what the busiest one is doing right now.
+    /// One line above the clock: the session that needs attention first and its
+    /// status.
     private var accessoryInline: some View {
         Label(inlineLabel, systemImage: inlineIcon)
     }
 
-    /// A count badge for the three circular Lock Screen slots.
+    /// Status count for the three circular Lock Screen slots.
     @ViewBuilder
     private var accessoryCircular: some View {
         ZStack {
@@ -289,29 +289,29 @@ struct LiveWidgetView: View {
             case .offline:
                 Image(systemName: "wifi.exclamationmark")
                     .font(.system(size: 21, weight: .medium))
-            case .connecting where snapshot.running.isEmpty:
+            case .connecting where lockScreenDigest.groups.isEmpty:
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(.system(size: 20, weight: .medium))
             default:
-                if snapshot.running.isEmpty {
+                if let state = circularState {
+                    VStack(spacing: -2) {
+                        Text("\(state.value)")
+                            .font(.system(size: 27, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .widgetAccentable(state.accented)
+                        Text(state.label)
+                            .font(.system(size: 8, weight: .bold))
+                            .tracking(0.6)
+                    }
+                } else {
                     VStack(spacing: 0) {
                         Image(systemName: "moon.zzz.fill")
                             .font(.system(size: 15, weight: .medium))
                         Text("IDLE")
                             .font(.system(size: 8, weight: .bold))
                             .tracking(0.5)
-                    }
-                } else {
-                    VStack(spacing: -2) {
-                        Text("\(snapshot.activeCount)")
-                            .font(.system(size: 27, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                            .widgetAccentable()
-                        Text("LIVE")
-                            .font(.system(size: 8, weight: .bold))
-                            .tracking(0.6)
                     }
                 }
             }
@@ -320,83 +320,73 @@ struct LiveWidgetView: View {
         .accessibilityLabel(accessorySummary)
     }
 
-    /// The widest slot: a delivery-tracker style card for the primary session.
+    /// The widest slot: sessions grouped by project, each with its name,
+    /// artwork, and status. Moment-to-moment activity is deliberately left out.
+    @ViewBuilder
     private var accessoryRectangular: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(.primary)
-                    .frame(width: 4, height: 4)
+        let digest = lockScreenDigest
 
-                Text(rectHeader)
-                    .font(.system(size: 9, weight: .bold))
-                    .tracking(0.6)
-                    .foregroundStyle(.secondary)
+        if digest.groups.isEmpty {
+            emptyRectangular
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Array(digest.groups.enumerated()), id: \.element.id) { index, group in
+                    HStack(spacing: 4) {
+                        WidgetProjectIcon(projectID: group.projectID, size: 13)
 
-                Spacer(minLength: 4)
+                        Text(group.project)
+                            .font(.system(size: 9.5, weight: .bold))
+                            .tracking(0.2)
+                            .lineLimit(1)
 
-                if let session = primarySession {
-                    Text(session.startedAt, style: .timer)
-                        .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
-                        .widgetAccentable()
-                }
-            }
+                        Spacer(minLength: 2)
 
-            if let session = primarySession {
-                Text(session.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-
-                HStack(spacing: 3) {
-                    Text(session.project)
-                        .fontWeight(.semibold)
-                        .widgetAccentable()
-                    if !activityLine(session).isEmpty {
-                        Text("·")
-                        Text(activityLine(session))
-                    }
-                }
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-                if let progress = session.progress {
-                    let fraction = min(max(progress, 0), 1)
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(.primary.opacity(0.2))
-                            Capsule()
-                                .fill(.primary)
-                                .frame(width: max(2, geo.size.width * CGFloat(fraction)))
+                        if index == digest.groups.count - 1, digest.hidden > 0 {
+                            Text("+\(digest.hidden)")
+                                .font(.system(size: 8.5, weight: .semibold))
+                                .foregroundStyle(.tertiary)
                         }
                     }
-                    .frame(height: 2.5)
-                    .padding(.top, 2)
-                    .accessibilityLabel("Task progress \(Int(fraction * 100)) percent")
-                }
-            } else {
-                Text(rectTitle)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
 
-                Text(rectDetail)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    ForEach(group.entries) { entry in
+                        HStack(spacing: 4) {
+                            Text(entry.title)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .lineLimit(1)
+
+                            Spacer(minLength: 4)
+
+                            statusBadge(for: entry)
+                        }
+                        .padding(.leading, 17)
+                    }
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        }
+    }
+
+    private var emptyRectangular: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(emptyTitle)
+                .font(.system(size: 13, weight: .semibold))
+                .lineLimit(1)
+            Text(emptyDetail)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Lock Screen copy
 
-    private var primarySession: WidgetSnapshot.Session? {
-        snapshot.running.first
+    private var lockScreenFocusEntry: SessionDigest.Item? {
+        lockScreenDigest.groups.first?.entries.first
     }
 
     private var primarySessionURL: URL? {
-        primarySession.flatMap { WidgetLinks.session($0.id) }
+        lockScreenFocusEntry.flatMap { WidgetLinks.session($0.id) }
     }
 
     private var inlineLabel: String {
@@ -406,11 +396,14 @@ struct LiveWidgetView: View {
         case .offline:
             return snapshot.running.isEmpty
                 ? "Hub offline"
-                : "Hub offline · \(snapshot.activeCount) running"
-        case .connecting where snapshot.running.isEmpty:
+                : "Hub offline · \(snapshot.running.count) running"
+        case .connecting where lockScreenDigest.groups.isEmpty:
             return "Connecting to hub"
         default:
-            return runningSummary
+            guard let entry = lockScreenFocusEntry else {
+                return "No sessions need attention"
+            }
+            return "\(entry.title) · \(entry.status.shortLabel)"
         }
     }
 
@@ -420,37 +413,15 @@ struct LiveWidgetView: View {
             return "qrcode"
         case .offline:
             return "wifi.exclamationmark"
-        case .connecting where snapshot.running.isEmpty:
+        case .connecting where lockScreenDigest.groups.isEmpty:
             return "arrow.triangle.2.circlepath"
         default:
-            guard let session = primarySession else { return "moon.zzz.fill" }
-            return session.activityIcon ?? "bolt.fill"
+            guard let entry = lockScreenFocusEntry else { return "moon.zzz.fill" }
+            return entry.status.icon
         }
     }
 
-    private var runningSummary: String {
-        guard let session = primarySession else { return "No sessions running" }
-        let count = snapshot.activeCount == 1 ? "1 session" : "\(snapshot.activeCount) running"
-        if let activity = session.activity, !activity.isEmpty {
-            return "\(count) · \(activity)"
-        }
-        return "\(count) · \(session.title)"
-    }
-
-    private var rectHeader: String {
-        switch snapshot.connection {
-        case .disabled:
-            return "NOT CONNECTED"
-        case .offline:
-            return "OFFLINE"
-        case .connecting where snapshot.running.isEmpty:
-            return "CONNECTING"
-        default:
-            return snapshot.running.isEmpty ? "IDLE" : "\(snapshot.activeCount) RUNNING"
-        }
-    }
-
-    private var rectTitle: String {
+    private var emptyTitle: String {
         switch snapshot.connection {
         case .disabled:
             return "Pair your hub"
@@ -459,25 +430,38 @@ struct LiveWidgetView: View {
         case .connecting:
             return "Connecting to hub"
         case .connected:
-            return "No sessions running"
+            return "No sessions need attention"
         }
     }
 
-    private var rectDetail: String {
+    private var emptyDetail: String {
         switch snapshot.connection {
         case .disabled:
             return "Open OpenCodeBar to connect to your Mac."
         case .offline:
             if let message = snapshot.message, !message.isEmpty { return message }
-            return updatedLabel
+            return "Showing the last snapshot."
         case .connecting:
             return "Waiting for your Mac to answer."
         case .connected:
-            if let recent = snapshot.recent.first {
-                return "Last: \(recent.title) · \(recent.project)"
-            }
             return "All quiet · \(updatedLabel.lowercased())"
         }
+    }
+
+    /// Running work wins the circular slot; otherwise it falls back to review
+    /// and queued counts.
+    private var circularState: (value: Int, label: String, accented: Bool)? {
+        let running = snapshot.running.count
+        if running > 0 { return (running, "RUNNING", true) }
+
+        let recentStatuses = snapshot.recent.map { $0.status ?? .finished }
+        let review = recentStatuses.filter { $0 == .review }.count
+        if review > 0 { return (review, "REVIEW", false) }
+
+        let queued = recentStatuses.filter { $0 == .queued }.count
+        if queued > 0 { return (queued, "QUEUED", false) }
+
+        return nil
     }
 
     private var accessorySummary: String {
@@ -489,13 +473,63 @@ struct LiveWidgetView: View {
         case .connecting:
             return snapshot.running.isEmpty
                 ? "Connecting to the OpenCodeBar hub."
-                : "\(snapshot.activeCount) sessions running while the hub reconnects."
+                : "\(snapshot.running.count) sessions running while the hub reconnects."
         case .connected:
-            guard let session = primarySession else {
-                return "No OpenCode sessions are running."
+            if let state = circularState {
+                switch state.label {
+                case "RUNNING":
+                    return "\(state.value) sessions running."
+                case "REVIEW":
+                    return "\(state.value) sessions need review."
+                default:
+                    return "\(state.value) sessions queued."
+                }
             }
-            return "\(snapshot.activeCount) sessions running. \(session.title) in \(session.project)."
+            return "No OpenCode sessions need attention."
         }
+    }
+
+    private func statusBadge(for entry: SessionDigest.Item) -> some View {
+        let status = entry.status
+        return HStack(spacing: 2) {
+            Image(systemName: status.icon)
+                .font(.system(size: 7.5, weight: .bold))
+            Text(status.shortLabel.uppercased())
+                .font(.system(size: 8, weight: .bold))
+                .tracking(0.15)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .foregroundStyle(.secondary)
+        .widgetAccentable(status == .running)
+        .accessibilityLabel(status.label)
+    }
+
+    /// Four rows fit: two project headers plus one session each, or one project
+    /// with three sessions. The Live Activity uses the same digest with a
+    /// larger row budget.
+    private var lockScreenDigest: SessionDigest {
+        SessionDigest.make(
+            running: snapshot.running.map { item($0, fallback: .running) },
+            recent: snapshot.recent.map { item($0, fallback: .finished) },
+            maxRows: 4,
+            maxGroups: 2,
+            maxEntriesPerGroup: 3
+        )
+    }
+
+    private func item(
+        _ session: WidgetSnapshot.Session,
+        fallback: WidgetSnapshot.Session.Status
+    ) -> SessionDigest.Item {
+        SessionDigest.Item(
+            id: session.id,
+            title: session.title,
+            projectID: session.projectID,
+            project: session.project,
+            status: session.status ?? fallback,
+            updatedAt: session.updatedAt
+        )
     }
 
     // MARK: - Pieces

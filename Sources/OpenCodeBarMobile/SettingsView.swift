@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State var testMessage: String?
     @State var testSucceeded = false
     @State var savedMessage: String?
+    @State var liveActivityTheme = WidgetShared.liveActivityTheme
 
     var candidate: HubLocation? {
         HubSettings(url: url, token: token).location
@@ -25,6 +26,7 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 appearanceSection
+                liveActivitySection
                 statusSection
                 powerSection
                 agentsSection
@@ -51,6 +53,11 @@ struct SettingsView: View {
             loaded = true
             url = settings.url
             token = settings.token
+        }
+        .onChange(of: liveActivityTheme) { _, theme in
+            WidgetShared.liveActivityTheme = theme
+            // Rewrites an activity that is already on the Lock Screen.
+            store.publishWidgetSnapshot(force: true)
         }
         .task {
             await store.refreshHealth()

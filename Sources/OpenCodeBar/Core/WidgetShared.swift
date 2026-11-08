@@ -22,6 +22,8 @@ enum WidgetShared {
     private static let keychainService = "dev.opencodebar.shared"
     private static let hubAccount = "hub-settings"
     private static let deviceAccount = "device-id"
+    private static let liveActivityThemeKey = "opencodebar.liveactivity.theme"
+    private static let liveActivityThemeAccount = "live-activity-theme"
 
     static var defaults: UserDefaults {
         UserDefaults(suiteName: appGroupID) ?? .standard
@@ -71,6 +73,32 @@ enum WidgetShared {
         }
         let value = defaults.string(forKey: deviceIDKey)
         return value?.isEmpty == false ? value : nil
+    }
+
+    // MARK: - Live Activity appearance
+
+    /// Chosen in the app's Settings and read by the widget extension when it
+    /// renders the Live Activity. The keychain is shared by both processes; the
+    /// defaults entry only covers unsigned simulator builds.
+    static var liveActivityTheme: LiveActivityTheme {
+        get {
+            if let data = keychainData(account: liveActivityThemeAccount),
+               let raw = String(data: data, encoding: .utf8),
+               let theme = LiveActivityTheme(rawValue: raw) {
+                return theme
+            }
+            if let raw = defaults.string(forKey: liveActivityThemeKey),
+               let theme = LiveActivityTheme(rawValue: raw) {
+                return theme
+            }
+            return .app
+        }
+        set {
+            defaults.set(newValue.rawValue, forKey: liveActivityThemeKey)
+            if let data = newValue.rawValue.data(using: .utf8) {
+                setKeychainData(data, account: liveActivityThemeAccount)
+            }
+        }
     }
 
     // MARK: - Snapshot cache

@@ -98,6 +98,7 @@ final class WidgetPublisher {
             id: session.id,
             title: session.displayTitle,
             project: store.projectName(for: session),
+            projectID: session.projectID,
             model: session.model?.id,
             agent: session.agent?.isEmpty == false ? session.agent : nil,
             startedAt: session.time.createdDate,
@@ -108,6 +109,7 @@ final class WidgetPublisher {
             activityDetail: detail,
             activityIcon: icon,
             progress: progress,
+            status: session.widgetStatus(isActive: store.activeIDs.contains(session.id)),
             subagents: store.activeSubagentCount(for: session.id)
         )
     }

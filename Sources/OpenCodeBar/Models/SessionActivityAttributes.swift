@@ -11,21 +11,36 @@ import Foundation
 /// look like "the newest".
 struct SessionActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
-        var title: String
-        var project: String
-        var activity: String?
-        var activityDetail: String?
-        var activityIcon: String?
-        var startedAt: Date
-        /// Completed fraction of the session's todo list, when it has one.
-        var progress: Double?
-        /// Sessions running in total, including the one this card follows.
+        struct Entry: Codable, Hashable, Identifiable {
+            var id: String
+            var title: String
+            var status: WidgetSnapshot.Session.Status
+        }
+
+        struct Group: Codable, Hashable, Identifiable {
+            var projectID: String?
+            var project: String
+            var entries: [Entry]
+            /// Sessions in this project that did not fit.
+            var hidden: Int
+
+            var id: String { projectID ?? project }
+        }
+
+        /// Sessions grouped by project, ranked the same way as the Lock Screen
+        /// widget. The large card shows names and statuses only.
+        var groups: [Group]
+        /// Items that did not fit across all groups.
+        var hidden: Int
+        /// Sessions running in total, which can exceed what fits on the card.
         var runningCount: Int
-        var cost: Double
-        var tokens: Double
-        /// False while the app cannot reach the hub. The card stays useful and
-        /// the timer keeps ticking; only new activity lines stop arriving.
+        var reviewCount: Int
+        var queuedCount: Int
+        /// False while the app cannot reach the hub.
         var hubConnected: Bool
+        /// Chosen in the app's Settings. Part of the state so changing it
+        /// refreshes an activity that is already on the Lock Screen.
+        var theme: LiveActivityTheme
     }
 
     var sessionID: String

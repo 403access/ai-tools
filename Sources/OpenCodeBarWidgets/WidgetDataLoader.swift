@@ -18,6 +18,7 @@ enum WidgetDataLoader {
 
         do {
             let fresh = try await WidgetHub.fetch(settings, cached: cached)
+            await WidgetProjectIcons.prefetch(for: fresh, settings: settings)
             WidgetShared.saveSnapshot(fresh)
             return fresh
         } catch {
@@ -90,6 +91,7 @@ enum WidgetHub {
                 project: projectNames[session.projectID]
                     ?? session.directory.map { URL(fileURLWithPath: $0).lastPathComponent }
                     ?? "Unknown project",
+                projectID: session.projectID,
                 model: session.model?.id,
                 agent: session.agent?.isEmpty == false ? session.agent : nil,
                 startedAt: session.time.createdDate,
@@ -100,6 +102,7 @@ enum WidgetHub {
                 activityDetail: previous?.activityDetail,
                 activityIcon: previous?.activityIcon,
                 progress: previous?.progress,
+                status: session.widgetStatus(isActive: active.contains(session.id)),
                 subagents: 0
             )
         }

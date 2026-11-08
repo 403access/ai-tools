@@ -43,7 +43,9 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     APIEnvelopes.swift            request/response envelopes
     SessionFilter.swift           project/date filters for recent feeds
     WidgetSnapshot.swift          compact widget payload (shared)
+    SessionDigest.swift           project-grouped session status digest (shared)
     SessionActivityAttributes.swift  shared Live Activity payload
+    LiveActivityTheme.swift       Native/Mint Live Activity style setting
     Terminals.swift               terminal models and requests (shared)
     HostTerminals.swift           Terminal.app tab models (shared)
     VirtualMachine.swift          VM definitions, metrics, capabilities (shared)
@@ -153,6 +155,7 @@ Sources/OpenCodeBarWidgets/       iOS Home Screen + Lock Screen extension
   SessionLiveActivityWidget.swift large Lock Screen card and Dynamic Island
   UsageWidget.swift               stats, trend and plan limits
   WidgetDataLoader.swift          hub fetch + cached snapshot fallback
+  WidgetProjectIcons.swift        Lock Screen project artwork cache
   WidgetTheme.swift               widget palette and compact components
 
 server/                           Bun + TypeScript + SQLite hub
