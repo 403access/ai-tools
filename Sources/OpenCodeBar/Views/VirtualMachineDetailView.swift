@@ -44,16 +44,18 @@ struct VirtualMachineDetailView: View {
             header
             actionBar
 
-            Picker("", selection: $mode) {
-                ForEach(Mode.allCases) { item in
-                    Label(item.rawValue, systemImage: item.icon)
-                        .labelStyle(.titleAndIcon)
-                        .tag(item)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
+            SmartTabBar(
+                tabs: Mode.allCases.map { item in
+                    SmartTab(
+                        value: item,
+                        title: item.rawValue,
+                        icon: item.icon,
+                        help: "Show \(item.rawValue.lowercased())"
+                    )
+                },
+                selection: $mode,
+                accessibilityLabel: "Virtual machine sections"
+            )
 
             switch mode {
             case .overview: overview
@@ -745,14 +747,13 @@ struct VirtualMachineDetailView: View {
                 }
             }
 
-            Picker("", selection: $logType) {
-                ForEach(VMLogType.allCases) { type in
-                    Text(type.title).tag(type)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
+            SmartTabBar(
+                tabs: VMLogType.allCases.map { type in
+                    SmartTab(value: type, title: type.title, icon: type.icon)
+                },
+                selection: $logType,
+                accessibilityLabel: "Log sections"
+            )
             .onChange(of: logType) { _, _ in
                 Task { await loadLog() }
             }

@@ -18,6 +18,10 @@ struct UsageTab: View {
     /// relaunches.
     @AppStorage("usage.toolVisualization") private var toolVisualization: ToolVisualization = .list
 
+    /// Measured content width. The stat grid adds columns as the desktop
+    /// window grows instead of stretching two tiles across the whole window.
+    @State private var contentWidth: CGFloat = 0
+
     private let topAnchor = "usage-top"
 
     var body: some View {
@@ -55,6 +59,12 @@ struct UsageTab: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(key: UsageWidthKey.self, value: proxy.size.width)
+                }
+            )
+            .onPreferenceChange(UsageWidthKey.self) { contentWidth = $0 }
             .task { await state.refreshHistory() }
         } else {
             ScrollView {
@@ -68,28 +78,44 @@ struct UsageTab: View {
     }
 
     private var modePicker: some View {
-        Picker("Usage section", selection: $state.usageMode) {
-            ForEach(AppState.UsageMode.allCases) { mode in
-                Label(mode.rawValue, systemImage: mode.icon)
-                    .labelStyle(.titleAndIcon)
-                    .tag(mode)
-            }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .controlSize(.small)
+        SmartTabBar(
+            tabs: AppState.UsageMode.allCases.map { mode in
+                SmartTab(
+                    value: mode,
+                    title: mode.rawValue,
+                    icon: mode.icon,
+                    help: "Show \(mode.rawValue.lowercased())"
+                )
+            },
+            selection: $state.usageMode,
+            accessibilityLabel: "Usage sections"
+        )
         .help("Switch between usage sections")
     }
 
     // MARK: - Pages
 
+    /// Six tiles sit in 2, 3, or 6 columns so every row stays balanced while
+    /// the desktop window widens. The compact panel keeps the original 2.
+    private var statColumns: [GridItem] {
+        let count: Int
+        if contentWidth >= 1320 {
+            count = 6
+        } else if contentWidth >= 700 {
+            count = 3
+        } else {
+            count = 2
+        }
+        return Array(
+            repeating: GridItem(.flexible(), spacing: 10),
+            count: count
+        )
+    }
+
     private func overview(_ stats: Stats) -> some View {
         Group {
             SectionHeader("At a glance")
-            LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
-                spacing: 10
-            ) {
+            LazyVGrid(columns: statColumns, spacing: 10) {
                 StatTile(
                     icon: "flame.fill",
                     tint: Theme.warn,
@@ -556,6 +582,15 @@ struct ToolSummary: View {
                 .foregroundStyle(color)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Content width of the Usage dashboard, used to pick a balanced column count.
+private struct UsageWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 

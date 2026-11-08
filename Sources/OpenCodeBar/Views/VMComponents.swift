@@ -418,13 +418,13 @@ struct VMSetupLogSheet: View {
                 .help("Close")
             }
 
-            Picker("", selection: $step) {
-                Text("Nix install").tag(VMSetupStep.nix)
-                Text("Helper build").tag(VMSetupStep.helper)
-                Text("Linux builder").tag(VMSetupStep.builder)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            SmartTabBar(
+                tabs: VMSetupStep.allCases.map { item in
+                    SmartTab(value: item, title: item.title, icon: item.icon)
+                },
+                selection: $step,
+                accessibilityLabel: "Setup steps"
+            )
             .onChange(of: step) { _, _ in
                 Task { await load() }
             }

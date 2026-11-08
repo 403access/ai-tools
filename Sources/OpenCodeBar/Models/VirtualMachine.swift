@@ -404,6 +404,14 @@ enum VMLogType: String, CaseIterable, Identifiable {
         case .apply: return "Config"
         }
     }
+
+    var icon: String {
+        switch self {
+        case .build: return "hammer"
+        case .serial: return "power"
+        case .apply: return "slider.horizontal.3"
+        }
+    }
 }
 
 struct VMLog: Decodable, Equatable {
@@ -426,6 +434,14 @@ enum VMSetupStep: String, CaseIterable, Identifiable, Equatable, Hashable {
         case .nix: return "Install Nix"
         case .helper: return "Build VM helper"
         case .builder: return "Linux builder"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .nix: return "shippingbox"
+        case .helper: return "hammer"
+        case .builder: return "gearshape.2"
         }
     }
 

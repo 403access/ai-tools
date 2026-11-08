@@ -132,15 +132,13 @@ struct DesktopView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else if state.tab.scrollsItself {
                 UsageTab()
-                    .frame(maxWidth: compact ? .infinity : 1040, alignment: .leading)
                     .padding(compact ? 12 : 20)
-                    .frame(maxWidth: .infinity, alignment: .top)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 ScrollView {
                     activeTab
-                        .frame(maxWidth: compact ? .infinity : 1040, alignment: .leading)
                         .padding(compact ? 12 : 20)
-                        .frame(maxWidth: .infinity, alignment: .top)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
             }
         }

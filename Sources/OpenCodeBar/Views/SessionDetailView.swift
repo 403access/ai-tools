@@ -67,16 +67,18 @@ struct SessionDetailView: View {
             navigationBar
             summary
 
-            Picker("", selection: $mode) {
-                ForEach(availableModes) { mode in
-                    Label(mode.rawValue, systemImage: mode.icon)
-                        .labelStyle(.titleAndIcon)
-                        .tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
+            SmartTabBar(
+                tabs: availableModes.map { mode in
+                    SmartTab(
+                        value: mode,
+                        title: mode.rawValue,
+                        icon: mode.icon,
+                        help: "Show \(mode.rawValue.lowercased())"
+                    )
+                },
+                selection: $mode,
+                accessibilityLabel: "Session sections"
+            )
 
             ScrollViewReader { proxy in
                 ScrollView {

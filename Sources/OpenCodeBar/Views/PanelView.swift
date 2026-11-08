@@ -39,7 +39,7 @@ struct PanelView: View {
                     .frame(maxHeight: .infinity)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             } else {
-                TabBar(selection: $state.tab)
+                TabBar(selection: $state.tab, reviewCount: state.reviewTaskCount)
                     .padding(.horizontal, 12)
                     .padding(.top, 8)
                     .padding(.bottom, 6)
@@ -96,37 +96,21 @@ struct PanelView: View {
 
 struct TabBar: View {
     @Binding var selection: AppState.Tab
+    var reviewCount = 0
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(AppState.Tab.allCases) { tab in
-                Button {
-                    selection = tab
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 10, weight: .semibold))
-                        Text(tab.rawValue)
-                            .font(.system(size: 11, weight: .semibold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.82)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(selection == tab ? Color.primary.opacity(0.12) : Color.clear)
-                    )
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(selection == tab ? Color.primary : Color.secondary)
-            }
-        }
-        .padding(3)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.primary.opacity(0.05))
+        SmartTabBar(
+            tabs: AppState.Tab.allCases.map { tab in
+                SmartTab(
+                    value: tab,
+                    title: tab.rawValue,
+                    icon: tab.icon,
+                    badge: tab == .tasks && reviewCount > 0 ? "\(reviewCount)" : nil,
+                    help: "Show \(tab.rawValue)"
+                )
+            },
+            selection: $selection,
+            accessibilityLabel: "Panel sections"
         )
     }
 }

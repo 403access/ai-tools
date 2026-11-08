@@ -1318,6 +1318,13 @@ struct NixOSBuildSummary: View {
         case nix = "Nix"
 
         var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .plan: return "list.bullet.rectangle"
+            case .nix: return "curlybraces"
+            }
+        }
     }
 
     @State private var tab: Tab = .plan
@@ -1370,14 +1377,18 @@ struct NixOSBuildSummary: View {
                 .disabled(model.preview == nil)
             }
 
-            Picker("", selection: $tab) {
-                ForEach(Tab.allCases) { item in
-                    Text(item.rawValue).tag(item)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
+            SmartTabBar(
+                tabs: Tab.allCases.map { item in
+                    SmartTab(
+                        value: item,
+                        title: item.rawValue,
+                        icon: item.icon,
+                        help: "Show \(item.rawValue.lowercased())"
+                    )
+                },
+                selection: $tab,
+                accessibilityLabel: "Build plan sections"
+            )
 
             if tab == .plan {
                 planTab

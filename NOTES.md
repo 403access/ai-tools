@@ -493,8 +493,10 @@ Follow-ups:
   for the virtio initrd modules.
 - **The six-tab iOS dock is a custom bar.** UIKit wraps a sixth `TabView` item
   in “More”, so VMs is rendered outside the five-item `TabView` while the custom
-  dock still presents it as a top-level tab. The Mac tab bar also needed a
-  smaller font and `lineLimit(1)` to fit six labels in the 400 pt panel.
+  dock still presents it as a top-level tab. On the Mac, `SmartTabBar` keeps
+  full labels while they fit and otherwise shows glyphs with the selected tab's
+  title, so six top-level tabs and eight project sections never truncate in the
+  400 pt panel.
 - **Screenshot pairing.** Debug iOS builds accept
   `OPENCODEBAR_HUB_URL`/`OPENCODEBAR_HUB_TOKEN` from the environment so
   simulator screenshots can pair without the system URL confirmation. The

@@ -43,16 +43,18 @@ struct ProjectDetailView: View {
             navigationBar
             summary
 
-            Picker("", selection: $mode) {
-                ForEach(Mode.allCases) { mode in
-                    Label(mode.rawValue, systemImage: mode.icon)
-                        .labelStyle(.titleAndIcon)
-                        .tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
+            SmartTabBar(
+                tabs: Mode.allCases.map { mode in
+                    SmartTab(
+                        value: mode,
+                        title: mode.rawValue,
+                        icon: mode.icon,
+                        help: "Show \(mode.rawValue.lowercased())"
+                    )
+                },
+                selection: $mode,
+                accessibilityLabel: "Project sections"
+            )
 
             ScrollViewReader { proxy in
                 ScrollView {
