@@ -137,10 +137,10 @@ struct UsageView: View {
     private var planLimits: some View {
         if let usage = store.usage, usage.configured {
             if let data = usage.data {
-                SectionHeader("Plan limits")
+                SectionHeader("Subscription")
                 PlanLimitsCard(usage: data, note: usageNote(usage))
             } else if let error = usage.error {
-                SectionHeader("Plan limits")
+                SectionHeader("Subscription")
                 NoticeRow(icon: "exclamationmark.triangle.fill", message: error, tint: Theme.warn)
             }
         }
@@ -211,6 +211,22 @@ struct PlanLimitsCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
+            header
+
+            Divider().opacity(0.5)
+
+            if usage.ordered.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "hourglass")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    Text("No allowance windows reported yet.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+            }
+
             ForEach(usage.ordered, id: \.label) { item in
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 6) {
@@ -257,6 +273,49 @@ struct PlanLimitsCard: View {
             }
         }
         .card()
+    }
+
+    private var header: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "creditcard.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Theme.accent.opacity(0.14)))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(GoUsage.planName)
+                    .font(.subheadline.weight(.semibold))
+                Text("Monthly subscription")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 4)
+
+            Chip(
+                text: usage.subscriptionStatus,
+                systemImage: statusIcon,
+                tint: statusTint
+            )
+
+            Link(destination: GoUsage.manageURL) {
+                Image(systemName: "arrow.up.right.square")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityLabel("Manage OpenCode Go subscription")
+        }
+    }
+
+    private var statusTint: Color {
+        if usage.ordered.isEmpty { return .secondary }
+        return usage.isRateLimited ? Theme.danger : Theme.accent
+    }
+
+    private var statusIcon: String {
+        if usage.ordered.isEmpty { return "questionmark.circle.fill" }
+        return usage.isRateLimited ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
     }
 
     private func tint(for window: GoUsage.Window) -> Color {

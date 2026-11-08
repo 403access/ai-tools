@@ -244,10 +244,11 @@ iOS app:
   list.
 
 **Usage**
-- OpenCode Go plan limits are pinned above the tab's pages: rolling (5h),
-  weekly, and monthly consumption as compact percentage gauges, read from the Go
-  usage API. Tapping the header expands the reset countdowns and any stale-data
-  note. Hidden when no Go key is configured.
+- OpenCode Go subscription details are pinned above the tab's pages: the plan
+  name, active / rate-limited status, and a link to the console, followed by
+  rolling (5h), weekly, and monthly consumption as compact percentage gauges,
+  read from the Go usage API. Tapping the header expands the reset countdowns
+  and any stale-data note. Hidden when no Go key is configured.
 - Usage numbers and plan limits are cached on disk, so the tab keeps showing the
   last known values — flagged as stale — when the service or the API is
   unreachable.

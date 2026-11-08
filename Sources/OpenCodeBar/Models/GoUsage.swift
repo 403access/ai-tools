@@ -42,3 +42,23 @@ struct GoUsage: Codable, Hashable, Sendable {
         var id: String { label }
     }
 }
+
+extension GoUsage {
+    /// Plan identity for the Usage tab. The usage endpoint only reports
+    /// allowance windows, so the name and console link are fixed.
+    static let planName = "OpenCode Go"
+    static let manageURL = URL(string: "https://opencode.ai/console/go")!
+
+    /// The console reports `"rate-limited"` on an exhausted window.
+    var isRateLimited: Bool { ordered.contains { $0.window.isLimited } }
+
+    /// Soonest reset across the configured windows.
+    var nextReset: Date? { ordered.compactMap(\.window.resetDate).min() }
+
+    /// Whether the subscription is currently usable. Without any reported
+    /// window there is not enough information to call it either way.
+    var subscriptionStatus: String {
+        if ordered.isEmpty { return "Unknown" }
+        return isRateLimited ? "Rate limited" : "Active"
+    }
+}

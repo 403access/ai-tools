@@ -302,13 +302,11 @@ struct PlanLimitsStrip: View {
     var note: String?
     @Binding var isExpanded: Bool
 
-    private var isLimited: Bool { usage.ordered.contains { $0.window.isLimited } }
+    private var isLimited: Bool { usage.isRateLimited }
 
     /// Soonest reset across the configured windows, shown in the collapsed
     /// header so the pinned strip still answers "when does this roll over?".
-    private var nextReset: Date? {
-        usage.ordered.compactMap(\.window.resetDate).min()
-    }
+    private var nextReset: Date? { usage.nextReset }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -346,42 +344,56 @@ struct PlanLimitsStrip: View {
     }
 
     private var header: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.16)) { isExpanded.toggle() }
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "gauge.with.dots.needle.33percent")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(Theme.accent)
-                Text("PLAN LIMITS")
-                    .font(.system(size: 9, weight: .bold))
-                    .tracking(0.6)
-                    .foregroundStyle(.secondary)
+        HStack(spacing: 6) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.16)) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "creditcard.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Theme.accent)
+                    Text(GoUsage.planName.uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .tracking(0.6)
+                        .foregroundStyle(.secondary)
 
-                if isLimited {
-                    Chip(text: "rate limited", systemImage: "exclamationmark.triangle.fill", tint: Theme.danger)
-                } else if note != nil {
-                    Chip(text: "stale", systemImage: "clock.arrow.circlepath", tint: Theme.warn)
-                }
+                    if isLimited {
+                        Chip(text: "rate limited", systemImage: "exclamationmark.triangle.fill", tint: Theme.danger)
+                    } else if note != nil {
+                        Chip(text: "stale", systemImage: "clock.arrow.circlepath", tint: Theme.warn)
+                    } else if usage.ordered.isEmpty {
+                        Chip(text: usage.subscriptionStatus, systemImage: "questionmark.circle.fill", tint: .secondary)
+                    } else {
+                        Chip(text: usage.subscriptionStatus, systemImage: "checkmark.circle.fill", tint: Theme.accent)
+                    }
 
-                Spacer(minLength: 4)
+                    Spacer(minLength: 4)
 
-                if !isExpanded, let nextReset {
-                    Text("next reset in \(Fmt.countdown(to: nextReset))")
-                        .font(.system(size: 9))
-                        .monospacedDigit()
+                    if !isExpanded, let nextReset {
+                        Text("next reset in \(Fmt.countdown(to: nextReset))")
+                            .font(.system(size: 9))
+                            .monospacedDigit()
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 7, weight: .bold))
                         .foregroundStyle(.tertiary)
+                        .frame(width: 8)
                 }
-
-                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 7, weight: .bold))
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 8)
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .help(isExpanded ? "Hide reset times" : "Show reset times")
+
+            Link(destination: GoUsage.manageURL) {
+                Image(systemName: "arrow.up.right.square")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .help("Manage subscription")
+            .accessibilityLabel("Manage OpenCode Go subscription")
         }
-        .buttonStyle(.plain)
-        .help(isExpanded ? "Hide reset times" : "Show reset times")
     }
 
     private func compactGauge(_ label: String, window: GoUsage.Window) -> some View {

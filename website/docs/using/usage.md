@@ -12,9 +12,12 @@ from OpenCode's stats API and session history.
 
 <Figure src="/img/screenshots/usage.png" alt="Usage tab with Go plan limits, trend, streak, and activity totals" caption="Plan limits are hidden when no Go key is configured." />
 
-## Plan limits
+## Subscription & plan limits
 
-When a Go usage key is configured, the tab shows:
+When a Go usage key is configured, the tab shows an **OpenCode Go** subscription
+card with its current status (active or rate limited), the rolling, weekly, and
+monthly allowances, and a link to manage the subscription in the OpenCode
+console. Each allowance shows:
 
 - **Rolling** (5h) consumption,
 - **Weekly** consumption,
