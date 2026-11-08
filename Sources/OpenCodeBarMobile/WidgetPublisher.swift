@@ -194,5 +194,6 @@ final class WidgetPublisher {
 extension MobileStore {
     func publishWidgetSnapshot(force: Bool = false) {
         WidgetPublisher.shared.publish(from: self, force: force)
+        SessionLiveActivityController.shared.publish(from: self, force: force)
     }
 }

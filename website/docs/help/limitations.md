@@ -171,4 +171,11 @@ not a real-time replacement for the open app. Elapsed timers on the Lock Screen
 keep ticking on their own between refreshes, but the session title and activity
 line only change when WidgetKit reloads the timeline.
 
+The session Live Activity updates while the app is running. After iOS suspends
+the app the card keeps its last state and the timer keeps ticking, but new tool
+or reasoning lines wait until the app is reopened; the system marks the card
+stale after 15 minutes. Remote updates over APNs are not implemented yet. The
+system also ends Live Activities after about eight hours, so a session that runs
+longer gets a fresh card when the app next refreshes.
+
 See `NOTES.md` in the repository for the current follow-up list.

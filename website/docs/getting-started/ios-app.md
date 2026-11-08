@@ -228,7 +228,8 @@ Deleting the app removes the cache. There is no cache control in Settings yet.
 
 ## Home Screen and Lock Screen widgets
 
-The Xcode project also builds **OpenCodeBarWidgets**, containing two widgets:
+The Xcode project also builds **OpenCodeBarWidgets**, containing two widgets and
+a Live Activity:
 
 - **Live Sessions** — running-session count, what each session is doing right
   now, elapsed time, project, cost, and tokens. Medium shows two running rows;
@@ -254,6 +255,31 @@ To add one, touch and hold the Lock Screen, tap **Customize**, choose the clock
 or widget area, and pick **OpenCodeBar**. Rectangular and circular layouts open
 the primary session in the app when tapped; inline opens the Live tab. Lock
 Screen widgets refresh on the same WidgetKit schedule as the Home Screen ones.
+
+### Session Live Activity
+
+While a session is running, OpenCodeBar starts a Live Activity. It is the large,
+full-width card at the bottom of the Lock Screen — the same treatment as a
+delivery tracker or the system Now Playing player, and considerably bigger than
+a Lock Screen widget.
+
+The card shows the session title and project, the current tool or activity, a
+todo progress bar, a ticking elapsed timer, cost, and tokens. The header keeps
+the total number of running sessions. On Dynamic Island phones the compact and
+expanded views carry the project, timer, and activity line too.
+
+- It follows the **first** running session for its lifetime, so the card does
+  not jump between sessions that take turns updating. When that session ends,
+  the next running one takes over.
+- Tap the card to open that conversation.
+- The app updates it from the live event stream. After iOS suspends the app the
+  card keeps its last state and the timer keeps ticking; the system marks it
+  stale after 15 minutes without an update. Updates while the app is closed
+  need APNs push and are not implemented yet.
+
+Live Activities are controlled by the system: they can be disabled per app in
+**Settings → OpenCodeBar → Live Activities**, and the system ends them after
+about eight hours. The app starts a fresh card if a session outlives that.
 
 The extension talks to the same hub directly and caches its last successful
 fetch, so widgets still render usable state while the app is closed or the Mac

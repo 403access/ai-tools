@@ -54,8 +54,9 @@ Follow-ups worth considering:
   `/api/activity` would remove that.
 - **iOS extras.** Home Screen widgets for active sessions and usage ship in the
   widget extension, and Live Sessions also has inline, circular, and
-  rectangular Lock Screen layouts. A Live Activity for a running session and
-  background refresh would make the phone more useful without opening the app.
+  rectangular Lock Screen layouts. A session Live Activity now shows the large
+  full-width Lock Screen card (see the push follow-up in *Next steps*).
+  Background refresh would make the phone more useful without opening the app.
 - **Terminal list fan-out.** `/api/terminals` merges PTYs from the default
   location and every cached project directory. That is one local OpenCode
   request per location (capped at 80, six at a time) behind a 1.5s cache. A
@@ -329,6 +330,20 @@ Follow-ups:
   - Open a session in the TUI or a Terminal window.
   - Add the new-session action to the iOS project detail page; it currently
     starts from the Live tab, because the Projects tab owns its navigation path.
+- **Live Activity push updates.** The session Live Activity is local-only: it
+  follows the running session while the app is alive, and the card keeps its
+  last state with a ticking timer after iOS suspends the app (the 15-minute
+  `staleDate` dims it). Updating while the app is closed needs APNs:
+  - an APNs auth key (`.p8`) and team/key ids in the hub config;
+  - `pushType: .token` when requesting the activity, then observing
+    `activity.pushTokenUpdates` and uploading the token (plus the activity id)
+    to the hub when pairing or moving hubs;
+  - `POST /api/live-activities/:id/push` on the hub, sending
+    `{"aps":{"timestamp":…,"event":"update","content-state":…}}` and the matching
+    `stale-date` / dismissal policy;
+  - `push-to-start` if the app should begin a card for a session that starts
+    while the phone is elsewhere.
+  Until then, Live Activity content only advances when the app is foregrounded.
 - **Distribute properly** (optional): Developer ID signing + notarization so the
   app runs without the local ad-hoc signature. A hardened-runtime build also
   needs the `com.apple.security.device.audio-input` entitlement for dictation.

@@ -43,6 +43,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     APIEnvelopes.swift            request/response envelopes
     SessionFilter.swift           project/date filters for recent feeds
     WidgetSnapshot.swift          compact widget payload (shared)
+    SessionActivityAttributes.swift  shared Live Activity payload
     Terminals.swift               terminal models and requests (shared)
     HostTerminals.swift           Terminal.app tab models (shared)
     VirtualMachine.swift          VM definitions, metrics, capabilities (shared)
@@ -113,6 +114,7 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   HubSettings.swift               URL/token storage and pairing links
   MobileRouter.swift              widget/deep-link routing
   WidgetPublisher.swift           writes the shared widget snapshot
+  SessionLiveActivityController.swift  local Live Activity lifecycle
   PairingScanner.swift            camera QR scanner for pairing
   TasksView.swift                 task board, project/date/status filters
   TasksView+Filters.swift         filter menus and date grouping
@@ -148,6 +150,7 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
 Sources/OpenCodeBarWidgets/       iOS Home Screen + Lock Screen extension
   OpenCodeBarWidgets.swift        WidgetBundle with Live and Usage
   LiveWidget.swift                running sessions, system sizes and Lock Screen accessories
+  SessionLiveActivityWidget.swift large Lock Screen card and Dynamic Island
   UsageWidget.swift               stats, trend and plan limits
   WidgetDataLoader.swift          hub fetch + cached snapshot fallback
   WidgetTheme.swift               widget palette and compact components

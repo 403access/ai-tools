@@ -324,6 +324,7 @@ final class MobileStore: ObservableObject {
     /// Applies saved settings and starts over. Used after the setup screen saves.
     func reconnect() {
         WidgetPublisher.shared.clear()
+        SessionLiveActivityController.shared.end()
         DevLog.shared.record("Reconnecting with saved settings", category: .app)
         stop()
         database?.clear()
@@ -374,6 +375,7 @@ final class MobileStore: ObservableObject {
     /// configuration.
     func disconnect() {
         WidgetPublisher.shared.clear()
+        SessionLiveActivityController.shared.end()
         stop()
         database?.clear()
         AppIconCache.reset()

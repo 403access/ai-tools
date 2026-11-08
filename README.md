@@ -24,7 +24,8 @@ terminals on the Mac to type into them, and build, run, and monitor declarative
 NixOS virtual machines on the hub host. On iOS, **Live** and **Usage** Home
 Screen widgets bring the same status to the Home Screen in small, medium, and
 large sizes, and the Live widget also has inline, circular, and rectangular
-Lock Screen versions.
+Lock Screen versions. While a session runs, the app posts a Live Activity too —
+a large, full-width Lock Screen card that updates from the live event stream.
 
 macOS panel:
 
@@ -173,6 +174,18 @@ iOS app:
 - Widgets fetch the hub directly and fall back to their last snapshot, so they
   keep showing useful data while the app is closed or the hub is offline.
   Pairing details are shared through a keychain access group.
+
+**Session Live Activity (iOS)**
+- While a session is running, a Live Activity shows a full-width card on the
+  Lock Screen — larger than any widget — with the session title, project,
+  current tool or activity, todo progress, elapsed timer, cost, and tokens.
+  Dynamic Island devices mirror the same state in the compact and expanded
+  views. Tap to open the conversation.
+- The card follows the first running session so it does not jump between
+  sessions that take turns updating; the header keeps the total running count.
+- Updates are local: they arrive while the app is running and the timer keeps
+  ticking after iOS suspends it. Pushing updates while the app is closed is on
+  the roadmap (see `NOTES.md`).
 
 **Projects**
 - Every project OpenCode has run in, with running work first and the most
@@ -959,6 +972,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     SubagentOrdering.swift  running-first ordering for child sessions
     SessionOrdering.swift   most-recent-first ordering for feeds
     WidgetSnapshot.swift    compact widget payload shared by app and extension
+    SessionActivityAttributes.swift  shared Live Activity payload
     SessionFilter.swift     project/date/outcome filters and date grouping
     GoUsage.swift           Go plan windows (shared)
     SystemInfo.swift        machine inventory from the system endpoint (shared)
@@ -1034,6 +1048,7 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   HubSettings.swift           URL + token storage and pairing links
   MobileRouter.swift          widget/deep-link routing
   WidgetPublisher.swift       writes the shared widget snapshot
+  SessionLiveActivityController.swift  local Live Activity lifecycle
   PairingScanner.swift        camera QR scanner for pairing
   TasksView.swift             task board, project/date/status filters
   TasksView+Filters.swift     filter menus and date grouping
@@ -1076,8 +1091,9 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   MobileTheme.swift           dark design tokens and shared backgrounds
 
 Sources/OpenCodeBarWidgets/   iOS Home Screen + Lock Screen extension (XcodeGen target)
-  OpenCodeBarWidgets.swift    WidgetBundle with Live and Usage
+  OpenCodeBarWidgets.swift    WidgetBundle with Live, Usage, and the Live Activity
   LiveWidget.swift            running sessions, Home Screen sizes and Lock Screen accessories
+  SessionLiveActivityWidget.swift  large Lock Screen card and Dynamic Island
   UsageWidget.swift           stats, trend, plan limits, all three sizes
   WidgetDataLoader.swift      hub fetch + cached-snapshot fallback
   WidgetTheme.swift           widget palette and compact components

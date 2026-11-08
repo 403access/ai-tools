@@ -137,9 +137,13 @@ repository.
 There are two Home Screen widgets: **Live Sessions** and **Usage**, each in
 small, medium, and large. Add them from the Home Screen's widget gallery after
 pairing the app. **Live Sessions** also has inline, circular, and rectangular
-Lock Screen layouts, added from the Lock Screen's customize screen. Live
-Activities are not implemented yet. See
-[Run the iPhone/iPad app](../getting-started/ios-app.md#home-screen-and-lock-screen-widgets).
+Lock Screen layouts, added from the Lock Screen's customize screen.
+
+While a session is running, the app also posts a **Live Activity** — the large,
+full-width Lock Screen card (and Dynamic Island views where available). It
+updates while the app is running; pushing updates while the app is closed is not
+implemented yet. See
+[Run the iPhone/iPad app](../getting-started/ios-app.md#session-live-activity).
 
 ## Why do credits not appear in Usage?
 

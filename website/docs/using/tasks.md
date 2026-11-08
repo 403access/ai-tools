@@ -52,8 +52,9 @@ match.
 
 Session activity still updates in real time from OpenCode's event stream.
 Running tasks show their status on the board, and the session header, Home
-Screen widgets, and the Live Sessions Lock Screen card show the current tool,
-reasoning or text, todo progress, subagent count, live cost, and tokens. Cost and tokens move as usage events
+Screen widgets, the Live Sessions Lock Screen card, and the Live Activity show
+the current tool, reasoning or text, todo progress, subagent count, live cost,
+and tokens. Cost and tokens move as usage events
 arrive instead of waiting for the next poll.
 
 ## Start a new session

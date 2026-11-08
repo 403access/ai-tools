@@ -58,9 +58,12 @@ make mobile-variants  # one installable variant per git worktree
 
 Xcode resolves SwiftTerm from the package reference in `project.yml` on the
 first build. The generated project has two targets: `OpenCodeBarMobile` and the
-`OpenCodeBarWidgets` extension. The app and extension share the hub connection
-through a keychain access group, so widgets work as soon as the app is paired;
-no extra capability setup is needed beyond normal automatic signing.
+`OpenCodeBarWidgets` extension, which hosts the Home Screen widgets, the Lock
+Screen widgets, and the session Live Activity. The app and extension share the
+hub connection through a keychain access group, so widgets work as soon as the
+app is paired; no extra capability setup is needed beyond normal automatic
+signing. Live Activities are enabled by `NSSupportsLiveActivities` in the app's
+generated Info.plist.
 
 See [Run the iPhone/iPad app](../getting-started/ios-app.md). To install several
 worktree builds on one phone at once, see [Review builds side by
