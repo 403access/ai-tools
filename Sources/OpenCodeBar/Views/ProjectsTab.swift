@@ -5,6 +5,7 @@ import SwiftUI
 /// opens the session detail view.
 struct ProjectsTab: View {
     @EnvironmentObject var state: AppState
+    @State private var query = ProjectQuery()
     @State private var limit = ProjectsTab.pageSize
     @State private var contentWidth: CGFloat = 0
 
@@ -30,6 +31,25 @@ struct ProjectsTab: View {
         ]
     }
 
+    /// Running session counts keyed by project id, shared by filtering and
+    /// sorting so both agree on which projects are "running now".
+    private var runningCounts: [String: Int] {
+        state.runningByProject.mapValues(\.count)
+    }
+
+    /// Projects after the search and filter chips have narrowed them. The page
+    /// limit is applied later so the counts describe the whole result set
+    /// rather than the cards currently on screen.
+    private var matchedProjects: [Project] {
+        state.orderedProjects.applyingProjectQuery(query, runningCounts: runningCounts)
+    }
+
+    /// The search-only result, used to keep every filter chip's count useful
+    /// while a chip is active.
+    private var searchMatches: [Project] {
+        state.orderedProjects.matchingProjectSearch(query.search)
+    }
+
     var body: some View {
         if state.projects.isEmpty {
             if state.isInitialLoading {
@@ -46,25 +66,49 @@ struct ProjectsTab: View {
                 )
             }
         } else {
-            let projects = state.orderedProjects
+            let projects = matchedProjects
             let visible = Array(projects.prefix(limit))
+            let groups = ProjectGrouping.groups(
+                for: visible,
+                sort: query.sort,
+                runningCounts: runningCounts
+            )
 
-            VStack(alignment: .leading, spacing: 12) {
-                if usesGrid {
-                    LazyVGrid(
-                        columns: gridColumns,
-                        alignment: .leading,
-                        spacing: Self.gridSpacing
-                    ) {
-                        projectLinks(visible)
-                    }
+            VStack(alignment: .leading, spacing: 10) {
+                controls(total: state.orderedProjects.count, shown: projects.count)
+
+                if projects.isEmpty {
+                    filteredEmptyState
                 } else {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        projectLinks(visible)
+                    if usesGrid {
+                        LazyVGrid(
+                            columns: gridColumns,
+                            alignment: .leading,
+                            spacing: Self.gridSpacing
+                        ) {
+                            ForEach(groups) { group in
+                                Section {
+                                    ForEach(group.projects) { project in
+                                        projectButton(project)
+                                    }
+                                } header: {
+                                    groupHeader(group)
+                                }
+                            }
+                        }
+                    } else {
+                        LazyVStack(alignment: .leading, spacing: 8) {
+                            ForEach(groups) { group in
+                                groupHeader(group)
+                                ForEach(group.projects) { project in
+                                    projectButton(project)
+                                }
+                            }
+                        }
                     }
-                }
 
-                showMore(projects)
+                    showMore(projects)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
@@ -74,26 +118,233 @@ struct ProjectsTab: View {
             )
             .onPreferenceChange(ProjectsWidthKey.self) { contentWidth = $0 }
             .animateRecentInsertion(ids: visible.map(\.id))
+            .onChange(of: query) { _, _ in limit = Self.pageSize }
         }
     }
 
-    @ViewBuilder
-    private func projectLinks(_ visible: [Project]) -> some View {
-        ForEach(visible) { project in
-            Button {
-                state.open(project)
-            } label: {
-                if usesGrid {
-                    ProjectGridCard(project: project)
-                } else {
-                    ProjectRow(project: project)
+    // MARK: - Search, sort, and filters
+
+    private func controls(total: Int, shown: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Projects") {
+                HStack(spacing: 6) {
+                    if query.isFiltering {
+                        Button("Clear") {
+                            withAnimation(.easeInOut(duration: 0.16)) {
+                                query = ProjectQuery()
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                        .help("Clear the search and filters")
+                    }
+
+                    Text(shown == total ? "\(total)" : "\(shown) of \(total)")
+                        .font(.system(size: 9, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack(spacing: 6) {
+                searchField
+                sortMenu
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 5) {
+                    ForEach(ProjectFilter.allCases) { filter in
+                        filterChip(filter)
+                    }
+                }
+                .padding(.vertical, 1)
+            }
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(
+                    query.trimmedSearch.isEmpty ? Color.secondary.opacity(0.7) : Theme.accent
+                )
+
+            TextField("Search projects or paths", text: $query.search)
+                .textFieldStyle(.plain)
+                .font(.system(size: 10.5))
+
+            if !query.search.isEmpty {
+                Button {
+                    query.search = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .help("Clear search")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(
+                    query.trimmedSearch.isEmpty
+                        ? Color.primary.opacity(0.05)
+                        : Theme.accent.opacity(0.35),
+                    lineWidth: 1
+                )
+        )
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            ForEach(ProjectSortOrder.allCases) { option in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.16)) {
+                        query.sort = option
+                    }
+                } label: {
+                    if option == query.sort {
+                        Label(option.title, systemImage: "checkmark")
+                    } else {
+                        Label(option.title, systemImage: option.icon)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.system(size: 8, weight: .bold))
+                Text(query.sort.shortTitle)
+                    .font(.system(size: 9, weight: .semibold))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 7, weight: .bold))
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .foregroundStyle(Theme.accent)
+            .background(Capsule().fill(Theme.accent.opacity(0.12)))
+            .contentShape(Capsule())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(query.sort.help)
+        .accessibilityLabel("Sort projects")
+        .accessibilityValue(query.sort.title)
+    }
+
+    private func filterChip(_ filter: ProjectFilter) -> some View {
+        let isSelected = query.filter == filter
+        let count = searchMatches.filter {
+            filter.matches($0, runningCounts: runningCounts)
+        }.count
+
+        return Button {
+            withAnimation(.easeInOut(duration: 0.16)) {
+                query.filter = isSelected && filter != .all ? .all : filter
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: filter.icon)
+                    .font(.system(size: 8, weight: .bold))
+                Text(filter.shortTitle)
+                    .lineLimit(1)
+                Text("\(count)")
+                    .font(.system(size: 8, weight: .semibold))
+                    .monospacedDigit()
+                    .opacity(count == 0 ? 0.45 : 1)
+            }
+            .font(.system(size: 9, weight: isSelected ? .semibold : .regular))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .foregroundStyle(isSelected ? Theme.accent : Color.secondary)
+            .background(
+                Capsule().fill(
+                    isSelected
+                        ? Theme.accent.opacity(0.16)
+                        : Color.primary.opacity(0.05)
+                )
+            )
+            .overlay(
+                Capsule().strokeBorder(
+                    isSelected ? Theme.accent.opacity(0.4) : Color.clear,
+                    lineWidth: 1
+                )
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(filter.title)
+        .accessibilityLabel("\(filter.title), \(count) projects")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func groupHeader(_ group: ProjectGroup) -> some View {
+        HStack(spacing: 5) {
+            Text(group.title.uppercased())
+                .font(.system(size: 9, weight: .bold))
+                .tracking(0.6)
+                .foregroundStyle(.secondary)
+            Text("\(group.projects.count)")
+                .font(.system(size: 9, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.tertiary)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 2)
+        .padding(.top, 2)
+    }
+
+    private func projectButton(_ project: Project) -> some View {
+        Button {
+            state.open(project)
+        } label: {
+            if usesGrid {
+                ProjectGridCard(project: project)
+            } else {
+                ProjectRow(project: project)
+            }
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .help("Show \(project.displayName) analytics and sessions")
+        .transition(.recentInsertion)
+    }
+
+    private var filteredEmptyState: some View {
+        VStack(spacing: 7) {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.system(size: 20, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text("No projects match")
+                .font(.system(size: 12, weight: .medium))
+            Text("Try a different search, sort, or filter.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Clear search and filters") {
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    query = ProjectQuery()
                 }
             }
             .buttonStyle(.plain)
-            .contentShape(Rectangle())
-            .help("Show \(project.displayName) analytics and sessions")
-            .transition(.recentInsertion)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(Theme.accent)
+            .padding(.top, 2)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 22)
+        .card()
     }
 
     @ViewBuilder

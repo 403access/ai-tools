@@ -108,6 +108,12 @@ struct ProjectQuery: Equatable, Sendable {
     var trimmedSearch: String {
         search.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    /// True when a search or filter is narrowing the list. Sort order alone
+    /// does not hide anything, so it stays out of the badge and clear action.
+    var isFiltering: Bool {
+        filter != .all || !trimmedSearch.isEmpty
+    }
 }
 
 /// A titled run of projects in the browser. Titles are plain text; the views
@@ -176,6 +182,9 @@ extension Array where Element == Project {
         sorted { lhs, rhs in
             switch sort {
             case .recent:
+                let leftRunning = (runningCounts[lhs.id] ?? 0) > 0
+                let rightRunning = (runningCounts[rhs.id] ?? 0) > 0
+                if leftRunning != rightRunning { return leftRunning }
                 if lhs.lastActiveDate != rhs.lastActiveDate {
                     return lhs.lastActiveDate > rhs.lastActiveDate
                 }

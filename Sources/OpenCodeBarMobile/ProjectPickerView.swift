@@ -36,9 +36,7 @@ struct MobileProjectPickerView: View {
         store.orderedProjects.first { $0.canonical == selectedDirectory }
     }
 
-    private var isFiltering: Bool {
-        query.filter != .all || !query.trimmedSearch.isEmpty
-    }
+    private var isFiltering: Bool { query.isFiltering }
 
     var body: some View {
         VStack(spacing: 0) {

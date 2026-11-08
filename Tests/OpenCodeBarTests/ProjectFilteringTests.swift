@@ -107,6 +107,35 @@ final class ProjectFilteringTests: XCTestCase {
         )
     }
 
+    func testRecentSortPinsRunningWorkBeforeNewerIdleProjects() {
+        let runningOld = project("prj_running", canonical: "/a", updated: 10)
+        let idleNew = project("prj_idle", canonical: "/b", updated: 500)
+
+        XCTAssertEqual(
+            [idleNew, runningOld]
+                .sortedProjects(by: .recent, runningCounts: ["prj_running": 1])
+                .map(\.id),
+            ["prj_running", "prj_idle"]
+        )
+    }
+
+    func testQueryIsOnlyFilteringWhenSearchOrChipIsActive() {
+        var query = ProjectQuery()
+        XCTAssertFalse(query.isFiltering)
+
+        query.sort = .name
+        XCTAssertFalse(query.isFiltering)
+
+        query.search = "developer"
+        XCTAssertTrue(query.isFiltering)
+
+        query.search = "   "
+        XCTAssertFalse(query.isFiltering)
+
+        query.filter = .git
+        XCTAssertTrue(query.isFiltering)
+    }
+
     func testRunningSortPutsBusiestProjectFirstThenMostRecent() {
         let busy = project("prj_busy", canonical: "/a", updated: 10)
         let recent = project("prj_recent", canonical: "/b", updated: 300)

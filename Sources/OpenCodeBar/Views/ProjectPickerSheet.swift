@@ -36,9 +36,7 @@ struct ProjectPickerSheet: View {
         return projects.first { $0.canonical == selection }
     }
 
-    private var isFiltering: Bool {
-        query.filter != .all || !query.trimmedSearch.isEmpty
-    }
+    private var isFiltering: Bool { query.isFiltering }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
