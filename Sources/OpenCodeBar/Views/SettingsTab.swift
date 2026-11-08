@@ -15,6 +15,7 @@ struct SettingsTab: View {
     @State private var contentWidth: CGFloat = 0
     @AppStorage("tasks.projectIcons") private var showsProjectIcons = true
     @AppStorage(HubLauncher.directoryDefaultsKey) private var hubDirectory = ""
+    @AppStorage("settings.showOfflineDevices") private var showsOfflineDevices = false
 
     private var layoutWidth: CGFloat { availableWidth ?? contentWidth }
 
@@ -506,10 +507,18 @@ struct SettingsTab: View {
     var devicesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader("Devices") {
-                Text(deviceCountLabel)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+                HStack(spacing: 10) {
+                    Toggle("Show offline", isOn: $showsOfflineDevices)
+                        .toggleStyle(.checkbox)
+                        .controlSize(.small)
+                        .font(.system(size: 9))
+                        .help("Include devices and simulators that are not currently connected")
+
+                    Text(deviceCountLabel)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
             }
 
             if state.devices.isEmpty {
@@ -519,8 +528,43 @@ struct SettingsTab: View {
                     subtitle: "This Mac registers as soon as it connects. iPhone and iPad apps appear after their first request."
                 )
             } else {
+                let visible = orderedDevices.filter { showsOfflineDevices || $0.connected }
+                let physical = visible.filter { !$0.isSimulator }
+                let simulators = visible.filter { $0.isSimulator }
+
+                if visible.isEmpty {
+                    NoticeRow(
+                        icon: "wifi.slash",
+                        message: "Every known device is offline. Turn on Show offline to include it.",
+                        tint: .secondary
+                    )
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
+                        deviceGroup("Physical devices", devices: physical)
+                        deviceGroup("Simulators", devices: simulators)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func deviceGroup(_ title: String, devices: [ConnectedDevice]) -> some View {
+        if !devices.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 5) {
+                    Text(title.uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .tracking(0.5)
+                        .foregroundStyle(.secondary)
+                    Text("\(devices.count)")
+                        .font(.system(size: 9, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(.tertiary)
+                }
+
                 LazyVStack(spacing: 8) {
-                    ForEach(orderedDevices) { device in
+                    ForEach(devices) { device in
                         Button {
                             state.open(device)
                         } label: {

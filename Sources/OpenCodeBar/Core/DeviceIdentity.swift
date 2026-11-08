@@ -62,7 +62,13 @@ enum DeviceIdentity {
 
     static let platform: String = {
         #if canImport(UIKit)
-        return UIDevice.current.userInterfaceIdiom == .pad ? "iPadOS" : "iOS"
+        let family = UIDevice.current.userInterfaceIdiom == .pad ? "iPadOS" : "iOS"
+        #if targetEnvironment(simulator)
+        // Settings groups simulators separately from physical devices.
+        return "\(family) Simulator"
+        #else
+        return family
+        #endif
         #elseif canImport(AppKit)
         return "macOS"
         #else

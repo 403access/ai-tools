@@ -80,14 +80,17 @@ struct ConnectedDevice: Decodable, Identifiable {
 
     var isThisDevice: Bool { id == DeviceIdentity.id }
 
+    /// Simulator builds report "iOS Simulator" or "iPadOS Simulator", which
+    /// lets Settings keep them out of the physical-device group.
+    var isSimulator: Bool { platform.localizedCaseInsensitiveContains("simulator") }
+
     /// SF Symbol that represents the platform the device reported.
     var platformIconName: String {
-        switch platform.lowercased() {
-        case "macos": return "desktopcomputer"
-        case "ipados": return "ipad"
-        case "ios": return "iphone"
-        default: return "questionmark.circle"
-        }
+        let name = platform.lowercased()
+        if name.hasPrefix("macos") { return "desktopcomputer" }
+        if name.hasPrefix("ipados") { return "ipad" }
+        if name.hasPrefix("ios") { return "iphone" }
+        return "questionmark.circle"
     }
 }
 
