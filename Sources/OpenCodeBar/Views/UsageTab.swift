@@ -29,24 +29,32 @@ struct UsageTab: View {
             VStack(alignment: .leading, spacing: 10) {
                 if state.statsStale { cachedStatsNotice }
 
-                modePicker
-
-                planLimits
+                if !showsAllSections {
+                    modePicker
+                    planLimits()
+                }
 
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 14) {
                             Color.clear.frame(height: 1).id(topAnchor)
 
-                            switch state.usageMode {
-                            case .overview:
-                                overview(stats)
-                            case .activity:
-                                activity(stats)
-                            case .breakdown:
-                                breakdown(stats)
-                            case .tools:
-                                tools(stats)
+                            if showsAllSections {
+                                // A wide window has room for the whole
+                                // dashboard. Keeping four section tabs would
+                                // hide information for no reason.
+                                wideDashboard(stats)
+                            } else {
+                                switch state.usageMode {
+                                case .overview:
+                                    overview(stats)
+                                case .activity:
+                                    activity(stats)
+                                case .breakdown:
+                                    breakdown(stats)
+                                case .tools:
+                                    tools(stats)
+                                }
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -95,13 +103,55 @@ struct UsageTab: View {
 
     // MARK: - Pages
 
+    /// The desktop window has enough room to show every Usage section at
+    /// once; only the compact panel and narrow split columns keep the tabs.
+    private var showsAllSections: Bool { contentWidth >= 1000 }
+
+    private func wideDashboard(_ stats: Stats) -> some View {
+        // The quota card is a narrow rail: its rows read top to bottom and the
+        // bars stay short instead of spanning the whole window. Token mix
+        // shares the rail, leaving the wide area for the summary and trend.
+        let railWidth: CGFloat = 340
+        let summaryWidth = max(contentWidth - railWidth - 14, 0)
+
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 14) {
+                    if showsPlanLimits {
+                        planLimits(fixed: true)
+                    }
+                    tokenMix(stats)
+                }
+                .frame(width: railWidth)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    overview(stats, width: summaryWidth)
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 14) {
+                    activity(stats)
+                    models(stats)
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    tools(stats)
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        }
+    }
+
     /// Six tiles sit in 2, 3, or 6 columns so every row stays balanced while
-    /// the desktop window widens. The compact panel keeps the original 2.
-    private var statColumns: [GridItem] {
+    /// the available width changes. The compact panel keeps the original 2.
+    private func statColumns(for width: CGFloat) -> [GridItem] {
         let count: Int
-        if contentWidth >= 1320 {
+        if width >= 1200 {
             count = 6
-        } else if contentWidth >= 700 {
+        } else if width >= 620 {
             count = 3
         } else {
             count = 2
@@ -112,10 +162,10 @@ struct UsageTab: View {
         )
     }
 
-    private func overview(_ stats: Stats) -> some View {
+    private func overview(_ stats: Stats, width: CGFloat? = nil) -> some View {
         Group {
             SectionHeader("At a glance")
-            LazyVGrid(columns: statColumns, spacing: 10) {
+            LazyVGrid(columns: statColumns(for: width ?? contentWidth), spacing: 10) {
                 StatTile(
                     icon: "flame.fill",
                     tint: Theme.warn,
@@ -183,9 +233,20 @@ struct UsageTab: View {
 
     private func breakdown(_ stats: Stats) -> some View {
         Group {
+            tokenMix(stats)
+            models(stats)
+        }
+    }
+
+    private func tokenMix(_ stats: Stats) -> some View {
+        Group {
             SectionHeader("Token mix")
             TokenBreakdown(tokens: stats.tokens)
+        }
+    }
 
+    private func models(_ stats: Stats) -> some View {
+        Group {
             if stats.models.isEmpty {
                 SectionHeader("Models")
                 NoticeRow(icon: "cpu", message: "No model usage recorded yet.", tint: .secondary)
@@ -248,20 +309,32 @@ struct UsageTab: View {
 
     /// Go plan quota, when a Go key is configured. Mirrors the console's
     /// rolling / weekly / monthly allowances and stays visible on every page.
+    private var showsPlanLimits: Bool {
+        if case .unavailable = state.goUsage { return false }
+        return true
+    }
+
+    /// `fixed` is the wide dashboard's narrow rail: rows stay expanded and
+    /// cannot collapse, so the data reads vertically in a short card.
     @ViewBuilder
-    private var planLimits: some View {
+    private func planLimits(fixed: Bool = false) -> some View {
         switch state.goUsage {
         case .unavailable:
             EmptyView()
         case .loading:
             NoticeRow(icon: "gauge.with.dots.needle.33percent", message: "Loading Go limits…", tint: .secondary)
         case .ready(let usage):
-            PlanLimitsStrip(usage: usage, isExpanded: $quotaExpanded)
+            PlanLimitsStrip(
+                usage: usage,
+                isExpanded: fixed ? Binding.constant(true) : $quotaExpanded,
+                collapsible: !fixed
+            )
         case .stale(let usage, let reason):
             PlanLimitsStrip(
                 usage: usage,
                 note: "\(clause(reason)) — showing limits from \(label(for: state.goUsageFetchedAt))",
-                isExpanded: $quotaExpanded
+                isExpanded: fixed ? Binding.constant(true) : $quotaExpanded,
+                collapsible: !fixed
             )
         case .failed(let message):
             NoticeRow(icon: "exclamationmark.triangle.fill", message: message, tint: Theme.warn)
@@ -301,6 +374,9 @@ struct PlanLimitsStrip: View {
     let usage: GoUsage
     var note: String?
     @Binding var isExpanded: Bool
+    /// False in the wide dashboard's rail: the rows stay expanded and the
+    /// header is a label rather than a disclosure control.
+    var collapsible = true
 
     private var isLimited: Bool { usage.isRateLimited }
 
@@ -345,46 +421,17 @@ struct PlanLimitsStrip: View {
 
     private var header: some View {
         HStack(spacing: 6) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.16)) { isExpanded.toggle() }
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "creditcard.fill")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Theme.accent)
-                    Text(GoUsage.planName.uppercased())
-                        .font(.system(size: 9, weight: .bold))
-                        .tracking(0.6)
-                        .foregroundStyle(.secondary)
-
-                    if isLimited {
-                        Chip(text: "rate limited", systemImage: "exclamationmark.triangle.fill", tint: Theme.danger)
-                    } else if note != nil {
-                        Chip(text: "stale", systemImage: "clock.arrow.circlepath", tint: Theme.warn)
-                    } else if usage.ordered.isEmpty {
-                        Chip(text: usage.subscriptionStatus, systemImage: "questionmark.circle.fill", tint: .secondary)
-                    } else {
-                        Chip(text: usage.subscriptionStatus, systemImage: "checkmark.circle.fill", tint: Theme.accent)
-                    }
-
-                    Spacer(minLength: 4)
-
-                    if !isExpanded, let nextReset {
-                        Text("next reset in \(Fmt.countdown(to: nextReset))")
-                            .font(.system(size: 9))
-                            .monospacedDigit()
-                            .foregroundStyle(.tertiary)
-                    }
-
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 8)
+            if collapsible {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.16)) { isExpanded.toggle() }
+                } label: {
+                    headerContent(showsDisclosure: true)
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .help(isExpanded ? "Hide reset times" : "Show reset times")
+            } else {
+                headerContent(showsDisclosure: false)
             }
-            .buttonStyle(.plain)
-            .help(isExpanded ? "Hide reset times" : "Show reset times")
 
             Link(destination: GoUsage.manageURL) {
                 Image(systemName: "arrow.up.right.square")
@@ -394,6 +441,45 @@ struct PlanLimitsStrip: View {
             .help("Manage subscription")
             .accessibilityLabel("Manage OpenCode Go subscription")
         }
+    }
+
+    private func headerContent(showsDisclosure: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: "creditcard.fill")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(Theme.accent)
+            Text(GoUsage.planName.uppercased())
+                .font(.system(size: 9, weight: .bold))
+                .tracking(0.6)
+                .foregroundStyle(.secondary)
+
+            if isLimited {
+                Chip(text: "rate limited", systemImage: "exclamationmark.triangle.fill", tint: Theme.danger)
+            } else if note != nil {
+                Chip(text: "stale", systemImage: "clock.arrow.circlepath", tint: Theme.warn)
+            } else if usage.ordered.isEmpty {
+                Chip(text: usage.subscriptionStatus, systemImage: "questionmark.circle.fill", tint: .secondary)
+            } else {
+                Chip(text: usage.subscriptionStatus, systemImage: "checkmark.circle.fill", tint: Theme.accent)
+            }
+
+            Spacer(minLength: 4)
+
+            if !isExpanded, let nextReset {
+                Text("next reset in \(Fmt.countdown(to: nextReset))")
+                    .font(.system(size: 9))
+                    .monospacedDigit()
+                    .foregroundStyle(.tertiary)
+            }
+
+            if showsDisclosure {
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 8)
+            }
+        }
+        .contentShape(Rectangle())
     }
 
     private func compactGauge(_ label: String, window: GoUsage.Window) -> some View {
