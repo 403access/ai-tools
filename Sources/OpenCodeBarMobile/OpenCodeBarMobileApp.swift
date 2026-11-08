@@ -78,6 +78,12 @@ struct RootView: View {
     @State private var selection: Tab = .tasks
     /// The tabs owned by the system `TabView`.
     @State private var tabSelection: Tab = .tasks
+    /// Cached window metrics for the landscape rail. Reading the active
+    /// window's size and safe-area insets directly in `body` creates an
+    /// AttributeGraph cycle on iOS 26, which stops SwiftUI from re-rendering
+    /// the root view after a tab is chosen. Measure from lifecycle callbacks
+    /// instead, outside the view update.
+    @State private var rail = LandscapeRail()
 
     /// Landscape moves the tab strip into the leading safe-area strip as an
     /// icon-only rail. On edge-to-edge phones the sensor housing sits in that
@@ -86,11 +92,6 @@ struct RootView: View {
     private var isLandscape: Bool { verticalSizeClass == .compact }
 
     var body: some View {
-        let metrics = windowMetrics
-        let rail = landscapeRailMetrics(
-            screenHeight: metrics.size.height,
-            insets: metrics.insets
-        )
         // The tab strip moves between the bottom edge (portrait) and the
         // leading edge (landscape) while staying the second child of the
         // layout, so the tab content keeps its identity — and with it the
@@ -132,6 +133,8 @@ struct RootView: View {
             }
         }
         .background { MobileTheme.background.ignoresSafeArea() }
+        .onAppear { refreshRailMetrics() }
+        .onChange(of: verticalSizeClass) { _, _ in refreshRailMetrics() }
         .onChange(of: selection) { _, newValue in
             // Keep the hidden TabView on the last system tab so returning to
             // it preserves its navigation stack and scroll position.
@@ -170,6 +173,7 @@ struct RootView: View {
             switch phase {
             case .active:
                 store.resume()
+                refreshRailMetrics()
             case .background:
                 store.pause()
                 store.publishWidgetSnapshot(force: true)
@@ -181,7 +185,17 @@ struct RootView: View {
 
     // MARK: - Landscape rail
 
-    private var windowMetrics: (size: CGSize, insets: EdgeInsets) {
+    /// Re-measures the active window after the view appears or rotates. This
+    /// runs from lifecycle callbacks so `body` never reads UIKit state.
+    private func refreshRailMetrics() {
+        let metrics = windowMetrics()
+        rail = landscapeRailMetrics(
+            screenHeight: metrics.size.height,
+            insets: metrics.insets
+        )
+    }
+
+    private func windowMetrics() -> (size: CGSize, insets: EdgeInsets) {
         guard let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive })
