@@ -6,11 +6,25 @@ import SwiftUI
 /// without opening a terminal.
 struct SettingsTab: View {
     @EnvironmentObject var state: AppState
+    /// Set by the desktop window to the exact width of the scroll content.
+    /// The fallback measurement serves the menu bar panel.
+    @Environment(\.settingsAvailableWidth) private var availableWidth: CGFloat?
 
     @State var copiedPairingLink = false
     @State private var showRestartConfirmation = false
+    @State private var contentWidth: CGFloat = 0
     @AppStorage("tasks.projectIcons") private var showsProjectIcons = true
     @AppStorage(HubLauncher.directoryDefaultsKey) private var hubDirectory = ""
+
+    private var layoutWidth: CGFloat { availableWidth ?? contentWidth }
+
+    /// Big desktop windows show the sections side by side instead of one very
+    /// long column. The tray panel and split columns keep the single stack.
+    private var columnCount: Int {
+        if layoutWidth >= 1400 { return 3 }
+        if layoutWidth >= 760 { return 2 }
+        return 1
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -20,17 +34,30 @@ struct SettingsTab: View {
                 NoticeRow(icon: "checkmark.circle.fill", message: notice, tint: Theme.accent)
             }
 
-            appSection
-            powerSection
-            serverSection
-            agentsSection
-            updatesSection
-            devicesSection
-            deploymentsSection
-            pairingSection
-            connectionSection
-            SettingsDeveloperSection()
+            switch columnCount {
+            case 3:
+                HStack(alignment: .top, spacing: 14) {
+                    column([.app, .power, .connection, .pairing])
+                    column([.server, .agents, .updates, .devices])
+                    column([.deployments, .developer])
+                }
+            case 2:
+                HStack(alignment: .top, spacing: 14) {
+                    column([.app, .power, .connection, .pairing, .deployments])
+                    column([.server, .agents, .updates, .devices, .developer])
+                }
+            default:
+                column([.app, .power, .server, .agents, .updates, .devices, .deployments, .pairing, .connection, .developer])
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(width: availableWidth, alignment: .topLeading)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: SettingsWidthKey.self, value: proxy.size.width)
+            }
+        )
+        .onPreferenceChange(SettingsWidthKey.self) { contentWidth = $0 }
         .task { await state.refreshSettings() }
         .alert("Restart the hub?", isPresented: $showRestartConfirmation) {
             Button("Cancel", role: .cancel) {}
@@ -39,6 +66,35 @@ struct SettingsTab: View {
             }
         } message: {
             Text("OpenCodeBar will briefly lose its connection while the hub process restarts. Mac and iOS apps reconnect automatically.")
+        }
+    }
+
+    private enum SettingsSection: Hashable {
+        case app, power, server, agents, updates, devices, deployments, pairing, connection, developer
+    }
+
+    private func column(_ sections: [SettingsSection]) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(sections, id: \.self) { section in
+                sectionView(section)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private func sectionView(_ section: SettingsSection) -> some View {
+        switch section {
+        case .app: appSection
+        case .power: powerSection
+        case .server: serverSection
+        case .agents: agentsSection
+        case .updates: updatesSection
+        case .devices: devicesSection
+        case .deployments: deploymentsSection
+        case .pairing: pairingSection
+        case .connection: connectionSection
+        case .developer: SettingsDeveloperSection()
         }
     }
 
@@ -565,4 +621,26 @@ struct SettingsTab: View {
         }
     }
 
+}
+
+/// Width of the settings content, used to pick a one, two, or three-column
+/// layout on desktop windows.
+private struct SettingsWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// Exact width available to Settings inside the desktop window's scroll view.
+struct SettingsAvailableWidthKey: EnvironmentKey {
+    static var defaultValue: CGFloat? = nil
+}
+
+extension EnvironmentValues {
+    var settingsAvailableWidth: CGFloat? {
+        get { self[SettingsAvailableWidthKey.self] }
+        set { self[SettingsAvailableWidthKey.self] = newValue }
+    }
 }

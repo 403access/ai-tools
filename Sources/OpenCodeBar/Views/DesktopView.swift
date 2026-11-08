@@ -44,10 +44,10 @@ struct DesktopView: View {
     @ViewBuilder
     private func content(width: CGFloat) -> some View {
         if !hasDetail {
-            rootList(compact: false)
+            rootList(compact: false, width: width)
         } else if width >= Split.twoColumnMin {
             HStack(spacing: 0) {
-                rootColumn
+                rootColumn(width: rootWidth(for: width))
                     .frame(width: rootWidth(for: width))
 
                 Divider()
@@ -95,7 +95,7 @@ struct DesktopView: View {
     // MARK: - Columns
 
     /// The root list of the active tab, with a header when it is a column.
-    private var rootColumn: some View {
+    private func rootColumn(width: CGFloat) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 7) {
                 Image(systemName: state.tab.icon)
@@ -116,12 +116,12 @@ struct DesktopView: View {
 
             Divider()
 
-            rootList(compact: true)
+            rootList(compact: true, width: width)
         }
         .background(Color(nsColor: .underPageBackgroundColor))
     }
 
-    private func rootList(compact: Bool) -> some View {
+    private func rootList(compact: Bool, width: CGFloat) -> some View {
         Group {
             if state.tab == .tasks {
                 // The task tab owns its scrolling and fills the content area
@@ -142,6 +142,10 @@ struct DesktopView: View {
                 }
             }
         }
+        .environment(
+            \.settingsAvailableWidth,
+            max(width - (compact ? 24 : 40), 0)
+        )
     }
 
     @ViewBuilder
