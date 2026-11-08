@@ -64,6 +64,7 @@ final class DevLog: ObservableObject {
     /// Shared filter menu used by the Mac and iOS developer views.
     enum Filter: String, CaseIterable, Identifiable {
         case all = "All"
+        case app = "App"
         case api = "API"
         case sync = "Sync"
         case events = "Events"
@@ -74,6 +75,7 @@ final class DevLog: ObservableObject {
         func matches(_ entry: Entry) -> Bool {
             switch self {
             case .all: return true
+            case .app: return entry.category == .app
             case .api: return entry.category == .api
             case .sync: return entry.category == .sync
             case .events: return entry.category == .events

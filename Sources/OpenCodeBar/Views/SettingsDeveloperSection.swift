@@ -7,10 +7,46 @@ struct SettingsDeveloperSection: View {
     @ObservedObject private var log = DevLog.shared
 
     @State private var filter: DevLog.Filter = .all
+    @State private var levelFilter: LevelFilter = .all
+    @State private var timeWindow: TimeWindow = .all
     @State private var query = ""
     @State private var isPaused = false
     @State private var pausedEntries: [DevLog.Entry] = []
     @State private var copied = false
+
+    private enum LevelFilter: String, CaseIterable, Identifiable {
+        case all = "All levels"
+        case info = "Info"
+        case warnings = "Warnings"
+        case errors = "Errors"
+
+        var id: String { rawValue }
+
+        func matches(_ level: DevLog.Level) -> Bool {
+            switch self {
+            case .all: return true
+            case .info: return level == .info
+            case .warnings: return level == .warning
+            case .errors: return level == .error
+            }
+        }
+    }
+
+    private enum TimeWindow: String, CaseIterable, Identifiable {
+        case all = "All time"
+        case fiveMinutes = "5 min"
+        case hour = "1 hour"
+
+        var id: String { rawValue }
+
+        var cutoff: Date? {
+            switch self {
+            case .all: return nil
+            case .fiveMinutes: return Date().addingTimeInterval(-5 * 60)
+            case .hour: return Date().addingTimeInterval(-60 * 60)
+            }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -35,16 +71,40 @@ struct SettingsDeveloperSection: View {
 
             VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
-                    Picker("Filter", selection: $filter) {
+                    Picker("Category", selection: $filter) {
                         ForEach(DevLog.Filter.allCases) { option in
                             Text(option.rawValue).tag(option)
                         }
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .frame(width: 96)
-                    .help("Filter by activity type")
+                    .frame(width: 94)
+                    .help("Filter by activity category")
 
+                    Picker("Level", selection: $levelFilter) {
+                        ForEach(LevelFilter.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 104)
+                    .help("Filter by severity")
+
+                    Picker("Window", selection: $timeWindow) {
+                        ForEach(TimeWindow.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 92)
+                    .help("Limit the log to a recent time window")
+
+                    Spacer(minLength: 0)
+                }
+
+                HStack(spacing: 8) {
                     TextField("Filter entries", text: $query)
                         .textFieldStyle(.roundedBorder)
                         .controlSize(.small)
@@ -59,6 +119,22 @@ struct SettingsDeveloperSection: View {
                         .buttonStyle(.plain)
                         .help("Clear the search filter")
                         .accessibilityLabel("Clear the search filter")
+                    }
+
+                    Text("\(visibleEntries.count)/\(sourceEntries.count)")
+                        .font(.system(size: 9, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(.tertiary)
+                        .help("Visible entries")
+
+                    if hasActiveFilters {
+                        Button("Clear") {
+                            clearFilters()
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                        .help("Clear all filters")
                     }
                 }
 
@@ -162,8 +238,11 @@ struct SettingsDeveloperSection: View {
 
     private var visibleEntries: [DevLog.Entry] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cutoff = timeWindow.cutoff
         return sourceEntries.filter { entry in
             guard filter.matches(entry) else { return false }
+            guard levelFilter.matches(entry.level) else { return false }
+            if let cutoff, entry.date < cutoff { return false }
             guard !needle.isEmpty else { return true }
             return entry.title.localizedCaseInsensitiveContains(needle)
                 || (entry.detail?.localizedCaseInsensitiveContains(needle) ?? false)
@@ -171,13 +250,26 @@ struct SettingsDeveloperSection: View {
         }
     }
 
+    private var hasActiveFilters: Bool {
+        filter != .all
+            || levelFilter != .all
+            || timeWindow != .all
+            || !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var emptyTitle: String {
         if log.entries.isEmpty && !isPaused { return "No activity yet" }
-        if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "No matching entries"
+        if hasActiveFilters { return "No matching entries" }
+        return "No activity yet"
+    }
+
+    private func clearFilters() {
+        withAnimation(.easeOut(duration: 0.14)) {
+            filter = .all
+            levelFilter = .all
+            timeWindow = .all
+            query = ""
         }
-        if filter == .all { return "No activity yet" }
-        return "No \(filter.rawValue.lowercased()) entries"
     }
 
     // MARK: - Actions
