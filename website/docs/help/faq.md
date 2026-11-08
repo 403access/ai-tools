@@ -132,12 +132,14 @@ No. It builds for the simulator and installs on a physical device with an Apple
 Development identity. There is no App Store distribution setup in the
 repository.
 
-## Are there Home Screen widgets or Live Activities?
+## Are there Home Screen or Lock Screen widgets, or Live Activities?
 
 There are two Home Screen widgets: **Live Sessions** and **Usage**, each in
 small, medium, and large. Add them from the Home Screen's widget gallery after
-pairing the app. Live Activities are not implemented yet. See
-[Run the iPhone/iPad app](../getting-started/ios-app.md#home-screen-widgets).
+pairing the app. **Live Sessions** also has inline, circular, and rectangular
+Lock Screen layouts, added from the Lock Screen's customize screen. Live
+Activities are not implemented yet. See
+[Run the iPhone/iPad app](../getting-started/ios-app.md#home-screen-and-lock-screen-widgets).
 
 ## Why do credits not appear in Usage?
 

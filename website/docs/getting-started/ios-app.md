@@ -226,7 +226,7 @@ that actually moved are transferred. Pairing a different hub clears the cache.
 
 Deleting the app removes the cache. There is no cache control in Settings yet.
 
-## Home Screen widgets
+## Home Screen and Lock Screen widgets
 
 The Xcode project also builds **OpenCodeBarWidgets**, containing two widgets:
 
@@ -236,9 +236,24 @@ The Xcode project also builds **OpenCodeBarWidgets**, containing two widgets:
 - **Usage** — today's steps, cost, tokens, streak, prompts, tool calls, a
   14-day activity chart, and the Go plan-limit bars with reset countdowns.
 
-Both support small, medium, and large sizes. Long-press the Home Screen, tap
-**Edit → Add Widget**, search for **OpenCodeBar**, and pick a size. Tapping a
-widget opens the matching tab.
+Both support small, medium, and large Home Screen sizes. Long-press the Home
+Screen, tap **Edit → Add Widget**, search for **OpenCodeBar**, and pick a size.
+Tapping a widget opens the matching tab.
+
+**Live Sessions** also supports the Lock Screen, with layouts that read like a
+delivery or flight tracker:
+
+- **Inline** — the running count and current activity above the clock.
+- **Circular** — a live count badge, or an idle/offline state.
+- **Rectangular** — the primary session, its project and current activity, a
+  ticking elapsed timer, and a thin progress line when the session has a todo
+  list. Only the newest running session is shown; the header keeps the total
+  count.
+
+To add one, touch and hold the Lock Screen, tap **Customize**, choose the clock
+or widget area, and pick **OpenCodeBar**. Rectangular and circular layouts open
+the primary session in the app when tapped; inline opens the Live tab. Lock
+Screen widgets refresh on the same WidgetKit schedule as the Home Screen ones.
 
 The extension talks to the same hub directly and caches its last successful
 fetch, so widgets still render usable state while the app is closed or the Mac
@@ -257,7 +272,7 @@ a signed simulator run from Xcode (with a development team) or
 ## App permissions
 
 - **Local Network** — required to reach the hub on your Mac, including from the
-  Home Screen widgets.
+  Home Screen and Lock Screen widgets.
 - **Camera** — only when you scan a pairing QR code.
 - **Microphone** — only when you tap the dictation button.
 - **Speech Recognition** — to turn speech into an editable prompt.

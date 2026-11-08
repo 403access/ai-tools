@@ -145,9 +145,9 @@ Sources/OpenCodeBarMobile/        iOS app (XcodeGen target)
   MobileSessionStatsView.swift    session reliability
   MobileTheme.swift               design tokens
 
-Sources/OpenCodeBarWidgets/       iOS Home Screen extension
+Sources/OpenCodeBarWidgets/       iOS Home Screen + Lock Screen extension
   OpenCodeBarWidgets.swift        WidgetBundle with Live and Usage
-  LiveWidget.swift                running sessions, small/medium/large
+  LiveWidget.swift                running sessions, system sizes and Lock Screen accessories
   UsageWidget.swift               stats, trend and plan limits
   WidgetDataLoader.swift          hub fetch + cached snapshot fallback
   WidgetTheme.swift               widget palette and compact components

@@ -165,8 +165,10 @@ each run and stops working when the process exits.
 - VM snapshots, clones, graphical consoles, disk resizing, and guests other
   than NixOS.
 
-Home Screen widgets refresh on the schedule iOS gives them (usually every five
-to fifteen minutes, less often in Low Power Mode); they are not a real-time
-replacement for the open app.
+Home Screen and Lock Screen widgets refresh on the schedule iOS gives them
+(usually every five to fifteen minutes, less often in Low Power Mode); they are
+not a real-time replacement for the open app. Elapsed timers on the Lock Screen
+keep ticking on their own between refreshes, but the session title and activity
+line only change when WidgetKit reloads the timeline.
 
 See `NOTES.md` in the repository for the current follow-up list.

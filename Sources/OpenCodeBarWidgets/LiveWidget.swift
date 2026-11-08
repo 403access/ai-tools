@@ -42,11 +42,14 @@ struct LiveWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: LiveProvider()) { entry in
             LiveWidgetView(entry: entry)
-                .containerBackground(for: .widget) { WidgetBackground() }
+                .containerBackground(for: .widget) { WidgetContainerBackground() }
         }
         .configurationDisplayName("Live Sessions")
-        .description("See which OpenCode sessions are running and what they are doing.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .description("See which OpenCode sessions are running and what they are doing — on the Home Screen or the Lock Screen.")
+        .supportedFamilies([
+            .systemSmall, .systemMedium, .systemLarge,
+            .accessoryInline, .accessoryCircular, .accessoryRectangular,
+        ])
         .contentMarginsDisabled()
     }
 }
@@ -68,12 +71,19 @@ struct LiveWidgetView: View {
                 small
             case .systemMedium:
                 medium
+            case .accessoryInline:
+                accessoryInline
+            case .accessoryCircular:
+                accessoryCircular
+            case .accessoryRectangular:
+                accessoryRectangular
             default:
                 large
             }
         }
-        .padding(13)
-        .widgetURL(WidgetLinks.live)
+        // Lock Screen families draw inside the system's own margins and chrome.
+        .padding(family.isAccessory ? 0 : 13)
+        .widgetURL(family.isAccessory ? (primarySessionURL ?? WidgetLinks.live) : WidgetLinks.live)
     }
 
     // MARK: - Small
@@ -258,6 +268,236 @@ struct LiveWidgetView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
+    // MARK: - Lock Screen
+
+    /// One line above the clock. It reads like a tracking row: how many
+    /// sessions are running and what the busiest one is doing right now.
+    private var accessoryInline: some View {
+        Label(inlineLabel, systemImage: inlineIcon)
+    }
+
+    /// A count badge for the three circular Lock Screen slots.
+    @ViewBuilder
+    private var accessoryCircular: some View {
+        ZStack {
+            AccessoryWidgetBackground()
+
+            switch snapshot.connection {
+            case .disabled:
+                Image(systemName: "qrcode")
+                    .font(.system(size: 21, weight: .medium))
+            case .offline:
+                Image(systemName: "wifi.exclamationmark")
+                    .font(.system(size: 21, weight: .medium))
+            case .connecting where snapshot.running.isEmpty:
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 20, weight: .medium))
+            default:
+                if snapshot.running.isEmpty {
+                    VStack(spacing: 0) {
+                        Image(systemName: "moon.zzz.fill")
+                            .font(.system(size: 15, weight: .medium))
+                        Text("IDLE")
+                            .font(.system(size: 8, weight: .bold))
+                            .tracking(0.5)
+                    }
+                } else {
+                    VStack(spacing: -2) {
+                        Text("\(snapshot.activeCount)")
+                            .font(.system(size: 27, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .widgetAccentable()
+                        Text("LIVE")
+                            .font(.system(size: 8, weight: .bold))
+                            .tracking(0.6)
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessorySummary)
+    }
+
+    /// The widest slot: a delivery-tracker style card for the primary session.
+    private var accessoryRectangular: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(.primary)
+                    .frame(width: 4, height: 4)
+
+                Text(rectHeader)
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.6)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 4)
+
+                if let session = primarySession {
+                    Text(session.startedAt, style: .timer)
+                        .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                        .widgetAccentable()
+                }
+            }
+
+            if let session = primarySession {
+                Text(session.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+
+                HStack(spacing: 3) {
+                    Text(session.project)
+                        .fontWeight(.semibold)
+                        .widgetAccentable()
+                    if !activityLine(session).isEmpty {
+                        Text("·")
+                        Text(activityLine(session))
+                    }
+                }
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+                if let progress = session.progress {
+                    let fraction = min(max(progress, 0), 1)
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(.primary.opacity(0.2))
+                            Capsule()
+                                .fill(.primary)
+                                .frame(width: max(2, geo.size.width * CGFloat(fraction)))
+                        }
+                    }
+                    .frame(height: 2.5)
+                    .padding(.top, 2)
+                    .accessibilityLabel("Task progress \(Int(fraction * 100)) percent")
+                }
+            } else {
+                Text(rectTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+
+                Text(rectDetail)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Lock Screen copy
+
+    private var primarySession: WidgetSnapshot.Session? {
+        snapshot.running.first
+    }
+
+    private var primarySessionURL: URL? {
+        primarySession.flatMap { WidgetLinks.session($0.id) }
+    }
+
+    private var inlineLabel: String {
+        switch snapshot.connection {
+        case .disabled:
+            return "Pair your hub in OpenCodeBar"
+        case .offline:
+            return snapshot.running.isEmpty
+                ? "Hub offline"
+                : "Hub offline · \(snapshot.activeCount) running"
+        case .connecting where snapshot.running.isEmpty:
+            return "Connecting to hub"
+        default:
+            return runningSummary
+        }
+    }
+
+    private var inlineIcon: String {
+        switch snapshot.connection {
+        case .disabled:
+            return "qrcode"
+        case .offline:
+            return "wifi.exclamationmark"
+        case .connecting where snapshot.running.isEmpty:
+            return "arrow.triangle.2.circlepath"
+        default:
+            guard let session = primarySession else { return "moon.zzz.fill" }
+            return session.activityIcon ?? "bolt.fill"
+        }
+    }
+
+    private var runningSummary: String {
+        guard let session = primarySession else { return "No sessions running" }
+        let count = snapshot.activeCount == 1 ? "1 session" : "\(snapshot.activeCount) running"
+        if let activity = session.activity, !activity.isEmpty {
+            return "\(count) · \(activity)"
+        }
+        return "\(count) · \(session.title)"
+    }
+
+    private var rectHeader: String {
+        switch snapshot.connection {
+        case .disabled:
+            return "NOT CONNECTED"
+        case .offline:
+            return "OFFLINE"
+        case .connecting where snapshot.running.isEmpty:
+            return "CONNECTING"
+        default:
+            return snapshot.running.isEmpty ? "IDLE" : "\(snapshot.activeCount) RUNNING"
+        }
+    }
+
+    private var rectTitle: String {
+        switch snapshot.connection {
+        case .disabled:
+            return "Pair your hub"
+        case .offline:
+            return "Hub offline"
+        case .connecting:
+            return "Connecting to hub"
+        case .connected:
+            return "No sessions running"
+        }
+    }
+
+    private var rectDetail: String {
+        switch snapshot.connection {
+        case .disabled:
+            return "Open OpenCodeBar to connect to your Mac."
+        case .offline:
+            if let message = snapshot.message, !message.isEmpty { return message }
+            return updatedLabel
+        case .connecting:
+            return "Waiting for your Mac to answer."
+        case .connected:
+            if let recent = snapshot.recent.first {
+                return "Last: \(recent.title) · \(recent.project)"
+            }
+            return "All quiet · \(updatedLabel.lowercased())"
+        }
+    }
+
+    private var accessorySummary: String {
+        switch snapshot.connection {
+        case .disabled:
+            return "OpenCodeBar is not connected to a hub."
+        case .offline:
+            return "The OpenCodeBar hub is offline."
+        case .connecting:
+            return snapshot.running.isEmpty
+                ? "Connecting to the OpenCodeBar hub."
+                : "\(snapshot.activeCount) sessions running while the hub reconnects."
+        case .connected:
+            guard let session = primarySession else {
+                return "No OpenCode sessions are running."
+            }
+            return "\(snapshot.activeCount) sessions running. \(session.title) in \(session.project)."
+        }
+    }
+
     // MARK: - Pieces
 
     private var header: some View {
@@ -399,6 +639,27 @@ struct LiveWidgetView: View {
 }
 
 #Preview(as: .systemMedium) {
+    LiveWidget()
+} timeline: {
+    LiveEntry(date: .now, snapshot: .placeholder())
+    LiveEntry(date: .now, snapshot: .placeholder(connection: .offline))
+}
+
+#Preview(as: .accessoryRectangular) {
+    LiveWidget()
+} timeline: {
+    LiveEntry(date: .now, snapshot: .placeholder())
+    LiveEntry(date: .now, snapshot: .placeholder(connection: .offline))
+}
+
+#Preview(as: .accessoryCircular) {
+    LiveWidget()
+} timeline: {
+    LiveEntry(date: .now, snapshot: .placeholder())
+    LiveEntry(date: .now, snapshot: .placeholder(connection: .offline))
+}
+
+#Preview(as: .accessoryInline) {
     LiveWidget()
 } timeline: {
     LiveEntry(date: .now, snapshot: .placeholder())

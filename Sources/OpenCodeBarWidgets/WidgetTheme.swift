@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import WidgetKit
 
 /// Widget-sized version of the panel palette. The app-only `MobileTheme` is
 /// built around UIKit traits; these values match it but stay in the widget
@@ -18,6 +19,33 @@ enum WidgetTheme {
             let c = traits.userInterfaceStyle == .dark ? dark : light
             return UIColor(red: c.0, green: c.1, blue: c.2, alpha: 1)
         })
+    }
+}
+
+extension WidgetFamily {
+    /// Lock Screen widgets are drawn by the system in a vibrant, monochrome
+    /// style and supply their own background. Home Screen treatment (padding,
+    /// glow, wordmark) does not apply to them.
+    var isAccessory: Bool {
+        switch self {
+        case .accessoryCircular, .accessoryRectangular, .accessoryInline:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+/// Container background that stays out of the way on the Lock Screen.
+struct WidgetContainerBackground: View {
+    @Environment(\.widgetFamily) private var family
+
+    var body: some View {
+        if family.isAccessory {
+            Color.clear
+        } else {
+            WidgetBackground()
+        }
     }
 }
 

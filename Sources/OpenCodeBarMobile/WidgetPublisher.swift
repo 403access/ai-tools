@@ -78,6 +78,7 @@ final class WidgetPublisher {
         var headline: String?
         var detail: String?
         var icon: String?
+        var progress: Double?
 
         if let activity {
             icon = activity.icon
@@ -87,6 +88,9 @@ final class WidgetPublisher {
             } else {
                 headline = activity.headline
                 detail = activity.detailLine
+            }
+            if activity.totalTodos > 0 {
+                progress = activity.todoFraction
             }
         }
 
@@ -103,6 +107,7 @@ final class WidgetPublisher {
             activity: headline,
             activityDetail: detail,
             activityIcon: icon,
+            progress: progress,
             subagents: store.activeSubagentCount(for: session.id)
         )
     }

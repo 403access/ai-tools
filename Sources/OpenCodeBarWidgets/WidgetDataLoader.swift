@@ -99,6 +99,7 @@ enum WidgetHub {
                 activity: previous?.activity,
                 activityDetail: previous?.activityDetail,
                 activityIcon: previous?.activityIcon,
+                progress: previous?.progress,
                 subagents: 0
             )
         }

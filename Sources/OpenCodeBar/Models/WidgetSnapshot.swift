@@ -20,6 +20,10 @@ struct WidgetSnapshot: Codable, Equatable, Sendable {
         var activity: String?
         var activityDetail: String?
         var activityIcon: String?
+        /// Completed fraction of the session's todo list, when it has one.
+        /// The Lock Screen card uses it as a delivery-tracker style progress
+        /// line; sessions without todos show none.
+        var progress: Double? = nil
         var subagents: Int
     }
 
@@ -137,6 +141,7 @@ extension WidgetSnapshot {
                     activity: "Editing",
                     activityDetail: "Sources/OpenCodeBarWidgets/LiveWidget.swift",
                     activityIcon: "wrench.and.screwdriver.fill",
+                    progress: 0.7,
                     subagents: 1
                 ),
                 Session(
@@ -152,6 +157,7 @@ extension WidgetSnapshot {
                     activity: "Thinking",
                     activityDetail: nil,
                     activityIcon: "brain",
+                    progress: 0.25,
                     subagents: 0
                 ),
             ],

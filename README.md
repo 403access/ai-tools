@@ -23,7 +23,8 @@ also start a new session, send a prompt into an open conversation, open
 terminals on the Mac to type into them, and build, run, and monitor declarative
 NixOS virtual machines on the hub host. On iOS, **Live** and **Usage** Home
 Screen widgets bring the same status to the Home Screen in small, medium, and
-large sizes.
+large sizes, and the Live widget also has inline, circular, and rectangular
+Lock Screen versions.
 
 macOS panel:
 
@@ -154,11 +155,17 @@ iOS app:
   with their own live activity, outcome, cost, and time. Tap one to drill in;
   Back returns to the parent, and each level loads its own children.
 
-**Home Screen widgets (iOS)**
+**Home Screen & Lock Screen widgets (iOS)**
 - **Live** shows the running-session count and what each session is doing now,
   with elapsed timers, project, current tool or activity, cost, and tokens.
   Small shows the count and top session; medium shows two running rows; large
   adds more running rows plus recent sessions.
+- **Live** also has three Lock Screen layouts, styled like an ongoing delivery
+  or flight tracker. Inline shows the count and current activity above the
+  clock, circular shows a live count badge, and rectangular shows the primary
+  session with its project, activity, a ticking elapsed timer, and a thin
+  todo-progress line when the session has a todo list. The rectangular and
+  circular layouts open that session when tapped.
 - **Usage** shows today's steps, cost, tokens, streak, prompts, and tool calls,
   the last 14 days of activity, and Go plan-limit bars with reset countdowns.
 - Both adapt to small, medium, and large families and open the matching tab when
@@ -529,7 +536,7 @@ the host build and the in-guest rebuild share one `configuration.nix`.
 The event stream does more than trigger refreshes. `session.step.*`,
 `session.reasoning.*`, `session.text.*`, `session.tool.*`, `session.usage.*`,
 and `permission.*` events are folded into a per-session activity snapshot, which
-is what session headers and Home Screen widgets show. Cost and token counts move
+is what session headers and widgets show. Cost and token counts move
 as `session.usage.updated` arrives instead of waiting for the next poll. When the stream is missed — on
 launch or after a reconnect — the newest messages are read back to rebuild the
 snapshot, including the latest `todowrite` list. Both apps fold events the same
@@ -1068,9 +1075,9 @@ Sources/OpenCodeBarMobile/    iOS app (XcodeGen target)
   MobileComponents.swift      shared mobile views
   MobileTheme.swift           dark design tokens and shared backgrounds
 
-Sources/OpenCodeBarWidgets/   iOS Home Screen extension (XcodeGen target)
+Sources/OpenCodeBarWidgets/   iOS Home Screen + Lock Screen extension (XcodeGen target)
   OpenCodeBarWidgets.swift    WidgetBundle with Live and Usage
-  LiveWidget.swift            running sessions, all three sizes
+  LiveWidget.swift            running sessions, Home Screen sizes and Lock Screen accessories
   UsageWidget.swift           stats, trend, plan limits, all three sizes
   WidgetDataLoader.swift      hub fetch + cached-snapshot fallback
   WidgetTheme.swift           widget palette and compact components
