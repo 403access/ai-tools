@@ -22,12 +22,17 @@ extension MobileStore {
     }
 
     /// The build to offer in the update banner. The installed app's build
-    /// number comes from its own Info.plist, so re-publishing the same build
-    /// does not prompt, and a dismissed build stays dismissed.
+    /// number comes from its own Info.plist, so the banner appears only when the
+    /// hub has published a newer build, and a dismissed build stays dismissed.
     var otaUpdate: OtaArtifact? {
         guard let latest = otaLatest, latest.id != otaDismissedID else { return nil }
         let installed = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
-        if !installed.isEmpty, !latest.build.isEmpty, installed == latest.build { return nil }
+        if installed.isEmpty || latest.build.isEmpty { return latest }
+        if installed == latest.build { return nil }
+        // Only offer the update when the published build is newer than what's installed.
+        if let installedNum = Int(installed), let latestNum = Int(latest.build) {
+            return latestNum > installedNum ? latest : nil
+        }
         return latest
     }
 
