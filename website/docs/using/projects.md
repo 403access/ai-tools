@@ -35,10 +35,12 @@ information gets its own screen instead of one long scroll:
   their files, without status.
 - **Structure** — a layered, left-to-right diagram of the folder: the project
   root, its top-level areas, the modules inside them, and one more level of
-  nested folders. Edges show containment; nodes show their file count, dominant
-  language, and working-tree changes. The header totals files, folders, nodes,
-  links, and changes, with a language composition bar and legend. Select a node
-  to read its path, language mix, and hidden-child count, or reveal it in
+  nested folders. Edges show containment; nodes show their file count, distilled
+  tech stack, and working-tree changes. The header totals files, folders, nodes,
+  links, and changes, with a language composition bar, legend, and the
+  application-level stack (Bun, TypeScript, React, CSS, and so on) inferred from
+  manifests, lockfiles, and file types. Select a node to read its path, the
+  stack for that level, language mix, and hidden-child count, or reveal it in
   Finder. Large folders are capped per column and mark the leftover children
   with **+N**.
 - **Git** — the repository's current branch, HEAD, working-tree state, local

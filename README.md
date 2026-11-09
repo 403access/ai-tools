@@ -219,9 +219,11 @@ iOS app:
   button swaps the flat list for a collapsible folder tree.
 - **Structure** draws the project folder as a layered diagram: the root, its
   top-level areas, the modules inside them, and one more level of nested
-  folders, with edges for containment. Each node shows its file count, dominant
-  language, and working-tree changes; the header adds totals, a language
-  composition bar, and a legend. Select a node to read its full path, inspect
+  folders, with edges for containment. Each node shows its file count, distilled
+  tech stack, and working-tree changes; the header adds totals, a language
+  composition bar, legend, and the application-level stack (Bun, TypeScript,
+  React, CSS, and so on) inferred from manifests, lockfiles, and file types.
+  Select a node to read its full path, inspect the stack for that level, see
   its language mix, or reveal it in Finder. Wide folders are capped per column
   and show **+N** for the children the map leaves out.
 - **Git** shows the repository's current branch, HEAD, working-tree state, local

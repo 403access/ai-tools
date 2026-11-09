@@ -156,6 +156,87 @@ final class ProjectStructureTests: XCTestCase {
         XCTAssertEqual(structure.columns[2].count, ProjectStructureBuilder.maxColumnNodes)
     }
 
+    func testDistillsStackAtApplicationAndFolderLevels() throws {
+        let structure = try XCTUnwrap(
+            ProjectStructureBuilder.build(
+                name: "Demo",
+                project: payload([
+                    "server/package.json",
+                    "server/bun.lock",
+                    "server/tsconfig.json",
+                    "server/src/index.ts",
+                    "website/package.json",
+                    "website/package-lock.json",
+                    "website/docusaurus.config.js",
+                    "website/src/css/custom.css",
+                    "website/src/pages/index.jsx",
+                    "Sources/App/App.swift",
+                    "main.ts",
+                    "README.md",
+                ])
+            )
+        )
+
+        let rootNames = structure.stack.map(\.name)
+        XCTAssertTrue(rootNames.contains("Bun"))
+        XCTAssertTrue(rootNames.contains("TypeScript"))
+        XCTAssertTrue(rootNames.contains("React"))
+        XCTAssertTrue(rootNames.contains("CSS"))
+        XCTAssertLessThan(
+            try XCTUnwrap(rootNames.firstIndex(of: "Bun")),
+            try XCTUnwrap(rootNames.firstIndex(of: "Node")),
+            "The app-level stack leads with the runtime"
+        )
+        XCTAssertLessThan(
+            try XCTUnwrap(rootNames.firstIndex(of: "TypeScript")),
+            try XCTUnwrap(rootNames.firstIndex(of: "React")),
+            "Languages rank before frameworks"
+        )
+        XCTAssertEqual(structure.stack.first?.kind, .runtime)
+
+        let server = try XCTUnwrap(structure.node("server"))
+        XCTAssertEqual(server.stack.map(\.name), ["Bun", "Node", "TypeScript"])
+
+        let website = try XCTUnwrap(structure.node("website"))
+        XCTAssertEqual(
+            website.stack.map(\.name),
+            ["Node", "JavaScript", "React", "Docusaurus", "CSS", "npm"]
+        )
+
+        let app = try XCTUnwrap(structure.node("Sources/App"))
+        XCTAssertEqual(app.stack.map(\.name), ["Swift"])
+
+        let file = try XCTUnwrap(structure.node("main.ts"))
+        XCTAssertEqual(file.stack.map(\.name), ["TypeScript"])
+        XCTAssertEqual(file.stack.first?.files, 1)
+    }
+
+    func testRecognizesTechnologiesFromPaths() {
+        XCTAssertEqual(
+            ProjectFileTechnology.technologies(for: "src/App.tsx").map(\.name),
+            ["TypeScript", "React"]
+        )
+        XCTAssertEqual(
+            ProjectFileTechnology.technologies(for: "website/docusaurus.config.js").map(\.name),
+            ["JavaScript", "React", "Docusaurus"]
+        )
+        XCTAssertEqual(
+            ProjectFileTechnology.technologies(for: "server/bun.lock").map(\.name),
+            ["Bun"]
+        )
+        XCTAssertEqual(
+            ProjectFileTechnology.technologies(for: "src/theme.css").map(\.name),
+            ["CSS"]
+        )
+        XCTAssertTrue(
+            ProjectFileTechnology.technologies(for: "README.md").isEmpty,
+            "Documentation is not part of the distilled stack"
+        )
+        XCTAssertTrue(
+            ProjectFileTechnology.technologies(for: "config/settings.json").isEmpty
+        )
+    }
+
     func testLayoutKeepsEveryNodeOnTheCanvas() throws {
         let structure = try XCTUnwrap(
             ProjectStructureBuilder.build(

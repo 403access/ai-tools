@@ -128,6 +128,7 @@ struct ProjectStructureView: View {
             }
 
             languageBar
+            stackBar
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 10)
@@ -206,6 +207,58 @@ struct ProjectStructureView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var stackBar: some View {
+        let shown = Array(structure.stack.prefix(8))
+        let remaining = max(0, structure.stack.count - shown.count)
+
+        if !shown.isEmpty {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 4) {
+                    Text("STACK")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .tracking(0.6)
+                        .foregroundStyle(.secondary)
+                    Text("application level")
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(.tertiary)
+                    Spacer(minLength: 0)
+                    Text("\(structure.stack.count)")
+                        .font(.system(size: 8.5, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                }
+
+                LazyVGrid(
+                    columns: [
+                        GridItem(.adaptive(minimum: 62), spacing: 5, alignment: .leading)
+                    ],
+                    alignment: .leading,
+                    spacing: 5
+                ) {
+                    ForEach(shown) { technology in
+                        technologyChip(technology)
+                    }
+                    if remaining > 0 {
+                        Chip(text: "+\(remaining)")
+                            .help("\(remaining) more technologies in this project")
+                    }
+                }
+            }
+        }
+    }
+
+    private func technologyChip(_ technology: ProjectStructure.Technology) -> some View {
+        Chip(
+            text: technology.name,
+            systemImage: ProjectStructureStyle.symbol(for: technology.kind),
+            tint: ProjectStructureStyle.tint(for: technology.kind)
+        )
+        .help(
+            "\(technology.name) · \(technology.kind.label) · "
+                + "\(Fmt.grouped(technology.files)) files"
+        )
     }
 
     // MARK: - Diagram
@@ -388,7 +441,12 @@ struct ProjectStructureView: View {
 
                 HStack(spacing: 4) {
                     Text(node.isFile ? "file" : "\(Fmt.grouped(node.fileCount)) files")
-                    if let language = node.primaryLanguage {
+                    if let stack = stackSummary(for: node) {
+                        Text("·")
+                        Text(stack)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    } else if let language = node.primaryLanguage {
                         Text("·")
                         Text(language.name)
                             .lineLimit(1)
@@ -431,6 +489,12 @@ struct ProjectStructureView: View {
         .accessibilityLabel(tooltip(for: node))
     }
 
+    private func stackSummary(for node: ProjectStructure.Node) -> String? {
+        let names = node.stack.prefix(2).map(\.name)
+        guard !names.isEmpty else { return nil }
+        return names.joined(separator: " · ")
+    }
+
     private func tooltip(for node: ProjectStructure.Node) -> String {
         var lines = [node.path.isEmpty ? projectName : node.path]
         lines.append(
@@ -443,6 +507,13 @@ struct ProjectStructureView: View {
             lines.append(
                 (names + ["\(Fmt.grouped(primary.files)) files"]).joined(separator: " · ")
             )
+        }
+        if !node.stack.isEmpty {
+            let stack = node.stack.prefix(5).map { technology in
+                "\(technology.name) (\(technology.kind.label.lowercased()), "
+                    + "\(Fmt.grouped(technology.files)) files)"
+            }
+            lines.append("Stack: " + stack.joined(separator: " · "))
         }
         if node.changedCount > 0 {
             lines.append("\(node.changedCount) changed in the working tree")
@@ -518,6 +589,10 @@ struct ProjectStructureView: View {
                 Spacer(minLength: 0)
             }
 
+            if !node.stack.isEmpty {
+                stackSection(for: node)
+            }
+
             if !node.languages.isEmpty {
                 HStack(spacing: 5) {
                     ForEach(node.languages) { language in
@@ -532,6 +607,39 @@ struct ProjectStructureView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 9)
+    }
+
+    private func stackSection(for node: ProjectStructure.Node) -> some View {
+        let shown = Array(node.stack.prefix(8))
+        let remaining = max(0, node.stack.count - shown.count)
+
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Text("STACK")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .tracking(0.6)
+                    .foregroundStyle(.secondary)
+                Text(node.depth == 0 ? "application level" : "this level")
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(.tertiary)
+                Spacer(minLength: 0)
+            }
+            LazyVGrid(
+                columns: [
+                    GridItem(.adaptive(minimum: 62), spacing: 5, alignment: .leading)
+                ],
+                alignment: .leading,
+                spacing: 5
+            ) {
+                ForEach(shown) { technology in
+                    technologyChip(technology)
+                }
+                if remaining > 0 {
+                    Chip(text: "+\(remaining)")
+                        .help("\(remaining) more technologies in this folder")
+                }
+            }
+        }
     }
 
     private func reveal(_ node: ProjectStructure.Node) {
@@ -664,6 +772,30 @@ enum ProjectStructureStyle {
         case "Markdown", "Text", "Asset": return .secondary
         case "JSON", "YAML", "TOML", "XML", "Config", "SQL", "CSV": return Theme.input
         default: return Theme.output
+        }
+    }
+
+    static func tint(for kind: ProjectStructure.Technology.Kind) -> Color {
+        switch kind {
+        case .runtime: return Theme.accent
+        case .language: return Theme.running
+        case .framework: return Theme.reasoning
+        case .styling: return Theme.cacheWrite
+        case .tooling: return Theme.input
+        case .platform: return Theme.warn
+        case .data: return Theme.cacheRead
+        }
+    }
+
+    static func symbol(for kind: ProjectStructure.Technology.Kind) -> String {
+        switch kind {
+        case .runtime: return "bolt.fill"
+        case .language: return "chevron.left.forwardslash.chevron.right"
+        case .framework: return "square.3.layers.3d"
+        case .styling: return "paintbrush.fill"
+        case .tooling: return "wrench.and.screwdriver.fill"
+        case .platform: return "desktopcomputer"
+        case .data: return "cylinder.split.1x2"
         }
     }
 }
