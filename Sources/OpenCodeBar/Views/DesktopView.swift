@@ -37,6 +37,7 @@ struct DesktopView: View {
         .animation(.easeInOut(duration: 0.18), value: state.selectedProject?.id)
         .animation(.easeInOut(duration: 0.18), value: state.selectedDevice?.id)
         .animation(.easeInOut(duration: 0.18), value: state.fileBrowserPath)
+        .commandBarHost()
     }
 
     // MARK: - Layout
@@ -213,6 +214,7 @@ private struct DesktopSidebar: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
+            search
             navigation
             Spacer(minLength: 12)
             footer
@@ -257,6 +259,48 @@ private struct DesktopSidebar: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+    }
+
+    /// Discoverable entry point for the command bar. The same palette opens
+    /// with ⌘K from anywhere in the app.
+    private var search: some View {
+        Button {
+            state.isCommandBarPresented = true
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("Search everything")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("⌘K")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1.5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.primary.opacity(0.06))
+                    )
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(Color.primary.opacity(0.035))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 8)
+        .padding(.top, 9)
+        .help("Search projects, sessions, apps, terminals, and settings (⌘K)")
     }
 
     private var navigation: some View {

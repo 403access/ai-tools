@@ -194,6 +194,12 @@ final class DesktopWindowController: NSObject, NSWindowDelegate {
         mainMenu.addItem(viewItem)
         let viewMenu = NSMenu(title: "View")
         viewItem.submenu = viewMenu
+        let search = viewMenu.addItem(
+            withTitle: "Search Everything…",
+            action: #selector(showCommandBar(_:)),
+            keyEquivalent: "k"
+        )
+        search.target = self
         let refresh = viewMenu.addItem(
             withTitle: "Refresh",
             action: #selector(refreshNow(_:)),
@@ -229,5 +235,9 @@ final class DesktopWindowController: NSObject, NSWindowDelegate {
     @objc private func refreshNow(_ sender: Any?) {
         guard let state else { return }
         Task { await state.refreshAll() }
+    }
+
+    @objc private func showCommandBar(_ sender: Any?) {
+        state?.isCommandBarPresented = true
     }
 }

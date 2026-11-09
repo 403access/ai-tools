@@ -91,6 +91,7 @@ struct PanelView: View {
         .animation(.easeInOut(duration: 0.18), value: state.selectedProject?.id)
         .animation(.easeInOut(duration: 0.18), value: state.selectedDevice?.id)
         .animation(.easeInOut(duration: 0.18), value: state.fileBrowserPath)
+        .commandBarHost()
     }
 }
 

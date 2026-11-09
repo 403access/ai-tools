@@ -27,6 +27,15 @@ struct HeaderView: View {
             }
 
             Button {
+                state.isCommandBarPresented = true
+            } label: {
+                Image(systemName: "magnifyingglass").font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Search everything (⌘K)")
+
+            Button {
                 state.usesDesktopWindow = true
             } label: {
                 Image(systemName: "macwindow").font(.system(size: 12, weight: .semibold))

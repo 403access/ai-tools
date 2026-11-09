@@ -10,13 +10,10 @@ struct SystemTab: View {
     @State private var showAllDisks = false
     @State private var showAllApps = false
     @State private var appQuery = ""
-    @State private var selectedApp: SystemApp?
     @State private var showAllBrew = false
     @State private var showAllPorts = false
     @State private var volumeDraft: Double = 0
     @State private var adjustingVolume = false
-    @State private var selectedTerminal: SystemTerminal?
-    @State private var selectedHostTerminal: HostTerminal?
     @State private var showingNewTerminal = false
     @State private var pendingTerminal: SystemTerminal?
     @State private var showingMemoryMonitor = false
@@ -70,17 +67,17 @@ struct SystemTab: View {
             }
         }
         .task { await poll() }
-        .sheet(item: $selectedTerminal) { terminal in
+        .sheet(item: $state.selectedTerminal, onDismiss: { state.selectedTerminal = nil }) { terminal in
             if let api = state.api {
                 TerminalDetailView(terminal: terminal, api: api)
             }
         }
-        .sheet(item: $selectedHostTerminal) { terminal in
+        .sheet(item: $state.selectedHostTerminal, onDismiss: { state.selectedHostTerminal = nil }) { terminal in
             if let api = state.api {
                 HostTerminalDetailView(terminal: terminal, api: api)
             }
         }
-        .sheet(item: $selectedApp) { app in
+        .sheet(item: $state.selectedSystemApp, onDismiss: { state.selectedSystemApp = nil }) { app in
             SystemAppDetailView(app: app)
                 .environmentObject(state)
         }
@@ -107,13 +104,13 @@ struct SystemTab: View {
 
     private var hostTerminalsSection: some View {
         HostTerminalsSection { terminal in
-            selectedHostTerminal = terminal
+            state.selectedHostTerminal = terminal
         }
     }
 
     private var terminalsSection: some View {
         TerminalsSection(
-            onOpen: { terminal in selectedTerminal = terminal },
+            onOpen: { terminal in state.selectedTerminal = terminal },
             onNew: { showingNewTerminal = true }
         )
     }
@@ -123,7 +120,7 @@ struct SystemTab: View {
     private func openPendingTerminal() {
         guard let terminal = pendingTerminal else { return }
         pendingTerminal = nil
-        selectedTerminal = terminal
+        state.selectedTerminal = terminal
     }
 
     // MARK: - Header
@@ -1088,7 +1085,7 @@ struct SystemTab: View {
                     LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(visible) { app in
                             Button {
-                                selectedApp = app
+                                state.selectedSystemApp = app
                             } label: {
                                 HStack(spacing: 8) {
                                     AppIconView(

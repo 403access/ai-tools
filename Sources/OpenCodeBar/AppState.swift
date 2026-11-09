@@ -318,6 +318,15 @@ final class AppState: ObservableObject {
     @Published var selectedDevice: ConnectedDevice?
     /// Physical device whose deployment history is open from Settings.
     @Published var selectedDeploymentDevice: DeploymentDevice?
+    /// Installed app whose detail sheet is open on the System tab. Shared so the
+    /// command bar can jump straight to an app.
+    @Published var selectedSystemApp: SystemApp?
+    /// Terminal whose emulator sheet is open on the System tab.
+    @Published var selectedTerminal: SystemTerminal?
+    /// Terminal.app tab whose mirror sheet is open on the System tab.
+    @Published var selectedHostTerminal: HostTerminal?
+    /// Whether the global command bar overlay is showing over the active surface.
+    @Published var isCommandBarPresented = false
     /// Folder the host file browser is open at. Non-nil takes over the panel,
     /// so Back returns to the System tab.
     @Published var fileBrowserPath: String?
