@@ -15,7 +15,7 @@ import {
   readProjectFlows,
   type ProjectFlowsOptions,
 } from "./github.ts";
-import { readProjectScripts } from "./scripts.ts";
+import { readProjectScripts, scriptInvocation } from "./scripts.ts";
 import { readProjectDescription } from "./projectDocs.ts";
 import {
   FileBrowserError,
@@ -1095,6 +1095,42 @@ export function createHandler(
         const project = db.getProject(id);
         if (!project) return error("Project not found", 404);
         return json({ data: readProjectScripts(project.canonical) });
+      }
+
+      if (
+        parts[0] === "api" &&
+        parts[1] === "project" &&
+        parts[3] === "scripts" &&
+        parts[4] === "run" &&
+        parts.length === 5
+      ) {
+        if (request.method !== "POST") return error("Method not allowed", 405);
+        const id = decodeURIComponent(parts[2]!);
+        const project = db.getProject(id);
+        if (!project) return error("Project not found", 404);
+
+        const body = await readJSONBody(request);
+        if (!body) return error("Expected a JSON body", 400);
+        const source = optionalString(body.source);
+        const name = optionalString(body.name);
+        if (!source || !name) return error("source and name are required", 400);
+
+        const script = readProjectScripts(project.canonical).scripts.find(
+          (entry) => entry.source === source && entry.name === name,
+        );
+        if (!script) return error("Script not found", 404);
+        const invocation = scriptInvocation(script);
+        if (!invocation) return error("This script cannot be run from the hub", 400);
+
+        return json({
+          data: await terminalStore.create({
+            title: script.name,
+            cwd: project.canonical,
+            location: project.canonical,
+            command: invocation.command,
+            args: invocation.args,
+          }),
+        });
       }
 
       if (parts[0] === "api" && parts[1] === "project" && parts[3] === "docs" && parts.length === 4) {

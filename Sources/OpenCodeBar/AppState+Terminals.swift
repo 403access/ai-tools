@@ -42,6 +42,29 @@ extension AppState {
             cwd: directory.isEmpty ? nil : directory,
             location: directory
         )
+        recordTerminal(terminal)
+        return terminal
+    }
+
+    /// Starts a discovered project script in a PTY on the hub host and records
+    /// the terminal so it can be opened from the script row.
+    func runProjectScript(
+        _ script: ProjectScript,
+        projectID: String
+    ) async throws -> SystemTerminal {
+        if api == nil { await bootstrap() }
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+
+        let terminal = try await api.runProjectScript(
+            id: projectID,
+            source: script.source,
+            name: script.name
+        )
+        recordTerminal(terminal)
+        return terminal
+    }
+
+    private func recordTerminal(_ terminal: SystemTerminal) {
         if let index = terminals.firstIndex(where: { $0.id == terminal.id }) {
             terminals[index] = terminal
         } else {
@@ -49,7 +72,6 @@ extension AppState {
         }
         terminalsFetchedAt = Date()
         terminalsError = nil
-        return terminal
     }
 
     /// Stops the shell and removes its PTY from the list.

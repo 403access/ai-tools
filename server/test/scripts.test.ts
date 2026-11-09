@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readProjectScripts } from "../src/scripts.ts";
-import type { ProjectScripts } from "../src/types.ts";
+import type { ProjectScripts, Terminal, TerminalCreateInput } from "../src/types.ts";
+import type { TerminalStore } from "../src/terminals.ts";
 import { body, request, setup } from "./helpers/api.ts";
 
 function projectDir(): string {
@@ -143,6 +144,86 @@ describe("project scripts", () => {
         (await handler(request("/api/project/prj_scripts/scripts", { method: "POST" }))).status,
       ).toBe(405);
       expect((await handler(request("/api/project/nope/scripts"))).status).toBe(404);
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("runs a discovered script in a PTY", async () => {
+    const directory = projectDir();
+    const created: TerminalCreateInput[] = [];
+    const terminals: TerminalStore = {
+      async list() {
+        return [];
+      },
+      async create(input): Promise<Terminal> {
+        created.push(input);
+        return {
+          id: "term_1",
+          title: input.title ?? "",
+          command: input.command ?? "",
+          args: input.args ?? [],
+          cwd: input.cwd ?? "",
+          status: "running",
+          pid: 100,
+          location: input.location ?? "",
+        };
+      },
+      async update() {
+        throw new Error("not used");
+      },
+      async remove() {},
+    };
+    const { db, handler } = setup({}, { terminals });
+    try {
+      writeFileSync(
+        join(directory, "package.json"),
+        JSON.stringify({ scripts: { build: "vite build" } }),
+      );
+      db.replaceProjects([
+        {
+          id: "prj_run",
+          canonical: directory,
+          time: { created: 1, updated: 2 },
+          sandboxes: [],
+        },
+      ]);
+
+      const run = (payload: unknown) =>
+        handler(
+          request("/api/project/prj_run/scripts/run", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload),
+          }),
+        );
+
+      const response = await run({ source: "package.json", name: "build" });
+      expect(response.status).toBe(200);
+      const result = await body<{ data: Terminal }>(response);
+      expect(result.data.command).toBe("npm");
+      expect(result.data.args).toEqual(["run", "build"]);
+      expect(created).toEqual([
+        {
+          title: "build",
+          cwd: directory,
+          location: directory,
+          command: "npm",
+          args: ["run", "build"],
+        },
+      ]);
+
+      expect((await run({ source: "package.json", name: "missing" })).status).toBe(404);
+      expect((await run({ source: "package.json" })).status).toBe(400);
+      expect((await run(null)).status).toBe(400);
+      expect(
+        (
+          await handler(
+            request("/api/project/prj_run/scripts/run", { method: "GET" }),
+          )
+        ).status,
+      ).toBe(405);
     } finally {
       db.close();
       rmSync(directory, { recursive: true, force: true });

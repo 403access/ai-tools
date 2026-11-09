@@ -585,8 +585,11 @@ struct ProjectScriptsView: View {
     let isLoading: Bool
     let error: String?
     let onRefresh: () -> Void
+    let onRun: (ProjectScript) async throws -> Void
 
     @State private var copiedID: String?
+    @State private var runningID: String?
+    @State private var runError: String?
 
     private var entries: [ProjectScript] { scripts?.scripts ?? [] }
 
@@ -638,6 +641,14 @@ struct ProjectScriptsView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help("Refresh project scripts")
+            }
+
+            if let runError {
+                NoticeRow(
+                    icon: "exclamationmark.triangle.fill",
+                    message: runError,
+                    tint: Theme.warn
+                )
             }
 
             if let error, entries.isEmpty {
@@ -719,6 +730,25 @@ struct ProjectScriptsView: View {
             Spacer(minLength: 0)
 
             Button {
+                run(script)
+            } label: {
+                if runningID == script.id {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .frame(width: 18, height: 18)
+                } else {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(runningID != nil)
+            .help("Run \(script.command)")
+
+            Button {
                 copy(script)
             } label: {
                 Image(systemName: copiedID == script.id ? "checkmark" : "doc.on.doc")
@@ -741,6 +771,20 @@ struct ProjectScriptsView: View {
                 .strokeBorder(Color.primary.opacity(0.05), lineWidth: 1)
         )
         .contentShape(Rectangle())
+    }
+
+    private func run(_ script: ProjectScript) {
+        guard runningID == nil else { return }
+        runningID = script.id
+        runError = nil
+        Task { @MainActor in
+            do {
+                try await onRun(script)
+            } catch {
+                runError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+            runningID = nil
+        }
     }
 
     private func copy(_ script: ProjectScript) {

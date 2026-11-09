@@ -48,6 +48,40 @@ function parseJSON(raw: string | undefined): Record<string, unknown> | undefined
   }
 }
 
+export interface ScriptInvocation {
+  command: string;
+  args: string[];
+}
+
+/** The executable and arguments that run one script without a shell. */
+function invocationFor(tool: string, name: string): ScriptInvocation | null {
+  switch (tool) {
+    case "npm":
+    case "pnpm":
+    case "yarn":
+    case "bun":
+      return { command: tool, args: ["run", name] };
+    case "make":
+      return { command: "make", args: [name] };
+    case "just":
+      return { command: "just", args: [name] };
+    case "composer":
+      return { command: "composer", args: ["run", name] };
+    default:
+      return null;
+  }
+}
+
+function invocationText(tool: string, name: string): string {
+  const invocation = invocationFor(tool, name);
+  return invocation ? [invocation.command, ...invocation.args].join(" ") : name;
+}
+
+/** How the Flows tab runs a discovered script; null for an unknown tool. */
+export function scriptInvocation(script: ProjectScript): ScriptInvocation | null {
+  return invocationFor(script.tool, script.name);
+}
+
 /** Picks the package runner the project already uses. */
 function packageRunner(directory: string, manifest: Record<string, unknown>): string {
   const declared = text(manifest.packageManager).split("@")[0]?.trim();
@@ -72,7 +106,7 @@ function packageScripts(directory: string): ProjectScript[] {
     .map(([name, value]) => ({ name, detail: trimmed(value) }))
     .map(({ name, detail }) => ({
       name,
-      command: `${tool} run ${name}`,
+      command: invocationText(tool, name),
       source: "package.json",
       tool,
       ...(detail ? { detail } : {}),
@@ -125,7 +159,7 @@ function makeScripts(directory: string): ProjectScript[] {
       const description = inline ?? pendingComment;
       scripts.push({
         name,
-        command: `make ${name}`,
+        command: invocationText("make", name),
         source: filename,
         tool: "make",
         ...(description ? { description } : {}),
@@ -182,7 +216,7 @@ function justScripts(directory: string): ProjectScript[] {
     if (scripts.length >= MAX_PER_SOURCE) break;
     scripts.push({
       name: recipe,
-      command: `just ${recipe}`,
+      command: invocationText("just", recipe),
       source: filename,
       tool: "just",
       ...(pendingComment ? { description: pendingComment } : {}),
@@ -207,7 +241,7 @@ function composerScripts(directory: string): ProjectScript[] {
     }))
     .map(({ name, detail }) => ({
       name,
-      command: `composer run ${name}`,
+      command: invocationText("composer", name),
       source: "composer.json",
       tool: "composer",
       ...(detail ? { detail } : {}),

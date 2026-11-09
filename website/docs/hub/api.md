@@ -839,6 +839,7 @@ and the hub retries on the next loop. A deleted session releases its control.
 | `GET` | `/api/project/{id}/git` | Full repository graph, branches, and tags |
 | `GET` | `/api/project/{id}/flows` | GitHub Actions runs, jobs, stages, and checks |
 | `GET` | `/api/project/{id}/scripts` | npm, make, just, and Composer scripts |
+| `POST` | `/api/project/{id}/scripts/run` | Run a discovered script in a PTY |
 | `GET` | `/api/project/{id}/docs` | Project brief and prompt-derived documentation |
 | `PATCH` | `/api/project/{id}/docs` | Update description, mission, and vision |
 | `GET` | `/api/project/{id}/icon` | The project's own app icon |
@@ -924,7 +925,20 @@ declared package manager, or the lockfile, to choose npm, pnpm, yarn or bun),
 Makefile and `makefile` / `GNUmakefile` targets, `justfile` recipes, and
 `composer.json` scripts. Each entry carries the command to run it, the manifest
 it came from, and any comment or recipe body the manifest provides. No script
-is executed; `data.scripts` is empty when the project declares none.
+is executed by this read; `data.scripts` is empty when the project declares
+none.
+
+`/api/project/{id}/scripts/run` starts one of those scripts in a PTY on the hub
+host. Send the manifest and name that identify it:
+
+```json
+{ "source": "package.json", "name": "build" }
+```
+
+The hub re-discovers the scripts, matches the entry, and starts the executable
+directly (for example `npm run build` or `make test`) in the project folder, so
+a script cannot be run after it disappears from its manifest. The response is
+the terminal the hub created; its live output uses the normal terminal socket.
 
 `/api/project/{id}/docs` returns the editable brief (`description`, `mission`,
 `vision`) plus `productFeatures` and `technicalFeatures`. On first access the

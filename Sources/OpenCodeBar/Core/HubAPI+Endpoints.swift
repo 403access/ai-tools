@@ -823,6 +823,31 @@ extension HubAPI {
         return response.data ?? ProjectScripts(scripts: [], generatedAt: 0)
     }
 
+    /// Starts a discovered project script in a PTY on the hub host. The hub
+    /// re-discovers the script and chooses the executable and arguments.
+    func runProjectScript(
+        id: String,
+        source: String,
+        name: String
+    ) async throws -> SystemTerminal {
+        struct Body: Encodable {
+            var source: String
+            var name: String
+        }
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let body = try JSONEncoder().encode(Body(source: source, name: name))
+        let data = try await send(
+            "/api/project/\(encoded)/scripts/run",
+            method: "POST",
+            body: body
+        )
+        do {
+            return try Self.decoder.decode(TerminalEnvelope.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     /// The project's editable brief plus the feature documentation derived from
     /// prompts. The hub seeds the description from the project README on first
     /// access.

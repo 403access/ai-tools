@@ -885,6 +885,26 @@ export const PATHS = {
     },
   },
 
+  "/api/project/{id}/scripts/run": {
+    post: {
+      tags: ["Projects"],
+      summary: "Run a project script",
+      description:
+        "Starts a discovered project script in a PTY on the hub host, in the project folder. The request names the manifest and script; the hub re-discovers the scripts and only runs an entry it can still find.",
+      operationId: "runProjectScript",
+      parameters: [pathParam("id", "Project id.")],
+      requestBody: jsonBody(schemaRef("ProjectScriptRunRequest"), true),
+      responses: {
+        200: ok(schemaRef("TerminalResponse")),
+        400: badRequest,
+        401: unauthorized,
+        404: notFound,
+        503: unavailable,
+        default: failure,
+      },
+    },
+  },
+
   "/api/project/{id}/docs": {
     get: {
       tags: ["Projects"],

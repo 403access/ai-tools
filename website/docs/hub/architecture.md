@@ -163,7 +163,12 @@ recipes, and Composer scripts. The package runner follows the manifest's
 `packageManager` field or the lockfile, so `bun run dev` and `pnpm run build`
 match what the project uses. Descriptions come from comments above Makefile
 targets and just recipes. The Flows tab pairs this list with the GitHub
-pipeline; discovery is read-only and never executes a script.
+pipeline and can run any entry: `POST /api/project/{id}/scripts/run` re-reads
+the manifests, matches the requested manifest and name, and starts the
+executable directly in the project folder as an OpenCode PTY, so its output
+streams through the existing terminal socket. Discovery and the run route only
+use the declared entries; they never pass a client-supplied command line to a
+shell.
 
 ## Project icons
 

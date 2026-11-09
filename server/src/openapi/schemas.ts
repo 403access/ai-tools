@@ -862,6 +862,19 @@ export const SCHEMAS = {
     properties: { data: { $ref: "#/components/schemas/ProjectScripts" } },
   },
 
+  ProjectScriptRunRequest: {
+    type: "object",
+    required: ["source", "name"],
+    properties: {
+      source: {
+        type: "string",
+        description: "Manifest the script came from, such as package.json.",
+        example: "package.json",
+      },
+      name: { type: "string", description: "Script or target name.", example: "build" },
+    },
+  },
+
   ProjectFeatureDoc: {
     type: "object",
     required: [

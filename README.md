@@ -243,8 +243,9 @@ iOS app:
   steps and annotations, and the head commit's check runs. Above the pipeline,
   **Scripts** lists the high-level tasks the project already declares — npm /
   pnpm / yarn / bun `package.json` scripts, Makefile targets, just recipes and
-  Composer scripts — with the command to copy. Each job and run links back to
-  GitHub. Use `GITHUB_TOKEN` / `GH_TOKEN`, or sign in with `gh auth login`, so
+  Composer scripts — with the command to copy. Press play on a script to start
+  it in a terminal on the hub host, in the project folder, and watch its output
+  in the terminal sheet. Each job and run links back to GitHub. Use `GITHUB_TOKEN` / `GH_TOKEN`, or sign in with `gh auth login`, so
   private repositories and the API rate limit work; public repositories fall
   back to anonymous reads. Projects without a GitHub remote still show their
   local scripts, and fall back to an empty state when they have neither.
@@ -508,6 +509,7 @@ The hub:
    `/api/project/{id}/changes`, `/api/project/{id}/files`,
    `/api/project/{id}/git`, `/api/project/{id}/flows`,
    `/api/project/{id}/scripts`,
+   `/api/project/{id}/scripts/run` (`POST`),
    `/api/project/{id}/docs`,
    `/api/project/{id}/icon`,
    `/api/experimental/session/stats` — plus

@@ -24,6 +24,7 @@ struct ProjectDetailView: View {
     @State private var copiedPath = false
     @State private var showingNewSession = false
     @State private var showingDocsEditor = false
+    @State private var runTerminal: SystemTerminal?
     @State private var sessionLimit = Self.sessionPageSize
 
     private static let sessionPageSize = 50
@@ -128,6 +129,11 @@ struct ProjectDetailView: View {
                         vision: vision
                     )
                 }
+            }
+        }
+        .sheet(item: $runTerminal, onDismiss: { runTerminal = nil }) { terminal in
+            if let api = state.api {
+                TerminalDetailView(terminal: terminal, api: api)
             }
         }
     }
@@ -733,6 +739,13 @@ struct ProjectDetailView: View {
                     error: scriptsState?.error,
                     onRefresh: {
                         Task { await state.loadProjectScripts(project.id, force: true) }
+                    },
+                    onRun: { script in
+                        let terminal = try await state.runProjectScript(
+                            script,
+                            projectID: project.id
+                        )
+                        runTerminal = terminal
                     }
                 )
             }
