@@ -22,6 +22,11 @@ information gets its own screen instead of one long scroll:
 
 - **Overview** — at-a-glance steps, cost, tool calls, failures, tokens, and
   streak, followed by running sessions and the six most recent sessions.
+- **Docs** — the project's living documentation: an editable description,
+  mission, and vision, followed by product and technical features. Every prompt
+  sent through the hub is classified by the same labels the task board uses and
+  recorded as **New**, **Updated**, or **Removed**, with a link back to its task
+  and session. The description is seeded from the project README on first open.
 - **Stats** — an interactive daily **Trend** chart for steps, cost, or tokens
   over the last 30 / 90 / 365 days or all time, scoped to the project, plus
   tool reliability and model mix.

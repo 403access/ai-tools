@@ -813,6 +813,45 @@ extension HubAPI {
         return response.data
     }
 
+    /// The project's editable brief plus the feature documentation derived from
+    /// prompts. The hub seeds the description from the project README on first
+    /// access.
+    func projectDocumentation(id: String) async throws -> ProjectDocumentation {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: ProjectDocumentationResponse = try await get(
+            "/api/project/\(encoded)/docs"
+        )
+        return response.data
+    }
+
+    /// Replaces the editable brief fields and returns the refreshed page.
+    func updateProjectDocumentation(
+        id: String,
+        description: String,
+        mission: String,
+        vision: String
+    ) async throws -> ProjectDocumentation {
+        struct Body: Encodable {
+            var description: String
+            var mission: String
+            var vision: String
+        }
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let body = try JSONEncoder().encode(
+            Body(description: description, mission: mission, vision: vision)
+        )
+        let data = try await send(
+            "/api/project/\(encoded)/docs",
+            method: "PATCH",
+            body: body
+        )
+        do {
+            return try Self.decoder.decode(ProjectDocumentationResponse.self, from: data).data
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
+    }
+
     /// The current repository state for a session plus commits made while it
     /// was active.
     func sessionGit(id: String, limit: Int = 2_000) async throws -> SessionGit {

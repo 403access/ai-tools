@@ -1,4 +1,10 @@
-import type { SessionTask, TaskLabel, TaskLabelKind, TaskStatus } from "../types.ts";
+import type {
+  ProjectDocAction,
+  SessionTask,
+  TaskLabel,
+  TaskLabelKind,
+  TaskStatus,
+} from "../types.ts";
 
 /**
  * Deterministic, dependency-free task classification.
@@ -299,6 +305,132 @@ const RISK_RULES: Array<Rule<TaskRisk>> = [
   },
 ];
 
+const ACTION_RULES: Array<Rule<ProjectDocAction>> = [
+  {
+    id: "remove",
+    title: "Removed",
+    keywords: [
+      "remove",
+      "removes",
+      "removed",
+      "removing",
+      "delete",
+      "deletes",
+      "deleted",
+      "deleting",
+      "drop",
+      "drops",
+      "dropped",
+      "deprecate",
+      "deprecates",
+      "deprecated",
+      "retire",
+      "retires",
+      "retired",
+      "eliminate",
+      "eliminates",
+      "get rid of",
+      "strip out",
+      "strip",
+      "kill",
+      "disable",
+    ],
+  },
+  {
+    id: "new",
+    title: "New",
+    keywords: [
+      "add",
+      "adds",
+      "added",
+      "adding",
+      "new",
+      "create",
+      "creates",
+      "created",
+      "creating",
+      "implement",
+      "implements",
+      "implemented",
+      "implementing",
+      "introduce",
+      "introduces",
+      "introduced",
+      "support",
+      "supports",
+      "allow",
+      "allows",
+      "enable",
+      "enables",
+      "feature",
+      "build",
+      "builds",
+      "make it possible",
+      "ability to",
+    ],
+  },
+  {
+    id: "update",
+    title: "Updated",
+    keywords: [
+      "update",
+      "updates",
+      "updated",
+      "updating",
+      "change",
+      "changes",
+      "changed",
+      "changing",
+      "improve",
+      "improves",
+      "improved",
+      "improving",
+      "enhance",
+      "enhances",
+      "enhanced",
+      "adjust",
+      "adjusts",
+      "adjusting",
+      "modify",
+      "modifies",
+      "modifying",
+      "refactor",
+      "refactors",
+      "refactored",
+      "refactoring",
+      "rename",
+      "renames",
+      "renamed",
+      "move",
+      "moves",
+      "moved",
+      "replace",
+      "replaces",
+      "replaced",
+      "upgrade",
+      "upgrades",
+      "upgraded",
+      "optimize",
+      "optimise",
+      "optimized",
+      "optimised",
+      "fix",
+      "fixes",
+      "fixed",
+      "fixing",
+      "repair",
+      "repairs",
+      "correct",
+      "corrects",
+      "tweak",
+      "tweaks",
+      "extend",
+      "extends",
+      "extended",
+    ],
+  },
+];
+
 type TaskType =
   | "bug"
   | "feature"
@@ -395,6 +527,22 @@ export function classifyTaskLabels(
   }
 
   return labels;
+}
+
+/**
+ * Classifies what a prompt does to the thing it describes. The project Docs
+ * tab uses this to group a prompt as a new feature, an update to an existing
+ * one, or a removal. The title is the curated session summary and counts
+ * double, matching the label classifier above.
+ */
+export function classifyTaskAction(
+  titleValue: string | undefined,
+  contextValue: string | undefined,
+): ProjectDocAction {
+  const title = normalize(titleValue);
+  const context = normalize(contextValue);
+  const action = bestRule(ACTION_RULES, title, context, 1);
+  return action?.id ?? "update";
 }
 
 export interface TaskStatusInput {

@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { backfillToolCalls } from "./messages.ts";
 import { number, type Row } from "./rows.ts";
 
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 
 export function migrate(db: Database): void {
   const version = number((db.query("PRAGMA user_version").get() as Row | null)?.user_version);
@@ -338,6 +338,47 @@ export function migrate(db: Database): void {
         WHERE ended_at IS NULL;
 
       PRAGMA user_version = 11;
+    `);
+  }
+
+  if (version < 12) {
+    // The project Docs tab keeps an editable brief plus one entry per prompt.
+    // Entries are derived from the prompt's task labels, so only the resolved
+    // text and references need to be stored.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS project_docs (
+        project_id TEXT PRIMARY KEY,
+        description TEXT NOT NULL DEFAULT '',
+        mission TEXT NOT NULL DEFAULT '',
+        vision TEXT NOT NULL DEFAULT '',
+        updated_at REAL NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS project_doc_entries (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        session_id TEXT NOT NULL DEFAULT '',
+        prompt_hash TEXT NOT NULL DEFAULT '',
+        kind TEXT NOT NULL DEFAULT 'technical',
+        action TEXT NOT NULL DEFAULT 'update',
+        category TEXT NOT NULL DEFAULT 'change',
+        category_title TEXT NOT NULL DEFAULT 'Change',
+        labels TEXT NOT NULL DEFAULT '[]',
+        title TEXT NOT NULL DEFAULT '',
+        detail TEXT NOT NULL DEFAULT '',
+        task_title TEXT NOT NULL DEFAULT '',
+        created REAL NOT NULL,
+        updated REAL NOT NULL
+      );
+
+      -- A queued prompt is recorded once when it is parked and again when the
+      -- fast loop sends it. The same prompt in the same session is one entry.
+      CREATE UNIQUE INDEX IF NOT EXISTS project_doc_entries_prompt
+        ON project_doc_entries(project_id, session_id, prompt_hash);
+      CREATE INDEX IF NOT EXISTS project_doc_entries_section
+        ON project_doc_entries(project_id, kind, created DESC, id DESC);
+
+      PRAGMA user_version = 12;
     `);
   }
 }

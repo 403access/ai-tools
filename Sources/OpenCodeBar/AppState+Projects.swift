@@ -81,6 +81,9 @@ extension AppState {
         if projectFlows[project.id] != nil {
             await loadProjectFlows(project.id, force: true)
         }
+        if projectDocumentation[project.id] != nil {
+            await loadProjectDocumentation(project.id, force: true)
+        }
     }
 
     /// Fetches the project repository's branches, tags, and full commit graph.
@@ -149,6 +152,69 @@ extension AppState {
             failed.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             projectFlows[projectID] = failed
         }
+    }
+
+    /// Fetches the project brief and prompt-derived documentation. Loaded when
+    /// the Docs tab opens, and refreshed after a prompt or an edit.
+    func loadProjectDocumentation(_ projectID: String, force: Bool = false) async {
+        guard let api else { return }
+        if projectDocumentation[projectID]?.isLoading == true { return }
+        if !force, let loaded = projectDocumentation[projectID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 15 {
+            return
+        }
+        defer {
+            trimCache(
+                &projectDocumentation,
+                loadedAt: { $0.loadedAt },
+                pinning: projectID
+            )
+        }
+
+        var state = projectDocumentation[projectID] ?? ProjectDocumentationState()
+        state.isLoading = true
+        state.error = nil
+        projectDocumentation[projectID] = state
+
+        do {
+            let documentation = try await api.projectDocumentation(id: projectID)
+            projectDocumentation[projectID] = ProjectDocumentationState(
+                documentation: documentation,
+                loadedAt: Date()
+            )
+        } catch {
+            var failed = projectDocumentation[projectID] ?? ProjectDocumentationState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                projectDocumentation[projectID] = failed
+                return
+            }
+            failed.error = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+            projectDocumentation[projectID] = failed
+        }
+    }
+
+    /// Saves the editable brief fields and replaces the cached page.
+    @discardableResult
+    func saveProjectDocumentation(
+        _ projectID: String,
+        description: String,
+        mission: String,
+        vision: String
+    ) async throws -> ProjectDocumentation {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+        let documentation = try await api.updateProjectDocumentation(
+            id: projectID,
+            description: description,
+            mission: mission,
+            vision: vision
+        )
+        projectDocumentation[projectID] = ProjectDocumentationState(
+            documentation: documentation,
+            loadedAt: Date()
+        )
+        return documentation
     }
 
     /// Fetches icons for projects that do not have one yet. Best effort: a

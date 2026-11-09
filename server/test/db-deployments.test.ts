@@ -17,7 +17,7 @@ describe("deployment database", () => {
     const version = (
       db.query("PRAGMA user_version").get() as { user_version: number }
     ).user_version;
-    expect(version).toBe(11);
+    expect(version).toBe(12);
     const tables = (
       db
         .query(

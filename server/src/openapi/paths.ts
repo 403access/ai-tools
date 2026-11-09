@@ -868,6 +868,46 @@ export const PATHS = {
     },
   },
 
+  "/api/project/{id}/docs": {
+    get: {
+      tags: ["Projects"],
+      summary: "Project documentation",
+      description:
+        "Returns the editable project brief (description, mission, vision) and the feature documentation derived from prompts. On first access, a description is seeded from the project's README; prompts sent through the hub add product or technical entries that reference their task and session.",
+      operationId: "getProjectDocumentation",
+      parameters: [pathParam("id", "Project id.")],
+      responses: {
+        200: ok(schemaRef("ProjectDocumentationResponse")),
+        401: unauthorized,
+        404: notFound,
+        default: failure,
+      },
+    },
+    patch: {
+      tags: ["Projects"],
+      summary: "Update the project brief",
+      description:
+        "Replaces one or more editable fields. Feature documentation is derived from prompts and is not writable here.",
+      operationId: "updateProjectDocumentation",
+      parameters: [pathParam("id", "Project id.")],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ProjectDocumentationUpdateRequest" },
+          },
+        },
+      },
+      responses: {
+        200: ok(schemaRef("ProjectDocumentationResponse")),
+        400: badRequest,
+        401: unauthorized,
+        404: notFound,
+        default: failure,
+      },
+    },
+  },
+
   "/api/project/{id}/icon": {
     get: {
       tags: ["Projects"],

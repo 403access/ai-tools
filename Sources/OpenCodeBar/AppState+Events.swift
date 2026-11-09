@@ -40,6 +40,12 @@ extension AppState {
             if tasksFetchedAt != nil {
                 Task { await refreshTasks(force: true) }
             }
+            // A prompt adds or updates a Docs entry. Only refresh when the page
+            // has already been opened, and let the loader's short cache absorb
+            // bursts of session events.
+            if let id = selectedProject?.id, projectDocumentation[id] != nil {
+                Task { await loadProjectDocumentation(id) }
+            }
         }
 
         if let id = event.sessionID {

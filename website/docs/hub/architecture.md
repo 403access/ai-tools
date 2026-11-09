@@ -117,6 +117,19 @@ Other folders fall back to a recursive walk that skips common build and cache
 directories. The response is capped at 20,000 paths and reports `truncated`
 when it is shortened.
 
+## Project documentation
+
+The project Docs tab is backed by two SQLite tables. `project_docs` holds the
+editable description, mission and vision; `project_doc_entries` holds one row
+per prompt. When a prompt is admitted (immediately, queued, or through the
+Continue control), the hub reuses the deterministic task classifier to derive
+the type, scope, risk labels and an action (`new`, `update`, or `remove`). The
+entry is stored under the product or technical section with the task title and
+session id. A unique `(project, session, prompt hash)` key makes a queued prompt
+one entry instead of two when it is later sent. Child sessions and the internal
+`continue` prompt are ignored. The first `GET /api/project/{id}/docs` seeds the
+description from the README, but the hub never writes to the project folder.
+
 ## Git
 
 `/api/project/{id}/git` and `/api/session/{id}/git` read the work tree directly

@@ -825,6 +825,90 @@ export const SCHEMAS = {
     },
   },
 
+  ProjectFeatureDoc: {
+    type: "object",
+    required: [
+      "id", "projectID", "sessionID", "taskTitle", "title", "detail",
+      "action", "kind", "category", "categoryTitle", "labels",
+      "createdAt", "updatedAt",
+    ],
+    properties: {
+      id: { type: "string", example: "doc_01JABCDEF" },
+      projectID: { type: "string", example: "prj_01JABCDEF" },
+      sessionID: {
+        type: "string",
+        description: "Task board session whose prompt produced this entry.",
+      },
+      taskTitle: {
+        type: "string",
+        description: "The session title when the prompt was sent.",
+      },
+      title: string,
+      detail: { type: "string", description: "The prompt text, capped for storage." },
+      action: {
+        type: "string",
+        enum: ["new", "update", "remove"],
+        description: "What the prompt does to the thing it describes.",
+      },
+      kind: {
+        type: "string",
+        enum: ["product", "technical"],
+        description: "Which section of the Docs tab shows the entry.",
+      },
+      category: { type: "string", example: "feature" },
+      categoryTitle: { type: "string", example: "Feature" },
+      labels: {
+        type: "array",
+        items: { $ref: "#/components/schemas/TaskLabel" },
+        description: "The same derived task labels the board shows.",
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+  },
+
+  ProjectDocumentation: {
+    type: "object",
+    required: [
+      "projectID", "description", "mission", "vision",
+      "productFeatures", "technicalFeatures", "updatedAt",
+    ],
+    properties: {
+      projectID: { type: "string", example: "prj_01JABCDEF" },
+      description: {
+        type: "string",
+        description: "Editable overview. Seeded from the project README on first access.",
+      },
+      mission: { type: "string", description: "Editable mission statement." },
+      vision: { type: "string", description: "Editable vision statement." },
+      productFeatures: {
+        type: "array",
+        items: { $ref: "#/components/schemas/ProjectFeatureDoc" },
+      },
+      technicalFeatures: {
+        type: "array",
+        items: { $ref: "#/components/schemas/ProjectFeatureDoc" },
+      },
+      updatedAt: timestamp,
+    },
+  },
+
+  ProjectDocumentationUpdateRequest: {
+    type: "object",
+    properties: {
+      description: { type: "string", description: "Overview text." },
+      mission: { type: "string", description: "Mission statement." },
+      vision: { type: "string", description: "Vision statement." },
+    },
+    example: {
+      description: "A menu bar app and iOS client for OpenCode.",
+      mission: "Make agent work legible at a glance.",
+      vision: "Every project keeps its own living product record.",
+    },
+  },
+
+  ProjectDocumentationResponse: data({ $ref: "#/components/schemas/ProjectDocumentation" }),
+
   SessionPendingItem: {
     type: "object",
     required: ["id", "sessionID", "type", "time"],

@@ -96,6 +96,13 @@ final class AppState: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct ProjectDocumentationState: Equatable {
+        var documentation: ProjectDocumentation?
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     struct ProjectGitState: Equatable {
         var repository: GitRepository?
         var isLoading = false
@@ -149,6 +156,7 @@ final class AppState: ObservableObject {
     /// Sections available in the project detail view.
     enum ProjectDetailMode: String, CaseIterable, Identifiable {
         case overview = "Overview"
+        case docs = "Docs"
         case stats = "Stats"
         case changes = "Changes"
         case files = "Files"
@@ -162,6 +170,7 @@ final class AppState: ObservableObject {
         var icon: String {
             switch self {
             case .overview: return "rectangle.grid.2x2"
+            case .docs: return "book.closed"
             case .stats: return "chart.bar.xaxis"
             case .changes: return "plus.forwardslash.minus"
             case .files: return "doc.text"
@@ -229,6 +238,9 @@ final class AppState: ObservableObject {
     @Published var projectGit: [String: ProjectGitState] = [:]
     /// GitHub Actions runs and checks, loaded when the Flows tab opens.
     @Published var projectFlows: [String: ProjectFlowsState] = [:]
+    /// Project briefs and prompt-derived feature documentation, loaded when the
+    /// Docs tab opens and refreshed after prompts or edits.
+    @Published var projectDocumentation: [String: ProjectDocumentationState] = [:]
     /// Commit information for one session, loaded when its Git tab opens.
     @Published var sessionGit: [String: SessionGitState] = [:]
     /// Per-session stats (prompts, tool reliability, failures), loaded when the

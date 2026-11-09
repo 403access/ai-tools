@@ -23,6 +23,7 @@ struct ProjectDetailView: View {
     @State private var mode: Mode
     @State private var copiedPath = false
     @State private var showingNewSession = false
+    @State private var showingDocsEditor = false
     @State private var sessionLimit = Self.sessionPageSize
 
     private static let sessionPageSize = 50
@@ -63,6 +64,7 @@ struct ProjectDetailView: View {
 
                         switch mode {
                         case .overview: overview
+                        case .docs: docsTab
                         case .stats: statsTab
                         case .changes: changesTab
                         case .files: filesTab
@@ -93,7 +95,9 @@ struct ProjectDetailView: View {
             _ = await (detail, changes, files)
         }
         .task(id: "\(project.id)-\(mode.rawValue)") {
-            if mode == .git {
+            if mode == .docs {
+                await state.loadProjectDocumentation(project.id)
+            } else if mode == .git {
                 await state.loadProjectGit(project.id)
             } else if mode == .flows {
                 await state.loadProjectFlows(project.id)
@@ -108,6 +112,21 @@ struct ProjectDetailView: View {
         .sheet(isPresented: $showingNewSession) {
             NewSessionSheet(directory: project.canonical)
                 .environmentObject(state)
+        }
+        .sheet(isPresented: $showingDocsEditor) {
+            if let documentation = state.projectDocumentation[project.id]?.documentation {
+                ProjectDocumentationEditor(
+                    projectName: project.displayName,
+                    documentation: documentation
+                ) { description, mission, vision in
+                    try await state.saveProjectDocumentation(
+                        project.id,
+                        description: description,
+                        mission: mission,
+                        vision: vision
+                    )
+                }
+            }
         }
     }
 
@@ -387,6 +406,47 @@ struct ProjectDetailView: View {
                 ProjectSessions(sessions: Array(sessions.prefix(Self.overviewSessionCount)))
             }
         }
+    }
+
+    // MARK: - Docs
+
+    @ViewBuilder
+    private var docsTab: some View {
+        let docsState = state.projectDocumentation[project.id]
+
+        if let docsState, docsState.isLoading && docsState.documentation == nil {
+            ProjectDocumentationSkeleton()
+                .shimmering()
+        } else if let docsState, let error = docsState.error, docsState.documentation == nil {
+            SectionHeader("Project documentation")
+            NoticeRow(
+                icon: "exclamationmark.triangle.fill",
+                message: error,
+                tint: Theme.warn
+            )
+        } else if let documentation = docsState?.documentation {
+            ProjectDocumentationView(
+                documentation: documentation,
+                isRefreshing: docsState?.isLoading == true,
+                onRefresh: {
+                    Task { await state.loadProjectDocumentation(project.id, force: true) }
+                },
+                onEdit: { showingDocsEditor = true },
+                onOpenSession: openDocSession
+            )
+        } else {
+            ProjectDocumentationSkeleton()
+                .shimmering()
+        }
+    }
+
+    /// Opens the task that produced a documentation entry. The project's own
+    /// session list is the authoritative local copy; the global list is a
+    /// fallback for a session that has not been loaded into the page yet.
+    private func openDocSession(_ sessionID: String) {
+        let candidates = state.projectDetails[project.id]?.sessions ?? state.sessions
+        guard let session = candidates.first(where: { $0.id == sessionID }) else { return }
+        state.open(session)
     }
 
     // MARK: - Stats

@@ -40,6 +40,7 @@ struct ProjectDetailView: View {
 
                     summary
                     runningSection
+                    documentationSection
 
                     if let detail {
                         if let error = detail.error, detail.stats == nil {
@@ -151,15 +152,41 @@ struct ProjectDetailView: View {
             async let changes = store.loadProjectChanges(project.id)
             async let files = store.loadProjectFiles(project.id)
             async let git = store.loadProjectGit(project.id)
-            _ = await (detail, changes, files, git)
+            async let docs = store.loadProjectDocumentation(project.id)
+            _ = await (detail, changes, files, git, docs)
         }
         .refreshable {
             async let detail = store.loadProject(project.id, force: true)
             async let changes = store.loadProjectChanges(project.id, force: true)
             async let files = store.loadProjectFiles(project.id, force: true)
             async let git = store.loadProjectGit(project.id, force: true)
-            _ = await (detail, changes, files, git)
+            async let docs = store.loadProjectDocumentation(project.id, force: true)
+            _ = await (detail, changes, files, git, docs)
             await store.refreshLive()
+        }
+    }
+
+    @ViewBuilder
+    private var documentationSection: some View {
+        let state = store.projectDocumentation[project.id]
+        if let state, state.isLoading && state.documentation == nil {
+            ProjectDocumentationSkeleton()
+                .shimmering()
+        } else if let state, let error = state.error, state.documentation == nil {
+            SectionHeader("Project documentation")
+            NoticeRow(
+                icon: "exclamationmark.triangle.fill",
+                message: error,
+                tint: Theme.warn
+            )
+        } else if let documentation = state?.documentation {
+            ProjectDocumentationView(
+                documentation: documentation,
+                isRefreshing: state?.isLoading == true,
+                onRefresh: {
+                    Task { await store.loadProjectDocumentation(project.id, force: true) }
+                }
+            )
         }
     }
 

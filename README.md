@@ -206,6 +206,13 @@ iOS app:
 - **Overview** shows what is running right now — with elapsed time, tappable into
   the session view — plus at-a-glance steps, cost, tool calls, failures, tokens,
   and streak, followed by the six most recent sessions.
+- **Docs** keeps the project's living documentation in one place: an editable
+  description, mission, and vision, followed by product and technical features.
+  Every prompt sent through the hub is classified by the same task labels the
+  board uses and recorded under the matching section as **New**, **Updated**, or
+  **Removed**, with a link back to the task and session that produced it. The
+  description is seeded from the project README on first open; the brief is
+  editable from the tab.
 - **Stats** has the scoped trend and model mix, plus tool reliability for the
   project: total calls and per-tool succeeded, failed, and unfinished counts with
   median durations. The trend is an interactive daily chart for steps, cost, or
@@ -497,6 +504,7 @@ The hub:
    `/api/session/{id}/forks`, `/api/project`,
    `/api/project/{id}/changes`, `/api/project/{id}/files`,
    `/api/project/{id}/git`, `/api/project/{id}/flows`,
+   `/api/project/{id}/docs`,
    `/api/project/{id}/icon`,
    `/api/experimental/session/stats` — plus
    `/api/session/{id}/prompt` (`POST`), `/api/session/{id}/pause` (`POST`),

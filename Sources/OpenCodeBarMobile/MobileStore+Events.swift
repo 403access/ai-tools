@@ -41,6 +41,11 @@ extension MobileStore {
             if tasksFetchedAt != nil {
                 Task { await refreshTasks(force: true) }
             }
+            // Prompts add entries to a project's Docs section. Refresh only
+            // projects whose page has already loaded documentation.
+            for projectID in projectDocumentation.keys {
+                Task { await loadProjectDocumentation(projectID) }
+            }
         }
 
         if let id = event.sessionID {

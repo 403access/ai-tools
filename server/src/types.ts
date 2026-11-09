@@ -67,6 +67,58 @@ export interface TaskLabel {
   kind: TaskLabelKind;
 }
 
+/** What a project documentation entry records doing to a feature. */
+export type ProjectDocAction = "new" | "update" | "remove";
+
+/** Which section of the project documentation an entry belongs to. */
+export type ProjectDocKind = "product" | "technical";
+
+/**
+ * One piece of project documentation derived from a prompt. Entries keep the
+ * task and session that produced them, so the project page can link back to
+ * the work instead of showing an anonymous changelog.
+ */
+export interface ProjectFeatureDoc {
+  id: string;
+  projectID: string;
+  /** Session (task board item) whose prompt produced this entry. */
+  sessionID: string;
+  /** Human-readable task title at the time the prompt was sent. */
+  taskTitle: string;
+  title: string;
+  detail: string;
+  action: ProjectDocAction;
+  kind: ProjectDocKind;
+  /** The derived task type, such as `feature` or `bug`. */
+  category: string;
+  categoryTitle: string;
+  labels: TaskLabel[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * The living project brief shown on a project's Docs tab. Description, mission
+ * and vision are editable; the feature sections are derived from prompts sent
+ * through the hub.
+ */
+export interface ProjectDocumentation {
+  projectID: string;
+  description: string;
+  mission: string;
+  vision: string;
+  productFeatures: ProjectFeatureDoc[];
+  technicalFeatures: ProjectFeatureDoc[];
+  updatedAt: number;
+}
+
+/** Editable fields of a project brief. Omitted fields stay unchanged. */
+export interface ProjectDocumentationInput {
+  description?: string;
+  mission?: string;
+  vision?: string;
+}
+
 /** Task metadata attached to a session once it enters the task board. */
 export interface SessionTask {
   status: TaskStatus;

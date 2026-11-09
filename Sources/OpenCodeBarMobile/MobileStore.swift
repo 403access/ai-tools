@@ -85,6 +85,13 @@ final class MobileStore: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct ProjectDocumentationState: Equatable {
+        var documentation: ProjectDocumentation?
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     struct SessionStatsState: Equatable {
         var stats: SessionStats?
         var isLoading = false
@@ -172,6 +179,9 @@ final class MobileStore: ObservableObject {
     @Published var projectChanges: [String: ChangesState] = [:]
     @Published var projectFiles: [String: ProjectFilesState] = [:]
     @Published var projectGit: [String: ProjectGitState] = [:]
+    /// Project briefs and prompt-derived documentation, loaded with a project
+    /// page so its Docs section has content as soon as the page appears.
+    @Published var projectDocumentation: [String: ProjectDocumentationState] = [:]
     @Published var sessionGit: [String: SessionGitState] = [:]
     @Published var sessionStats: [String: SessionStatsState] = [:]
     @Published var subagentLists: [String: SubagentList] = [:]

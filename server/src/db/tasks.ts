@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { Session } from "../types.ts";
 import type { ChangeLog } from "./projects.ts";
 import { getSession } from "./sessions.ts";
+import { recordPromptDocumentation } from "./projectDocs.ts";
 import { text, type Row } from "./rows.ts";
 
 export type TaskResolution = "open" | "done" | "dismissed";
@@ -79,6 +80,10 @@ export function recordTaskPrompt(
          synced_at = ?
      WHERE id = ?`,
   ).run(now, context, now, id);
+
+  // Every sent prompt also becomes a documented change on the project page.
+  // The repository filters internal continuations and child sessions.
+  if (extra) recordPromptDocumentation(db, id, extra, now);
 
   // New prompts reopen a resolved task and change its labels, so every prompt
   // is a visible change for the board even when the session row itself did not

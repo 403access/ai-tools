@@ -15,6 +15,7 @@ import {
   readProjectFlows,
   type ProjectFlowsOptions,
 } from "./github.ts";
+import { readProjectDescription } from "./projectDocs.ts";
 import {
   FileBrowserError,
   listDirectory,
@@ -1085,6 +1086,49 @@ export function createHandler(
           if (caught instanceof GitHubError) return error(caught.message, caught.status);
           throw caught;
         }
+      }
+
+      if (parts[0] === "api" && parts[1] === "project" && parts[3] === "docs" && parts.length === 4) {
+        const id = decodeURIComponent(parts[2]!);
+        const project = db.getProject(id);
+        if (!project) return error("Project not found", 404);
+
+        if (request.method === "GET") {
+          let documentation = db.getProjectDocumentation(id);
+          if (!documentation) {
+            const description = await readProjectDescription(project.canonical);
+            documentation = db.createProjectDocumentation(id, description);
+          }
+          return json({ data: documentation });
+        }
+
+        if (request.method === "PATCH") {
+          const body = await readJSONBody(request);
+          if (!body) return error("Expected a JSON body", 400);
+
+          const input: { description?: string; mission?: string; vision?: string } = {};
+          for (const field of ["description", "mission", "vision"] as const) {
+            const value = body[field];
+            if (value === undefined) continue;
+            if (typeof value !== "string") {
+              return error(`${field} must be a string`, 400);
+            }
+            input[field] = value;
+          }
+
+          const documentation =
+            db.getProjectDocumentation(id)
+            ?? db.createProjectDocumentation(
+              id,
+              await readProjectDescription(project.canonical),
+            );
+          if (!documentation) return error("Project not found", 404);
+
+          const updated = db.updateProjectDocumentation(id, input);
+          return updated ? json({ data: updated }) : error("Project not found", 404);
+        }
+
+        return error("Method not allowed", 405);
       }
 
       if (parts[0] === "api" && parts[1] === "project" && parts[3] === "icon" && parts.length === 4) {

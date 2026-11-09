@@ -838,6 +838,8 @@ and the hub retries on the next loop. A deleted session releases its control.
 | `GET` | `/api/project/{id}/files` | Project files with git status |
 | `GET` | `/api/project/{id}/git` | Full repository graph, branches, and tags |
 | `GET` | `/api/project/{id}/flows` | GitHub Actions runs, jobs, stages, and checks |
+| `GET` | `/api/project/{id}/docs` | Project brief and prompt-derived documentation |
+| `PATCH` | `/api/project/{id}/docs` | Update description, mission, and vision |
 | `GET` | `/api/project/{id}/icon` | The project's own app icon |
 
 `/api/project/{id}/changes` accepts `sessions` (default 10, max 100) for how
@@ -914,6 +916,53 @@ bypasses the short hub cache. `data` is `null` when the project has no GitHub
 remote. Public repositories work anonymously; set `GITHUB_TOKEN` or `GH_TOKEN`
 (alternatively sign in with `gh auth login`) for private repositories and a
 higher API limit.
+
+`/api/project/{id}/docs` returns the editable brief (`description`, `mission`,
+`vision`) plus `productFeatures` and `technicalFeatures`. On first access the
+description is seeded from the project's README. Every prompt sent through the
+hub then adds an entry to one of the feature lists:
+
+```json
+{
+  "data": {
+    "projectID": "prj_…",
+    "description": "A menu bar app and iOS client for OpenCode.",
+    "mission": "Make agent work legible at a glance.",
+    "vision": "Every project keeps its own living product record.",
+    "productFeatures": [
+      {
+        "id": "doc_…",
+        "sessionID": "ses_…",
+        "taskTitle": "Add a project Docs tab",
+        "title": "Add a project Docs tab",
+        "detail": "Add a project Docs tab with description, mission, vision, product and technical features.",
+        "action": "new",
+        "kind": "product",
+        "category": "feature",
+        "categoryTitle": "Feature",
+        "labels": [
+          { "id": "feature", "title": "Feature", "kind": "type" },
+          { "id": "product", "title": "Product", "kind": "scope" }
+        ],
+        "createdAt": 1790000000000,
+        "updatedAt": 1790000000000
+      }
+    ],
+    "technicalFeatures": [],
+    "updatedAt": 1790000000000
+  }
+}
+```
+
+`action` is `new`, `update`, or `remove`; `kind` decides which section shows
+the entry. Entries are derived from the prompt and session title, and keep the
+task and session ids so clients can link back to the work. Queued prompts are
+recorded once even when the hub sends them later. `PATCH` replaces only the
+fields it receives:
+
+```json
+{ "mission": "Make agent work legible at a glance." }
+```
 
 ### Stats and usage
 

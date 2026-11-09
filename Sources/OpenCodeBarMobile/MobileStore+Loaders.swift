@@ -116,6 +116,47 @@ extension MobileStore {
         }
     }
 
+    /// Loads the editable project brief and the feature documentation derived
+    /// from prompts. The hub seeds the description from the README on first
+    /// access.
+    func loadProjectDocumentation(_ projectID: String, force: Bool = false) async {
+        guard let api else { return }
+        if projectDocumentation[projectID]?.isLoading == true { return }
+        if !force, let loaded = projectDocumentation[projectID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 15 {
+            return
+        }
+        defer {
+            trimCache(
+                &projectDocumentation,
+                loadedAt: { $0.loadedAt },
+                pinning: projectID
+            )
+        }
+
+        var state = projectDocumentation[projectID] ?? ProjectDocumentationState()
+        state.isLoading = true
+        state.error = nil
+        projectDocumentation[projectID] = state
+
+        do {
+            let documentation = try await api.projectDocumentation(id: projectID)
+            projectDocumentation[projectID] = ProjectDocumentationState(
+                documentation: documentation,
+                loadedAt: Date()
+            )
+        } catch {
+            var failed = projectDocumentation[projectID] ?? ProjectDocumentationState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                projectDocumentation[projectID] = failed
+                return
+            }
+            failed.error = message(for: error)
+            projectDocumentation[projectID] = failed
+        }
+    }
+
     /// Loads the file patches written by one session. The hub hydrates message
     /// history on demand, so the first request can page through a long session.
     func loadChanges(_ sessionID: String, force: Bool = false) async {

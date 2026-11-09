@@ -8,6 +8,9 @@ import type {
   FileDiff,
   GoUsage,
   Project,
+  ProjectDocumentation,
+  ProjectDocumentationInput,
+  ProjectFeatureDoc,
   Session,
   SessionMessage,
   SessionStats,
@@ -67,6 +70,12 @@ import {
   type SessionQuery,
 } from "./db/sessions.ts";
 import { recordTaskPrompt, setTaskStatus } from "./db/tasks.ts";
+import {
+  createProjectDocumentation,
+  getProjectDocumentation,
+  recordPromptDocumentation,
+  updateProjectDocumentation,
+} from "./db/projectDocs.ts";
 import { getSessionStats } from "./db/sessionStats.ts";
 import { counts, getStats, getUsage, putStats, putUsage, putUsageError, type CachedStats, type CachedUsage } from "./db/stats.ts";
 import { getSync } from "./db/sync.ts";
@@ -181,6 +190,36 @@ export class HubDB implements ChangeLog {
 
   getProject(id: string): Project | null {
     return getProject(this.db, id);
+  }
+
+  // MARK: - Project documentation
+
+  getProjectDocumentation(id: string): ProjectDocumentation | null {
+    return getProjectDocumentation(this.db, id);
+  }
+
+  createProjectDocumentation(
+    id: string,
+    description = "",
+    now = Date.now(),
+  ): ProjectDocumentation {
+    return createProjectDocumentation(this.db, id, description, now);
+  }
+
+  updateProjectDocumentation(
+    id: string,
+    input: ProjectDocumentationInput,
+    now = Date.now(),
+  ): ProjectDocumentation | null {
+    return updateProjectDocumentation(this.db, id, input, now);
+  }
+
+  recordPromptDocumentation(
+    sessionID: string,
+    prompt: string,
+    now = Date.now(),
+  ): ProjectFeatureDoc | null {
+    return recordPromptDocumentation(this.db, sessionID, prompt, now);
   }
 
   // MARK: - Sessions
