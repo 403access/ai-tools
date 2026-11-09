@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// Mobile counterpart of the Mac New Session sheet. Creates a session in a
@@ -44,6 +45,8 @@ struct MobileNewSessionSheet: View {
     @State private var directory: String
     @State private var title = ""
     @State private var prompt = ""
+    @State private var attachments: [PromptDraftAttachment] = []
+    @State private var photoSelection: [PhotosPickerItem] = []
     @State private var startMode: StartMode = .now
     @State private var customStart = Date().addingTimeInterval(60 * 60)
     @State private var source: Source = .existing
@@ -58,6 +61,14 @@ struct MobileNewSessionSheet: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var createdSession: Session?
+    @State private var models: [ModelInfo] = []
+    @State private var agents: [AgentInfo] = []
+    @State private var modelChoice: ModelChoice?
+    @State private var selectedVariant: String?
+    @State private var selectedAgent: String?
+    @State private var catalogsLoading = false
+    @State private var catalogError: String?
+    @State private var loadedCatalogDirectory: String?
     @StateObject private var dictation = SpeechDictation()
     @FocusState private var promptFocused: Bool
 
@@ -106,7 +117,7 @@ struct MobileNewSessionSheet: View {
 
     private var canSubmit: Bool {
         guard !isWorking else { return false }
-        if scheduledStart != nil, trimmedPrompt.isEmpty { return false }
+        if scheduledStart != nil, trimmedPrompt.isEmpty, attachments.isEmpty { return false }
         switch source {
         case .existing:
             guard !trimmedDirectory.isEmpty else { return false }
@@ -122,7 +133,10 @@ struct MobileNewSessionSheet: View {
 
     /// Non-nil when the first message should wait for a later start time. The
     /// hub still queues it behind the concurrency limit when that is reached.
+    /// Image attachments are sent immediately; scheduling is ignored when
+    /// images are attached.
     private var scheduledStart: Date? {
+        guard attachments.isEmpty else { return nil }
         switch startMode {
         case .now: return nil
         case .in15: return Date().addingTimeInterval(15 * 60)
@@ -132,6 +146,9 @@ struct MobileNewSessionSheet: View {
     }
 
     private var startHint: String {
+        if !attachments.isEmpty {
+            return "The first message and images are sent immediately after the session is created."
+        }
         guard let scheduledStart else {
             return "Starts immediately unless the hub is already running its maximum number of agents."
         }
@@ -159,6 +176,45 @@ struct MobileNewSessionSheet: View {
         return (trimmedParentDirectory as NSString).appendingPathComponent(name)
     }
 
+    private var catalogDirectory: String {
+        switch source {
+        case .existing:
+            return trimmedDirectory
+        case .clone:
+            return trimmedParentDirectory
+        }
+    }
+
+    private var selectedModel: ModelInfo? {
+        guard let modelChoice else { return nil }
+        return models.first { $0.choice == modelChoice }
+    }
+
+    private var selectedVariants: [ModelInfo.Variant] {
+        selectedModel?.variants ?? []
+    }
+
+    private var selectedModelRef: ModelRef? {
+        selectedModel?.ref(variant: selectedVariant)
+    }
+
+    private var modelTitle: String {
+        selectedModel?.displayName ?? "OpenCode default"
+    }
+
+    private var modelDetail: String {
+        guard let selectedModel else {
+            return "Uses the default model for this directory"
+        }
+        let variantName = selectedVariants
+            .first { $0.id == selectedVariant }
+            .map { $0.name ?? $0.id }
+        if let variantName {
+            return "\(selectedModel.providerID) · \(variantName)"
+        }
+        return "\(selectedModel.providerID) · default variant"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -175,6 +231,7 @@ struct MobileNewSessionSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                     projectSection
+                    modelAgentSection
                     titleSection
                     messageSection
                     startSection
@@ -231,6 +288,9 @@ struct MobileNewSessionSheet: View {
             store.loadProjectIcons(for: store.orderedProjects)
             promptFocused = true
         }
+        .task(id: catalogDirectory) {
+            await loadCatalogs()
+        }
         .onChange(of: source) { _, _ in
             clonedRepository = nil
             createdWorktree = nil
@@ -246,7 +306,11 @@ struct MobileNewSessionSheet: View {
         .onChange(of: repositoryURL) { _, _ in clonedRepository = nil }
         .onChange(of: parentDirectory) { _, _ in clonedRepository = nil }
         .onChange(of: folderName) { _, _ in clonedRepository = nil }
-        .onDisappear { dictation.cancel() }
+        .onDisappear {
+            dictation.cancel()
+            attachments.removeAll()
+            photoSelection.removeAll()
+        }
     }
 
     private var defaultParentDirectory: String {
@@ -461,7 +525,27 @@ struct MobileNewSessionSheet: View {
         VStack(alignment: .leading, spacing: 7) {
             SectionHeader("First message · optional")
 
+            PromptAttachmentStrip(attachments: $attachments, disabled: isWorking)
+
             HStack(alignment: .bottom, spacing: 8) {
+                PhotosPicker(
+                    selection: $photoSelection,
+                    maxSelectionCount: 8,
+                    matching: .images
+                ) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: 18))
+                        .foregroundStyle(isWorking ? Color.secondary.opacity(0.45) : Theme.accent)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isWorking)
+                .accessibilityLabel("Attach images")
+                .onChange(of: photoSelection) { _, items in
+                    Task { await loadSelectedPhotos(items) }
+                }
+
                 TextField("What should OpenCode do?", text: $prompt, axis: .vertical)
                     .font(.subheadline)
                     .lineLimit(4...8)
@@ -498,9 +582,9 @@ struct MobileNewSessionSheet: View {
                 }
             }
             .pickerStyle(.segmented)
-            .disabled(isWorking)
+            .disabled(isWorking || !attachments.isEmpty)
 
-            if startMode == .custom {
+            if startMode == .custom && attachments.isEmpty {
                 DatePicker(
                     "Start at",
                     selection: $customStart,
@@ -523,6 +607,147 @@ struct MobileNewSessionSheet: View {
             : (trimmedDirectory as NSString).abbreviatingWithTildeInPath
     }
 
+    private var modelAgentSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            SectionHeader("Model and agent · optional")
+
+            if catalogsLoading {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading OpenCode settings…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 2)
+            } else if catalogDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("Choose a project or folder to load available models and agents.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                NavigationLink {
+                    MobileModelPickerView(
+                        models: models,
+                        selection: modelChoice,
+                        variant: selectedVariant
+                    ) { model, variant in
+                        modelChoice = model.choice
+                        selectedVariant = variant
+                    }
+                } label: {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Model")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(modelTitle)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Text(modelDetail)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 6)
+                        if modelChoice != nil {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(Theme.accent)
+                        }
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(11)
+                    .background(fieldBackground)
+                    .overlay(fieldBorder)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(models.isEmpty)
+                .accessibilityLabel("Choose a model")
+
+                if !selectedVariants.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Variant")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ChoiceChip(
+                                    title: "Default",
+                                    isSelected: selectedVariant == nil,
+                                    fontSize: 12
+                                ) {
+                                    selectedVariant = nil
+                                }
+                                ForEach(selectedVariants, id: \.id) { variant in
+                                    ChoiceChip(
+                                        title: variant.name ?? variant.id,
+                                        isSelected: selectedVariant == variant.id,
+                                        fontSize: 12
+                                    ) {
+                                        selectedVariant = variant.id
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 1)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Agent")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 96), spacing: 6)],
+                        alignment: .leading,
+                        spacing: 6
+                    ) {
+                        ChoiceChip(title: "Default", isSelected: selectedAgent == nil, fontSize: 12) {
+                            selectedAgent = nil
+                        }
+                        if let selectedAgent, !agents.contains(where: { $0.id == selectedAgent }) {
+                            ChoiceChip(title: selectedAgent, isSelected: true, fontSize: 12) {}
+                        }
+                        ForEach(agents) { agent in
+                            ChoiceChip(
+                                title: agent.displayName,
+                                isSelected: selectedAgent == agent.id,
+                                fontSize: 12
+                            ) {
+                                selectedAgent = agent.id
+                            }
+                        }
+                    }
+                }
+
+                if let catalogError {
+                    Text(catalogError)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.warn)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text("OpenCodeBar never changes provider privacy settings or enables training on request data.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .onChange(of: modelChoice) { _, _ in
+            guard let model = selectedModel else { return }
+            let variants = model.variants ?? []
+            if !variants.contains(where: { $0.id == selectedVariant }) {
+                selectedVariant = nil
+            }
+        }
+    }
+
     private func resolveSessionDirectory() async throws -> String {
         guard createdSession == nil, source == .existing, workspace == .worktree else {
             return trimmedDirectory
@@ -539,6 +764,16 @@ struct MobileNewSessionSheet: View {
         createdWorktree = worktree
         isCreatingWorktree = false
         return worktree.directory
+    }
+
+    private func loadSelectedPhotos(_ items: [PhotosPickerItem]) async {
+        guard !items.isEmpty else { return }
+        for item in items {
+            if let attachment = await PromptDraftAttachment.load(from: item) {
+                attachments.append(attachment)
+            }
+        }
+        photoSelection.removeAll()
     }
 
     private func submit() async {
@@ -577,12 +812,22 @@ struct MobileNewSessionSheet: View {
                 createdSession = session
             }
 
+            if let model = selectedModelRef {
+                try await store.switchModel(id: session.id, model: model)
+            }
+            if let agent = selectedAgent?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !agent.isEmpty {
+                try await store.switchAgent(id: session.id, agent: agent)
+            }
+
             let message = trimmedPrompt
-            if !message.isEmpty {
+            let files = attachments.map { $0.toInput() }
+            if !message.isEmpty || !files.isEmpty {
                 try await store.promptSession(
                     id: session.id,
                     text: message,
-                    startAt: scheduledStart
+                    startAt: scheduledStart,
+                    files: files.isEmpty ? nil : files
                 )
             }
 
@@ -593,6 +838,51 @@ struct MobileNewSessionSheet: View {
         }
         isCloning = false
         isWorking = false
+    }
+
+    private func loadCatalogs() async {
+        let dir = catalogDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !dir.isEmpty else {
+            models = []
+            agents = []
+            catalogError = nil
+            loadedCatalogDirectory = nil
+            return
+        }
+        if loadedCatalogDirectory == dir && (!models.isEmpty || !agents.isEmpty) {
+            return
+        }
+
+        catalogsLoading = true
+        catalogError = nil
+        async let modelList = store.modelCatalog(directory: dir)
+        async let agentList = store.agentCatalog(directory: dir)
+        do {
+            let (allModels, allAgents) = try await (modelList, agentList)
+            models = allModels
+                .filter(\.isAvailable)
+                .sorted { $0.providerID == $1.providerID ? $0.displayName < $1.displayName : $0.providerID < $1.providerID }
+            agents = allAgents
+                .filter(\.isSelectable)
+                .sorted { $0.displayName < $1.displayName }
+
+            if let modelChoice, !models.contains(where: { $0.choice == modelChoice }) {
+                self.modelChoice = nil
+                selectedVariant = nil
+            } else if let model = selectedModel {
+                let variants = model.variants ?? []
+                if !variants.contains(where: { $0.id == selectedVariant }) {
+                    selectedVariant = nil
+                }
+            }
+            if let selectedAgent, !agents.contains(where: { $0.id == selectedAgent }) {
+                self.selectedAgent = nil
+            }
+            loadedCatalogDirectory = dir
+        } catch {
+            catalogError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        catalogsLoading = false
     }
 }
 

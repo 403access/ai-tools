@@ -65,13 +65,17 @@ Use **New task** on the Tasks tab (or the plus button on a project page):
 1. Pick a project from the searchable browser — sort by recent, name, or running
    work, and filter to running, Git, or sandboxed projects — or type a custom
    path.
-2. Optionally give the session a title.
-3. Optionally type or dictate a first message.
-4. Create the session.
+2. Optionally choose a **model** (with a variant, when the model exposes one)
+   and an **agent**. Leave them on **Default** to use OpenCode's normal choice
+   for that directory.
+3. Optionally give the session a title.
+4. Optionally type or dictate a first message.
+5. Create the session.
 
 The new session opens immediately, and the first message is sent in the same
 step. You can fix a failed first message and retry without creating a second
-session.
+session. OpenCodeBar never changes provider privacy settings or enables training
+on request data.
 
 ### Choose where the session works
 

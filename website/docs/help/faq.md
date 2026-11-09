@@ -37,9 +37,9 @@ The session header and **Session settings** disclosure show the model, provider,
 variant, and agent that actually ran.
 
 If the default is a model you do not want, change the default in OpenCode's
-configuration for that project, or use **Retry options…** after a failed
-turn to choose another model. OpenCodeBar will never enable a training opt-in to
-make a model work.
+configuration for that project, choose a different model when creating a new
+session, or use **Retry options…** after a failed turn. OpenCodeBar will never
+enable a training opt-in to make a model work.
 
 ## Does it stop or delete sessions?
 

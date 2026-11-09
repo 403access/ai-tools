@@ -1,4 +1,4 @@
-.PHONY: build test app install uninstall run desktop restart watch preview shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-ota mobile-variants mobile-icon bench
+.PHONY: build test app install uninstall run desktop restart watch preview shots sheet-shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-ota mobile-variants mobile-icon bench
 
 # Compile the Swift package (debug).
 build:
@@ -62,6 +62,11 @@ shots:
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/project-detail.png --scale 2 --tab projects --project-detail
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/usage.png --scale 2 --tab usage
 	cp docs/screenshots/*.png website/static/img/screenshots/
+
+# Render every New Session and Retry sheet state into docs/screenshots/session-sheets.
+sheet-shots:
+	swift build
+	.build/debug/OpenCodeBar --sheet-gallery docs/screenshots/session-sheets --scale 2
 
 # Open the static website locally.
 site:

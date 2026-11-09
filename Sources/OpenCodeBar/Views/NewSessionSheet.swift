@@ -56,12 +56,77 @@ struct NewSessionSheet: View {
     @State private var errorMessage: String?
     @State private var createdSession: Session?
     @State private var showingProjectPicker = false
+    @State private var showingModelPicker = false
+    @State private var models: [ModelInfo] = []
+    @State private var agents: [AgentInfo] = []
+    @State private var modelChoice: ModelChoice?
+    @State private var selectedVariant: String?
+    @State private var selectedAgent: String?
+    @State private var catalogsLoading = false
+    @State private var catalogError: String?
+    @State private var loadedCatalogDirectory: String?
     @StateObject private var dictation = SpeechDictation()
     @FocusState private var promptFocused: Bool
+
+    #if DEBUG
+    /// State used by the offscreen sheet gallery. Raw strings keep the private
+    /// picker enums out of the preview API.
+    struct PreviewState {
+        var directory: String = "/Users/olivermolnar/Developer/ai-tools"
+        var title = ""
+        var prompt = ""
+        var startMode = "now"
+        var customStart = Date().addingTimeInterval(60 * 60)
+        var source = "existing"
+        var workspace = "folder"
+        var repositoryURL = ""
+        var parentDirectory = "~/Developer"
+        var folderName = ""
+        var models: [ModelInfo] = []
+        var agents: [AgentInfo] = []
+        var modelChoice: ModelChoice?
+        var selectedVariant: String?
+        var selectedAgent: String?
+        var catalogsLoading = false
+        var catalogError: String?
+        var createdSession: Session?
+        var errorMessage: String?
+        var isWorking = false
+        var catalogsProvided = true
+    }
+
+    private var previewCatalogsProvided = false
+    #endif
 
     init(directory: String? = nil) {
         _directory = State(initialValue: directory ?? "")
     }
+
+    #if DEBUG
+    init(preview: PreviewState) {
+        self.previewCatalogsProvided = preview.catalogsProvided
+        _directory = State(initialValue: preview.directory)
+        _title = State(initialValue: preview.title)
+        _prompt = State(initialValue: preview.prompt)
+        _startMode = State(initialValue: StartMode(rawValue: preview.startMode) ?? .now)
+        _customStart = State(initialValue: preview.customStart)
+        _source = State(initialValue: Source(rawValue: preview.source) ?? .existing)
+        _workspace = State(initialValue: Workspace(rawValue: preview.workspace) ?? .folder)
+        _repositoryURL = State(initialValue: preview.repositoryURL)
+        _parentDirectory = State(initialValue: preview.parentDirectory)
+        _folderName = State(initialValue: preview.folderName)
+        _models = State(initialValue: preview.models)
+        _agents = State(initialValue: preview.agents)
+        _modelChoice = State(initialValue: preview.modelChoice)
+        _selectedVariant = State(initialValue: preview.selectedVariant)
+        _selectedAgent = State(initialValue: preview.selectedAgent)
+        _catalogsLoading = State(initialValue: preview.catalogsLoading)
+        _catalogError = State(initialValue: preview.catalogError)
+        _createdSession = State(initialValue: preview.createdSession)
+        _errorMessage = State(initialValue: preview.errorMessage)
+        _isWorking = State(initialValue: preview.isWorking)
+    }
+    #endif
 
     private var trimmedDirectory: String {
         directory.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -157,6 +222,45 @@ struct NewSessionSheet: View {
         guard !trimmedParentDirectory.isEmpty else { return "" }
         let name = trimmedFolderName.isEmpty ? "repository" : trimmedFolderName
         return "Clones to \((trimmedParentDirectory as NSString).appendingPathComponent(name))"
+    }
+
+    private var catalogDirectory: String {
+        switch source {
+        case .existing:
+            return trimmedDirectory
+        case .clone:
+            return trimmedParentDirectory
+        }
+    }
+
+    private var selectedModel: ModelInfo? {
+        guard let modelChoice else { return nil }
+        return models.first { $0.choice == modelChoice }
+    }
+
+    private var selectedVariants: [ModelInfo.Variant] {
+        selectedModel?.variants ?? []
+    }
+
+    private var selectedModelRef: ModelRef? {
+        selectedModel?.ref(variant: selectedVariant)
+    }
+
+    private var modelTitle: String {
+        selectedModel?.displayName ?? "OpenCode default"
+    }
+
+    private var modelDetail: String {
+        guard let selectedModel else {
+            return "Uses the default model for this directory"
+        }
+        let variantName = selectedVariants
+            .first { $0.id == selectedVariant }
+            .map { $0.name ?? $0.id }
+        if let variantName {
+            return "\(selectedModel.providerID) · \(variantName)"
+        }
+        return "\(selectedModel.providerID) · default variant"
     }
 
     var body: some View {
@@ -345,6 +449,8 @@ struct NewSessionSheet: View {
                 }
             }
 
+            modelAgentSection
+
             VStack(alignment: .leading, spacing: 5) {
                 Text("TITLE · OPTIONAL")
                     .font(.system(size: 9, weight: .bold))
@@ -469,7 +575,7 @@ struct NewSessionSheet: View {
             }
         }
         .padding(16)
-        .frame(width: 370)
+        .frame(width: 420)
         .sheet(isPresented: $showingProjectPicker) {
             ProjectPickerSheet(
                 projects: state.orderedProjects,
@@ -478,6 +584,26 @@ struct NewSessionSheet: View {
                 selection: trimmedDirectory
             ) { project in
                 directory = project.canonical
+            }
+        }
+        .sheet(isPresented: $showingModelPicker) {
+            ModelPickerSheet(
+                models: models,
+                selection: modelChoice,
+                variant: selectedVariant
+            ) { model, variant in
+                modelChoice = model.choice
+                selectedVariant = variant
+            }
+        }
+        .task(id: catalogDirectory) {
+            await loadCatalogs()
+        }
+        .onChange(of: modelChoice) { _, _ in
+            guard let model = selectedModel else { return }
+            let variants = model.variants ?? []
+            if !variants.contains(where: { $0.id == selectedVariant }) {
+                selectedVariant = nil
             }
         }
         .onAppear {
@@ -516,6 +642,155 @@ struct NewSessionSheet: View {
         guard !seed.isEmpty else { return "~/Developer" }
         let parent = (seed as NSString).deletingLastPathComponent
         return parent.isEmpty ? "~/Developer" : parent
+    }
+
+    private var modelAgentSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if catalogsLoading {
+                HStack(spacing: 7) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading OpenCode models and agents…")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else if catalogDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("MODEL AND AGENT · OPTIONAL")
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.7)
+                    .foregroundStyle(.secondary)
+                Text("Choose a project or folder to load available models and agents.")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text("MODEL · OPTIONAL")
+                            .font(.system(size: 9, weight: .bold))
+                            .tracking(0.7)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if !models.isEmpty {
+                            Text("\(models.count) available")
+                                .font(.system(size: 8.5))
+                                .monospacedDigit()
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+
+                    Button {
+                        showingModelPicker = true
+                    } label: {
+                        HStack(spacing: 7) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(modelTitle)
+                                    .font(.system(size: 10.5, weight: .medium))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Text(modelDetail)
+                                    .font(.system(size: 8.5))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 4)
+                            if modelChoice != nil {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(Theme.accent)
+                            }
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(Color.primary.opacity(0.06))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isWorking || models.isEmpty)
+                    .help("Search, filter and pick a model")
+                }
+
+                if !selectedVariants.isEmpty {
+                    HStack(spacing: 6) {
+                        Text("VARIANT")
+                            .font(.system(size: 9, weight: .bold))
+                            .tracking(0.7)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 54, alignment: .leading)
+
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 64), spacing: 4)],
+                            alignment: .leading,
+                            spacing: 4
+                        ) {
+                            ChoiceChip(title: "Default", isSelected: selectedVariant == nil) {
+                                selectedVariant = nil
+                            }
+                            ForEach(selectedVariants, id: \.id) { variant in
+                                ChoiceChip(
+                                    title: variant.name ?? variant.id,
+                                    isSelected: selectedVariant == variant.id
+                                ) {
+                                    selectedVariant = variant.id
+                                }
+                            }
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("AGENT")
+                        .font(.system(size: 9, weight: .bold))
+                        .tracking(0.7)
+                        .foregroundStyle(.secondary)
+
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 86), spacing: 4)],
+                        alignment: .leading,
+                        spacing: 4
+                    ) {
+                        ChoiceChip(title: "Default", isSelected: selectedAgent == nil) {
+                            selectedAgent = nil
+                        }
+                        if let selectedAgent, !agents.contains(where: { $0.id == selectedAgent }) {
+                            ChoiceChip(title: selectedAgent, isSelected: true) {}
+                        }
+                        ForEach(agents) { agent in
+                            ChoiceChip(
+                                title: agent.displayName,
+                                isSelected: selectedAgent == agent.id
+                            ) {
+                                selectedAgent = agent.id
+                            }
+                        }
+                    }
+                }
+                .disabled(isWorking)
+
+                if let catalogError {
+                    Text(catalogError)
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.warn)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text("OpenCodeBar never changes provider privacy settings or enables training on request data.")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     private func resolveSessionDirectory() async throws -> String {
@@ -570,6 +845,14 @@ struct NewSessionSheet: View {
                 createdSession = session
             }
 
+            if let model = selectedModelRef {
+                try await state.switchModel(id: session.id, model: model)
+            }
+            if let agent = selectedAgent?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !agent.isEmpty {
+                try await state.switchAgent(id: session.id, agent: agent)
+            }
+
             let message = trimmedPrompt
             if !message.isEmpty {
                 try await state.promptSession(
@@ -583,6 +866,54 @@ struct NewSessionSheet: View {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
         isWorking = false
+    }
+
+    private func loadCatalogs() async {
+        #if DEBUG
+        if previewCatalogsProvided { return }
+        #endif
+        let dir = catalogDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !dir.isEmpty else {
+            models = []
+            agents = []
+            catalogError = nil
+            loadedCatalogDirectory = nil
+            return
+        }
+        if loadedCatalogDirectory == dir && (!models.isEmpty || !agents.isEmpty) {
+            return
+        }
+
+        catalogsLoading = true
+        catalogError = nil
+        async let modelList = state.modelCatalog(directory: dir)
+        async let agentList = state.agentCatalog(directory: dir)
+        do {
+            let (allModels, allAgents) = try await (modelList, agentList)
+            models = allModels
+                .filter(\.isAvailable)
+                .sorted { $0.providerID == $1.providerID ? $0.displayName < $1.displayName : $0.providerID < $1.providerID }
+            agents = allAgents
+                .filter(\.isSelectable)
+                .sorted { $0.displayName < $1.displayName }
+
+            if let modelChoice, !models.contains(where: { $0.choice == modelChoice }) {
+                self.modelChoice = nil
+                selectedVariant = nil
+            } else if let model = selectedModel {
+                let variants = model.variants ?? []
+                if !variants.contains(where: { $0.id == selectedVariant }) {
+                    selectedVariant = nil
+                }
+            }
+            if let selectedAgent, !agents.contains(where: { $0.id == selectedAgent }) {
+                self.selectedAgent = nil
+            }
+            loadedCatalogDirectory = dir
+        } catch {
+            catalogError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        catalogsLoading = false
     }
 }
 

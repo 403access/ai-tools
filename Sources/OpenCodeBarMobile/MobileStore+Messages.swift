@@ -183,6 +183,18 @@ extension MobileStore {
         return try await api.defaultModel(directory: directory)
     }
 
+    /// Changes the model used by subsequent turns in a session.
+    func switchModel(id: String, model: ModelRef) async throws {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+        try await api.switchModel(id: id, model: model)
+    }
+
+    /// Changes the agent used by subsequent turns in a session.
+    func switchAgent(id: String, agent: String) async throws {
+        guard let api else { throw APIError.transport("Not connected to the hub") }
+        try await api.switchAgent(id: id, agent: agent)
+    }
+
     /// Fetches the prompts a session has accepted but not delivered yet.
     func loadPending(_ sessionID: String, force: Bool = false) async {
         guard let api else { return }

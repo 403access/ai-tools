@@ -26,6 +26,27 @@ struct RetryTurnSheet: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
 
+    #if DEBUG
+    /// State used by the offscreen sheet gallery. Production code always uses
+    /// the live catalog and the failed turn's settings.
+    struct PreviewState {
+        var destination: RetryDestination = .sameSession
+        var prompt: String?
+        var models: [ModelInfo] = []
+        var agents: [AgentInfo] = []
+        var modelChoice: ModelChoice?
+        var selectedVariant: String?
+        var selectedAgent: String?
+        var isLoading = false
+        var loadError: String?
+        var isWorking = false
+        var errorMessage: String?
+        var catalogsProvided = true
+    }
+
+    private var previewCatalogsProvided = false
+    #endif
+
     init(session: Session, failure: FailedTurn, onForked: @escaping (Session) -> Void) {
         self.session = session
         self.failure = failure
@@ -37,6 +58,31 @@ struct RetryTurnSheet: View {
         }
         _selectedAgent = State(initialValue: failure.agent)
     }
+
+    #if DEBUG
+    init(
+        session: Session,
+        failure: FailedTurn,
+        onForked: @escaping (Session) -> Void,
+        preview: PreviewState
+    ) {
+        self.session = session
+        self.failure = failure
+        self.onForked = onForked
+        self.previewCatalogsProvided = preview.catalogsProvided
+        _destination = State(initialValue: preview.destination)
+        _prompt = State(initialValue: preview.prompt ?? failure.promptText ?? "")
+        _models = State(initialValue: preview.models)
+        _agents = State(initialValue: preview.agents)
+        _modelChoice = State(initialValue: preview.modelChoice)
+        _selectedVariant = State(initialValue: preview.selectedVariant)
+        _selectedAgent = State(initialValue: preview.selectedAgent)
+        _isLoading = State(initialValue: preview.isLoading)
+        _loadError = State(initialValue: preview.loadError)
+        _isWorking = State(initialValue: preview.isWorking)
+        _errorMessage = State(initialValue: preview.errorMessage)
+    }
+    #endif
 
     private var promptText: String {
         prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -347,6 +393,9 @@ struct RetryTurnSheet: View {
     }
 
     private func loadCatalogs() async {
+        #if DEBUG
+        if previewCatalogsProvided { return }
+        #endif
         // `.task` runs again if the sheet's content is rebuilt; never clear a
         // catalog or a selection the user has already made.
         guard !catalogsLoaded else { return }
