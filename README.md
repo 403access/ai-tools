@@ -240,11 +240,14 @@ iOS app:
 - **Flows** brings the project's GitHub Actions pipeline into the same page:
   recent runs, the selected run's workflow, branch, commit and duration, a stage
   strip, jobs grouped into their `needs` dependency stages, the selected job's
-  steps and annotations, and the head commit's check runs. Each job and run
-  links back to GitHub. Use `GITHUB_TOKEN` / `GH_TOKEN`, or sign in with
-  `gh auth login`, so private repositories and the API rate limit work; public
-  repositories fall back to anonymous reads. Projects without a GitHub remote
-  show an empty state instead.
+  steps and annotations, and the head commit's check runs. Above the pipeline,
+  **Scripts** lists the high-level tasks the project already declares — npm /
+  pnpm / yarn / bun `package.json` scripts, Makefile targets, just recipes and
+  Composer scripts — with the command to copy. Each job and run links back to
+  GitHub. Use `GITHUB_TOKEN` / `GH_TOKEN`, or sign in with `gh auth login`, so
+  private repositories and the API rate limit work; public repositories fall
+  back to anonymous reads. Projects without a GitHub remote still show their
+  local scripts, and fall back to an empty state when they have neither.
 - **Sessions** lists every session in the project with its cost and time,
   revealed in pages of 50. Quick actions open the project in Finder or Terminal
   and copy its path.
@@ -504,6 +507,7 @@ The hub:
    `/api/session/{id}/forks`, `/api/project`,
    `/api/project/{id}/changes`, `/api/project/{id}/files`,
    `/api/project/{id}/git`, `/api/project/{id}/flows`,
+   `/api/project/{id}/scripts`,
    `/api/project/{id}/docs`,
    `/api/project/{id}/icon`,
    `/api/experimental/session/stats` — plus
@@ -982,6 +986,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     ProjectStructure.swift  layered project structure map and file languages
     GitInfo.swift           commit, branch, and repository graph models (shared)
     GitHubFlows.swift       workflow runs, stages, jobs and checks (shared)
+    ProjectScripts.swift    package, make, just and composer scripts
     APIEnvelopes.swift      request/response envelopes
     OpenCodeEvent.swift     decoded event payloads (shared)
     ProjectOrdering.swift   project merge + ordering from running counts (shared)
@@ -1021,7 +1026,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     ProjectStructureView.swift        project map, edges and node details
     ProjectSessions.swift             recent-session rows
     GitViews.swift                    session commits and project commit graph
-    FlowsViews.swift                  GitHub Actions stages, jobs and checks
+    FlowsViews.swift                  project scripts plus GitHub Actions stages, jobs and checks
     SettingsTab.swift       connected devices and server controls
     SystemTab.swift         machine, resources, apps, Homebrew and tools
     SystemAppDetailView.swift  app bundle facts and Xcode simulator management
@@ -1141,6 +1146,7 @@ server/                       Bun + TypeScript + SQLite hub
   src/files.ts                project file browser
   src/git.ts                  session commits and project commit graph
   src/github.ts               GitHub Actions runs, stages, needs and checks
+  src/scripts.ts              package, make, just and composer script discovery
   src/browser.ts              read-only host file browser and previews
   src/projectIcon.ts          project app icon discovery and rendering
   src/api.ts                  HTTP routes

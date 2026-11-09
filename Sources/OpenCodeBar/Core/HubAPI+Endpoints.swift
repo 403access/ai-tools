@@ -813,6 +813,16 @@ extension HubAPI {
         return response.data
     }
 
+    /// High-level scripts declared by the project's manifests. Empty when the
+    /// project has no package, make, just or composer manifest.
+    func projectScripts(id: String) async throws -> ProjectScripts {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: ProjectScriptsResponse = try await get(
+            "/api/project/\(encoded)/scripts"
+        )
+        return response.data ?? ProjectScripts(scripts: [], generatedAt: 0)
+    }
+
     /// The project's editable brief plus the feature documentation derived from
     /// prompts. The hub seeds the description from the project README on first
     /// access.

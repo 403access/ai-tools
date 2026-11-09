@@ -868,6 +868,23 @@ export const PATHS = {
     },
   },
 
+  "/api/project/{id}/scripts": {
+    get: {
+      tags: ["Projects"],
+      summary: "Project scripts",
+      description:
+        "Lists runnable scripts declared by the project's root manifests: package.json scripts, Makefile targets, just recipes and Composer scripts. Each entry includes the command to run it. No scripts are executed.",
+      operationId: "getProjectScripts",
+      parameters: [pathParam("id", "Project id.")],
+      responses: {
+        200: ok(schemaRef("ProjectScriptsResponse")),
+        401: unauthorized,
+        404: notFound,
+        default: failure,
+      },
+    },
+  },
+
   "/api/project/{id}/docs": {
     get: {
       tags: ["Projects"],

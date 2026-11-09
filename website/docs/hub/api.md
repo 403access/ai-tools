@@ -838,6 +838,7 @@ and the hub retries on the next loop. A deleted session releases its control.
 | `GET` | `/api/project/{id}/files` | Project files with git status |
 | `GET` | `/api/project/{id}/git` | Full repository graph, branches, and tags |
 | `GET` | `/api/project/{id}/flows` | GitHub Actions runs, jobs, stages, and checks |
+| `GET` | `/api/project/{id}/scripts` | npm, make, just, and Composer scripts |
 | `GET` | `/api/project/{id}/docs` | Project brief and prompt-derived documentation |
 | `PATCH` | `/api/project/{id}/docs` | Update description, mission, and vision |
 | `GET` | `/api/project/{id}/icon` | The project's own app icon |
@@ -916,6 +917,14 @@ bypasses the short hub cache. `data` is `null` when the project has no GitHub
 remote. Public repositories work anonymously; set `GITHUB_TOKEN` or `GH_TOKEN`
 (alternatively sign in with `gh auth login`) for private repositories and a
 higher API limit.
+
+`/api/project/{id}/scripts` lists the high-level tasks the project already
+declares in its root manifests. It reads `package.json` scripts (using the
+declared package manager, or the lockfile, to choose npm, pnpm, yarn or bun),
+Makefile and `makefile` / `GNUmakefile` targets, `justfile` recipes, and
+`composer.json` scripts. Each entry carries the command to run it, the manifest
+it came from, and any comment or recipe body the manifest provides. No script
+is executed; `data.scripts` is empty when the project declares none.
 
 `/api/project/{id}/docs` returns the editable brief (`description`, `mission`,
 `vision`) plus `productFeatures` and `technicalFeatures`. On first access the

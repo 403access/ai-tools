@@ -155,6 +155,16 @@ vocabulary and cached briefly so switching tabs does not spend the API limit.
 A token from `GITHUB_TOKEN`, `GH_TOKEN`, or the GitHub CLI unlocks private
 repositories; public repositories work anonymously.
 
+## Project scripts
+
+`/api/project/{id}/scripts` reads the high-level tasks a project already
+declares in its root manifests: `package.json` scripts, Makefile targets, just
+recipes, and Composer scripts. The package runner follows the manifest's
+`packageManager` field or the lockfile, so `bun run dev` and `pnpm run build`
+match what the project uses. Descriptions come from comments above Makefile
+targets and just recipes. The Flows tab pairs this list with the GitHub
+pipeline; discovery is read-only and never executes a script.
+
 ## Project icons
 
 `/api/project/{id}/icon` finds the icon a project already ships with, so the

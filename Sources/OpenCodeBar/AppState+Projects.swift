@@ -81,6 +81,9 @@ extension AppState {
         if projectFlows[project.id] != nil {
             await loadProjectFlows(project.id, force: true)
         }
+        if projectScripts[project.id] != nil {
+            await loadProjectScripts(project.id, force: true)
+        }
         if projectDocumentation[project.id] != nil {
             await loadProjectDocumentation(project.id, force: true)
         }
@@ -151,6 +154,38 @@ extension AppState {
             }
             failed.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             projectFlows[projectID] = failed
+        }
+    }
+
+    /// Fetches high-level scripts declared by the project's manifests. Loaded
+    /// with the Flows tab and independent of whether the project has a GitHub
+    /// remote, so non-GitHub projects still show their npm or make tasks.
+    func loadProjectScripts(_ projectID: String, force: Bool = false) async {
+        guard let api else { return }
+        if projectScripts[projectID]?.isLoading == true { return }
+        if !force, let loaded = projectScripts[projectID]?.loadedAt,
+           Date().timeIntervalSince(loaded) < 30 {
+            return
+        }
+        defer { trimCache(&projectScripts, loadedAt: { $0.loadedAt }, pinning: projectID) }
+
+        var state = projectScripts[projectID] ?? ProjectScriptsState()
+        state.isLoading = true
+        state.error = nil
+        projectScripts[projectID] = state
+
+        do {
+            let scripts = try await api.projectScripts(id: projectID)
+            projectScripts[projectID] = ProjectScriptsState(scripts: scripts, loadedAt: Date())
+        } catch {
+            var failed = projectScripts[projectID] ?? ProjectScriptsState()
+            failed.isLoading = false
+            if Task.isCancelled {
+                projectScripts[projectID] = failed
+                return
+            }
+            failed.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            projectScripts[projectID] = failed
         }
     }
 

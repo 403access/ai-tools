@@ -100,7 +100,9 @@ struct ProjectDetailView: View {
             } else if mode == .git {
                 await state.loadProjectGit(project.id)
             } else if mode == .flows {
-                await state.loadProjectFlows(project.id)
+                async let flows: Void = state.loadProjectFlows(project.id)
+                async let scripts: Void = state.loadProjectScripts(project.id)
+                _ = await (flows, scripts)
             }
         }
         .onChange(of: project.id) { _, _ in
@@ -717,7 +719,33 @@ struct ProjectDetailView: View {
     @ViewBuilder
     private var flowsTab: some View {
         let flowsState = state.projectFlows[project.id]
+        let scriptsState = state.projectScripts[project.id]
+        let hasScripts = scriptsState?.scripts?.scripts.isEmpty == false
+        let showScripts = hasScripts
+            || scriptsState?.error != nil
+            || (scriptsState?.isLoading == true && scriptsState?.scripts == nil)
 
+        VStack(alignment: .leading, spacing: 12) {
+            if showScripts {
+                ProjectScriptsView(
+                    scripts: scriptsState?.scripts,
+                    isLoading: scriptsState?.isLoading == true,
+                    error: scriptsState?.error,
+                    onRefresh: {
+                        Task { await state.loadProjectScripts(project.id, force: true) }
+                    }
+                )
+            }
+
+            flowsContent(flowsState, hasScripts: hasScripts)
+        }
+    }
+
+    @ViewBuilder
+    private func flowsContent(
+        _ flowsState: AppState.ProjectFlowsState?,
+        hasScripts: Bool
+    ) -> some View {
         if let flows = flowsState?.flows {
             ProjectFlowsView(
                 flows: flows,
@@ -728,7 +756,11 @@ struct ProjectDetailView: View {
                     }
                 },
                 onRefresh: {
-                    Task { await state.loadProjectFlows(project.id, force: true) }
+                    Task {
+                        async let flows: Void = state.loadProjectFlows(project.id, force: true)
+                        async let scripts: Void = state.loadProjectScripts(project.id, force: true)
+                        _ = await (flows, scripts)
+                    }
                 }
             )
         } else if let flowsState, flowsState.isLoading {
@@ -742,12 +774,18 @@ struct ProjectDetailView: View {
                 tint: Theme.warn
             )
         } else if flowsState?.loadedAt != nil {
-            SectionHeader("Flows")
-            EmptyState(
-                icon: "point.3.connected.trianglepath.dotted",
-                title: "Not a GitHub project",
-                subtitle: "Add a GitHub remote to this checkout to see Actions runs and checks."
-            )
+            if hasScripts {
+                Text("No GitHub remote, so only local scripts are shown.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            } else {
+                SectionHeader("Flows")
+                EmptyState(
+                    icon: "point.3.connected.trianglepath.dotted",
+                    title: "Not a GitHub project",
+                    subtitle: "Add a GitHub remote to this checkout to see Actions runs and checks."
+                )
+            }
         } else {
             FlowsSkeleton()
                 .shimmering()

@@ -599,6 +599,32 @@ export interface GitHubFlowsResponse {
   data: GitHubFlows | null;
 }
 
+/** One high-level task exposed by a project manifest. */
+export interface ProjectScript {
+  /** Script or target name, as written in the manifest. */
+  name: string;
+  /** Command a user would type to run it. */
+  command: string;
+  /** Manifest the script was found in, such as `package.json`. */
+  source: string;
+  /** Runner that executes it: npm, pnpm, yarn, bun, make, just or composer. */
+  tool: string;
+  /** The underlying command or recipe when the manifest provides one. */
+  detail?: string;
+  /** Comment describing the target when the manifest provides one. */
+  description?: string;
+}
+
+/** Scripts discovered in a project's manifests, grouped by source. */
+export interface ProjectScripts {
+  scripts: ProjectScript[];
+  generatedAt: number;
+}
+
+export interface ProjectScriptsResponse {
+  data: ProjectScripts;
+}
+
 export interface MessageCursor {
   previous?: string;
   next?: string;

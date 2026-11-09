@@ -117,6 +117,13 @@ final class AppState: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct ProjectScriptsState: Equatable {
+        var scripts: ProjectScripts?
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     struct SessionGitState: Equatable {
         var git: SessionGit?
         var isLoading = false
@@ -238,6 +245,9 @@ final class AppState: ObservableObject {
     @Published var projectGit: [String: ProjectGitState] = [:]
     /// GitHub Actions runs and checks, loaded when the Flows tab opens.
     @Published var projectFlows: [String: ProjectFlowsState] = [:]
+    /// High-level project scripts (npm, make, just, composer), loaded alongside
+    /// the Flows tab.
+    @Published var projectScripts: [String: ProjectScriptsState] = [:]
     /// Project briefs and prompt-derived feature documentation, loaded when the
     /// Docs tab opens and refreshed after prompts or edits.
     @Published var projectDocumentation: [String: ProjectDocumentationState] = [:]

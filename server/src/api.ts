@@ -15,6 +15,7 @@ import {
   readProjectFlows,
   type ProjectFlowsOptions,
 } from "./github.ts";
+import { readProjectScripts } from "./scripts.ts";
 import { readProjectDescription } from "./projectDocs.ts";
 import {
   FileBrowserError,
@@ -1086,6 +1087,14 @@ export function createHandler(
           if (caught instanceof GitHubError) return error(caught.message, caught.status);
           throw caught;
         }
+      }
+
+      if (parts[0] === "api" && parts[1] === "project" && parts[3] === "scripts" && parts.length === 4) {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+        const id = decodeURIComponent(parts[2]!);
+        const project = db.getProject(id);
+        if (!project) return error("Project not found", 404);
+        return json({ data: readProjectScripts(project.canonical) });
       }
 
       if (parts[0] === "api" && parts[1] === "project" && parts[3] === "docs" && parts.length === 4) {

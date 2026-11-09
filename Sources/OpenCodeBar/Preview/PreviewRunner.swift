@@ -224,7 +224,9 @@ enum PreviewRunner {
                 if requestedProjectMode == .flows {
                     var finished = false
                     Task { @MainActor in
-                        await state.loadProjectFlows(project.id, force: true)
+                        async let flows: Void = state.loadProjectFlows(project.id, force: true)
+                        async let scripts: Void = state.loadProjectScripts(project.id, force: true)
+                        _ = await (flows, scripts)
                         finished = true
                     }
                     let deadline = Date().addingTimeInterval(20)

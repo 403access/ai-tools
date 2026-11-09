@@ -577,6 +577,202 @@ struct ProjectFlowsView: View {
     }
 }
 
+/// High-level tasks declared by the project's manifests (npm scripts,
+/// Makefile targets, just recipes, Composer scripts). Shown above the GitHub
+/// pipeline so a project's own entry points sit beside its CI flows.
+struct ProjectScriptsView: View {
+    let scripts: ProjectScripts?
+    let isLoading: Bool
+    let error: String?
+    let onRefresh: () -> Void
+
+    @State private var copiedID: String?
+
+    private var entries: [ProjectScript] { scripts?.scripts ?? [] }
+
+    private struct ScriptGroup: Identifiable {
+        let source: String
+        let tool: String
+        let scripts: [ProjectScript]
+
+        var id: String { source }
+    }
+
+    /// Groups scripts by manifest, preserving the server's package → make →
+    /// just → composer order so the list reads like the project's own layout.
+    private var groups: [ScriptGroup] {
+        var order: [String] = []
+        var buckets: [String: [ProjectScript]] = [:]
+        for script in entries {
+            if buckets[script.source] == nil { order.append(script.source) }
+            buckets[script.source, default: []].append(script)
+        }
+        return order.map { source in
+            let scripts = buckets[source] ?? []
+            return ScriptGroup(
+                source: source,
+                tool: scripts.first?.tool ?? "",
+                scripts: scripts
+            )
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Scripts") {
+                if !entries.isEmpty {
+                    Text("\(entries.count)")
+                        .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.mini)
+                }
+                Button(action: onRefresh) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Refresh project scripts")
+            }
+
+            if let error, entries.isEmpty {
+                NoticeRow(
+                    icon: "exclamationmark.triangle.fill",
+                    message: error,
+                    tint: Theme.warn
+                )
+            } else if entries.isEmpty {
+                Text(isLoading ? "Reading project manifests…" : "No scripts declared by this project.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 4)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(groups) { group in
+                        VStack(alignment: .leading, spacing: 6) {
+                            groupHeader(group)
+                            LazyVGrid(
+                                columns: [GridItem(.adaptive(minimum: 230), spacing: 8)],
+                                alignment: .leading,
+                                spacing: 8
+                            ) {
+                                ForEach(group.scripts) { script in
+                                    scriptRow(script)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card(padding: 10)
+    }
+
+    private func groupHeader(_ group: ScriptGroup) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon(for: group.tool))
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(tint(for: group.tool))
+            Text(group.source)
+                .font(.system(size: 9.5, weight: .semibold))
+            Text(group.tool)
+                .font(.system(size: 8.5))
+                .foregroundStyle(.tertiary)
+            Text("\(group.scripts.count)")
+                .font(.system(size: 8.5, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.tertiary)
+            Rectangle()
+                .fill(Color.primary.opacity(0.06))
+                .frame(height: 1)
+        }
+        .padding(.top, 2)
+    }
+
+    private func scriptRow(_ script: ProjectScript) -> some View {
+        HStack(alignment: .top, spacing: 7) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Text(script.name)
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                Text(script.command)
+                    .font(.system(size: 9.5, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .textSelection(.enabled)
+                if let description = script.description ?? script.detail, !description.isEmpty {
+                    Text(description)
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                copy(script)
+            } label: {
+                Image(systemName: copiedID == script.id ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(copiedID == script.id ? Theme.accent : .secondary)
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Copy \(script.command)")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.primary.opacity(0.03))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.05), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+    }
+
+    private func copy(_ script: ProjectScript) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(script.command, forType: .string)
+        copiedID = script.id
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.2))
+            if copiedID == script.id { copiedID = nil }
+        }
+    }
+
+    private func icon(for tool: String) -> String {
+        switch tool {
+        case "make": return "hammer"
+        case "just": return "wand.and.stars"
+        case "composer": return "music.note"
+        default: return "shippingbox"
+        }
+    }
+
+    private func tint(for tool: String) -> Color {
+        switch tool {
+        case "make": return Theme.warn
+        case "just": return Theme.running
+        case "composer": return Theme.reasoning
+        default: return Theme.accent
+        }
+    }
+}
+
 /// Placeholder for the Flows tab while the hub reads GitHub.
 struct FlowsSkeleton: View {
     var body: some View {

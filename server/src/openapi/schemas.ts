@@ -825,6 +825,43 @@ export const SCHEMAS = {
     },
   },
 
+  ProjectScript: {
+    type: "object",
+    required: ["name", "command", "source", "tool"],
+    properties: {
+      name: { type: "string", example: "build" },
+      command: { type: "string", example: "npm run build" },
+      source: { type: "string", example: "package.json" },
+      tool: {
+        type: "string",
+        enum: ["npm", "pnpm", "yarn", "bun", "make", "just", "composer"],
+      },
+      detail: {
+        type: "string",
+        description: "The underlying manifest command or recipe, when present.",
+      },
+      description: {
+        type: "string",
+        description: "A comment above a Makefile target or just recipe.",
+      },
+    },
+  },
+
+  ProjectScripts: {
+    type: "object",
+    required: ["scripts", "generatedAt"],
+    properties: {
+      scripts: { type: "array", items: { $ref: "#/components/schemas/ProjectScript" } },
+      generatedAt: timestamp,
+    },
+  },
+
+  ProjectScriptsResponse: {
+    type: "object",
+    required: ["data"],
+    properties: { data: { $ref: "#/components/schemas/ProjectScripts" } },
+  },
+
   ProjectFeatureDoc: {
     type: "object",
     required: [
