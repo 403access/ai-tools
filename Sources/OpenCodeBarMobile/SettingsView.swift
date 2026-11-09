@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State var showScanner = false
     @State var showToken = false
     @AppStorage("tasks.projectIcons") var showsProjectIcons = true
+    @AppStorage(ChatTextRendering.renderMarkdownKey) var rendersMarkdownInChat = true
     @State var loaded = false
     @State var testing = false
     @State var testMessage: String?

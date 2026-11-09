@@ -38,7 +38,7 @@ struct MessageCard: View, Equatable {
             .foregroundStyle(message.isSynthetic ? Theme.warn : Theme.accent)
 
             if let text = message.promptText {
-                Text(text)
+                ChatText(text)
                     .font(.system(size: 14))
                     .lineSpacing(2)
                     .textSelection(.enabled)
@@ -132,7 +132,7 @@ struct MessagePartView: View {
         switch part.type {
         case "text":
             if let text = part.text, !text.isEmpty {
-                Text(text)
+                ChatText(text)
                     .font(.system(size: 14))
                     .lineSpacing(3)
                     .textSelection(.enabled)
@@ -146,7 +146,7 @@ struct MessagePartView: View {
             ToolPartView(part: part)
         default:
             if let text = part.text, !text.isEmpty {
-                Text(text)
+                ChatText(text)
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
@@ -178,7 +178,7 @@ struct ReasoningPartView: View {
             }
             .buttonStyle(.plain)
 
-            Text(text)
+            ChatText(text)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .lineSpacing(2)
@@ -345,7 +345,7 @@ struct PromptRow: View, Equatable {
             }
 
             if let text = message.promptText {
-                Text(text)
+                ChatText(text)
                     .font(.system(size: 14))
                     .lineSpacing(2)
                     .textSelection(.enabled)

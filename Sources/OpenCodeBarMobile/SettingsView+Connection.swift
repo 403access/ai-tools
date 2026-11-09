@@ -30,6 +30,18 @@ extension SettingsView {
                 Text("Show each project's app icon in Tasks group headers. Projects without artwork keep the folder symbol.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+
+                Divider()
+
+                Toggle(isOn: $rendersMarkdownInChat) {
+                    Text("Render Markdown in chat")
+                        .font(.subheadline.weight(.medium))
+                }
+                .tint(Theme.accent)
+
+                Text("Format session conversation messages with headings, lists, links, and code blocks.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
             .card(padding: 12)
         }
