@@ -1,5 +1,78 @@
 import Foundation
 
+// MARK: - Prompt attachments
+
+/// File or image attached to a prompt. `PromptFileAttachmentInput` is sent to
+/// OpenCode/the hub; `PromptFileAttachment` is what stored user messages carry.
+struct PromptFileAttachment: Codable, Equatable, Hashable, Sendable {
+    var data: String = ""
+    var mime: String = ""
+    var source: PromptFileSource = .inline
+    var name: String?
+    var description: String?
+
+    var isImage: Bool { mime.lowercased().hasPrefix("image/") }
+
+    var imageData: Data? {
+        guard isImage, !data.isEmpty else { return nil }
+        return Data(base64Encoded: data, options: [.ignoreUnknownCharacters])
+    }
+
+    init(data: String = "", mime: String = "", source: PromptFileSource = .inline, name: String? = nil, description: String? = nil) {
+        self.data = data
+        self.mime = mime
+        self.source = source
+        self.name = name
+        self.description = description
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        data = (try? container.decode(String.self, forKey: .data)) ?? ""
+        mime = (try? container.decode(String.self, forKey: .mime)) ?? ""
+        source = (try? container.decode(PromptFileSource.self, forKey: .source)) ?? .inline
+        name = try? container.decodeIfPresent(String.self, forKey: .name)
+        description = try? container.decodeIfPresent(String.self, forKey: .description)
+    }
+
+    private enum CodingKeys: String, CodingKey { case data, mime, source, name, description }
+}
+
+struct PromptFileAttachmentInput: Codable, Equatable, Hashable, Sendable {
+    var uri: String
+    var source: PromptFileSource?
+    var name: String?
+    var description: String?
+}
+
+enum PromptFileSource: Codable, Equatable, Hashable, Sendable {
+    case inline
+    case uri(String)
+
+    private enum CodingKeys: String, CodingKey { case type, uri }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        if type == "uri", let uri = try container.decodeIfPresent(String.self, forKey: .uri) {
+            self = .uri(uri)
+        } else {
+            self = .inline
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .inline:
+            try container.encode("inline", forKey: .type)
+        case .uri(let uri):
+            try container.encode("uri", forKey: .type)
+            try container.encode(uri, forKey: .uri)
+        }
+    }
+}
+
 // MARK: - Session messages
 
 /// Arbitrary JSON, used for tool inputs and metadata whose shape varies by tool.
@@ -157,6 +230,7 @@ struct SessionMessage: Codable, Identifiable, Equatable {
     var type: String
     var time: Time
     var text: String?
+    var files: [PromptFileAttachment]?
     var content: [MessagePart]?
     var model: ModelRef?
     var agent: String?

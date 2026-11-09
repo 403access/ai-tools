@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -32,6 +33,8 @@ struct SessionDetailView: View {
     @State var errorMessage: String?
     @State var didAutoScroll = false
     @State var draft = ""
+    @State var attachments: [PromptDraftAttachment] = []
+    @State var photoSelection: [PhotosPickerItem] = []
     @State var isSending = false
     @State var sendError: String?
     @State var pendingError: String?
@@ -123,7 +126,11 @@ struct SessionDetailView: View {
             }
         }
         .mobileScreenBackground()
-        .onDisappear { dictation.cancel() }
+        .onDisappear {
+            dictation.cancel()
+            attachments.removeAll()
+            photoSelection.removeAll()
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if mode == .conversation {
                 VStack(spacing: 0) {

@@ -73,10 +73,11 @@ extension AppState {
         id: String,
         text: String,
         delivery: PromptDelivery? = nil,
-        startAt: Date? = nil
+        startAt: Date? = nil,
+        files: [PromptFileAttachmentInput]? = nil
     ) async throws {
         guard let api else { throw APIError.transport("Not connected to OpenCode") }
-        try await api.promptSession(id: id, text: text, delivery: delivery, startAt: startAt)
+        try await api.promptSession(id: id, text: text, delivery: delivery, startAt: startAt, files: files)
         if startAt == nil {
             activeIDs.insert(id)
             noteTaskPrompt(id: id)

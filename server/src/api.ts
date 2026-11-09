@@ -1340,7 +1340,19 @@ export function createHandler(
           if (!body) return error("Expected a JSON body", 400);
 
           const text = typeof body.text === "string" ? body.text.trim() : "";
-          if (!text) return error("Prompt text is required", 400);
+          let files: unknown[] | undefined;
+          if (body.files !== undefined && body.files !== null) {
+            if (!Array.isArray(body.files)) return error("files must be an array", 400);
+            const valid = body.files.filter(
+              (item): item is { uri: string } =>
+                !!item && typeof item === "object" && typeof (item as { uri?: unknown }).uri === "string",
+            );
+            if (valid.length !== body.files.length) {
+              return error("Each file attachment needs a uri", 400);
+            }
+            if (valid.length) files = body.files as unknown[];
+          }
+          if (!text && !files?.length) return error("Prompt text or an image attachment is required", 400);
 
           let delivery: "steer" | "queue" | undefined;
           if (body.delivery !== undefined && body.delivery !== null) {
@@ -1366,7 +1378,7 @@ export function createHandler(
             if (startAt <= now) startAt = undefined;
           }
 
-          return json(await hub.promptSession(id, text, delivery, { startAt }));
+          return json(await hub.promptSession(id, text, delivery, { startAt, files }));
         }
 
         if (parts.length === 4 && parts[3] === "queue") {

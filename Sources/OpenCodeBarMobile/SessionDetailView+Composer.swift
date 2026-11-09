@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 extension SessionDetailView {
@@ -93,7 +94,7 @@ extension SessionDetailView {
     // MARK: - Composer
 
     var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
+        (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty) && !isSending
     }
 
     var composer: some View {
@@ -105,7 +106,27 @@ extension SessionDetailView {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            PromptAttachmentStrip(attachments: $attachments, disabled: isSending)
+
             HStack(alignment: .center, spacing: 8) {
+                PhotosPicker(
+                    selection: $photoSelection,
+                    maxSelectionCount: 8,
+                    matching: .images
+                ) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: 19))
+                        .foregroundStyle(isSending ? Color.secondary.opacity(0.45) : Theme.accent)
+                        .frame(width: 30, height: 30)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isSending)
+                .accessibilityLabel("Attach images")
+                .onChange(of: photoSelection) { _, items in
+                    Task { await loadSelectedPhotos(items) }
+                }
+
                 TextField(
                     isRunning ? "Queue a message…" : "Message this session…",
                     text: $draft,
@@ -160,7 +181,8 @@ extension SessionDetailView {
     func send() async {
         dictation.cancel()
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isSending else { return }
+        let files = attachments.map { $0.toInput() }
+        guard (!text.isEmpty || !files.isEmpty), !isSending else { return }
 
         isSending = true
         sendError = nil
@@ -168,14 +190,27 @@ extension SessionDetailView {
             try await store.promptSession(
                 id: sessionID,
                 text: text,
-                delivery: isRunning ? .queue : nil
+                delivery: isRunning ? .queue : nil,
+                files: files.isEmpty ? nil : files
             )
             draft = ""
+            attachments.removeAll()
+            photoSelection.removeAll()
             await loadLatest()
             scrollRequest += 1
         } catch {
             sendError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
         isSending = false
+    }
+
+    func loadSelectedPhotos(_ items: [PhotosPickerItem]) async {
+        guard !items.isEmpty else { return }
+        for item in items {
+            if let attachment = await PromptDraftAttachment.load(from: item) {
+                attachments.append(attachment)
+            }
+        }
+        photoSelection.removeAll()
     }
 }

@@ -296,6 +296,8 @@ export interface SessionMessage {
   type: string;
   time: MessageTime;
   text?: string;
+  /** Prompt attachments on user messages (images/files). */
+  files?: unknown[];
   content?: MessagePart[];
   model?: ModelRef;
   agent?: string;

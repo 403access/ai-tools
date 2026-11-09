@@ -429,7 +429,7 @@ export class Hub {
     id: string,
     text: string,
     delivery?: "steer" | "queue",
-    options: { startAt?: number } = {},
+    options: { startAt?: number; files?: unknown[] } = {},
   ): Promise<unknown> {
     return promptSession(this, id, text, delivery, options);
   }

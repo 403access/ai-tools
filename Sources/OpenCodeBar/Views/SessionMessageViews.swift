@@ -36,6 +36,10 @@ struct MessageCard: View, Equatable {
             }
             .foregroundStyle(message.isSynthetic ? Theme.warn : Theme.accent)
 
+            if let files = message.files, !files.isEmpty {
+                MacPromptAttachmentImages(files: files)
+            }
+
             if let text = message.promptText {
                 ChatText(text)
                     .font(.system(size: 11))
@@ -357,5 +361,45 @@ struct PromptRow: View, Equatable {
     private func copyToPasteboard(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+}
+
+private struct MacPromptAttachmentImages: View {
+    let files: [PromptFileAttachment]
+
+    var body: some View {
+        let items = files.compactMap { file -> (PromptFileAttachment, Data)? in
+            guard let data = file.imageData else { return nil }
+            return (file, data)
+        }
+        if !items.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                        #if os(macOS)
+                        if let image = NSImage(data: item.1) {
+                            Image(nsImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 140, height: 100)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+                                )
+                        }
+                        #else
+                        if let image = UIImage(data: item.1) {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 140, height: 100)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                        #endif
+                    }
+                }
+            }
+        }
     }
 }

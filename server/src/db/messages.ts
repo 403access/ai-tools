@@ -25,15 +25,16 @@ export function upsertMessages(
 ): void {
   const insert = db.prepare(`
     INSERT INTO messages (
-      id, session_id, type, created, streamed, completed, text, content,
+      id, session_id, type, created, streamed, completed, text, files, content,
       model, agent, cost, tokens, outcome, finish, error, retry, synced_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(session_id, id) DO UPDATE SET
       type = excluded.type,
       created = excluded.created,
       streamed = excluded.streamed,
       completed = excluded.completed,
       text = COALESCE(excluded.text, messages.text),
+      files = COALESCE(excluded.files, messages.files),
       content = COALESCE(excluded.content, messages.content),
       model = COALESCE(excluded.model, messages.model),
       agent = COALESCE(excluded.agent, messages.agent),
@@ -56,6 +57,7 @@ export function upsertMessages(
         message.time?.streamed ?? null,
         message.time?.completed ?? null,
         message.text ?? null,
+        message.files ? JSON.stringify(message.files) : null,
         message.content ? JSON.stringify(message.content) : null,
         message.model ? JSON.stringify(message.model) : null,
         message.agent ?? null,

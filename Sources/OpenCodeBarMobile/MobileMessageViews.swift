@@ -37,12 +37,20 @@ struct MessageCard: View, Equatable {
             }
             .foregroundStyle(message.isSynthetic ? Theme.warn : Theme.accent)
 
+            if let files = message.files, !files.isEmpty {
+                PromptAttachmentImages(files: files)
+            }
+
             if let text = message.promptText {
                 ChatText(text)
                     .font(.system(size: 14))
                     .lineSpacing(2)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
+            } else if message.files?.isEmpty != false {
+                // no text and no files
+            } else if message.promptText == nil {
+                // images only
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -354,5 +362,43 @@ struct PromptRow: View, Equatable {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 12)
+    }
+}
+
+struct PromptAttachmentImages: View {
+    let files: [PromptFileAttachment]
+
+    var body: some View {
+        let images = files.compactMap { file -> (PromptFileAttachment, UIImage)? in
+            guard let data = file.imageData, let image = UIImage(data: data) else { return nil }
+            return (file, image)
+        }
+        if !images.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(images.enumerated()), id: \.offset) { _, item in
+                        Image(uiImage: item.1)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 160, height: 120)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+                            )
+                            .accessibilityLabel(item.0.name ?? "Attached image")
+                    }
+                }
+            }
+        } else {
+            ForEach(Array(files.enumerated()), id: \.offset) { _, file in
+                HStack(spacing: 6) {
+                    Image(systemName: file.isImage ? "photo" : "doc")
+                    Text(file.name ?? (file.isImage ? "Image attachment" : "Attachment"))
+                        .font(.caption)
+                }
+                .foregroundStyle(.secondary)
+            }
+        }
     }
 }

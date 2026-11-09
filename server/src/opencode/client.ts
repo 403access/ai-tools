@@ -252,16 +252,18 @@ export class OpenCodeClient {
   /**
    * Admits a message into a session and schedules the agent loop. `delivery`
    * defaults to the service's behaviour; "queue" waits for the current run and
-   * "steer" delivers into it.
+   * "steer" delivers into it. `files` carries image or file attachments in the
+   * OpenCode prompt-input format.
    */
   async promptSession(
     id: string,
     text: string,
-    delivery?: "steer" | "queue",
+    options: { delivery?: "steer" | "queue"; files?: unknown[] } = {},
   ): Promise<unknown> {
     return this.post<unknown>(`/api/session/${encodeURIComponent(id)}/prompt`, {
       text,
-      delivery,
+      ...(options.delivery ? { delivery: options.delivery } : {}),
+      ...(options.files?.length ? { files: options.files } : {}),
     });
   }
 

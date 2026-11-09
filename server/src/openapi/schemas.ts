@@ -1542,7 +1542,24 @@ export const SCHEMAS = {
     type: "object",
     required: ["text"],
     properties: {
-      text: string,
+      text: { ...string, description: "Prompt text. May be empty when files are attached." },
+      files: {
+        type: "array",
+        description:
+          "Image or file attachments in OpenCode's prompt-input format. Each item needs at least a `uri` (for example a data: URI).",
+        items: {
+          type: "object",
+          required: ["uri"],
+          properties: {
+            uri: string,
+            source: { type: "object", additionalProperties: true },
+            name: string,
+            description: string,
+            mention: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: true,
+        },
+      },
       delivery: {
         type: "string",
         enum: ["steer", "queue"],
@@ -1551,7 +1568,7 @@ export const SCHEMAS = {
       startAt: {
         ...timestamp,
         description:
-          "Queue the prompt until this time. The task also waits for a free concurrency slot.",
+          "Queue the prompt until this time. The task also waits for a free concurrency slot. Image attachments are not supported for hub-scheduled queued prompts yet.",
       },
       forMs: {
         type: "integer",
@@ -1560,7 +1577,7 @@ export const SCHEMAS = {
         description: "Queue for this many milliseconds, at most 30 days.",
       },
     },
-    example: { text: "Run the test suite", delivery: "queue", forMs: 1_800_000 },
+    example: { text: "What's in this screenshot?", files: [{ uri: "data:image/png;base64,..." }] },
   },
 
   QueueSessionRequest: {

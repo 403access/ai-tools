@@ -161,6 +161,13 @@ export function rowToMessage(row: Row): SessionMessage {
   if (completed !== undefined) message.time.completed = completed;
   const body = text(row.text);
   if (body !== undefined) message.text = body;
+  if (typeof row.files === "string" && row.files) {
+    try {
+      message.files = JSON.parse(row.files);
+    } catch {
+      // Ignore malformed cached attachments.
+    }
+  }
   if (typeof row.content === "string" && row.content) {
     try {
       message.content = JSON.parse(row.content);

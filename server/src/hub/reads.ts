@@ -193,11 +193,18 @@ export async function promptSession(
   id: string,
   text: string,
   delivery?: "steer" | "queue",
-  options: { startAt?: number } = {},
+  options: { startAt?: number; files?: unknown[] } = {},
 ): Promise<unknown> {
+  const files = options.files?.length ? options.files : undefined;
   // A future start time or a full set of concurrency slots parks the prompt on
   // the task board instead of starting another agent turn now.
   if (shouldQueuePrompt(hub, id, options.startAt)) {
+    if (files) {
+      throw new OpenCodeError(
+        "Image attachments cannot be scheduled or held in the hub's queued-task store yet. Send the prompt now, or send it without images and add them once the session is running.",
+        400,
+      );
+    }
     hub.db.clearSessionControl(id);
     return queueSession(hub, id, text, options.startAt);
   }
@@ -205,7 +212,7 @@ export async function promptSession(
   const client = hub.client ?? (await hub.ensureClient());
   if (!client) throw new OpenCodeError("OpenCode is offline", 503);
 
-  const result = await client.promptSession(id, text, delivery);
+  const result = await client.promptSession(id, text, { delivery, files });
   // Any new prompt is an explicit decision to continue, so it releases a
   // pause or stop even when the user typed into the composer instead of
   // pressing the Continue button.

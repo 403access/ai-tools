@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { backfillToolCalls } from "./messages.ts";
 import { number, type Row } from "./rows.ts";
 
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 
 export function migrate(db: Database): void {
   const version = number((db.query("PRAGMA user_version").get() as Row | null)?.user_version);
@@ -380,5 +380,16 @@ export function migrate(db: Database): void {
 
       PRAGMA user_version = 12;
     `);
+  }
+
+  if (version < 13) {
+    // User messages can carry prompt attachments (images/files). Cache them so
+    // clients can render what was sent without re-fetching from OpenCode.
+    try {
+      db.exec("ALTER TABLE messages ADD COLUMN files TEXT;");
+    } catch {
+      // A partially applied migration may already have added this column.
+    }
+    db.exec("PRAGMA user_version = 13;");
   }
 }

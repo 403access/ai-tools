@@ -572,23 +572,27 @@ extension HubAPI {
 
     /// Sends a prompt into an existing session. If the session is running,
     /// `delivery` decides whether the message waits or steers the current turn.
+    /// `files` carries image or file attachments in OpenCode's prompt-input format.
     func promptSession(
         id: String,
         text: String,
         delivery: PromptDelivery? = nil,
-        startAt: Date? = nil
+        startAt: Date? = nil,
+        files: [PromptFileAttachmentInput]? = nil
     ) async throws {
         struct Body: Encodable {
             var text: String
             var delivery: PromptDelivery?
             var startAt: Double?
+            var files: [PromptFileAttachmentInput]?
         }
 
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         let body = Body(
             text: text,
             delivery: delivery,
-            startAt: startAt.map { $0.timeIntervalSince1970 * 1000 }
+            startAt: startAt.map { $0.timeIntervalSince1970 * 1000 },
+            files: files?.isEmpty == false ? files : nil
         )
         _ = try await send(
             "/api/session/\(encoded)/prompt",
