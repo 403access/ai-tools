@@ -27,6 +27,74 @@ final class CommandPaletteTests: XCTestCase {
         )
     }
 
+    // MARK: Mentions
+
+    func testMentionTriggerFindsTokenAtCaret() {
+        let text = "hello @ai"
+        let context = CommandMentionTrigger.context(
+            in: text,
+            caret: text.utf16.count
+        )
+
+        XCTAssertEqual(context?.query, "ai")
+        XCTAssertEqual(context?.range, NSRange(location: 6, length: 3))
+    }
+
+    func testMentionTriggerWorksAtStartOfInput() {
+        let context = CommandMentionTrigger.context(in: "@pro", caret: 4)
+        XCTAssertEqual(context?.query, "pro")
+        XCTAssertEqual(context?.range, NSRange(location: 0, length: 4))
+    }
+
+    func testMentionTriggerRejectsEmailLikeText() {
+        XCTAssertNil(CommandMentionTrigger.context(in: "hello@ai", caret: 8))
+    }
+
+    func testMentionTriggerStopsAtWhitespace() {
+        let text = "@ai tools"
+        XCTAssertNil(CommandMentionTrigger.context(in: text, caret: text.utf16.count))
+    }
+
+    func testMentionTriggerRequiresCaretAfterTheAtSign() {
+        XCTAssertNil(CommandMentionTrigger.context(in: "hello @ai", caret: 5))
+    }
+
+    func testSearchIgnoresTheAtSignOnMentionTerms() {
+        let project = item("project:1", .project, title: "macos-panel")
+
+        let sections = CommandPalette.sections(
+            items: [project],
+            favoriteIDs: [],
+            query: "@macos-panel "
+        )
+
+        XCTAssertEqual(sections.flatMap(\.items).map(\.id), ["project:1"])
+    }
+
+    func testMentionPaletteOmitsActionsAndKeepsKindOrder() {
+        let items = [
+            item("action:1", .action, title: "Refresh"),
+            item("app:1", .app, title: "Xcode"),
+            item("session:1", .session, title: "Fix login"),
+            item("project:1", .project, title: "Website"),
+        ]
+
+        let sections = CommandMentionPalette.sections(items: items, query: "")
+
+        XCTAssertEqual(sections.map(\.kind), [.projects, .sessions, .apps])
+        XCTAssertFalse(sections.flatMap(\.items).contains { $0.kind == .action })
+    }
+
+    func testMentionPaletteRanksAndLimitsEachKind() {
+        let items = (0..<6).map { index in
+            item("project:\(index)", .project, title: "Project \(index)")
+        }
+
+        let sections = CommandMentionPalette.sections(items: items, query: "Project")
+        XCTAssertEqual(sections.first?.kind, .projects)
+        XCTAssertEqual(sections.first?.items.count, CommandMentionPalette.perSection)
+    }
+
     func testProjectsOutrankSessionsAndRemainingResults() {
         let items = [
             item("app", .app, title: "Alpha"),

@@ -1,6 +1,8 @@
 import AppKit
 import Foundation
 
+private let commandBarSessionDefaultsKey = "commandBar.agentSessionID"
+
 @MainActor
 extension AppState {
     // MARK: - Search index
@@ -428,6 +430,70 @@ extension AppState {
         case .toggleDesktopWindow:
             usesDesktopWindow.toggle()
         }
+    }
+
+    // MARK: - Agent
+
+    /// Sends free-form command-bar text to the persistent OpenCode command bar
+    /// session. The agent resolves any `@` references with the opencodebar MCP
+    /// tools, so requests such as "create a session in project X" act on the
+    /// real projects and sessions rather than opening a search result.
+    func runCommandBarPrompt(_ prompt: String) async throws -> Session {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw APIError.transport("The command is empty.")
+        }
+        var session = try await ensureCommandBarSession()
+        do {
+            try await promptSession(id: session.id, text: trimmed)
+        } catch {
+            // The stored session may have been deleted outside the app. Drop
+            // the stale id and retry once against a fresh conversation.
+            guard isMissingSession(error) else { throw error }
+            UserDefaults.standard.removeObject(forKey: commandBarSessionDefaultsKey)
+            session = try await ensureCommandBarSession()
+            try await promptSession(id: session.id, text: trimmed)
+        }
+        return session
+    }
+
+    private func isMissingSession(_ error: Error) -> Bool {
+        switch error {
+        case APIError.status(404), APIError.request(404, _):
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Reuses one conversation so the command bar does not leave a new task
+    /// behind for every prompt. A deleted session falls back to a new one.
+    private func ensureCommandBarSession() async throws -> Session {
+        let defaults = UserDefaults.standard
+        if let id = defaults.string(forKey: commandBarSessionDefaultsKey), !id.isEmpty,
+           let existing = await fetchSession(id: id) {
+            return existing
+        }
+
+        let session = try await createSession(
+            title: "Command bar",
+            directory: commandBarDirectory
+        )
+        defaults.set(session.id, forKey: commandBarSessionDefaultsKey)
+        return session
+    }
+
+    private var commandBarDirectory: String {
+        if let directory = selectedSession?.directory, !directory.isEmpty {
+            return directory
+        }
+        if let directory = selectedProject?.canonical, !directory.isEmpty {
+            return directory
+        }
+        if let directory = orderedProjects.first?.canonical, !directory.isEmpty {
+            return directory
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.path
     }
 
     // MARK: - Helpers

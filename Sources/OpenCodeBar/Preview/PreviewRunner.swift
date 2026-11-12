@@ -54,6 +54,9 @@ enum PreviewRunner {
 
         let state = AppState()
         state.start()
+        if CommandLine.arguments.contains("--command-bar") {
+            state.isCommandBarPresented = true
+        }
 
         // `--detail` opens the first running (or most recent) session once the
         // service data has loaded.

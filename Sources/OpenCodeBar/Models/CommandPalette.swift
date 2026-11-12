@@ -232,7 +232,11 @@ enum CommandPalette {
         let needle = normalized(query).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !needle.isEmpty else { return 0 }
 
-        let terms = needle.split(whereSeparator: \.isWhitespace).map(String.init)
+        let terms = needle
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+            .map { $0.hasPrefix("@") ? String($0.dropFirst()) : $0 }
+            .filter { !$0.isEmpty }
         var total = 0
         for term in terms {
             guard let value = score(term: term, item: item) else { return nil }
@@ -315,4 +319,133 @@ enum CommandPalette {
         }
         return true
     }
+}
+
+// MARK: - Mentions
+
+/// Which results can be referenced with `@`. Actions are commands rather than
+/// things a prompt can point at, so they stay out of the mention menu.
+extension CommandKind {
+    var sectionKind: CommandSectionKind? {
+        switch self {
+        case .project: return .projects
+        case .session: return .sessions
+        case .navigation: return .navigation
+        case .app: return .apps
+        case .terminal: return .terminals
+        case .device: return .devices
+        case .action: return nil
+        }
+    }
+
+    static let mentionOrder: [CommandKind] = [
+        .project, .session, .navigation, .app, .terminal, .device,
+    ]
+}
+
+/// The `@` token currently being edited. `range` covers the at-sign and the
+/// characters typed after it, so the editor can replace the whole token when a
+/// reference is chosen.
+struct CommandMentionContext: Equatable, Sendable {
+    let query: String
+    let range: NSRange
+}
+
+enum CommandMentionTrigger {
+    /// Finds an unfinished `@reference` at the caret. The editor also uses this
+    /// to decide whether a mention menu belongs on screen.
+    static func context(in text: String, caret: Int) -> CommandMentionContext? {
+        guard caret >= 0, caret <= text.utf16.count else { return nil }
+        guard let caretIndex = String.Index(
+            text.utf16.index(text.utf16.startIndex, offsetBy: caret),
+            within: text
+        ) else { return nil }
+
+        var index = caretIndex
+        while index > text.startIndex {
+            let previous = text.index(before: index)
+            let character = text[previous]
+
+            if character == "@" {
+                if previous > text.startIndex {
+                    let before = text[text.index(before: previous)]
+                    guard before.isWhitespace else { return nil }
+                }
+                let query = String(text[text.index(after: previous)..<caretIndex])
+                guard !query.contains(where: \.isWhitespace) else { return nil }
+                return CommandMentionContext(
+                    query: query,
+                    range: NSRange(previous..<caretIndex, in: text)
+                )
+            }
+
+            if character.isWhitespace { return nil }
+            index = previous
+        }
+        return nil
+    }
+}
+
+/// Ranking for the `@` dropdown. It reuses the search scorer but keeps the menu
+/// compact: a few results per kind, projects and sessions first.
+enum CommandMentionPalette {
+    static let perSection = 3
+    static let maxItems = 12
+
+    static func sections(items: [CommandItem], query: String) -> [CommandSection] {
+        let needle = CommandPalette.normalized(query)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var result: [CommandSection] = []
+        var remaining = maxItems
+
+        for kind in CommandKind.mentionOrder {
+            guard remaining > 0, let sectionKind = kind.sectionKind else { continue }
+            var group = items.filter { $0.kind == kind }
+
+            if needle.isEmpty {
+                group.sort(by: recentFirst)
+            } else {
+                group = group
+                    .compactMap { item -> (CommandItem, Int)? in
+                        guard let score = CommandPalette.score(item, query: needle) else { return nil }
+                        return (item, score)
+                    }
+                    .sorted { lhs, rhs in
+                        if lhs.1 != rhs.1 { return lhs.1 > rhs.1 }
+                        if lhs.0.isRunning != rhs.0.isRunning { return lhs.0.isRunning }
+                        let left = lhs.0.recency ?? .distantPast
+                        let right = rhs.0.recency ?? .distantPast
+                        if left != right { return left > right }
+                        return lhs.0.title.localizedCaseInsensitiveCompare(rhs.0.title) == .orderedAscending
+                    }
+                    .map(\.0)
+            }
+
+            let selected = Array(group.prefix(min(perSection, remaining)))
+            guard !selected.isEmpty else { continue }
+            result.append(CommandSection(kind: sectionKind, items: selected))
+            remaining -= selected.count
+        }
+
+        return result
+    }
+
+    private static func recentFirst(_ lhs: CommandItem, _ rhs: CommandItem) -> Bool {
+        if lhs.isRunning != rhs.isRunning { return lhs.isRunning }
+        let left = lhs.recency ?? .distantPast
+        let right = rhs.recency ?? .distantPast
+        if left != right { return left > right }
+        return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+    }
+}
+
+/// Open mention menu state owned by the palette model.
+struct CommandMentionState: Equatable {
+    let query: String
+    let range: NSRange
+    let sections: [CommandSection]
+    var selectedID: String?
+
+    var items: [CommandItem] { sections.flatMap(\.items) }
+    var selectedItem: CommandItem? { items.first { $0.id == selectedID } }
 }

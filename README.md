@@ -63,6 +63,14 @@ iOS app:
   is remembered across launches. Closing the window returns to menu-bar-only
   mode; left-clicking the icon opens it again.
 
+**Command bar**
+- Press ⌘K to search projects, sessions, apps, terminals, devices, and tabs
+  from one place.
+- Type `@` to reference something instead of searching for it. A dropdown lists
+  matching projects, sessions, tabs, apps, terminals, and devices; choosing one
+  inserts it as a highlighted token inside the field, so the reference stays
+  visible and can scope the search.
+
 **Tasks**
 - The first tab is a project-management board built from sessions. Every new
   top-level session becomes a task; running work shows as **In progress**, and
@@ -643,6 +651,15 @@ Mode the tools are grouped under `tools.opencodebar`. Run the server by hand
 with `cd server && bun run mcp`. It reads the hub URL and token from the same
 pairing file as the apps, and `$OPENCODEBAR_HUB_URL` /
 `$OPENCODEBAR_HUB_TOKEN` override them.
+
+Free-form command-bar text can be handed to the same agent instead of opening
+a result: press **⌘↵** (or click **Ask agent**) and the text, including its `@`
+references, is sent to a persistent **Command bar** OpenCode session. Register
+the MCP server globally so that session has the tools from any project:
+
+```sh
+opencode mcp add opencodebar --global -- bun "$PWD/server/src/mcp/server.ts"
+```
 
 For Go plan limits the hub calls the console's usage endpoint,
 `https://opencode.ai/zen/go/v1/usage`, and caches the result for both apps. The
