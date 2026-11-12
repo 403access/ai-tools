@@ -5,6 +5,8 @@ import type {
   AgentInfo,
   ConnectedDevice,
   FileDiff,
+  FormAnswer,
+  FormInfo,
   HubHealth,
   MessagesResponse,
   ModelInfo,
@@ -244,6 +246,45 @@ export async function cancelPendingInput(hub: Hub, id: string, pendingID: string
   const client = hub.client ?? (await hub.ensureClient());
   if (!client) throw new OpenCodeError("OpenCode is offline", 503);
   await client.cancelPending(id, pendingID);
+}
+
+/**
+ * Forms waiting for an answer in a session. There is no cached copy: pending
+ * forms only exist while the service is reachable.
+ */
+export async function forms(hub: Hub, id: string): Promise<FormInfo[]> {
+  const client = hub.client ?? (await hub.ensureClient());
+  if (!client) return [];
+  try {
+    return await client.forms(id);
+  } catch (error) {
+    hub.noteError(error);
+    return [];
+  }
+}
+
+/** Answers a pending form. */
+export async function replyForm(
+  hub: Hub,
+  id: string,
+  formID: string,
+  answer: FormAnswer,
+): Promise<void> {
+  const client = hub.client ?? (await hub.ensureClient());
+  if (!client) throw new OpenCodeError("OpenCode is offline", 503);
+  await client.replyForm(id, formID, answer);
+}
+
+/** Cancels a pending form, optionally telling the asker why. */
+export async function cancelForm(
+  hub: Hub,
+  id: string,
+  formID: string,
+  message?: string,
+): Promise<void> {
+  const client = hub.client ?? (await hub.ensureClient());
+  if (!client) throw new OpenCodeError("OpenCode is offline", 503);
+  await client.cancelForm(id, formID, message);
 }
 
 export async function children(hub: Hub, parentID: string): Promise<Session[]> {

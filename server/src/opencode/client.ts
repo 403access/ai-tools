@@ -6,6 +6,8 @@ import type {
   ModelInfo,
   Project,
   ServerInfo,
+  FormAnswer,
+  FormInfo,
   Session,
   SessionPendingItem,
   SessionsResponse,
@@ -292,6 +294,31 @@ export class OpenCodeClient {
   async cancelPending(id: string, pendingID: string): Promise<void> {
     await this.request<void>(
       `/api/session/${encodeURIComponent(id)}/inbox/${encodeURIComponent(pendingID)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  /** Forms waiting for an answer in a session. */
+  async forms(id: string): Promise<FormInfo[]> {
+    const response = await this.get<{ data: FormInfo[] }>(
+      `/api/session/${encodeURIComponent(id)}/form`,
+    );
+    return response.data ?? [];
+  }
+
+  /** Answers a pending form. */
+  async replyForm(id: string, formID: string, answer: FormAnswer): Promise<void> {
+    await this.post<void>(
+      `/api/session/${encodeURIComponent(id)}/form/${encodeURIComponent(formID)}/reply`,
+      { answer },
+    );
+  }
+
+  /** Cancels a pending form, optionally explaining why. */
+  async cancelForm(id: string, formID: string, message?: string): Promise<void> {
+    const query = message ? `?${new URLSearchParams({ message })}` : "";
+    await this.request<void>(
+      `/api/session/${encodeURIComponent(id)}/form/${encodeURIComponent(formID)}${query}`,
       { method: "DELETE" },
     );
   }

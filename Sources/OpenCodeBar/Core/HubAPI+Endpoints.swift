@@ -740,6 +740,34 @@ extension HubAPI {
         _ = try await send("/api/session/\(session)/pending/\(item)", method: "DELETE")
     }
 
+    /// Forms waiting for an answer in a session.
+    func sessionForms(id: String) async throws -> [FormInfo] {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let response: FormListResponse = try await get("/api/session/\(encoded)/form")
+        return response.data
+    }
+
+    /// Answers a pending form. Multi-select answers are sent as string arrays.
+    func replyForm(id: String, formID: String, answer: [String: FormValue]) async throws {
+        let session = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let form = formID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? formID
+        struct Body: Encodable { var answer: [String: FormValue] }
+        let data = try JSONEncoder().encode(Body(answer: answer))
+        _ = try await send("/api/session/\(session)/form/\(form)/reply", method: "POST", body: data)
+    }
+
+    /// Cancels a pending form, optionally telling the asker why.
+    func cancelForm(id: String, formID: String, message: String? = nil) async throws {
+        let session = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        let form = formID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? formID
+        var path = "/api/session/\(session)/form/\(form)"
+        if let message, !message.isEmpty,
+           let encoded = message.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            path += "?message=\(encoded)"
+        }
+        _ = try await send(path, method: "DELETE")
+    }
+
     func sessionMessages(
         id: String,
         limit: Int = 100,

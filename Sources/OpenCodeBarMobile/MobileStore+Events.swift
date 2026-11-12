@@ -48,6 +48,13 @@ extension MobileStore {
             }
         }
 
+        // Forms are pending-only, so a created/replied/cancelled event means the
+        // conversation should re-read the list. The form card itself settles
+        // from the matching tool part once the turn continues.
+        if event.type.hasPrefix("form."), let id = event.sessionID {
+            Task { await loadForms(id, force: true) }
+        }
+
         if let id = event.sessionID {
             switch event.type {
             case "session.idle", "session.deleted":
@@ -74,7 +81,8 @@ extension MobileStore {
             || event.type.hasPrefix("hub.")
             || event.type.hasPrefix("session.")
             || event.type.hasPrefix("message.")
-            || event.type.hasPrefix("permission.") {
+            || event.type.hasPrefix("permission.")
+            || event.type.hasPrefix("form.") {
             scheduleLiveRefresh()
         }
     }

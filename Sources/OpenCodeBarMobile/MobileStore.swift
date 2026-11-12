@@ -78,6 +78,13 @@ final class MobileStore: ObservableObject {
         var loadedAt: Date?
     }
 
+    struct FormListState: Equatable {
+        var forms: [FormInfo] = []
+        var isLoading = false
+        var error: String?
+        var loadedAt: Date?
+    }
+
     struct ProjectFilesState: Equatable {
         var files: ProjectFiles?
         var isLoading = false
@@ -176,6 +183,8 @@ final class MobileStore: ObservableObject {
     @Published var sessionChanges: [String: ChangesState] = [:]
     /// Prompts admitted but not yet delivered, shown above the composer.
     @Published var sessionPending: [String: PendingState] = [:]
+    /// Pending question forms, matched to their tool parts in the conversation.
+    @Published var sessionForms: [String: FormListState] = [:]
     @Published var projectChanges: [String: ChangesState] = [:]
     @Published var projectFiles: [String: ProjectFilesState] = [:]
     @Published var projectGit: [String: ProjectGitState] = [:]
@@ -350,6 +359,8 @@ final class MobileStore: ObservableObject {
         liveActivity = [:]
         projectDetails = [:]
         sessionChanges = [:]
+        sessionPending = [:]
+        sessionForms = [:]
         projectChanges = [:]
         projectFiles = [:]
         projectGit = [:]

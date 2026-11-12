@@ -104,7 +104,7 @@ extension SessionDetailView {
                 }
 
                 ForEach(displayMessages) { message in
-                    MessageCard(message: message)
+                    MessageCard(message: message, sessionID: sessionID)
                         .equatable()
                         .transition(.recentInsertion)
                 }

@@ -11,6 +11,8 @@ import type {
   ConnectedDevice,
   DeploymentsPayload,
   FileDiff,
+  FormAnswer,
+  FormInfo,
   HubEvent,
   HubHealth,
   MessagesResponse,
@@ -25,6 +27,7 @@ import type {
 } from "./types.ts";
 import { EventBus, sessionIDFromEvent, type EventSink } from "./hub/event-bus.ts";import {
   agents,
+  cancelForm,
   cancelPendingInput,
   changes,
   children,
@@ -34,12 +37,14 @@ import { EventBus, sessionIDFromEvent, type EventSink } from "./hub/event-bus.ts
   devices,
   forkSession,
   forks,
+  forms,
   health,
   messages,
   models,
   pendingInputs,
   projectChanges,
   promptSession,
+  replyForm,
   session,
   sessionStats,
   stats as readStats,
@@ -464,6 +469,18 @@ export class Hub {
 
   cancelPendingInput(id: string, pendingID: string): Promise<void> {
     return cancelPendingInput(this, id, pendingID);
+  }
+
+  forms(id: string): Promise<FormInfo[]> {
+    return forms(this, id);
+  }
+
+  replyForm(id: string, formID: string, answer: FormAnswer): Promise<void> {
+    return replyForm(this, id, formID, answer);
+  }
+
+  cancelForm(id: string, formID: string, message?: string): Promise<void> {
+    return cancelForm(this, id, formID, message);
   }
 
   children(parentID: string): Promise<Session[]> {

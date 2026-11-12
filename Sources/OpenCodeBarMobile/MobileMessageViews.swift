@@ -6,6 +6,7 @@ import UIKit
 
 struct MessageCard: View, Equatable {
     let message: SessionMessage
+    var sessionID: String? = nil
 
     var body: some View {
         if message.isUserLike {
@@ -82,7 +83,7 @@ struct MessageCard: View, Equatable {
 
             let parts = message.content ?? []
             ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
-                MessagePartView(part: part)
+                MessagePartView(part: part, sessionID: sessionID)
             }
 
             if let error = message.error {
@@ -135,6 +136,7 @@ struct MessageCard: View, Equatable {
 
 struct MessagePartView: View {
     let part: MessagePart
+    var sessionID: String? = nil
 
     var body: some View {
         switch part.type {
@@ -151,7 +153,7 @@ struct MessagePartView: View {
                 ReasoningPartView(text: text)
             }
         case "tool":
-            ToolPartView(part: part)
+            ToolPartView(part: part, sessionID: sessionID)
         default:
             if let text = part.text, !text.isEmpty {
                 ChatText(text)
@@ -204,7 +206,12 @@ struct ReasoningPartView: View {
 
 struct ToolPartView: View {
     let part: MessagePart
+    var sessionID: String? = nil
     @State private var expanded = false
+
+    private var isQuestionTool: Bool {
+        (part.name ?? "").lowercased() == "question"
+    }
 
     private var status: String { part.state?.status ?? "unknown" }
 
@@ -240,7 +247,16 @@ struct ToolPartView: View {
         return output
     }
 
+    @ViewBuilder
     var body: some View {
+        if isQuestionTool, let sessionID, !sessionID.isEmpty {
+            QuestionToolCard(part: part, sessionID: sessionID)
+        } else {
+            toolCard
+        }
+    }
+
+    private var toolCard: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
                 guard hasDetails else { return }

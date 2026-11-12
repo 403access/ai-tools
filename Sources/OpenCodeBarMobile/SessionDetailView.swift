@@ -185,6 +185,7 @@ struct SessionDetailView: View {
             }
             if mode == .conversation {
                 await store.loadPending(sessionID)
+                await store.loadForms(sessionID)
             }
             if mode == .changes {
                 await store.loadChanges(sessionID)
@@ -212,7 +213,10 @@ struct SessionDetailView: View {
             switch mode {
             case .conversation, .prompts:
                 if messages.isEmpty { await loadLatest() }
-                if mode == .conversation { await store.loadPending(sessionID) }
+                if mode == .conversation {
+                    await store.loadPending(sessionID)
+                    await store.loadForms(sessionID)
+                }
             case .changes:
                 await store.loadChanges(sessionID)
             case .stats:
@@ -225,6 +229,9 @@ struct SessionDetailView: View {
         }
         .refreshable {
             await loadLatest()
+            if mode == .conversation {
+                await store.loadForms(sessionID, force: true)
+            }
             await store.loadSubagents(sessionID, force: true)
             await store.loadForks(sessionID, force: true)
             if mode == .changes {

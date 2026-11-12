@@ -30,6 +30,7 @@ import { resolveAppIcon } from "./system/appIcons.ts";
 import type {
   Deployment,
   DeploymentsPayload,
+  FormAnswer,
   GitHubFlows,
   MediaControlResult,
   ServerInfo,
@@ -1497,6 +1498,38 @@ export function createHandler(
         if (parts.length === 5 && parts[3] === "pending") {
           if (request.method !== "DELETE") return error("Method not allowed", 405);
           await hub.cancelPendingInput(id, decodeURIComponent(parts[4]!));
+          return new Response(null, { status: 204, headers: CORS_HEADERS });
+        }
+
+        if (parts.length === 4 && parts[3] === "form") {
+          if (request.method !== "GET") return error("Method not allowed", 405);
+          return json({ data: await hub.forms(id) });
+        }
+
+        if (parts.length === 5 && parts[3] === "form") {
+          if (request.method !== "DELETE") return error("Method not allowed", 405);
+          const message = url.searchParams.get("message")?.trim() || undefined;
+          await hub.cancelForm(id, decodeURIComponent(parts[4]!), message);
+          return new Response(null, { status: 204, headers: CORS_HEADERS });
+        }
+
+        if (parts.length === 6 && parts[3] === "form" && parts[5] === "reply") {
+          if (request.method !== "POST") return error("Method not allowed", 405);
+          const body = await readJSONBody(request);
+          if (!body) return error("Expected a JSON body", 400);
+          const answer = body.answer;
+          if (!answer || typeof answer !== "object" || Array.isArray(answer)) {
+            return error("answer is required", 400);
+          }
+          for (const value of Object.values(answer)) {
+            const valid =
+              typeof value === "string" ||
+              typeof value === "number" ||
+              typeof value === "boolean" ||
+              (Array.isArray(value) && value.every((item) => typeof item === "string"));
+            if (!valid) return error("answer values must be strings, numbers, booleans or string arrays", 400);
+          }
+          await hub.replyForm(id, decodeURIComponent(parts[4]!), answer as FormAnswer);
           return new Response(null, { status: 204, headers: CORS_HEADERS });
         }
 

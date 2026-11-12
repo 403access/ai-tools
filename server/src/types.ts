@@ -653,6 +653,45 @@ export interface SessionPendingItem {
   };
 }
 
+/** One option offered by a form field. */
+export interface FormOption {
+  value: string;
+  label: string;
+  description?: string;
+}
+
+/** A value accepted by a form field; multi-select fields send arrays. */
+export type FormValue = string | number | boolean | string[];
+
+/**
+ * One form field. The `question` tool encodes each question as a field keyed
+ * `q0`, `q1`, …, with options for choice questions and `custom` when free-text
+ * answers are allowed.
+ */
+export interface FormField {
+  key: string;
+  type: string;
+  title?: string;
+  description?: string;
+  required?: boolean;
+  hidden?: boolean;
+  options?: FormOption[];
+  custom?: boolean;
+  minItems?: number;
+  maxItems?: number;
+  default?: FormValue;
+}
+
+export interface FormInfo {
+  id: string;
+  sessionID: string;
+  title: string;
+  metadata?: Record<string, unknown>;
+  fields: FormField[];
+}
+
+export type FormAnswer = Record<string, FormValue>;
+
 export interface SessionsResponse {
   data: Session[];
   cursor?: { previous?: string; next?: string };

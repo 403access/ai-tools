@@ -14,7 +14,7 @@ struct OpenCodeEvent: Decodable, Sendable {
     }
 
     var sessionID: String? {
-        data?.sessionID ?? data?.request?.sessionID
+        data?.sessionID ?? data?.request?.sessionID ?? data?.form?.sessionID
     }
 
     /// Event types that change what the Live row shows. Everything else is
@@ -56,6 +56,12 @@ struct OpenCodeEvent: Decodable, Sendable {
         var permission: String?
         var title: String?
         var request: Request?
+        /// `form.created` carries the whole form, including its session.
+        var form: FormEvent?
+
+        struct FormEvent: Decodable, Sendable {
+            var sessionID: String?
+        }
 
         struct Request: Decodable, Sendable {
             var sessionID: String?
