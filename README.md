@@ -628,6 +628,22 @@ mobile-device` picks that URL up automatically, and the Mac app's pairing QR
 code uses it too. Every request still needs the hub token. For a stable address,
 run Tailscale on both devices and pair with the Mac's Tailscale IP instead.
 
+### Agent tools (MCP)
+
+`opencode.json` registers a local MCP server, `opencodebar`, that wraps the
+hub's project and session endpoints. With the hub running (`make hub`), ask an
+OpenCode agent in this repository to start work by name:
+
+> create a new session in project ai-tools implementing the command bar
+
+The agent resolves the project name or path, creates a session in that checkout,
+and sends the prompt. It exposes `list_projects`, `create_session`,
+`list_sessions`, `get_session`, and `send_prompt`; with OpenCode's default Code
+Mode the tools are grouped under `tools.opencodebar`. Run the server by hand
+with `cd server && bun run mcp`. It reads the hub URL and token from the same
+pairing file as the apps, and `$OPENCODEBAR_HUB_URL` /
+`$OPENCODEBAR_HUB_TOKEN` override them.
+
 For Go plan limits the hub calls the console's usage endpoint,
 `https://opencode.ai/zen/go/v1/usage`, and caches the result for both apps. The
 key is resolved in this order:

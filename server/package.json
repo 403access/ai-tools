@@ -7,6 +7,7 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun --watch run src/index.ts",
+    "mcp": "bun run src/mcp/server.ts",
     "test": "bun test",
     "typecheck": "bunx tsc --noEmit",
     "openapi": "bun run scripts/export-openapi.ts"
@@ -14,5 +15,9 @@
   "devDependencies": {
     "@types/bun": "^1.2.0",
     "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
   }
 }
