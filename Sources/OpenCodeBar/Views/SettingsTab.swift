@@ -148,7 +148,7 @@ struct SettingsTab: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
-                Text("Format session conversation messages with headings, lists, links, and code blocks.")
+                Text("Format session conversation messages with headings, lists, links, tables, and code blocks.")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
