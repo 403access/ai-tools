@@ -32,6 +32,12 @@ Assistant text is shown directly. Reasoning and tool calls are collapsible.
 Edit and write tool cards show the same diff as the **Changes** tab instead of
 raw input JSON.
 
+A **Cards / Chat** switch in the header swaps the conversation between the card
+layout and a compact chat-bubble layout that packs the same content into less
+vertical space.
+
+<Figure src="/img/screenshots/session-chat.png" alt="Compact chat layout with user bubbles on the right and assistant bubbles on the left" caption="The compact chat layout trades the per-message cards for chat bubbles." />
+
 ### Reply in the conversation
 
 The composer at the bottom sends the next prompt into this session.

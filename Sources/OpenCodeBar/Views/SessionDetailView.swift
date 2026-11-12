@@ -46,6 +46,22 @@ struct SessionDetailView: View {
     @State var showingPauseSheet = false
     @State var isControlling = false
     @State var controlError: String?
+    @AppStorage(ConversationLayout.defaultsKey) private var storedLayout: ConversationLayout = .cards
+
+    /// The effective conversation layout: a preview/screenshot override wins,
+    /// otherwise the persisted user preference.
+    var conversationLayout: ConversationLayout {
+        state.conversationLayoutOverride ?? storedLayout
+    }
+
+    /// Binding for the layout picker. When a preview override is in effect the
+    /// control still reports the forced value without writing it to disk.
+    private var layoutBinding: Binding<ConversationLayout> {
+        Binding(
+            get: { state.conversationLayoutOverride ?? storedLayout },
+            set: { storedLayout = $0 }
+        )
+    }
 
     let topAnchor = "session-detail-top"
 
@@ -254,6 +270,22 @@ struct SessionDetailView: View {
         }
     }
 
+    /// A compact layout switch shown only while the conversation is on screen.
+    /// The chosen layout is remembered across launches.
+    var conversationLayoutPicker: some View {
+        Picker("Conversation layout", selection: layoutBinding) {
+            ForEach(ConversationLayout.allCases) { layout in
+                Text(layout.title).tag(layout)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .controlSize(.small)
+        .fixedSize()
+        .help("Switch between the card and compact chat conversation layouts")
+        .accessibilityLabel("Conversation layout")
+    }
+
     var navigationBar: some View {
         HStack(spacing: 8) {
             Button {
@@ -292,6 +324,10 @@ struct SessionDetailView: View {
             .foregroundStyle(Theme.accent)
             .help("Start a new session")
             .accessibilityLabel("New session")
+
+            if mode == .conversation {
+                conversationLayoutPicker
+            }
 
             if isRunning {
                 HStack(spacing: 5) {

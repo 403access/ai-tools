@@ -55,6 +55,7 @@ shots:
 	swift build
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/live.png --scale 2
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/session.png --scale 2 --detail
+	.build/debug/OpenCodeBar --screenshot docs/screenshots/session-chat.png --scale 2 --detail --chat
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/stats.png --scale 2 --detail --detail-mode stats
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/changes.png --scale 2 --detail --detail-mode changes
 	.build/debug/OpenCodeBar --screenshot docs/screenshots/prompts.png --scale 2 --detail --detail-mode prompts

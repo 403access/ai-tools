@@ -128,6 +128,156 @@ struct MessageCard: View, Equatable {
     }
 }
 
+/// Compact, chat-style message bubble. User messages sit on the trailing edge
+/// in an accent-tinted bubble; assistant messages hug the leading edge in a
+/// neutral bubble. Tool calls and reasoning keep their expandable chips, so no
+/// content is lost — the same pieces just use less vertical space than the card
+/// layout.
+struct CompactMessageRow: View, Equatable {
+    let message: SessionMessage
+
+    var body: some View {
+        if message.isUserLike {
+            userBubble
+        } else {
+            assistantBubble
+        }
+    }
+
+    // MARK: - User bubble
+
+    private var userBubble: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            HStack(alignment: .bottom, spacing: 0) {
+                Spacer(minLength: 48)
+                VStack(alignment: .trailing, spacing: 3) {
+                    if let files = message.files, !files.isEmpty {
+                        MacPromptAttachmentImages(files: files)
+                    }
+
+                    if let text = message.promptText {
+                        ChatText(text)
+                            .font(.system(size: 11))
+                            .lineSpacing(1.5)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    timestamp(systemImage: message.isSynthetic ? "wand.and.stars" : nil)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .foregroundStyle(.primary)
+                .background(
+                    bubbleShape(trailingTail: true)
+                        .fill(message.isSynthetic ? Theme.warn.opacity(0.10) : Theme.accent.opacity(0.15))
+                )
+                .overlay(
+                    bubbleShape(trailingTail: true)
+                        .strokeBorder(message.isSynthetic ? Theme.warn.opacity(0.30) : Theme.accent.opacity(0.26), lineWidth: 1)
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    // MARK: - Assistant bubble
+
+    private var assistantBubble: some View {
+        HStack(alignment: .top, spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                let parts = message.content ?? []
+                ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
+                    PartView(part: part)
+                }
+
+                if let error = message.error {
+                    compactError(error)
+                } else if parts.isEmpty {
+                    Text("Working…")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+
+                timestamp(systemImage: message.hasError ? "exclamationmark.triangle.fill" : "sparkles")
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .foregroundStyle(.primary)
+            .background(
+                bubbleShape(trailingTail: false)
+                    .fill(Color.primary.opacity(0.05))
+            )
+            .overlay(
+                bubbleShape(trailingTail: false)
+                    .strokeBorder(message.hasError ? Theme.danger.opacity(0.35) : Color.primary.opacity(0.08), lineWidth: 1)
+            )
+
+            Spacer(minLength: 48)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// A one-sided tail keeps user and assistant bubbles distinguishable at a
+    /// glance without the header row the card layout uses.
+    private func bubbleShape(trailingTail: Bool) -> UnevenRoundedRectangle {
+        let radius: CGFloat = 13
+        let tail: CGFloat = 4
+        if trailingTail {
+            return UnevenRoundedRectangle(
+                topLeadingRadius: radius,
+                bottomLeadingRadius: radius,
+                bottomTrailingRadius: tail,
+                topTrailingRadius: radius,
+                style: .continuous
+            )
+        }
+        return UnevenRoundedRectangle(
+            topLeadingRadius: radius,
+            bottomLeadingRadius: tail,
+            bottomTrailingRadius: radius,
+            topTrailingRadius: radius,
+            style: .continuous
+        )
+    }
+
+    private func timestamp(systemImage: String?) -> some View {
+        HStack(spacing: 3) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(size: 6.5, weight: .bold))
+            }
+            Text(Fmt.relative(from: message.time.createdDate))
+                .font(.system(size: 7.5))
+        }
+        .foregroundStyle(message.hasError ? Theme.danger : Color.secondary.opacity(0.8))
+    }
+
+    private func compactError(_ error: SessionMessageError) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(error.displayMessage)
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.danger)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let detail = error.detailLine {
+                Text(detail)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+
+            if let retry = message.retry, let retryError = retry.error {
+                Text("Retried \(retry.attempt ?? 0)× · \(retryError.displayMessage)")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
 private struct PartView: View {
     let part: MessagePart
 

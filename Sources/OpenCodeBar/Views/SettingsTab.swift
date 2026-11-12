@@ -15,6 +15,7 @@ struct SettingsTab: View {
     @State private var contentWidth: CGFloat = 0
     @AppStorage("tasks.projectIcons") private var showsProjectIcons = true
     @AppStorage(ChatTextRendering.renderMarkdownKey) private var rendersMarkdownInChat = true
+    @AppStorage(ConversationLayout.defaultsKey) private var conversationLayout: ConversationLayout = .cards
     @AppStorage(HubLauncher.directoryDefaultsKey) private var hubDirectory = ""
     @AppStorage("settings.showOfflineDevices") private var showsOfflineDevices = false
 
@@ -148,6 +149,23 @@ struct SettingsTab: View {
                 .controlSize(.small)
 
                 Text("Format session conversation messages with headings, lists, links, and code blocks.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Divider()
+
+                Toggle(isOn: Binding(
+                    get: { conversationLayout == .chat },
+                    set: { conversationLayout = $0 ? .chat : .cards }
+                )) {
+                    Text("Compact chat layout")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+                Text("Render conversation messages as compact chat bubbles that use less vertical space. The card layout can be restored from the conversation's layout switch.")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

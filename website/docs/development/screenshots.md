@@ -24,6 +24,7 @@ them into `website/static/img/screenshots/` for the docs site.
 swift build
 .build/debug/OpenCodeBar --screenshot docs/screenshots/live.png --scale 2
 .build/debug/OpenCodeBar --screenshot docs/screenshots/session.png --scale 2 --detail
+.build/debug/OpenCodeBar --screenshot docs/screenshots/session-chat.png --scale 2 --detail --chat
 .build/debug/OpenCodeBar --screenshot docs/screenshots/stats.png --scale 2 --detail --detail-mode stats
 .build/debug/OpenCodeBar --screenshot docs/screenshots/changes.png --scale 2 --detail --detail-mode changes
 .build/debug/OpenCodeBar --screenshot docs/screenshots/prompts.png --scale 2 --detail --detail-mode prompts
@@ -33,7 +34,9 @@ swift build
 ```
 
 Use `--session <id>` to open a specific session. Combine it with
-`--detail-mode subagents` to capture child sessions. Add `--terminal` to render
+`--detail-mode subagents` to capture child sessions. Add `--chat` (or `--cards`)
+to force the conversation layout, which renders the compact chat bubbles without
+touching the stored preference. Add `--terminal` to render
 the first OpenCode terminal instead of the panel, or `--host-terminal` for the
 first Terminal.app tab mirror; start one first, since the harness only renders
 a terminal that the hub already lists.

@@ -362,6 +362,9 @@ final class AppState: ObservableObject {
     /// Section the detail view opens on. Overridable from the command line for
     /// previews/screenshots (`--detail-mode prompts`).
     var detailMode: DetailMode = .conversation
+    /// Conversation layout override for previews/screenshots (`--chat` forces
+    /// the compact bubbles without touching the user's stored preference).
+    var conversationLayoutOverride: ConversationLayout?
     /// Section the project detail view opens on. Kept while a session opened
     /// from the project is on screen, so Back returns to the same tab.
     var projectMode: ProjectDetailMode = .overview
@@ -474,6 +477,12 @@ final class AppState: ObservableObject {
            index + 1 < CommandLine.arguments.count,
            let requested = UsageMode(rawValue: CommandLine.arguments[index + 1].capitalized) {
             usageMode = requested
+        }
+        if CommandLine.arguments.contains("--chat") {
+            conversationLayoutOverride = .chat
+        }
+        if CommandLine.arguments.contains("--cards") {
+            conversationLayoutOverride = .cards
         }
     }
 

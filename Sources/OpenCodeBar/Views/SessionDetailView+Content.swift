@@ -17,7 +17,7 @@ extension SessionDetailView {
                 subtitle: "The conversation will appear as the model responds."
             )
         } else {
-            LazyVStack(alignment: .leading, spacing: 7) {
+            LazyVStack(alignment: .leading, spacing: conversationLayout == .chat ? 4 : 7) {
                 if isRunning {
                     HStack(spacing: 6) {
                         PulsingDot(size: 5)
@@ -34,9 +34,7 @@ extension SessionDetailView {
                 }
 
                 ForEach(displayMessages) { message in
-                    MessageCard(message: message)
-                        .equatable()
-                        .transition(.recentInsertion)
+                    messageRow(message)
                 }
                 .animateRecentInsertion(ids: displayMessages.map(\.id))
             }
@@ -44,6 +42,21 @@ extension SessionDetailView {
             if previousCursor != nil {
                 loadEarlierButton
             }
+        }
+    }
+
+    /// Renders one message in the currently selected layout.
+    @ViewBuilder
+    func messageRow(_ message: SessionMessage) -> some View {
+        switch conversationLayout {
+        case .cards:
+            MessageCard(message: message)
+                .equatable()
+                .transition(.recentInsertion)
+        case .chat:
+            CompactMessageRow(message: message)
+                .equatable()
+                .transition(.recentInsertion)
         }
     }
 

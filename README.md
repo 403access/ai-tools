@@ -30,6 +30,7 @@ a large, full-width Lock Screen card that updates from the live event stream.
 macOS panel:
 
 ![Session detail](docs/screenshots/session.png)
+![Session chat](docs/screenshots/session-chat.png)
 ![Session stats](docs/screenshots/stats.png)
 ![Session changes](docs/screenshots/changes.png)
 ![Prompts view](docs/screenshots/prompts.png)
@@ -110,7 +111,9 @@ iOS app:
 - Click any session to open its details: the full conversation with the newest
   message first, a prompts-only list with copy buttons, and expandable reasoning
   and tool calls. The view keeps updating while the session runs and pages back
-  through history.
+  through history. A layout switch in the header swaps between the original card
+  conversation and a compact chat-bubble view that packs the same content into
+  less vertical space.
 - **Reply from the conversation.** The composer at the bottom of the Chat tab
   sends a prompt into that session. A running session queues the message until
   the current turn finishes, and the conversation refreshes as it arrives.
