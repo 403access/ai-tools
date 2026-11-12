@@ -454,7 +454,54 @@ extension AppState {
             session = try await ensureCommandBarSession()
             try await promptSession(id: session.id, text: trimmed)
         }
+        commandBarUsageFetchedAt = nil
         return session
+    }
+
+    /// The persistent conversation used by ⌘↵. Nil until the first command is
+    /// sent, which is what lets the Usage card explain how to start.
+    var commandBarSessionID: String? {
+        let value = UserDefaults.standard.string(forKey: commandBarSessionDefaultsKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return value?.isEmpty == false ? value : nil
+    }
+
+    func refreshCommandBarUsage(force: Bool = false) async {
+        guard let api, let id = commandBarSessionID else {
+            commandBarUsage = nil
+            commandBarUsageFetchedAt = nil
+            commandBarUsageStale = false
+            commandBarUsageError = nil
+            return
+        }
+        if !force, let fetched = commandBarUsageFetchedAt,
+           Date().timeIntervalSince(fetched) < 30 {
+            return
+        }
+        guard !isRefreshingCommandBarUsage else { return }
+        isRefreshingCommandBarUsage = true
+        defer { isRefreshingCommandBarUsage = false }
+
+        do {
+            async let sessionTask = api.session(id: id)
+            async let statsTask = api.sessionStats(id: id)
+            async let messagesTask = api.sessionMessages(id: id, limit: 100)
+            let session = try await sessionTask
+            let stats = try? await statsTask
+            let messages = (try? await messagesTask)?.data ?? []
+            commandBarUsage = CommandBarUsageBuilder.build(
+                session: session,
+                stats: stats,
+                messages: messages
+            )
+            commandBarUsageFetchedAt = Date()
+            commandBarUsageStale = false
+            commandBarUsageError = nil
+        } catch {
+            commandBarUsageStale = commandBarUsage != nil
+            commandBarUsageError = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+        }
     }
 
     private func isMissingSession(_ error: Error) -> Bool {

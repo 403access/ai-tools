@@ -227,6 +227,13 @@ final class AppState: ObservableObject {
     @Published var projectIcons: [String: NSImage] = [:]
     @Published var stats: Stats?
     @Published var statsStale = false
+    /// Usage for the persistent conversation behind the command bar. Kept apart
+    /// from the global stats so the Usage tab can show what ⌘↵ has cost.
+    @Published var commandBarUsage: CommandBarUsage?
+    @Published var commandBarUsageStale = false
+    @Published var commandBarUsageError: String?
+    var commandBarUsageFetchedAt: Date?
+    var isRefreshingCommandBarUsage = false
     @Published var goUsage: GoUsageState = .unavailable
     @Published var goUsageFetchedAt: Date?
     /// Live "what is it doing" snapshot for each active session, folded from

@@ -57,6 +57,9 @@ enum PreviewRunner {
         if CommandLine.arguments.contains("--command-bar") {
             state.isCommandBarPresented = true
         }
+        if CommandLine.arguments.contains("--usage") {
+            state.tab = .usage
+        }
 
         // `--detail` opens the first running (or most recent) session once the
         // service data has loaded.

@@ -214,6 +214,8 @@ struct UsageTab: View {
                 )
             }
 
+            CommandBarUsageCard()
+
             SectionHeader("Trend")
             UsageTrendCard(stats: stats, sessions: state.history)
         }

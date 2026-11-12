@@ -661,6 +661,10 @@ the MCP server globally so that session has the tools from any project:
 opencode mcp add opencodebar --global -- bun "$PWD/server/src/mcp/server.ts"
 ```
 
+Usage for that conversation is summarized in the **Command bar** card on the
+Usage tab: prompt count, cost, tokens, and the most recent commands with their
+model and duration. **Open session** jumps to the full conversation.
+
 For Go plan limits the hub calls the console's usage endpoint,
 `https://opencode.ai/zen/go/v1/usage`, and caches the result for both apps. The
 key is resolved in this order:
