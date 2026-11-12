@@ -157,14 +157,49 @@ extension SessionDetailView {
 
     /// Settings actually used by the newest turn. OpenCode does not always
     /// persist model/agent on the session row, so fall back to the assistant
-    /// message that carried them.
+    /// message that carried them. A local override keeps the composer honest
+    /// right after switching, before the next refresh lands.
     var effectiveModel: ModelRef? {
-        session.model ?? latestAssistantMessage?.model ?? defaultModelInfo?.ref()
+        modelOverride
+            ?? session.model
+            ?? latestAssistantMessage?.model
+            ?? defaultModelInfo?.ref()
+    }
+
+    var modelChoice: ModelChoice? {
+        effectiveModel.map { ModelChoice($0) }
+    }
+
+    /// Friendly name for the composer button; falls back to the raw model id
+    /// when the catalog has not loaded yet.
+    var currentModelLabel: String {
+        guard let ref = effectiveModel else { return "OpenCode default" }
+        return models.first { $0.choice == ModelChoice(ref) }?.displayName ?? ref.label
     }
 
     func loadDefaultModelIfNeeded() async {
         guard effectiveModel == nil else { return }
         defaultModelInfo = try? await store.defaultModel(directory: session.directory)
+    }
+
+    /// Loads the selectable models for this session's directory. The catalog is
+    /// cached per directory so reopening the picker is instant.
+    func loadModelsIfNeeded(force: Bool = false) async {
+        let directory = session.directory
+        if !force, loadedModelDirectory == directory, !models.isEmpty { return }
+        guard !isLoadingModels else { return }
+
+        isLoadingModels = true
+        modelError = nil
+        do {
+            models = try await store.modelCatalog(directory: directory)
+                .availableForSelection
+            loadedModelDirectory = directory
+        } catch {
+            modelError = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+        }
+        isLoadingModels = false
     }
 
     var effectiveAgent: String? {

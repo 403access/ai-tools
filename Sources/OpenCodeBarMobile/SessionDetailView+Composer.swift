@@ -94,7 +94,9 @@ extension SessionDetailView {
     // MARK: - Composer
 
     var canSend: Bool {
-        (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty) && !isSending
+        (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty)
+            && !isSending
+            && !isSwitchingModel
     }
 
     var composer: some View {
@@ -105,6 +107,8 @@ extension SessionDetailView {
                     .foregroundStyle(Theme.danger)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            modelControl
 
             PromptAttachmentStrip(attachments: $attachments, disabled: isSending)
 
@@ -178,11 +182,77 @@ extension SessionDetailView {
         .background(.ultraThinMaterial)
     }
 
+    /// Compact model selector for the next turn. Choosing a model switches the
+    /// session, so the message about to be sent (or queued) uses it.
+    var modelControl: some View {
+        HStack(spacing: 8) {
+            Button {
+                Task {
+                    await loadModelsIfNeeded()
+                    if !models.isEmpty { showingModelPicker = true }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(currentModelLabel)
+                        .font(.caption2.weight(.semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if isLoadingModels || isSwitchingModel {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                    }
+                }
+                .foregroundStyle(Theme.accent)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Theme.accent.opacity(0.12)))
+                .overlay(
+                    Capsule().strokeBorder(Theme.accent.opacity(0.28), lineWidth: 1)
+                )
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(isSending || isLoadingModels || isSwitchingModel)
+            .accessibilityLabel("Change model")
+            .accessibilityValue(currentModelLabel)
+
+            if let modelError {
+                Text(modelError)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.danger)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// Applies the picked model to the session before the next prompt.
+    func selectModel(_ model: ModelInfo, variant: String?) async {
+        guard !isSwitchingModel else { return }
+        isSwitchingModel = true
+        modelError = nil
+        do {
+            let ref = model.ref(variant: variant)
+            try await store.switchModel(id: sessionID, model: ref)
+            modelOverride = ref
+            defaultModelInfo = model
+        } catch {
+            modelError = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+        }
+        isSwitchingModel = false
+    }
+
     func send() async {
         dictation.cancel()
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let files = attachments.map { $0.toInput() }
-        guard (!text.isEmpty || !files.isEmpty), !isSending else { return }
+        guard (!text.isEmpty || !files.isEmpty), !isSending, !isSwitchingModel else { return }
 
         isSending = true
         sendError = nil

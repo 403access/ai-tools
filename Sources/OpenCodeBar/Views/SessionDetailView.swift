@@ -35,6 +35,13 @@ struct SessionDetailView: View {
     @State var retryError: String?
     @State var settingsExpanded = true
     @State var defaultModelInfo: ModelInfo?
+    @State var models: [ModelInfo] = []
+    @State var loadedModelDirectory: String?
+    @State var isLoadingModels = false
+    @State var isSwitchingModel = false
+    @State var modelOverride: ModelRef?
+    @State var modelError: String?
+    @State var showingModelPicker = false
     @State var forkParent: Session?
     @State var showingPauseSheet = false
     @State var isControlling = false
@@ -142,6 +149,7 @@ struct SessionDetailView: View {
         }
         .task(id: session.id) {
             await loadDefaultModelIfNeeded()
+            await loadModelsIfNeeded()
         }
         .task(id: session.fork?.sessionID) {
             guard let sourceID = session.fork?.sessionID else {
@@ -180,6 +188,15 @@ struct SessionDetailView: View {
                 state.open(forked)
             }
             .environmentObject(state)
+        }
+        .sheet(isPresented: $showingModelPicker) {
+            ModelPickerSheet(
+                models: models,
+                selection: modelChoice,
+                variant: effectiveModel?.variant
+            ) { model, variant in
+                Task { await selectModel(model, variant: variant) }
+            }
         }
         .sheet(isPresented: $showingPauseSheet) {
             PauseSessionSheet(sessionTitle: session.displayTitle) { until in
@@ -408,14 +425,49 @@ struct SessionDetailView: View {
 
     /// Settings actually used by the newest turn. OpenCode does not always
     /// persist model/agent on the session row, so fall back to the assistant
-    /// message that carried them.
+    /// message that carried them. A local override keeps the composer honest
+    /// right after switching, before the next refresh lands.
     var effectiveModel: ModelRef? {
-        session.model ?? latestAssistantMessage?.model ?? defaultModelInfo?.ref()
+        modelOverride
+            ?? session.model
+            ?? latestAssistantMessage?.model
+            ?? defaultModelInfo?.ref()
+    }
+
+    var modelChoice: ModelChoice? {
+        effectiveModel.map { ModelChoice($0) }
+    }
+
+    /// Friendly name for the composer button; falls back to the raw model id
+    /// when the catalog has not loaded yet.
+    var currentModelLabel: String {
+        guard let ref = effectiveModel else { return "OpenCode default" }
+        return models.first { $0.choice == ModelChoice(ref) }?.displayName ?? ref.label
     }
 
     func loadDefaultModelIfNeeded() async {
         guard effectiveModel == nil else { return }
         defaultModelInfo = try? await state.defaultModel(directory: session.directory)
+    }
+
+    /// Loads the selectable models for this session's directory. The catalog is
+    /// cached per directory so reopening the picker is instant.
+    func loadModelsIfNeeded(force: Bool = false) async {
+        let directory = session.directory
+        if !force, loadedModelDirectory == directory, !models.isEmpty { return }
+        guard !isLoadingModels else { return }
+
+        isLoadingModels = true
+        modelError = nil
+        do {
+            models = try await state.modelCatalog(directory: directory)
+                .availableForSelection
+            loadedModelDirectory = directory
+        } catch {
+            modelError = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+        }
+        isLoadingModels = false
     }
 
     var effectiveAgent: String? {
