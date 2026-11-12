@@ -66,8 +66,10 @@ Use **New task** on the Tasks tab (or the plus button on a project page):
    work, and filter to running, Git, or sandboxed projects — or type a custom
    path.
 2. Optionally choose a **model** (with a variant, when the model exposes one)
-   and an **agent**. Leave them on **Default** to use OpenCode's normal choice
-   for that directory.
+   and an **agent**. The browser preselects the model you chose last, stars
+   favorite models above the rest, and marks free models, context windows and
+   other attributes with badges. Leave the model on **Default** to use
+   OpenCode's normal choice for that directory.
 3. Optionally give the session a title.
 4. Optionally type or dictate a first message.
 5. Create the session.

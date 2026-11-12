@@ -694,6 +694,9 @@ struct NewSessionSheet: View {
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 4)
+                            if selectedModel?.isFree == true {
+                                Chip(text: "Free", tint: Theme.accent)
+                            }
                             if modelChoice != nil {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 9))
@@ -868,6 +871,21 @@ struct NewSessionSheet: View {
         isWorking = false
     }
 
+    /// Starts from the model chosen most recently in any picker, as long as it
+    /// is still offered for this directory.
+    private func restoreLastModelSelection() {
+        guard let last = ModelPreferences.lastSelection,
+              let model = models.first(where: { $0.choice == last.choice })
+        else { return }
+        modelChoice = model.choice
+        let variants = model.variants ?? []
+        if let variant = last.variant, variants.contains(where: { $0.id == variant }) {
+            selectedVariant = variant
+        } else {
+            selectedVariant = nil
+        }
+    }
+
     private func loadCatalogs() async {
         #if DEBUG
         if previewCatalogsProvided { return }
@@ -900,6 +918,9 @@ struct NewSessionSheet: View {
             if let modelChoice, !models.contains(where: { $0.choice == modelChoice }) {
                 self.modelChoice = nil
                 selectedVariant = nil
+            }
+            if self.modelChoice == nil {
+                restoreLastModelSelection()
             } else if let model = selectedModel {
                 let variants = model.variants ?? []
                 if !variants.contains(where: { $0.id == selectedVariant }) {

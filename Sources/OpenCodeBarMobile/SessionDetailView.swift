@@ -47,6 +47,13 @@ struct SessionDetailView: View {
     @State var retryError: String?
     @State var settingsExpanded = false
     @State var defaultModelInfo: ModelInfo?
+    @State var models: [ModelInfo] = []
+    @State var loadedModelDirectory: String?
+    @State var isLoadingModels = false
+    @State var isSwitchingModel = false
+    @State var modelOverride: ModelRef?
+    @State var modelError: String?
+    @State var showingModelPicker = false
     @State var forkParent: Session?
     @State var showingPauseSheet = false
     @State var isControlling = false
@@ -201,6 +208,7 @@ struct SessionDetailView: View {
         }
         .task(id: sessionID) {
             await loadDefaultModelIfNeeded()
+            await loadModelsIfNeeded()
         }
         .task(id: session.fork?.sessionID) {
             guard let sourceID = session.fork?.sessionID else {
@@ -251,6 +259,19 @@ struct SessionDetailView: View {
                 onOpenSession?(forked)
             }
             .environmentObject(store)
+        }
+        .sheet(isPresented: $showingModelPicker) {
+            NavigationStack {
+                MobileModelPickerView(
+                    models: models,
+                    selection: modelChoice,
+                    variant: effectiveModel?.variant
+                ) { model, variant in
+                    Task { await selectModel(model, variant: variant) }
+                }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showingPauseSheet) {
             PauseSessionSheet(sessionTitle: session.displayTitle) { until in

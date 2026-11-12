@@ -37,6 +37,9 @@ raw input JSON.
 The composer at the bottom sends the next prompt into this session.
 
 - A running session queues the message until the current turn finishes.
+- The model button above the composer switches the model OpenCode uses for the
+  next turn. Search or filter by provider, and pick a variant on the model row.
+  A switch also applies to a prompt queued behind the running turn.
 - Queued prompts appear above the composer, oldest first, with a **×** to
   withdraw one before the running turn claims it.
 - The conversation refreshes as soon as the message is sent and again when the
@@ -73,8 +76,9 @@ banner above it offers:
   turn can continue.
 - **Retry options…** — opens a sheet where you can send `continue`, choose the
   destination (**This session** or **New fork**), and pick a model, variant, and
-  agent before resending. The model browser has search, provider filters,
-  sorting, and inline variant choices.
+  agent before resending. The model browser has token search, provider and
+  attribute filters, favorite stars, capability badges, sorting, and inline
+  variant choices.
 
 Retrying in this session keeps the failure in the conversation history. A fork
 leaves the original session untouched and keeps only the history before the

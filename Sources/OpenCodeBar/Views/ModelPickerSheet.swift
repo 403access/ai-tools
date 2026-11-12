@@ -15,17 +15,41 @@ struct ModelPickerSheet: View {
     @State private var query = ""
     @State private var providerFilter: String?
     @State private var sort: ModelSortOrder = .provider
+    @State private var favorites = ModelPreferences.favoriteIDs
+    @State private var favoritesOnly = false
+    @State private var freeOnly = false
     @State private var hovered: ModelChoice?
     @FocusState private var searchFocused: Bool
 
     private var providers: [String] { models.providerIDs }
 
     private var visible: [ModelInfo] {
+        models.filteringModels(
+            query: query,
+            providerID: providerFilter,
+            favorites: favorites,
+            favoritesOnly: favoritesOnly,
+            freeOnly: freeOnly
+        )
+    }
+
+    private var favoriteModels: [ModelInfo] {
+        visible.favorites(in: favorites)
+    }
+
+    private var remainingModels: [ModelInfo] {
+        visible.excludingFavorites(in: favorites)
+    }
+
+    private var searchScopedModels: [ModelInfo] {
         models.filteringModels(query: query, providerID: providerFilter)
     }
 
     private var isFiltering: Bool {
-        providerFilter != nil || !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        providerFilter != nil
+            || favoritesOnly
+            || freeOnly
+            || !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -49,7 +73,7 @@ struct ModelPickerSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Choose a model")
                     .font(.system(size: 15, weight: .semibold))
-                Text("Search by name, model id or provider. Variants are picked on the model itself.")
+                Text("Search names, ids, providers and variants. Star favorites to pin them on top.")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -139,6 +163,35 @@ struct ModelPickerSheet: View {
                 }
                 .padding(.vertical, 1)
             }
+
+            HStack(spacing: 5) {
+                providerChip(
+                    "Favorites",
+                    count: searchScopedModels.filter { favorites.contains($0.choice.id) }.count,
+                    isSelected: favoritesOnly,
+                    icon: "star.fill"
+                ) {
+                    favoritesOnly.toggle()
+                }
+                providerChip(
+                    "Free",
+                    count: searchScopedModels.filter(\.isFree).count,
+                    isSelected: freeOnly,
+                    icon: "gift"
+                ) {
+                    freeOnly.toggle()
+                }
+                if isFiltering {
+                    ChoiceChip(title: "Clear filters", isSelected: false) {
+                        query = ""
+                        providerFilter = nil
+                        favoritesOnly = false
+                        freeOnly = false
+                    }
+                    .fixedSize()
+                }
+                Spacer(minLength: 0)
+            }
         }
     }
 
@@ -146,10 +199,15 @@ struct ModelPickerSheet: View {
         _ title: String,
         count: Int,
         isSelected: Bool,
+        icon: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             HStack(spacing: 4) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 8, weight: .semibold))
+                }
                 Text(title)
                 Text("\(count)")
                     .foregroundStyle(isSelected ? Theme.accent.opacity(0.7) : Color.secondary.opacity(0.6))
@@ -185,14 +243,20 @@ struct ModelPickerSheet: View {
                 if visible.isEmpty {
                     emptyState
                 } else if sort == .provider {
-                    ForEach(visible.groupedByProvider(), id: \.providerID) { group in
+                    if !favoriteModels.isEmpty {
+                        providerHeader("Favorites", count: favoriteModels.count, icon: "star.fill")
+                        ForEach(favoriteModels, id: \.choice) { model in
+                            modelRow(model)
+                        }
+                    }
+                    ForEach(remainingModels.groupedByProvider(), id: \.providerID) { group in
                         providerHeader(group.providerID, count: group.models.count)
                         ForEach(group.models, id: \.choice) { model in
                             modelRow(model)
                         }
                     }
                 } else {
-                    ForEach(visible.sortedByDisplayName(), id: \.choice) { model in
+                    ForEach(visible.favoritesFirst(in: favorites), id: \.choice) { model in
                         modelRow(model)
                     }
                 }
@@ -209,13 +273,15 @@ struct ModelPickerSheet: View {
                 .foregroundStyle(.tertiary)
             Text("No models match")
                 .font(.system(size: 12, weight: .medium))
-            Text("Try a different search or provider.")
+            Text("Try a different search or filter.")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
             if isFiltering {
                 ChoiceChip(title: "Clear filters", isSelected: false) {
                     query = ""
                     providerFilter = nil
+                    favoritesOnly = false
+                    freeOnly = false
                 }
                 .fixedSize()
                 .padding(.top, 2)
@@ -225,8 +291,17 @@ struct ModelPickerSheet: View {
         .padding(.vertical, 26)
     }
 
-    private func providerHeader(_ provider: String, count: Int) -> some View {
+    private func providerHeader(
+        _ provider: String,
+        count: Int,
+        icon: String? = nil
+    ) -> some View {
         HStack(spacing: 5) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(Theme.warn)
+            }
             Text(provider.uppercased())
                 .font(.system(size: 9, weight: .bold))
                 .tracking(0.6)
@@ -248,29 +323,48 @@ struct ModelPickerSheet: View {
         let variants = model.variants ?? []
 
         return VStack(alignment: .leading, spacing: 3) {
-            Button {
-                choose(model, variant: nil)
-            } label: {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(model.displayName)
-                        .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 8.5, weight: .bold))
-                            .foregroundStyle(Theme.accent)
+            HStack(alignment: .center, spacing: 6) {
+                Button {
+                    choose(model, variant: nil)
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(model.displayName)
+                            .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if isSelected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 8.5, weight: .bold))
+                                .foregroundStyle(Theme.accent)
+                        }
                     }
-                    Spacer(minLength: 6)
-                    Text(model.providerID)
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .help("Use \(model.displayName) from \(model.providerID)")
+
+                Spacer(minLength: 6)
+                Text(model.providerID)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                favoriteButton(model)
             }
-            .buttonStyle(.plain)
-            .help("Use \(model.displayName) from \(model.providerID)")
+
+            if model.isFree || model.contextLabel != nil || model.statusBadge != nil {
+                HStack(spacing: 4) {
+                    if model.isFree {
+                        modelBadge("Free", tint: Theme.accent)
+                    }
+                    if let context = model.contextLabel {
+                        modelBadge(context, tint: Theme.running)
+                    }
+                    if let status = model.statusBadge {
+                        modelBadge(status, tint: Theme.warn)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
 
             HStack(spacing: 4) {
                 Text(model.id)
@@ -331,6 +425,40 @@ struct ModelPickerSheet: View {
         }
     }
 
+    private func favoriteButton(_ model: ModelInfo) -> some View {
+        let isFavorite = favorites.contains(model.choice.id)
+        return Button {
+            if ModelPreferences.toggleFavorite(model) {
+                favorites.insert(model.choice.id)
+            } else {
+                favorites.remove(model.choice.id)
+            }
+        } label: {
+            Image(systemName: isFavorite ? "star.fill" : "star")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(isFavorite ? Theme.warn : Color.secondary.opacity(0.6))
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isFavorite ? "Remove from favorites" : "Add to favorites")
+        .accessibilityLabel(
+            isFavorite
+                ? "Remove \(model.displayName) from favorites"
+                : "Add \(model.displayName) to favorites"
+        )
+    }
+
+    private func modelBadge(_ title: String, tint: Color) -> some View {
+        Text(title)
+            .font(.system(size: 8, weight: .semibold))
+            .lineLimit(1)
+            .foregroundStyle(tint)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Capsule().fill(tint.opacity(0.14)))
+    }
+
     private func variantChip(
         _ title: String,
         isSelected: Bool,
@@ -380,6 +508,7 @@ struct ModelPickerSheet: View {
     }
 
     private func choose(_ model: ModelInfo, variant: String?) {
+        ModelPreferences.rememberSelection(model, variant: variant)
         onSelect(model, variant)
         dismiss()
     }

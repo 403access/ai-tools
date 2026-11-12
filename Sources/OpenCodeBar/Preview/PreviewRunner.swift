@@ -1052,7 +1052,9 @@ private struct SheetGalleryFixtures {
                 variants: [
                     .init(id: "high", name: "High"),
                     .init(id: "max", name: "Max"),
-                ]
+                ],
+                cost: ModelInfo.Cost(input: 0, output: 0),
+                limit: ModelInfo.Limit(context: 1_048_576, output: 65_536)
             ),
             ModelInfo(
                 id: "kimi-k2.5",
@@ -1063,7 +1065,9 @@ private struct SheetGalleryFixtures {
                 status: "active",
                 variants: [
                     .init(id: "high", name: "High"),
-                ]
+                ],
+                cost: ModelInfo.Cost(input: 0.6, output: 2.4),
+                limit: ModelInfo.Limit(context: 262_144, output: 32_768)
             ),
             ModelInfo(
                 id: "claude-sonnet-4.5",
@@ -1072,7 +1076,8 @@ private struct SheetGalleryFixtures {
                 name: "Claude Sonnet 4.5",
                 enabled: true,
                 status: "active",
-                variants: nil
+                variants: nil,
+                limit: ModelInfo.Limit(context: 200_000, output: 64_000)
             ),
             ModelInfo(
                 id: "qwen3.5-coder",
@@ -1081,7 +1086,8 @@ private struct SheetGalleryFixtures {
                 name: "Qwen3.5 Coder",
                 enabled: true,
                 status: "active",
-                variants: nil
+                variants: nil,
+                limit: ModelInfo.Limit(context: 32_768, output: 8_192)
             ),
         ]
 
