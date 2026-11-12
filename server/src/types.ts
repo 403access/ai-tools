@@ -476,6 +476,28 @@ export interface GitHubFlowRepository {
   remote: string;
 }
 
+/** A repository in the hub owner's GitHub account, for the New Session flow. */
+export interface GitHubRepository {
+  id: number;
+  name: string;
+  /** `owner/repo`. */
+  fullName: string;
+  owner: string;
+  /** `https://github.com/owner/repo`. */
+  url: string;
+  /** HTTPS URL `git clone` can use without extra URL editing. */
+  cloneURL: string;
+  defaultBranch?: string;
+  private: boolean;
+  description?: string;
+  /** Milliseconds since the epoch. */
+  updatedAt?: number;
+  archived: boolean;
+  fork: boolean;
+  /** Hub folder that already contains this repository, when one exists. */
+  clonedDirectory?: string;
+}
+
 export interface GitHubFlowActor {
   login: string;
   avatarURL?: string;

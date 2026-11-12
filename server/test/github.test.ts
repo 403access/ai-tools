@@ -1,9 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   GitHubError,
   groupJobsIntoStages,
+  mapGitHubRepository,
   parseGitHubRemote,
   parseWorkflowJobs,
+  resolveClonedRepositories,
 } from "../src/github.ts";
 import type { GitHubFlowJob, GitHubFlows } from "../src/types.ts";
 import { body, request, setup } from "./helpers/api.ts";
@@ -77,6 +83,63 @@ describe("GitHub remote parsing", () => {
     expect(parseGitHubRemote("https://gitlab.com/acme/storefront.git")).toBeNull();
     expect(parseGitHubRemote("git@github.com:acme")).toBeNull();
     expect(parseGitHubRemote("")).toBeNull();
+  });
+});
+
+describe("GitHub repository mapping", () => {
+  test("normalizes the fields the picker uses", () => {
+    expect(
+      mapGitHubRepository({
+        id: 42,
+        name: "widgets",
+        full_name: "acme/widgets",
+        owner: { login: "acme" },
+        html_url: "https://github.com/acme/widgets",
+        clone_url: "https://github.com/acme/widgets.git",
+        default_branch: "main",
+        private: true,
+        description: "A widget store",
+        updated_at: "2026-01-02T03:04:05Z",
+        archived: true,
+        fork: true,
+      }),
+    ).toEqual({
+      id: 42,
+      name: "widgets",
+      fullName: "acme/widgets",
+      owner: "acme",
+      url: "https://github.com/acme/widgets",
+      cloneURL: "https://github.com/acme/widgets.git",
+      defaultBranch: "main",
+      private: true,
+      description: "A widget store",
+      updatedAt: Date.parse("2026-01-02T03:04:05Z"),
+      archived: true,
+      fork: true,
+    });
+  });
+
+  test("drops entries without an id or repository name", () => {
+    expect(mapGitHubRepository({ id: 1 })).toBeNull();
+    expect(mapGitHubRepository({ name: "widgets" })).toBeNull();
+  });
+
+  test("finds the folder for a repository already checked out", async () => {
+    const root = mkdtempSync(join(tmpdir(), "opencodebar-github-"));
+    const directory = join(root, "widgets");
+    try {
+      mkdirSync(directory);
+      execFileSync("git", ["init", "-q"], { cwd: directory });
+      execFileSync("git", ["remote", "add", "origin", "git@github.com:Acme/Widgets.git"], {
+        cwd: directory,
+      });
+
+      const clones = await resolveClonedRepositories([directory, directory, "/tmp/missing-project"]);
+      expect(clones.get("acme/widgets")).toBe(directory);
+      expect(clones.size).toBe(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 
@@ -182,6 +245,88 @@ describe("project flows endpoint", () => {
     ]);
 
     const response = await handler(request("/api/project/prj_flow/flows"));
+    expect(response.status).toBe(401);
+    const failure = await body<{ error: { message: string } }>(response);
+    expect(failure.error.message).toContain("token");
+    db.close();
+  });
+});
+
+describe("GitHub repositories endpoint", () => {
+  test("marks repositories that already have a project folder", async () => {
+    const scanned: string[][] = [];
+    const { db, handler } = setup({}, {
+      github: {
+        flows: async () => null,
+        repositories: async () => [
+          {
+            id: 1,
+            name: "alpha",
+            fullName: "acme/alpha",
+            owner: "acme",
+            url: "https://github.com/acme/alpha",
+            cloneURL: "https://github.com/acme/alpha.git",
+            private: false,
+            archived: false,
+            fork: false,
+          },
+          {
+            id: 2,
+            name: "beta",
+            fullName: "acme/beta",
+            owner: "acme",
+            url: "https://github.com/acme/beta",
+            cloneURL: "https://github.com/acme/beta.git",
+            private: true,
+            archived: false,
+            fork: false,
+          },
+        ],
+        async clonedRepositories(directories) {
+          scanned.push(directories);
+          return new Map([["acme/beta", "/Users/me/Developer/beta"]]);
+        },
+      },
+    });
+    db.replaceProjects([
+      {
+        id: "prj_beta",
+        canonical: "/Users/me/Developer/beta",
+        time: { created: 1, updated: 2 },
+        sandboxes: [],
+      },
+    ]);
+
+    const response = await handler(request("/api/github/repos"));
+    expect(response.status).toBe(200);
+    const result = await body<{
+      data: Array<{ fullName: string; clonedDirectory?: string; private: boolean }>;
+    }>(response);
+    expect(result.data.map((repository) => repository.fullName)).toEqual([
+      "acme/alpha",
+      "acme/beta",
+    ]);
+    expect(result.data[0]?.clonedDirectory).toBeUndefined();
+    expect(result.data[1]?.clonedDirectory).toBe("/Users/me/Developer/beta");
+    expect(result.data[1]?.private).toBe(true);
+    expect(scanned).toEqual([["/Users/me/Developer/beta"]]);
+
+    const wrongMethod = await handler(request("/api/github/repos", { method: "POST" }));
+    expect(wrongMethod.status).toBe(405);
+    db.close();
+  });
+
+  test("surfaces GitHub token errors", async () => {
+    const { db, handler } = setup({}, {
+      github: {
+        flows: async () => null,
+        async repositories() {
+          throw new GitHubError("GitHub rejected the token", 401);
+        },
+      },
+    });
+
+    const response = await handler(request("/api/github/repos"));
     expect(response.status).toBe(401);
     const failure = await body<{ error: { message: string } }>(response);
     expect(failure.error.message).toContain("token");

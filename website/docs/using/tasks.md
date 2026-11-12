@@ -100,6 +100,9 @@ the session starts.
 
 - Paste an HTTPS, SSH, `git://`, or `file://` URL, an scp-style SSH remote, or
   GitHub `owner/repo` shorthand.
+- **Choose from GitHub** lists repositories from the GitHub login on the hub
+  host, so you do not need to copy a URL. Repositories that already have a
+  project folder stay visible but are disabled.
 - Choose the parent folder (defaults to `~/Developer`) and, optionally, a
   folder name. The repository name is used when the name is blank.
 - **Clone & create** clones the repository and starts the session in it.
@@ -108,6 +111,10 @@ The clone refuses to write over an existing folder. Private repositories use the
 git credentials and SSH agent already configured on the hub host; git never
 prompts for a password, so an unauthenticated private clone fails with git's
 error instead of hanging.
+
+The GitHub repository list uses the same login the hub already uses for Actions:
+`GITHUB_TOKEN`, `GH_TOKEN`, or the token stored by `gh auth login`. Without one,
+the picker explains how to sign in.
 
 :::note
 The apps can start sessions and send prompts, pause or stop a session, and

@@ -509,6 +509,13 @@ extension HubAPI {
         }
     }
 
+    /// Repositories visible to the hub's GitHub login. Repositories already
+    /// cloned on the hub carry their project folder in `clonedDirectory`.
+    func githubRepositories() async throws -> [GitHubRepository] {
+        let response: GitHubRepositoriesResponse = try await get("/api/github/repos")
+        return response.data
+    }
+
     /// Creates an isolated checkout for a project that a session can use.
     func createWorktree(
         projectID: String,

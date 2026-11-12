@@ -455,6 +455,39 @@ struct MobileNewSessionSheet: View {
                     .background(fieldBackground)
                     .overlay(fieldBorder)
 
+                NavigationLink {
+                    MobileGitHubRepoPickerView { repository in
+                        repositoryURL = repository.cloneURL
+                        folderName = repository.name
+                    }
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: "arrow.triangle.branch")
+                            .font(.caption.weight(.semibold))
+                        Text("Choose from GitHub")
+                            .font(.subheadline)
+                        Spacer(minLength: 4)
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(MobileTheme.field)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(MobileTheme.border, lineWidth: 1)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isWorking || createdSession != nil)
+                .accessibilityHint("Lists your GitHub repositories; already cloned repositories are disabled")
+
                 Text("Clone into")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)

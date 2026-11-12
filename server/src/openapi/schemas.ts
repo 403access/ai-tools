@@ -1434,6 +1434,35 @@ export const SCHEMAS = {
     example: { status: "done" },
   },
 
+  GitHubRepository: {
+    type: "object",
+    required: ["id", "name", "fullName", "owner", "url", "cloneURL", "private", "archived", "fork"],
+    properties: {
+      id: { type: "integer", description: "GitHub's numeric repository id." },
+      name: { type: "string", description: "Repository name without the owner." },
+      fullName: { type: "string", description: "`owner/repo`." },
+      owner: { type: "string", description: "Owner login." },
+      url: { type: "string", description: "`https://github.com/owner/repo`." },
+      cloneURL: { type: "string", description: "HTTPS URL for `git clone`." },
+      defaultBranch: { type: "string", description: "The repository's default branch." },
+      private: { type: "boolean", description: "Whether the repository is private." },
+      description: { type: "string", description: "Repository description, when set." },
+      updatedAt: { ...timestamp, description: "Last update, in milliseconds since the epoch." },
+      archived: { type: "boolean" },
+      fork: { type: "boolean" },
+      clonedDirectory: {
+        type: "string",
+        description:
+          "Hub folder that already contains this repository. Clients show these rows disabled.",
+      },
+    },
+  },
+
+  GitHubRepositoriesResponse: data({
+    type: "array",
+    items: { $ref: "#/components/schemas/GitHubRepository" },
+  }),
+
   CloneRepositoryRequest: {
     type: "object",
     required: ["url"],

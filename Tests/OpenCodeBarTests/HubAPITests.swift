@@ -95,6 +95,53 @@ final class HubAPITests: XCTestCase {
         XCTAssertEqual(response.data.url, "https://github.com/acme/widgets")
     }
 
+    func testGitHubRepositoriesResponseDecodesCloneState() throws {
+        let json = """
+        {
+          "data": [
+            {
+              "id": 42,
+              "name": "widgets",
+              "fullName": "acme/widgets",
+              "owner": "acme",
+              "url": "https://github.com/acme/widgets",
+              "cloneURL": "https://github.com/acme/widgets.git",
+              "defaultBranch": "main",
+              "private": true,
+              "description": "A widget store",
+              "updatedAt": 1792595523652,
+              "archived": false,
+              "fork": false
+            },
+            {
+              "id": 43,
+              "name": "gadgets",
+              "fullName": "acme/gadgets",
+              "owner": "acme",
+              "url": "https://github.com/acme/gadgets",
+              "cloneURL": "https://github.com/acme/gadgets.git",
+              "private": false,
+              "archived": false,
+              "fork": true,
+              "clonedDirectory": "/Users/example/Developer/gadgets"
+            }
+          ]
+        }
+        """
+        let response = try decode(GitHubRepositoriesResponse.self, json)
+        XCTAssertEqual(response.data.count, 2)
+        let widgets = try XCTUnwrap(response.data.first)
+        XCTAssertEqual(widgets.summary, "A widget store")
+        XCTAssertTrue(widgets.isPrivate)
+        XCTAssertFalse(widgets.isCloned)
+        XCTAssertNotNil(widgets.updatedDate)
+
+        let gadgets = try XCTUnwrap(response.data.last)
+        XCTAssertTrue(gadgets.isCloned)
+        XCTAssertEqual(gadgets.clonedDirectory, "/Users/example/Developer/gadgets")
+        XCTAssertTrue(gadgets.searchText.contains("gadgets"))
+    }
+
     func testCreatedWorktreeResponseDecodesDirectory() throws {
         let json = """
         {

@@ -15,6 +15,7 @@ import type {
   GitHubFlowStatus,
   GitHubFlowStep,
   GitHubFlows,
+  GitHubRepository,
 } from "./types.ts";
 
 /**
@@ -248,6 +249,113 @@ async function githubRequest<T>(path: string, options: { optional?: boolean } = 
   }
 
   return (await response.json()) as T;
+}
+
+// MARK: - Repositories
+
+const REPOSITORY_PAGE_SIZE = 100;
+const MAX_REPOSITORIES = 300;
+const CLONE_CACHE_MS = 30_000;
+const CLONE_SCAN_CONCURRENCY = 8;
+
+interface CloneCacheEntry {
+  at: number;
+  fullName: string | null;
+}
+
+/** Remembers which project folders already point at each GitHub repo. */
+const cloneCache = new Map<string, CloneCacheEntry>();
+
+/** Clears cached clone lookups, e.g. right after the hub makes a new clone. */
+export function clearGitHubRepositoryCache(): void {
+  cloneCache.clear();
+}
+
+/** Normalizes one `/user/repos` entry. Exported for the unit tests. */
+export function mapGitHubRepository(rawValue: unknown): GitHubRepository | null {
+  const raw = record(rawValue);
+  const owner = record(raw.owner);
+  const id = numberValue(raw.id);
+  const name = optionalText(raw.name);
+  const fullName = optionalText(raw.full_name);
+  if (id === undefined || !name || !fullName) return null;
+
+  const updatedAt = timeValue(raw.updated_at);
+  const defaultBranch = optionalText(raw.default_branch);
+  const description = optionalText(raw.description);
+  return {
+    id,
+    name,
+    fullName,
+    owner: optionalText(owner.login) ?? fullName.split("/")[0] ?? "",
+    url: optionalText(raw.html_url) ?? `https://github.com/${fullName}`,
+    cloneURL: optionalText(raw.clone_url) ?? `https://github.com/${fullName}.git`,
+    ...(defaultBranch ? { defaultBranch } : {}),
+    private: raw.private === true,
+    ...(description ? { description } : {}),
+    ...(updatedAt !== undefined ? { updatedAt } : {}),
+    archived: raw.archived === true,
+    fork: raw.fork === true,
+  };
+}
+
+/**
+ * Lists repositories the hub's GitHub login can see, newest activity first.
+ * Requires a token from GITHUB_TOKEN/GH_TOKEN or the GitHub CLI, because the
+ * "my repositories" scope is not available anonymously.
+ */
+export async function listUserRepositories(): Promise<GitHubRepository[]> {
+  const repositories: GitHubRepository[] = [];
+  for (let page = 1; repositories.length < MAX_REPOSITORIES; page += 1) {
+    const response = await githubRequest<unknown[]>(
+      `/user/repos?per_page=${REPOSITORY_PAGE_SIZE}&page=${page}` +
+        "&sort=updated&affiliation=owner,collaborator,organization_member",
+    );
+    const entries = array(response);
+    for (const entry of entries) {
+      const repository = mapGitHubRepository(entry);
+      if (repository) repositories.push(repository);
+    }
+    if (entries.length < REPOSITORY_PAGE_SIZE) break;
+  }
+  return repositories.slice(0, MAX_REPOSITORIES);
+}
+
+async function clonedFullName(directory: string): Promise<string | null> {
+  const cached = cloneCache.get(directory);
+  if (cached && Date.now() - cached.at < CLONE_CACHE_MS) return cached.fullName;
+
+  const remote = await resolveGitHubRemote(directory);
+  const fullName = remote ? `${remote.owner}/${remote.repo}`.toLowerCase() : null;
+  cloneCache.set(directory, { at: Date.now(), fullName });
+  return fullName;
+}
+
+/**
+ * Maps `owner/repo` to the hub folder that already has it checked out, scanning
+ * the known project directories a few at a time.
+ */
+export async function resolveClonedRepositories(
+  directories: string[],
+): Promise<Map<string, string>> {
+  const unique = [...new Set(directories.map((directory) => directory.trim()).filter(Boolean))];
+  const clones = new Map<string, string>();
+  let next = 0;
+
+  const workers = Array.from(
+    { length: Math.min(CLONE_SCAN_CONCURRENCY, unique.length) },
+    async () => {
+      while (next < unique.length) {
+        const directory = unique[next];
+        next += 1;
+        if (!directory) continue;
+        const fullName = await clonedFullName(directory);
+        if (fullName && !clones.has(fullName)) clones.set(fullName, directory);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return clones;
 }
 
 function normalizeStatus(status: unknown, conclusion: unknown): GitHubFlowStatus {

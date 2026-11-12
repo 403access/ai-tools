@@ -517,7 +517,7 @@ The hub:
    `/api/session/{id}/stop` (`POST`), `/api/session/{id}/continue` (`POST`),
    `/api/session` (`POST`),
    `/api/task` (`GET`), `/api/task/{id}` (`PATCH`), `/api/usage`,
-   `/api/git/clone` (`POST`), `/api/worktree` (`POST`), `/api/health`,
+   `/api/git/clone` (`POST`), `/api/github/repos`, `/api/worktree` (`POST`), `/api/health`,
    `/api/system`, `/api/system/apps/icon`,
    `/api/system/apps/detail`, `/api/system/apps/action` (`POST`),
    `/api/terminals` (`GET`/`POST`),

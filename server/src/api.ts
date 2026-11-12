@@ -11,8 +11,11 @@ import { CloneError, cloneRepository } from "./clone.ts";
 import { listProjectFiles, ProjectFilesError } from "./files.ts";
 import { readProjectGit, readSessionGit } from "./git.ts";
 import {
+  clearGitHubRepositoryCache,
   GitHubError,
+  listUserRepositories,
   readProjectFlows,
+  resolveClonedRepositories,
   type ProjectFlowsOptions,
 } from "./github.ts";
 import { readProjectScripts, scriptInvocation } from "./scripts.ts";
@@ -32,6 +35,7 @@ import type {
   DeploymentsPayload,
   FormAnswer,
   GitHubFlows,
+  GitHubRepository,
   MediaControlResult,
   ServerInfo,
   SystemAppDetail,
@@ -119,9 +123,11 @@ export interface ApiDeps {
   ota?: OtaStore;
   /** Background OTA builder, injectable so tests do not run xcodebuild. */
   otaBuild?: OtaBuilder;
-  /** GitHub Actions reader, injectable so tests do not touch the network. */
+  /** GitHub reader, injectable so tests do not touch the network. */
   github?: {
     flows(directory: string, options?: ProjectFlowsOptions): Promise<GitHubFlows | null>;
+    repositories?(): Promise<GitHubRepository[]>;
+    clonedRepositories?(directories: string[]): Promise<Map<string, string>>;
   };
 }
 
@@ -129,7 +135,12 @@ export function createHandler(
   deps: ApiDeps,
 ): (request: Request, server?: Bun.Server<HubSocketData>) => Promise<Response> {
   const { db, hub, config, restart, persistSettings, remote } = deps;
-  const github = deps.github ?? { flows: readProjectFlows };
+  const github = {
+    flows: readProjectFlows,
+    repositories: listUserRepositories,
+    clonedRepositories: resolveClonedRepositories,
+    ...deps.github,
+  };
   const system: NonNullable<ApiDeps["system"]> = deps.system ?? new SystemInfoService({
     hub: () => ({
       startedAt: hub.startedAt,
@@ -980,6 +991,26 @@ export function createHandler(
         return json(info);
       }
 
+      if (pathname === "/api/github/repos") {
+        if (request.method !== "GET") return error("Method not allowed", 405);
+        try {
+          const repositories = await github.repositories();
+          const projects = db.getProjects();
+          const clones = await github.clonedRepositories(
+            projects.map((project) => project.canonical),
+          );
+          return json({
+            data: repositories.map((repository) => {
+              const directory = clones.get(repository.fullName.toLowerCase());
+              return directory ? { ...repository, clonedDirectory: directory } : repository;
+            }),
+          });
+        } catch (caught) {
+          if (caught instanceof GitHubError) return error(caught.message, caught.status);
+          throw caught;
+        }
+      }
+
       if (pathname === "/api/git/clone") {
         if (request.method !== "POST") return error("Method not allowed", 405);
         const body = await readJSONBody(request);
@@ -991,9 +1022,9 @@ export function createHandler(
         const directory = typeof body.directory === "string" ? body.directory : undefined;
 
         try {
-          return json({
-            data: await cloneRepository({ url, parent, name, directory }),
-          });
+          const cloned = await cloneRepository({ url, parent, name, directory });
+          clearGitHubRepositoryCache();
+          return json({ data: cloned });
         } catch (caught) {
           if (caught instanceof CloneError) return error(caught.message, caught.status);
           throw caught;

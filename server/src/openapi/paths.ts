@@ -717,6 +717,22 @@ export const PATHS = {
     },
   },
 
+  "/api/github/repos": {
+    get: {
+      tags: ["Projects"],
+      summary: "List GitHub repositories",
+      description:
+        "Repositories visible to the hub's GitHub login, newest activity first. Repositories that already have a project folder on the hub include its path in `clonedDirectory`.",
+      operationId: "listGitHubRepositories",
+      responses: {
+        200: ok(schemaRef("GitHubRepositoriesResponse")),
+        401: unauthorized,
+        502: { description: "GitHub could not be reached or returned an error." },
+        default: failure,
+      },
+    },
+  },
+
   "/api/git/clone": {
     post: {
       tags: ["Projects"],

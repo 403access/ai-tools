@@ -56,6 +56,7 @@ struct NewSessionSheet: View {
     @State private var errorMessage: String?
     @State private var createdSession: Session?
     @State private var showingProjectPicker = false
+    @State private var showingGitHubPicker = false
     @State private var showingModelPicker = false
     @State private var models: [ModelInfo] = []
     @State private var agents: [AgentInfo] = []
@@ -409,11 +410,46 @@ struct NewSessionSheet: View {
                     }
                     .padding(.top, 3)
                 } else {
+                    Text("REPOSITORY")
+                        .font(.system(size: 9, weight: .bold))
+                        .tracking(0.7)
+                        .foregroundStyle(.secondary)
+
                     TextField("https://github.com/owner/repo or owner/repo", text: $repositoryURL)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 11, design: .monospaced))
                         .disabled(isWorking || createdSession != nil)
                         .help("Git URL, SSH remote, or GitHub owner/repo")
+
+                    Button {
+                        showingGitHubPicker = true
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.triangle.branch")
+                                .font(.system(size: 9, weight: .semibold))
+                            Text("Choose from GitHub")
+                                .font(.system(size: 10, weight: .medium))
+                            Spacer(minLength: 4)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(Color.primary.opacity(0.05))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isWorking || createdSession != nil)
+                    .help("Pick a repository from your GitHub account; already cloned repositories are disabled")
 
                     Text("CLONE INTO")
                         .font(.system(size: 9, weight: .bold))
@@ -594,6 +630,12 @@ struct NewSessionSheet: View {
             ) { model, variant in
                 modelChoice = model.choice
                 selectedVariant = variant
+            }
+        }
+        .sheet(isPresented: $showingGitHubPicker) {
+            GitHubRepoPickerSheet { repository in
+                repositoryURL = repository.cloneURL
+                folderName = repository.name
             }
         }
         .task(id: catalogDirectory) {
