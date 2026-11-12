@@ -2,12 +2,39 @@ import SwiftUI
 import UIKit
 
 struct ProjectDetailView: View {
-    @EnvironmentObject private var store: MobileStore
+    @EnvironmentObject var store: MobileStore
     let project: Project
 
     @State private var scrollToTopTrigger = 0
+    @State var infoPage: ProjectInfoPage = .overview
+    @State var drawerDetent: ProjectInfoDrawerDetent = .peek
+    /// The drawer's live height while it is being dragged. It rests at the
+    /// selected detent the rest of the time.
+    @State var drawerHeight: CGFloat?
+    /// The height the drawer was at when the current drag began.
+    @State var dragStartHeight: CGFloat?
+    /// Height available to the page, captured so toolbar actions can resize
+    /// the drawer without reading a geometry proxy from the navigation bar.
+    @State var drawerSpace: CGFloat = 640
 
-    private var detail: MobileStore.ProjectDetail? { store.projectDetails[project.id] }
+    init(project: Project) {
+        self.project = project
+        #if DEBUG
+        // Screenshot tooling:
+        // SIMCTL_CHILD_OPENCODEBAR_PROJECT_DRAWER=peek|medium|expanded
+        // SIMCTL_CHILD_OPENCODEBAR_PROJECT_PAGE=overview|stats|changes|files|git|sessions
+        if let requested = ProcessInfo.processInfo.environment["OPENCODEBAR_PROJECT_DRAWER"],
+           let detent = ProjectInfoDrawerDetent(rawValue: requested) {
+            _drawerDetent = State(initialValue: detent)
+        }
+        if let requested = ProcessInfo.processInfo.environment["OPENCODEBAR_PROJECT_PAGE"],
+           let page = ProjectInfoPage(rawValue: requested.capitalized) {
+            _infoPage = State(initialValue: page)
+        }
+        #endif
+    }
+
+    var detail: MobileStore.ProjectDetail? { store.projectDetails[project.id] }
     private var running: [Session] { store.runningSessions(in: project) }
 
     private let topAnchor = "project-detail-top"
@@ -28,108 +55,57 @@ struct ProjectDetailView: View {
         // screen's environment objects.
         let runningCount = running.count
 
-        return ScrollViewReader { proxy in
-            ScrollView {
-                // Lazy so a project with hundreds of sessions, changes and
-                // files only builds the sections that are on screen. The rows
-                // themselves keep live `TimelineView`s, which update in place.
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    // Anchor at the top so the summary header is what a reset
-                    // scrolls to, and so a push never starts below it.
-                    Color.clear.frame(height: 1).id(topAnchor)
+        return GeometryReader { geo in
+            ZStack(alignment: .bottom) {
+                ScrollViewReader { proxy in
+                    // Lazy so a project with hundreds of running sessions only
+                    // builds the rows that are on screen. The rows themselves
+                    // keep live `TimelineView`s, which update in place. The
+                    // rest of the project lives in the pull-up info drawer.
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 14) {
+                            // Anchor at the top so the summary header is what a
+                            // reset scrolls to, and so a push never starts below it.
+                            Color.clear.frame(height: 1).id(topAnchor)
 
-                    summary
-                    runningSection
-                    documentationSection
+                            summary
+                            runningSection
 
-                    if let detail {
-                        if let error = detail.error, detail.stats == nil {
-                            NoticeRow(icon: "exclamationmark.triangle.fill", message: error, tint: Theme.warn)
-                        } else if let stats = detail.stats {
-                            statsGrid(stats)
-    
-                            SectionHeader("Trend")
-                            UsageTrendCard(stats: stats, sessions: detail.sessions)
-                                .equatable()
-    
-                            if let totals = stats.tools.totals {
-                                SectionHeader("Tool calls") {
-                                    if let rate = totals.successRate {
-                                        Text("\(Int((rate * 100).rounded()))% success")
-                                            .font(.caption2.weight(.semibold))
-                                            .monospacedDigit()
-                                            .foregroundStyle(
-                                                rate >= 0.98 ? Theme.accent
-                                                    : rate >= 0.90 ? Theme.warn : Theme.danger
-                                            )
-                                    }
-                                }
-                                ToolSummaryCard(totals: totals, mode: stats.tools.mode)
-                                    .equatable()
-    
-                                if let usage = stats.tools.usage, !usage.isEmpty {
-                                    SectionHeader("Tools") {
-                                        Text("\(usage.count)")
-                                            .font(.caption.weight(.bold))
-                                            .monospacedDigit()
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    ToolUsageBreakdown(usage: usage)
-                                        .equatable()
-                                }
+                            if running.isEmpty {
+                                drawerHint
                             }
-    
-                            if !stats.models.isEmpty {
-                                SectionHeader("Models")
-                                ModelBreakdownCard(models: stats.models)
-                                    .equatable()
-                            }
-                        } else if detail.isLoading {
-                            ProjectDetailSkeleton()
-                                .shimmering()
                         }
-    
-                        filesSection
-
-                        gitSection
-
-                        changesSection
-    
-                        if !detail.sessions.isEmpty {
-                            let sessions = Array(detail.sessions.prefix(40))
-                            SectionHeader("Sessions") {
-                                Text("\(detail.sessions.count)")
-                                    .font(.caption.weight(.bold))
-                                    .monospacedDigit()
-                                    .foregroundStyle(.secondary)
-                            }
-                            ForEach(sessions) { session in
-                                NavigationLink(value: session) {
-                                    RecentSessionRow(session: session, project: project.displayName)
-                                }
-                                .buttonStyle(.plain)
-                                .transition(.recentInsertion)
-                            }
-                            .animateRecentInsertion(ids: sessions.map(\.id))
-                        }
-                    } else {
-                        ProjectDetailSkeleton()
-                            .shimmering()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(
+                            .bottom,
+                            ProjectInfoDrawerDetent.peek.height(in: geo.size.height) + 24
+                        )
                     }
+                    .onAppear { scrollToTop(proxy) }
+                    .onChange(of: scrollToTopTrigger) { _, _ in scrollToTop(proxy) }
+                    .refreshable { await refreshProject() }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+
+                drawer(available: geo.size.height)
             }
-            .onAppear { scrollToTop(proxy) }
-            .onChange(of: scrollToTopTrigger) { _, _ in scrollToTop(proxy) }
+            .mobileScreenBackground()
+            .onChange(of: geo.size.height, initial: true) { _, height in
+                drawerSpace = height
+                guard dragStartHeight == nil else { return }
+                drawerHeight = drawerDetent.height(in: height)
+            }
         }
-        .mobileScreenBackground()
         .navigationTitle(project.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Button {
                     scrollToTopTrigger += 1
+                    if drawerDetent != .peek {
+                        setDrawer(.peek)
+                    }
                 } label: {
                     Text(project.displayName)
                         .font(.headline)
@@ -145,6 +121,16 @@ struct ProjectDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 ProjectRunningBadge(count: runningCount)
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    toggleDrawer(expand: drawerDetent == .peek)
+                } label: {
+                    Image(systemName: drawerDetent == .peek ? "info.circle" : "info.circle.fill")
+                }
+                .accessibilityLabel(
+                    drawerDetent == .peek ? "Show project info" : "Hide project info"
+                )
+            }
         }
         .task(id: project.id) {
             store.loadProjectIcons(for: [project])
@@ -155,19 +141,22 @@ struct ProjectDetailView: View {
             async let docs = store.loadProjectDocumentation(project.id)
             _ = await (detail, changes, files, git, docs)
         }
-        .refreshable {
-            async let detail = store.loadProject(project.id, force: true)
-            async let changes = store.loadProjectChanges(project.id, force: true)
-            async let files = store.loadProjectFiles(project.id, force: true)
-            async let git = store.loadProjectGit(project.id, force: true)
-            async let docs = store.loadProjectDocumentation(project.id, force: true)
-            _ = await (detail, changes, files, git, docs)
-            await store.refreshLive()
-        }
+    }
+
+    /// Reloads everything the page and its drawer can show. `refreshable`
+    /// belongs to both the page scroll and the drawer's content scroll.
+    func refreshProject() async {
+        async let detail = store.loadProject(project.id, force: true)
+        async let changes = store.loadProjectChanges(project.id, force: true)
+        async let files = store.loadProjectFiles(project.id, force: true)
+        async let git = store.loadProjectGit(project.id, force: true)
+        async let docs = store.loadProjectDocumentation(project.id, force: true)
+        _ = await (detail, changes, files, git, docs)
+        await store.refreshLive()
     }
 
     @ViewBuilder
-    private var documentationSection: some View {
+    var documentationSection: some View {
         let state = store.projectDocumentation[project.id]
         if let state, state.isLoading && state.documentation == nil {
             ProjectDocumentationSkeleton()
@@ -191,7 +180,7 @@ struct ProjectDetailView: View {
     }
 
     @ViewBuilder
-    private var changesSection: some View {
+    var changesSection: some View {
         let state = store.projectChanges[project.id]
         if let state, state.isLoading && state.changes.isEmpty {
             SectionHeader("Changes")
@@ -217,7 +206,7 @@ struct ProjectDetailView: View {
     }
 
     @ViewBuilder
-    private var filesSection: some View {
+    var filesSection: some View {
         let state = store.projectFiles[project.id]
         if let state, state.isLoading && state.files == nil {
             SectionHeader("Files")
@@ -244,7 +233,7 @@ struct ProjectDetailView: View {
     }
 
     @ViewBuilder
-    private var gitSection: some View {
+    var gitSection: some View {
         let state = store.projectGit[project.id]
         if let state, state.isLoading && state.repository == nil {
             SectionHeader("Git")
@@ -341,7 +330,7 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func statsGrid(_ stats: Stats) -> some View {
+    func statsGrid(_ stats: Stats) -> some View {
         LazyVGrid(
             columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
             spacing: 10
