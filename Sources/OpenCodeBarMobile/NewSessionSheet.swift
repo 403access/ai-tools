@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 
 /// Mobile counterpart of the Mac New Session sheet. Creates a session in a
 /// project directory and can send the first prompt in the same flow.
@@ -215,65 +216,81 @@ struct MobileNewSessionSheet: View {
         return "\(selectedModel.providerID) · default variant"
     }
 
+    private let promptAnchor = "new-session-prompt"
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(
-                        createdSession == nil
-                            ? (source == .clone
-                                ? "Clone a repository on your Mac, then start a session in it."
-                                : "Pick a project and say what you need. OpenCode starts in that folder.")
-                            : "Session created. Retry the message, or close this sheet and write it in the conversation."
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                    projectSection
-                    modelAgentSection
-                    titleSection
-                    messageSection
-                    startSection
-
-                    if let errorMessage {
-                        NoticeRow(
-                            icon: "exclamationmark.triangle.fill",
-                            message: errorMessage,
-                            tint: Theme.warn
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(
+                            createdSession == nil
+                                ? (source == .clone
+                                    ? "Clone a repository on your Mac, then start a session in it."
+                                    : "Pick a project and say what you need. OpenCode starts in that folder.")
+                                : "Session created. Retry the message, or close this sheet and write it in the conversation."
                         )
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                        projectSection
+                        modelAgentSection
+                        titleSection
+                        messageSection
+                        startSection
+
+                        if let errorMessage {
+                            NoticeRow(
+                                icon: "exclamationmark.triangle.fill",
+                                message: errorMessage,
+                                tint: Theme.warn
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .onChange(of: promptFocused) { _, focused in
+                    guard focused else { return }
+                    revealPrompt(proxy, animated: false)
+                }
+                .onReceive(
+                    NotificationCenter.default.publisher(
+                        for: UIResponder.keyboardDidShowNotification
+                    )
+                ) { _ in
+                    revealPrompt(proxy, animated: true)
+                }
+                .mobileScreenBackground()
+                .navigationTitle("New session")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                            .disabled(isWorking)
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(actionTitle) {
+                            Task { await submit() }
+                        }
+                        .fontWeight(.semibold)
+                        .disabled(!canSubmit)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-            }
-            .mobileScreenBackground()
-            .navigationTitle("New session")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .disabled(isWorking)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(actionTitle) {
-                        Task { await submit() }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if isWorking {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text(progressLabel)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial)
                     }
-                    .fontWeight(.semibold)
-                    .disabled(!canSubmit)
-                }
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if isWorking {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                        Text(progressLabel)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial)
                 }
             }
         }
@@ -602,6 +619,7 @@ struct MobileNewSessionSheet: View {
                         lineWidth: 1
                     )
             )
+            .id(promptAnchor)
         }
     }
 
@@ -638,6 +656,20 @@ struct MobileNewSessionSheet: View {
         trimmedDirectory.isEmpty
             ? "Choose a folder on your Mac"
             : (trimmedDirectory as NSString).abbreviatingWithTildeInPath
+    }
+
+    /// Keeps the prompt above the keyboard. SwiftUI's automatic scroll can run
+    /// before the sheet's keyboard animation finishes, especially on a cold
+    /// launch, which leaves the focused field behind the keyboard.
+    private func revealPrompt(_ proxy: ScrollViewProxy, animated: Bool) {
+        guard promptFocused else { return }
+        if animated {
+            withAnimation(.easeOut(duration: 0.2)) {
+                proxy.scrollTo(promptAnchor, anchor: .bottom)
+            }
+        } else {
+            proxy.scrollTo(promptAnchor, anchor: .bottom)
+        }
     }
 
     private var modelAgentSection: some View {

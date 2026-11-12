@@ -111,6 +111,7 @@ struct SessionDetailView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
+            .scrollDismissesKeyboard(.interactively)
             .onChange(of: messages.first?.id) { _, newID in
                 // Show the newest message the first time content loads.
                 guard !didAutoScroll, newID != nil,

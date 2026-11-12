@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UIKit
 
@@ -84,6 +85,10 @@ struct RootView: View {
     /// the root view after a tab is chosen. Measure from lifecycle callbacks
     /// instead, outside the view update.
     @State private var rail = LandscapeRail()
+    /// The keyboard sits below the floating tab strip, so the strip steps out
+    /// of the way while typing. That keeps the composer directly above the
+    /// keyboard instead of leaving a navigation bar between them.
+    @State private var keyboardVisible = false
 
     /// Landscape moves the tab strip into the leading safe-area strip as an
     /// icon-only rail. On edge-to-edge phones the sensor housing sits in that
@@ -113,11 +118,12 @@ struct RootView: View {
 
             content
 
-            if !isLandscape {
+            if !isLandscape && !keyboardVisible {
                 MobileTabBar(selection: $selection)
                     .padding(.horizontal, 18)
                     .padding(.top, 6)
                     .padding(.bottom, 4)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .overlay {
@@ -179,6 +185,24 @@ struct RootView: View {
                 store.publishWidgetSnapshot(force: true)
             default:
                 break
+            }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIResponder.keyboardWillShowNotification
+            )
+        ) { _ in
+            withAnimation(.easeOut(duration: 0.2)) {
+                keyboardVisible = true
+            }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIResponder.keyboardWillHideNotification
+            )
+        ) { _ in
+            withAnimation(.easeOut(duration: 0.2)) {
+                keyboardVisible = false
             }
         }
     }
