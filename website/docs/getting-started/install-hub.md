@@ -123,6 +123,19 @@ For a stable private address, use Tailscale on the Mac and the phone and pair
 with the Mac's `100.x.y.z` address. See [Security](../hub/security.md) before
 exposing the hub.
 
+## Give an agent access
+
+The repository also ships a local MCP server. It uses the same generated
+pairing file, so with the hub running you can register it once and let an agent
+inspect projects, prompt sessions, run terminals, and manage VMs:
+
+```bash
+opencode mcp add opencodebar --global -- bun "$PWD/server/src/mcp/server.ts"
+```
+
+See [Agent tools (MCP)](../hub/mcp.md) for the full tool list, setup, and safety
+notes.
+
 ## Where the data lives
 
 | Path | Purpose |

@@ -1,6 +1,6 @@
 ---
 title: Security
-sidebar_position: 4
+sidebar_position: 5
 ---
 
 # Security
@@ -56,6 +56,15 @@ be granted to the helper first, but once they are, any paired device can drive
 the Mac. Treat pairing as full control, use `OPENCODEBAR_REMOTE=0` if you do not
 want that, and revoke the helper's grants in **System Settings → Privacy &
 Security** when they are no longer needed.
+
+**The MCP server inherits the token's full authority.** The local
+`opencodebar` MCP server reads the same pairing file and adds that token to every
+tool call, so an agent configured with it can prompt sessions, start terminals,
+change settings, and remove VMs. Register the server globally only on a Mac you
+control, review destructive tool calls in your MCP client, and keep the pairing
+file private. The server is stdio-only and does not listen on a port; it still
+acts with the same authority as a paired device. See
+[Agent tools (MCP)](mcp.md#safety).
 
 ## Do not expose the hub directly to the internet
 

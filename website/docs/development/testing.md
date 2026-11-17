@@ -33,7 +33,9 @@ The Bun tests in `server/test/` cover:
 - Terminal.app tab routing, command validation, and focus,
 - VM definition validation, NixOS configuration generation, the Nix build
   pipeline with an injected `nix`, package updates, logs, and VM API routes,
-- stats and changes aggregation.
+- stats and changes aggregation,
+- MCP hub discovery, project resolution, tool registration, session creation,
+  prompt delivery, task filters, and the generic `hub_request` guardrails.
 
 Type-check the server:
 
@@ -72,6 +74,9 @@ GitHub Pages workflow runs the same command.
    tab on the Mac. On first use, approve the Automation prompt.
 9. Pair the iOS app and repeat the session view.
 10. Stop OpenCode and confirm cached history still renders.
+11. Register the MCP server (`cd server && bun run mcp`) and ask the agent to
+    list projects, create a session, read its messages, and list tasks. Confirm
+    a queued prompt can be withdrawn and a task can be marked done.
 
 ## CI
 

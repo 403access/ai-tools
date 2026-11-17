@@ -196,6 +196,17 @@ Steps come from the stats API's daily activity. Cost and tokens are grouped from
 the full session list by the day each session was last updated. Project pages
 use the same series scoped to one project.
 
+## Agent access
+
+The hub also has a stdio MCP server in `server/src/mcp/`. It discovers the same
+pairing file as the apps, wraps the hub's authenticated REST API, and offers 95
+tools across projects, sessions, tasks, terminals, host status, remote-desktop
+configuration, VMs, deployments, settings, usage, and sync. The server is not a
+separate service: it runs on the same Mac, makes one request at a time, and uses
+the hub's cache and token. Terminal and VM serial-console tools attach to the
+hub's WebSocket proxies for a bounded window; the remote-desktop frame stream
+and signed OTA downloads stay client-only. See [Agent tools (MCP)](mcp.md).
+
 ## Writes
 
 The apps can create sessions, send prompts, and pause, stop, or continue work.

@@ -62,6 +62,10 @@ without leaving the window you are in.
     <h3>Settings</h3>
     <p>Connected devices, hub health, sync, restart, data files, and one-click pairing.</p>
   </div>
+  <div className="featureCard">
+    <h3>Agent tools (MCP)</h3>
+    <p>A local MCP server exposes projects, sessions, tasks, terminals, host status, VMs, deployments, and usage to an agent — 95 tools over the same hub token.</p>
+  </div>
 </div>
 
 ## How the pieces fit
@@ -90,6 +94,7 @@ stopped or moves to a new port.
 - [Run the iOS app](getting-started/ios-app.md) — simulator or a physical iPhone/iPad.
 - [Pair the apps](getting-started/pairing.md) — connect the phone to the hub.
 - [Hub API reference](hub/api.md) — every endpoint, auth, and device headers.
+- [Agent tools (MCP)](hub/mcp.md) — give an agent the same hub features through 95 local tools.
 
 ## A closer look
 

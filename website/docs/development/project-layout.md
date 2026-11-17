@@ -183,6 +183,10 @@ server/                           Bun + TypeScript + SQLite hub
   src/projectIcon.ts              project app icon discovery
   src/api.ts                      HTTP routes
   src/api/                        request helpers and SSE clients
+  src/mcp/server.ts               stdio MCP server registration and instructions
+  src/mcp/hub.ts                  hub discovery and authenticated API client
+  src/mcp/tools/                  one MCP tool module per feature area
+  src/mcp/websocket.ts            bounded terminal and VM-console streams
   test/                           Bun tests
 
 website/                          Docusaurus documentation site

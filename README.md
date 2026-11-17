@@ -641,22 +641,52 @@ run Tailscale on both devices and pair with the Mac's Tailscale IP instead.
 
 ### Agent tools (MCP)
 
-`opencode.json` registers a local MCP server, `opencodebar`, that wraps the
-hub's project and session endpoints. With the hub running (`make hub`), ask an
-OpenCode agent in this repository to start work by name:
+`opencode.json` registers a local MCP server, `opencodebar`, that exposes the
+hub's full feature set to an agent: projects, sessions, tasks, terminal
+sessions, host files, system status, remote-desktop configuration, NixOS
+virtual machines, deployments, settings, usage, and sync. With the hub running
+(`make hub`), ask an OpenCode agent in this repository to do real work by name:
 
 > create a new session in project ai-tools implementing the command bar
 
-The agent resolves the project name or path, creates a session in that checkout,
-and sends the prompt. It exposes `list_projects`, `create_session`,
-`list_sessions`, `get_session`, and `send_prompt`; with OpenCode's default Code
-Mode the tools are grouped under `tools.opencodebar`. Run the server by hand
-with `cd server && bun run mcp`. It reads the hub URL and token from the same
-pairing file as the apps, and `$OPENCODEBAR_HUB_URL` /
-`$OPENCODEBAR_HUB_TOKEN` override them.
+The agent resolves the project name or path, creates a session in that
+checkout, and sends the prompt. It can then follow the work with
+`list_sessions`, `get_session`, `list_session_messages`, `get_session_changes`,
+`get_session_stats`, and `send_prompt`, or hold it with `pause_session` and
+`stop_session` and resume it with `continue_session`.
 
-Free-form command-bar text can be handed to the same agent instead of opening
-a result: press **⌘↵** (or click **Ask agent**) and the text, including its `@`
+The server registers 95 tools. They are grouped by feature area:
+
+| Area | What the tools cover |
+| --- | --- |
+| Hub | Health, server info, devices, settings, usage, global and project stats, sync feed and force-sync, session search, and a generic `hub_request` escape hatch |
+| Projects | Project lookup, aggregated changes, file tree, Git graph, GitHub Actions flows, scripts and script runs, project briefs, repository listing, clone, and worktrees |
+| Sessions | Create, list, read, prompt, queue, schedule, withdraw, pause, stop, continue, fork, switch model or agent, subagents, forks, messages, changes, Git, stats, pending prompts, and waiting forms |
+| Tasks | The session-backed task board, labels, queue state, and done/reopen/dismiss actions |
+| Terminals | List, start, rename, resize, close, read output, type input, and Terminal.app tabs with command and focus actions |
+| Host | Read-only file browser, system snapshot, app details and actions, media controls, and remote-desktop status, configuration, and permissions |
+| Virtual machines | List, create, update, remove, start/stop/restart/pause/resume/rebuild/apply, capabilities, catalog, previews, logs, serial console, and host setup jobs |
+| Deployments | Installed iOS builds, device scans, OTA build listing, build progress, and starting a new OTA build |
+
+The same project can be named by display name, folder name, id, or absolute
+path. Ambiguous names return every candidate instead of guessing. Tools that
+mutate state (`create_session`, `send_prompt`, `remove_vm`, `restart_hub`, and
+the rest) are separate from read-only tools, and the MCP tool annotations mark
+the destructive ones. `hub_request` accepts any `/api/` path that returns JSON,
+so a new hub endpoint remains reachable before it gets a dedicated wrapper; it
+refuses SSE, WebSocket, icon, raw-file, and OTA-download routes.
+
+`read_terminal`, `send_terminal_input`, and `read_vm_console` attach to the
+hub's WebSocket proxies for a bounded window, so an agent can inspect a PTY or a
+guest serial console without a separate client. The remote-desktop frame stream
+and signed OTA downloads stay in the apps: they are media/binary flows, not
+agent actions.
+
+Run the server by hand with `make mcp` (or `cd server && bun run mcp`). It reads
+the hub URL and token from the same pairing file as the apps, and
+`$OPENCODEBAR_HUB_URL` / `$OPENCODEBAR_HUB_TOKEN` override them. Free-form
+command-bar text can be handed to the same agent instead of opening a result:
+press **⌘↵** (or click **Ask agent**) and the text, including its `@`
 references, is sent to a persistent **Command bar** OpenCode session. Register
 the MCP server globally so that session has the tools from any project:
 
@@ -1193,6 +1223,10 @@ server/                       Bun + TypeScript + SQLite hub
   src/projectIcon.ts          project app icon discovery and rendering
   src/api.ts                  HTTP routes
   src/api/                    request helpers and SSE clients
+  src/mcp/server.ts           stdio MCP server registration and instructions
+  src/mcp/hub.ts              hub discovery and authenticated API client
+  src/mcp/tools/              one MCP tool module per feature area
+  src/mcp/websocket.ts        bounded terminal and VM-console streams
   test/                       Bun tests for the database and API
 
 website/                      Docusaurus documentation site

@@ -1,4 +1,4 @@
-.PHONY: build test app install uninstall run desktop restart watch preview shots sheet-shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-ota mobile-variants mobile-icon bench
+.PHONY: build test app install uninstall run desktop restart watch preview shots sheet-shots site docs docs-build docs-serve openapi clean icon icon-classic web-icons hub hub-dev hub-test hub-tunnel mcp remote-host vz-helper mobile-project mobile-build mobile-run mobile-device mobile-ota mobile-variants mobile-icon bench
 
 # Compile the Swift package (debug).
 build:
@@ -138,6 +138,11 @@ hub: remote-host vz-helper
 # Hub with auto-reload while developing.
 hub-dev: remote-host vz-helper
 	cd server && bun run dev
+
+# Run the MCP server over stdio. MCP clients start it themselves; this target is
+# for a manual check or for a client configured with `make mcp`.
+mcp:
+	cd server && bun install && bun run mcp
 
 # Hub unit tests (Bun).
 hub-test:

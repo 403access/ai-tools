@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenCodeBar — OpenCode in your menu bar and pocket</title>
-<meta name="description" content="Native macOS and iPhone/iPad apps for OpenCode. Watch running sessions live, read and reply in any conversation, pause or stop work, start new sessions, inspect file changes and tool stats, and track usage — synced through a local SQLite hub.">
+<meta name="description" content="Native macOS and iPhone/iPad apps for OpenCode. Watch running sessions live, read and reply in any conversation, pause or stop work, start new sessions, inspect file changes and tool stats, track usage, and drive the whole hub from an agent through a local MCP server — synced through a local SQLite hub.">
 <meta name="theme-color" content="#080b0a">
 <link rel="icon" href="assets/logo.png" type="image/png">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -12,7 +12,7 @@
 
 <meta property="og:type" content="website">
 <meta property="og:title" content="OpenCodeBar — OpenCode in your menu bar and pocket">
-<meta property="og:description" content="A native macOS menu bar app and iPhone/iPad app for OpenCode. Live sessions, prompts, pause and continue, new sessions, file changes, tool stats, per-project analytics, and Go plan limits — synced through a local hub.">
+<meta property="og:description" content="A native macOS menu bar app and iPhone/iPad app for OpenCode. Live sessions, prompts, pause and continue, new sessions, file changes, tool stats, per-project analytics, Go plan limits, and a local MCP server for agent automation — synced through a local hub.">
 <meta property="og:image" content="https://403access.github.io/ai-tools/screenshots/live.png">
 <meta name="twitter:card" content="summary_large_image">
 
@@ -31,6 +31,7 @@
       <a href="#screenshots">Screenshots</a>
       <a href="#iphone">iPhone</a>
       <a href="#hub">Hub</a>
+      <a href="#mcp">MCP</a>
       <a href="#install">Install</a>
       <a href="https://403access.github.io/ai-tools/docs/">Docs</a>
     </nav>
@@ -175,6 +176,12 @@
           <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/><path d="M4.5 11.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg></span>
           <h3>Shared hub</h3>
           <p>A Bun + SQLite hub ingests OpenCode once and serves both apps behind a Bearer token. Sessions, messages, changes, stats, and plan limits stay cached — so the phone, and the Mac when OpenCode is stopped, still have history.</p>
+        </article>
+
+        <article class="card tone-purple reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v4M16 3v4"/><rect x="4" y="7" width="16" height="10" rx="3"/><path d="M9 12h6M9 15h3"/></svg></span>
+          <h3>Agent tools (MCP)</h3>
+          <p>A local MCP server exposes 95 tools over the same hub token: projects, sessions, tasks, terminals, host files and vitals, remote-desktop settings, NixOS VMs, deployments, usage, and sync. An agent can start work, follow it, and resolve the task board without a separate client.</p>
         </article>
 
         <article class="card tone-purple reveal">
@@ -414,6 +421,82 @@
     </div>
   </section>
 
+  <!-- MCP -->
+  <section class="section" id="mcp">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Agent automation</span>
+        <h2>The whole hub, as 95 tools</h2>
+        <p>OpenCodeBar ships a local Model Context Protocol server. A coding agent on the same Mac can resolve a
+          project, start a session, follow its conversation, read its patches and stats, type into a terminal, or
+          manage a NixOS guest — all through the hub's existing token and cache.</p>
+      </div>
+
+      <div class="grid features">
+        <article class="card reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/></svg></span>
+          <h3>Start work by name</h3>
+          <p>Projects, sessions, tasks and creation. Say “create a session in ai-tools implementing the command bar” and the agent resolves the checkout, picks the model or agent, and sends the prompt.</p>
+        </article>
+        <article class="card tone-blue reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/><path d="m20.5 18.5 2 2"/></svg></span>
+          <h3>Read and resolve</h3>
+          <p>Messages, changes, Git, stats, subagents, forks, pending prompts, forms, and the task board. Reads come from the hub cache, so they keep working when OpenCode is offline.</p>
+        </article>
+        <article class="card tone-amber reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="15" rx="2.5"/><path d="M7 9l3 2.8-3 2.8M12.5 15h4.5"/></svg></span>
+          <h3>Terminals and host</h3>
+          <p>List, start and type into OpenCode PTYs, mirror Terminal.app tabs, browse host files, read the system snapshot, control media, and adjust remote-desktop capture.</p>
+        </article>
+        <article class="card tone-purple reveal">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3" width="17" height="7" rx="2"/><rect x="3.5" y="14" width="17" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6"/></svg></span>
+          <h3>VMs and deployments</h3>
+          <p>Create, start, stop, rebuild and preview NixOS guests, read logs and the serial console, run host setup, inspect installs, and start an OTA build — all from the agent.</p>
+        </article>
+      </div>
+
+      <div class="install-grid">
+        <ol class="steps reveal">
+          <li>
+            <h3>Start the hub</h3>
+            <p><code>make hub</code> writes the URL and token to <code>~/.config/opencode/opencodebar-hub.json</code>. The MCP server finds it without extra configuration.</p>
+          </li>
+          <li>
+            <h3>Register the server</h3>
+            <p>This repository's <code>opencode.json</code> enables it for sessions opened here. Add <code>--global</code> to make the tools available from any project.</p>
+          </li>
+          <li>
+            <h3>Ask for real work</h3>
+            <p>The agent gets read-only and destructive tools with MCP annotations, plus <code>hub_request</code> as a JSON escape hatch. Streaming and binary routes stay in the apps.</p>
+          </li>
+        </ol>
+
+        <div class="reveal">
+          <div class="term">
+            <div class="term-bar">
+              <span class="lights"><span class="tl red"></span><span class="tl yellow"></span><span class="tl green"></span></span>
+              <span>zsh — agent tools</span>
+            </div>
+            <pre><span class="cmd">$</span> make hub
+<span class="cmd">$</span> opencode mcp add opencodebar --global -- bun "$PWD/server/src/mcp/server.ts"
+
+<span class="comment"># then, in any OpenCode session:</span>
+<span class="cmd">›</span> create a session in ai-tools that fixes
+  the flaky MCP test, then show me the files
+  it changed and mark the task done</pre>
+          </div>
+          <ul class="reqs">
+            <li>95 local tools</li>
+            <li>Same hub token</li>
+            <li>Read-only + write tools</li>
+            <li>Terminal &amp; VM streams</li>
+            <li><a href="https://403access.github.io/ai-tools/docs/hub/mcp">MCP guide →</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Install -->
   <section class="section" id="install">
     <div class="wrap">
@@ -496,8 +579,8 @@ make mobile-run"><span class="cmd">$</span> git clone https://github.com/403acce
         </article>
         <article class="card reveal">
           <div class="num">03</div>
-          <h3>Serves both apps</h3>
-          <p>A stable, mirrored API sits behind a Bearer token. The Mac auto-discovers the hub; the phone pairs with a URL, token, deep link, or QR code.</p>
+          <h3>Serves apps and agents</h3>
+          <p>A stable, mirrored API sits behind a Bearer token. The Mac auto-discovers the hub; the phone pairs with a URL, token, deep link, or QR code. The local MCP server uses the same API and token to give an agent 95 tools.</p>
         </article>
         <article class="card reveal">
           <div class="num">04</div>
@@ -519,6 +602,7 @@ make mobile-run"><span class="cmd">$</span> git clone https://github.com/403acce
     <p>Watch, prompt, and start OpenCode sessions from your Mac and iPhone. Built for OpenCode.</p>
     <nav class="links">
       <a href="https://403access.github.io/ai-tools/docs/">Docs</a>
+      <a href="https://403access.github.io/ai-tools/docs/hub/mcp">MCP</a>
       <a href="https://github.com/403access/ai-tools" target="_blank" rel="noopener">GitHub</a>
       <a href="https://github.com/403access/ai-tools/blob/main/NOTES.md" target="_blank" rel="noopener">Notes</a>
       <a href="https://opencode.ai" target="_blank" rel="noopener">OpenCode</a>

@@ -97,8 +97,9 @@ export function discoverHub(env: NodeJS.ProcessEnv = process.env): HubLocation {
 }
 
 /**
- * Thin client for the hub's HTTP API. Only the endpoints the MCP tools need are
- * wrapped here; everything else stays with the apps and the hub itself.
+ * Thin client for the hub's HTTP API. `request` is the shared transport for
+ * every route, and the small helpers below cover the flows the apps and MCP
+ * tools use most.
  */
 export class HubClient {
   readonly location: HubLocation;
@@ -109,7 +110,11 @@ export class HubClient {
     this.fetchImpl = fetchImpl;
   }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  /**
+   * One authenticated request to the hub. Every tool goes through here so the
+   * token, timeout, and error shape stay consistent.
+   */
+  async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const url = `${this.location.url}${path}`;
     let response: Response;
     try {
@@ -150,6 +155,54 @@ export class HubClient {
     }
 
     return payload as T;
+  }
+
+  async get<T>(path: string): Promise<T> {
+    return this.request<T>(path);
+  }
+
+  async post<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: "POST",
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  }
+
+  async put<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: "PUT",
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  }
+
+  async patch<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: "PATCH",
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  }
+
+  async delete<T>(path: string): Promise<T> {
+    return this.request<T>(path, { method: "DELETE" });
+  }
+
+  /**
+   * WebSocket URL for a hub stream. The token goes in the query string because
+   * WebSocket clients cannot always set an Authorization header (the browser
+   * and URLSession paths both support it, but the query form works everywhere).
+   */
+  socketURL(
+    path: string,
+    params: Record<string, string | number | boolean | undefined> = {},
+  ): string {
+    const base = this.location.url.replace(/^http/i, "ws").replace(/\/+$/, "");
+    const url = new URL(`${base}${path.startsWith("/") ? path : `/${path}`}`);
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined || value === false) continue;
+      url.searchParams.set(key, String(value));
+    }
+    url.searchParams.set("token", this.location.token);
+    return url.toString();
   }
 
   async projects(): Promise<Project[]> {
@@ -196,10 +249,17 @@ export class HubClient {
     id: string,
     text: string,
     delivery?: "queue" | "steer",
+    options: { startAt?: number; forMs?: number; files?: unknown[] } = {},
   ): Promise<void> {
     await this.request(`/api/session/${encodeURIComponent(id)}/prompt`, {
       method: "POST",
-      body: JSON.stringify(delivery ? { text, delivery } : { text }),
+      body: JSON.stringify({
+        text,
+        ...(delivery ? { delivery } : {}),
+        ...(options.startAt !== undefined ? { startAt: options.startAt } : {}),
+        ...(options.forMs !== undefined ? { forMs: options.forMs } : {}),
+        ...(options.files?.length ? { files: options.files } : {}),
+      }),
     });
   }
 }

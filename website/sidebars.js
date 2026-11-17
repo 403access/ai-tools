@@ -40,6 +40,7 @@ const sidebars = {
         'hub/architecture',
         'hub/configuration',
         'hub/api',
+        'hub/mcp',
         'hub/security',
         'hub/go-usage',
       ],

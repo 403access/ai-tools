@@ -1,6 +1,6 @@
 ---
 title: Go plan usage
-sidebar_position: 5
+sidebar_position: 6
 ---
 
 # Go plan usage

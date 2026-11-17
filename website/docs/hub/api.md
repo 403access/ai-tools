@@ -41,6 +41,22 @@ is generated from the hub source during the docs build and is reference-only —
 executing requests needs a running hub, so use the `/api/docs` URL printed by
 `make hub` for that.
 
+## Agent access (MCP)
+
+The repository also ships a local MCP server, `opencodebar`, that wraps this
+API for agents. It exposes dedicated tools for projects, sessions, tasks,
+terminals, host files and system status, virtual machines, deployments,
+settings, usage, and sync, plus `hub_request` for any JSON `/api/` route that
+does not have a dedicated wrapper. Streaming and binary routes are deliberately
+excluded from `hub_request`:
+
+- use the terminal tools for `/api/terminals/{id}/socket`
+- use `read_vm_console` for `/api/vms/{id}/console/socket`
+- the remote-desktop frame socket and OTA downloads remain client-only
+
+See [Agent tools (MCP)](mcp.md) for setup, the full tool list, examples, and
+security notes.
+
 ## Authentication
 
 Every endpoint except `GET /api/ping`, `GET /api/docs`, and

@@ -100,6 +100,11 @@ const config = {
             position: 'left',
           },
           {
+            to: '/hub/mcp',
+            label: 'MCP',
+            position: 'left',
+          },
+          {
             to: 'https://403access.github.io/ai-tools/',
             label: 'Website',
             position: 'left',
@@ -120,6 +125,7 @@ const config = {
               { label: 'Getting started', to: '/getting-started/requirements' },
               { label: 'Using the apps', to: '/using/tasks' },
               { label: 'Hub reference', to: '/hub/architecture' },
+              { label: 'Agent tools (MCP)', to: '/hub/mcp' },
             ],
           },
           {

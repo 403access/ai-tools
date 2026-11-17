@@ -22,6 +22,7 @@ sidebar_position: 2
 | `make hub-dev` | Hub with auto-reload |
 | `make hub-test` | Bun hub tests |
 | `make hub-tunnel` | Expose the running hub through a Cloudflare quick tunnel |
+| `make mcp` | Run the MCP server over stdio for a manual check |
 | `make remote-host` | Build the ScreenCaptureKit remote-desktop helper |
 | `make vz-helper` | Build and sign the Virtualization.framework VM helper |
 | `make mobile-project` | Generate the iOS Xcode project |
@@ -158,3 +159,14 @@ hub and prints the public URL plus a pairing link. It also writes
 `~/.config/opencode/opencodebar-hub-tunnel.json` (owner-only) for automatic
 pairing. The URL stops working when you press Ctrl-C. Requires `cloudflared`
 (`brew install cloudflared`).
+
+## `make mcp`
+
+```bash
+make mcp
+```
+
+Starts the MCP server over stdio after installing the Bun dependencies. MCP
+clients normally launch `server/src/mcp/server.ts` themselves; this target is
+for a manual check and for clients configured with `make mcp`. See
+[Agent tools (MCP)](../hub/mcp.md).
