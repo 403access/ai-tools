@@ -655,6 +655,11 @@ checkout, and sends the prompt. It can then follow the work with
 `get_session_stats`, and `send_prompt`, or hold it with `pause_session` and
 `stop_session` and resume it with `continue_session`.
 
+**Settings → MCP servers** lists the servers found in OpenCode's global and
+repository configs, flags the OpenCodeBar server when it is registered, and
+copies the global registration command. The card reads the files but never
+rewrites them; OpenCode remains the owner of the configuration.
+
 The server registers 95 tools. They are grouped by feature area:
 
 | Area | What the tools cover |
@@ -1045,6 +1050,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     VirtualMachinesStore.swift shared VM list, polling, actions, and logs
     NixOSBuilderModel.swift  dependency resolution, presets, users, and preview (shared)
     HostTerminalMirror.swift  Terminal.app text mirror and command input (shared)
+    MCPServers.swift          MCP server discovery from OpenCode config files
   Support/
     QRCode.swift            pairing QR rendering
   Models/                   Codable models, split by domain (shared)
@@ -1114,6 +1120,7 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     SettingsDeviceRow.swift           device row in the connected list
     SettingsDeviceDetail.swift        status, timestamps and identity for one device
     SettingsDeveloperSection.swift    live API/sync/event activity log
+    SettingsMCPSection.swift          MCP server list, registration command and config reveal
     SessionStatsView.swift  per-session reliability and failures
     SubagentViews.swift     tap-through child-session tree
   Preview/PreviewRunner.swift

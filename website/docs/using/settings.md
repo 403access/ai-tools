@@ -52,6 +52,30 @@ process is detached from the menu bar app, and its output is appended to
 
 The Mac and iOS apps reconnect automatically after a restart or a manual start.
 
+### MCP servers
+
+The MCP servers card lists the servers OpenCode will start for an agent. It
+reads `opencode.json` and `opencode.jsonc` from OpenCode's global config folder
+and from the repository checkout that contains the hub, plus
+`.opencode/opencode.json`. For each entry it shows the name, local or remote
+transport, the command or URL, and which config file supplied it.
+
+The card flags the OpenCodeBar server when it is registered and shows whether
+the global config is missing it. Actions:
+
+| Action | What it does |
+| --- | --- |
+| **Refresh** | Reads the config files again after an edit |
+| **Copy command** | Copies `opencode mcp add opencodebar --global -- bun …` |
+| **MCP guide** | Opens [Agent tools (MCP)](../hub/mcp.md) |
+| **Show config** | Reveals the first config file in Finder |
+
+The card never edits OpenCode's config. Add or remove servers with OpenCode's
+own tooling or by editing the file, then refresh. OpenCode may need a restart
+before new tools appear in an existing session. The OpenCodeBar server itself
+uses the hub token from `opencodebar-hub.json`; see
+[Agent tools (MCP)](../hub/mcp.md) for the tool list and safety notes.
+
 ### Devices
 
 Every app connected to the hub appears with its name, platform, app version,
@@ -114,6 +138,10 @@ The iOS Settings screen includes:
   requests, syncs, event-stream changes, and errors, with filters and a copy
   action.
 - **Remove hub configuration** — clears the URL and token from the device.
+
+MCP servers are configured on the Mac. Use **Settings → MCP servers** in the Mac
+app to inspect the entries, copy the OpenCodeBar registration command, or open
+the config in Finder. See [Agent tools (MCP)](../hub/mcp.md).
 
 The iOS app does not expose the Mac's server restart or reveal-file controls.
 

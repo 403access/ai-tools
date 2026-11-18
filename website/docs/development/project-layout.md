@@ -32,6 +32,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     VMConsoleConnection.swift     serial-console WebSocket client (shared)
     VirtualMachinesStore.swift    shared VM list, polling, actions, and logs
     HostTerminalMirror.swift      Terminal.app text mirror and commands (shared)
+    MCPServers.swift              MCP server discovery from OpenCode config files
   Models/                         Codable models, events, activity, ordering
     TokenUsage.swift              token/model primitives
     Session.swift                 sessions and projects
@@ -72,6 +73,7 @@ Sources/OpenCodeBar/              macOS menu bar app (SwiftPM)
     SettingsDeploymentDetail.swift    one device: installed now + history
     DeploymentRows.swift          device/build/install rows
     SettingsDeveloperSection.swift  live API/sync/event activity log
+    SettingsMCPSection.swift        MCP server list, registration command and config reveal
     NewSessionSheet.swift         create a session with a first prompt
     SessionStatsView.swift        per-session reliability and failures
     ChangeViews.swift             patch cards and diffs

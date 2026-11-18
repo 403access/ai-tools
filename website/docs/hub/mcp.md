@@ -42,6 +42,12 @@ sessions opened in this checkout:
 }
 ```
 
+The Mac app's **Settings → MCP servers** card lists the servers found in the
+global config and the repository checkout. It flags the OpenCodeBar server when
+it is registered, copies the global registration command, opens the config in
+Finder, and links back to this guide. The card is read-only: edit the config or
+use `opencode mcp add`, then refresh the card or restart OpenCode.
+
 Run it by hand to check the connection:
 
 ```sh

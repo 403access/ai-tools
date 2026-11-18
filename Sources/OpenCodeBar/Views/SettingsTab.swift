@@ -41,16 +41,16 @@ struct SettingsTab: View {
             case 3:
                 HStack(alignment: .top, spacing: 14) {
                     column([.app, .power, .connection, .pairing])
-                    column([.server, .agents, .updates, .devices])
+                    column([.server, .agents, .mcp, .updates, .devices])
                     column([.deployments, .developer])
                 }
             case 2:
                 HStack(alignment: .top, spacing: 14) {
                     column([.app, .power, .connection, .pairing, .deployments])
-                    column([.server, .agents, .updates, .devices, .developer])
+                    column([.server, .agents, .mcp, .updates, .devices, .developer])
                 }
             default:
-                column([.app, .power, .server, .agents, .updates, .devices, .deployments, .pairing, .connection, .developer])
+                column([.app, .power, .server, .agents, .mcp, .updates, .devices, .deployments, .pairing, .connection, .developer])
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -73,7 +73,7 @@ struct SettingsTab: View {
     }
 
     private enum SettingsSection: Hashable {
-        case app, power, server, agents, updates, devices, deployments, pairing, connection, developer
+        case app, power, server, agents, mcp, updates, devices, deployments, pairing, connection, developer
     }
 
     private func column(_ sections: [SettingsSection]) -> some View {
@@ -92,6 +92,7 @@ struct SettingsTab: View {
         case .power: powerSection
         case .server: serverSection
         case .agents: agentsSection
+        case .mcp: SettingsMCPSection()
         case .updates: updatesSection
         case .devices: devicesSection
         case .deployments: deploymentsSection

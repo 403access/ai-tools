@@ -774,13 +774,27 @@ enum PreviewRunner {
             }
         }
 
+        // `--settings-mcp` renders the MCP servers card alone for design work
+        // and docs screenshots.
+        let wantsMCPSection = CommandLine.arguments.contains("--settings-mcp")
+
         // `--memory-process <pid>` and `--memory-group <name>` render the
         // drill-in pages so they can be inspected without clicking through.
         let memoryPID = value(after: "--memory-process", in: CommandLine.arguments).flatMap(Int.init)
         let memoryGroupName = value(after: "--memory-group", in: CommandLine.arguments)
 
         let root: AnyView
-        if wantsDeploymentsSection {
+        if wantsMCPSection {
+            root = AnyView(
+                ScrollView {
+                    SettingsMCPSection()
+                        .padding(12)
+                }
+                .frame(width: 420)
+                .frame(maxHeight: 760)
+                .background(Color(nsColor: ScreenshotRoot.background))
+            )
+        } else if wantsDeploymentsSection {
             root = AnyView(
                 ScrollView {
                     SettingsDeploymentsSection()
@@ -853,6 +867,7 @@ enum PreviewRunner {
             || wantsDeviceDetail
             || wantsDeploymentDetail
             || wantsDeploymentsSection
+            || wantsMCPSection
             || wantsSettings
             || wantsFiles
             || wantsTerminal
