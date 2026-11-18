@@ -193,6 +193,7 @@ final class AppState: ObservableObject {
     /// tab reads as a dashboard instead of one long scroll.
     enum UsageMode: String, CaseIterable, Identifiable {
         case overview = "Overview"
+        case insights = "Insights"
         case activity = "Activity"
         case breakdown = "Breakdown"
         case tools = "Tools"
@@ -202,6 +203,7 @@ final class AppState: ObservableObject {
         var icon: String {
             switch self {
             case .overview: return "rectangle.grid.2x2"
+            case .insights: return "chart.line.uptrend.xyaxis"
             case .activity: return "square.grid.3x3"
             case .breakdown: return "chart.pie"
             case .tools: return "wrench.and.screwdriver"

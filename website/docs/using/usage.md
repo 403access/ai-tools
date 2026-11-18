@@ -43,9 +43,28 @@ part of the usage endpoint, so OpenCodeBar does not show them.
 ## Trends
 
 An interactive daily chart for **steps**, **cost**, or **tokens** across the
-last 30 / 90 / 365 days or all time. Steps come from the stats API's daily
+last 7 / 30 / 90 / 365 days or all time. Steps come from the stats API's daily
 activity; cost and tokens are grouped from the session list by the day a
 session was last updated.
+
+## Insights
+
+The **Insights** page shows where usage comes from and when it happens, using
+the same 7 / 30 / 90 / 365 day or all-time windows:
+
+- **Usage pulse** — cost, tokens, steps, and sessions with a delta against the
+  previous equal-length window, plus active days and subagents.
+- **Providers** — a ranked share of spend and tokens for each model provider.
+- **Projects** — a ranked share of spend, tokens, and session counts per
+  project.
+- **Weekday rhythm** — a weekday chart that switches between steps and cost,
+  with the busiest day and per-weekday average.
+- **Time of day** — session starts by hour, plus a weekday × hour punch-card
+  heatmap.
+
+Provider, project, weekday, and hour cards use the sessions loaded by the app;
+daily steps come from the full stats history. The chosen window and weekday
+metric are remembered across launches.
 
 ## Projects by cost
 

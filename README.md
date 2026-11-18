@@ -276,12 +276,18 @@ iOS app:
 - Usage numbers and plan limits are cached on disk, so the tab keeps showing the
   last known values — flagged as stale — when the service or the API is
   unreachable.
-- A segmented picker splits the dashboard into four pages so the panel is not
+- A segmented picker splits the dashboard into five pages so the panel is not
   one long scroll:
   - **Overview** — streak, active days, today's steps, prompts, sessions, total
     cost, tokens, tool calls, and subagents, followed by the daily trend chart
-    for steps, cost, or tokens across the last 30 / 90 / 365 days or all time.
-    The token and tool-call tiles jump to their pages.
+    for steps, cost, or tokens across the last 7 / 30 / 90 / 365 days or all
+    time. The token and tool-call tiles jump to their pages.
+  - **Insights** — a timeframe-aware patterns dashboard with the same 7 / 30 /
+    90 / 365 day or all-time windows. It compares cost, tokens, steps and
+    sessions with the previous equal period, ranks providers and projects,
+    breaks activity down by weekday with a steps/cost toggle, plots session
+    starts by hour, and draws a weekday × hour punch card heatmap. The chosen
+    window and weekday metric survive tab switches and relaunches.
   - **Activity** — a GitHub-style heatmap of daily agent steps and top projects
     by cost, with the same selectable windows.
   - **Breakdown** — token mix (input / output / reasoning / cache read / cache
@@ -1057,6 +1063,8 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     TokenUsage.swift        token/model primitives
     Session.swift           sessions and projects
     Stats.swift             aggregate and per-session statistics
+    UsageSeries.swift       daily usage series and selectable windows
+    UsageAnalytics.swift    provider, project, weekday and hour aggregations
     Messages.swift          messages, parts and pending prompts
     Catalog.swift           OpenCode model/agent catalogs and failed-turn lookup
     Changes.swift           file patches and grouping
@@ -1103,6 +1111,9 @@ Sources/OpenCodeBar/          macOS menu bar app (SwiftPM)
     ProjectDetailAnalytics.swift      scoped at-a-glance stats
     ProjectStructureView.swift        project map, edges and node details
     ProjectSessions.swift             recent-session rows
+    UsageTab.swift                    usage dashboard pages and plan limits
+    UsageCharts.swift                 trend and project spend charts
+    UsageInsights.swift               provider, weekday, hour and punch-card cards
     GitViews.swift                    session commits and project commit graph
     FlowsViews.swift                  project scripts plus GitHub Actions stages, jobs and checks
     SettingsTab.swift       connected devices and server controls
@@ -1293,8 +1304,8 @@ Tests/OpenCodeBarTests/       Swift tests (event folding, ordering)
 - `--preview` runs the panel in a regular window instead of the menu bar
   popover, which makes screenshots and layout iteration easy.
   `--preview --tab usage` opens the Usage tab directly. Add
-  `--usage-mode overview|activity|breakdown|tools` to open a specific Usage
-  page.
+  `--usage-mode overview|insights|activity|breakdown|tools` to open a specific
+  Usage page.
 - `--screenshot <path>` renders the panel offscreen to a PNG and exits.
   `--screenshot out.png --scale 2 --tab usage` produces a 2x image for the
   website and README. Add `--detail` (optionally `--detail-mode prompts`,

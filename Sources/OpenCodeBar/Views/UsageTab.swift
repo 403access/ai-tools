@@ -48,6 +48,8 @@ struct UsageTab: View {
                                 switch state.usageMode {
                                 case .overview:
                                     overview(stats)
+                                case .insights:
+                                    insights(stats)
                                 case .activity:
                                     activity(stats)
                                 case .breakdown:
@@ -142,6 +144,14 @@ struct UsageTab: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
+
+            SectionHeader("Insights")
+            UsageInsightsView(
+                stats: stats,
+                sessions: state.history,
+                projects: state.projects,
+                availableWidth: contentWidth
+            )
         }
     }
 
@@ -237,6 +247,21 @@ struct UsageTab: View {
         Group {
             tokenMix(stats)
             models(stats)
+        }
+    }
+
+    /// Provider, project, weekday and hour-of-day patterns. The view keeps its
+    /// own window so switching pages does not reset the comparison the user is
+    /// reading.
+    private func insights(_ stats: Stats) -> some View {
+        Group {
+            SectionHeader("Insights")
+            UsageInsightsView(
+                stats: stats,
+                sessions: state.history,
+                projects: state.projects,
+                availableWidth: contentWidth
+            )
         }
     }
 
